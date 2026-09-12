@@ -26,6 +26,14 @@ ASK = re.compile(r'\?|\b(send me|tell me|share|message me|invite me|let me know|
 STOP = {'expert', 'specialist', 'and', 'the', 'for', 'with', 'developer', 'consultant',
         'freelancer', 'pro', 'professional', 'services', 'service', 'certified', 'top',
         'senior', 'your', 'you', 'from', 'into'}
+# A number that reads as a result: money, a percentage, a count with + or x, or a
+# count of something. Tool names like n8n or A2P and bare years are not results;
+# counting any digit made every automation profile pass the number checks.
+RESULT_NUMBER = re.compile(
+    r'\$\s?\d|\d\s?%|\d\+|\b\d+(\.\d+)?x\b|\b\d{1,3}(,\d{3})+\b|'
+    r'\b\d+\s?(?:[a-z-]+\s)?(hours?|hrs|clients?|leads?|projects?|jobs?|patients?|customers?|stores?|'
+    r'funnels?|sales|signups?|bookings?|calls?|days?|weeks?|months?|minutes?|times|'
+    r'stars?|reviews?)\b', re.I)
 OPENING = 250
 SKILLS_TARGET = 20
 SKILLS_PASS = 15
@@ -35,11 +43,19 @@ def clean(value):
     return TAG.sub('', value or '').strip()
 
 
-def normalize(profile, highlights):
-    """The fields the checks read, from the raw get_profile and list_highlights responses."""
+def normalize(profile, highlights=None):
+    """The fields the checks read, from the raw get_profile and list_highlights responses.
+
+    Your own profile sits under `data`; another freelancer's (read by profile_key)
+    under `data.talentProfileByProfileKey`. Highlights exist only for your own
+    profile, so without them portfolio and certificates are None: not measured,
+    which is different from empty.
+    """
     data = profile.get('data', {})
+    data = data.get('talentProfileByProfileKey', data)
     personal = data.get('personalData', {})
     return {
+        'name': f'{personal.get("firstName", "")} {personal.get("lastName", "")}'.strip(),
         'title': clean(personal.get('title')),
         'overview': clean(personal.get('description')),
         'rate': (personal.get('chargeRate') or {}).get('rawValue'),
@@ -47,8 +63,10 @@ def normalize(profile, highlights):
         'employment': data.get('employmentRecords', []),
         'education': data.get('educationRecords', []),
         'languages': profile.get('languages', []),
-        'portfolio': [clean(p.get('title')) for p in highlights.get('portfolio_projects', [])],
-        'certificates': highlights.get('certificates', []),
+        'aggregates': data.get('profileAggregates') or profile.get('profileAggregates') or {},
+        'portfolio': None if highlights is None else
+        [clean(p.get('title')) for p in highlights.get('portfolio_projects', [])],
+        'certificates': None if highlights is None else highlights.get('certificates', []),
     }
 
 
@@ -105,9 +123,12 @@ def run_checks(p):
     lower = overview.lower()
     blocks = [b for b in p['title'].split('|') if b.strip()]
     uncovered = [t for t in title_terms(p['title']) if not term_in_skills(t, p['skills'])]
-    numbered_lines = [l for l in overview.splitlines() if re.search(r'\d', l)]
+    numbered_lines = [l for l in overview.splitlines() if RESULT_NUMBER.search(l)]
+    opening_number = RESULT_NUMBER.search(opening)
     banned = [b for b in BANNED if b in lower]
-    outcome_titles = [t for t in p['portfolio'] if re.search(r'\d', t)]
+    portfolio = p['portfolio'] or []
+    certificates = p['certificates'] or []
+    outcome_titles = [t for t in portfolio if RESULT_NUMBER.search(t)]
     ending = overview[-400:]
 
     checks = [
@@ -119,7 +140,7 @@ def run_checks(p):
         ('opening_no_greeting', 'First line states what the client gets, not a greeting or "I am"',
          'top-earners', not GREETING.search(first_line), f'starts: "{first_line[:60]}"'),
         ('opening_has_number', 'A hard number within the first 250 characters', 'top-earners',
-         bool(re.search(r'\d', opening)), 'found' if re.search(r'\d', opening) else 'none'),
+         bool(opening_number), f'found: {opening_number.group(0)}' if opening_number else 'none'),
         ('results_with_numbers', 'At least three result lines carry a number', 'top-earners',
          len(numbered_lines) >= 3, f'{len(numbered_lines)} line(s) with a number'),
         ('no_banned_phrases', 'None of the phrases every top earner avoids', 'top-earners',
@@ -133,12 +154,12 @@ def run_checks(p):
         ('skills_count', f'At least {SKILLS_PASS} skills, ideally all {SKILLS_TARGET}', 'top-earners',
          len(p['skills']) >= SKILLS_PASS, f'{len(p["skills"])} skill(s)'),
         ('portfolio_count', 'At least two portfolio projects', 'upwork',
-         len(p['portfolio']) >= 2, f'{len(p["portfolio"])} project(s)'),
+         len(portfolio) >= 2, f'{len(portfolio)} project(s)'),
         ('portfolio_outcomes', 'At least half the portfolio titles name a measurable result',
-         'top-earners', bool(p['portfolio']) and len(outcome_titles) * 2 >= len(p['portfolio']),
-         f'{len(outcome_titles)} of {len(p["portfolio"])} carry a number'),
+         'top-earners', bool(portfolio) and len(outcome_titles) * 2 >= len(portfolio),
+         f'{len(outcome_titles)} of {len(portfolio)} carry a number'),
         ('certificates', 'At least one certificate', 'top-earners',
-         len(p['certificates']) >= 1, f'{len(p["certificates"])} certificate(s)'),
+         len(certificates) >= 1, f'{len(certificates)} certificate(s)'),
         ('rate_set', 'An hourly rate is set', 'upwork', bool(p['rate']), f'rate: {p["rate"] or "none"}'),
         ('complete', 'Employment, education and languages all filled in', 'upwork',
          bool(p['employment'] and p['education'] and p['languages']),

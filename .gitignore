@@ -9,6 +9,7 @@
 /data/
 /jobs/
 /audit-report.md
+/benchmark.md
 
 # Credentials, never
 .env

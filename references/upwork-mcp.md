@@ -13,7 +13,7 @@ Everything under "Measured" was called against a real account and produced the r
 ## Measured 14 August 2026: reading a profile
 
 - **`get_profile` action `get`, no key:** your own profile. Title, full overview text, skills, languages and proficiency, education, employment history, hourly rate, `profileAggregates` (earnings, job counts, feedback count), location, availability, profile URL.
-- **`get_profile` action `get` with a `profile_key`** (starts with `~`): another freelancer's public profile, same fields. Used to analyse three top earners.
+- **`get_profile` action `get` with a `profile_key`** (starts with `~`): another freelancer's public profile. Used to analyse three top earners. **Measured again 12 September 2026:** the fields sit under `data.talentProfileByProfileKey` instead of `data`, and `profileAggregates` adds the badge (`top_rated`), the earnings bucket ("$100K+") and `totalFeedback`. The key comes from any public profile URL, `upwork.com/freelancers/~0...`, which a web search for the profession returns without touching Upwork.
 - **`get_profile` action `list_highlights`:** portfolio projects (id and title) and certificates. Titles only, no contents.
 - **`get_profile` actions `transactions` and `connects_balance`:** present, untested.
 

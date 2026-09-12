@@ -1,5 +1,5 @@
 import { body, guard, json } from '@/lib/server/guard.mjs';
-import { ID } from '@/lib/server/root.mjs';
+import { ID, pyJson } from '@/lib/server/root.mjs';
 import { startApprovedReply } from '@/lib/server/runs.mjs';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +13,7 @@ export async function POST(req: Request) {
   const text = data?.text;
   if (!ID.test(job)) return json({ error: 'That job is not valid.' }, 400);
   if (typeof text !== 'string' || !text.trim()) return json({ error: 'The reply is empty.' }, 400);
+  if (!await pyJson('cockpit.py', ['job', job])) return json({ error: 'That job is not in the pipeline.' }, 404);
   try {
     return json({ run: startApprovedReply(job, text, data?.draft, data?.draft_set) });
   } catch (err) {

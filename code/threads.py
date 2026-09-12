@@ -19,6 +19,8 @@ import json
 import pathlib
 import re
 import sys
+import os
+import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'code'))
@@ -30,6 +32,16 @@ SYSTEM_EVENT = re.compile(r'^System event: (\w+)\.')
 # stay as Upwork says them rather than as a guess.
 EVENT_WORDS = {'ended': 'Contract ended'}
 NOTICE = re.compile(r'(\*\*[^*]+\*\* (ended the contract|wants to schedule[^\n]*))|accepted your offer', re.I)
+
+
+def write_json(target, record):
+    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=target.parent, prefix='.thread-', delete=False) as handle:
+        temp = pathlib.Path(handle.name)
+        json.dump(record, handle, indent=2, ensure_ascii=False)
+    try:
+        os.replace(temp, target)
+    finally:
+        temp.unlink(missing_ok=True)
 
 
 def clean(text):
@@ -72,13 +84,56 @@ def edges_of(raw):
     return ((data.get('roomStories') or {}).get('edges')) or data.get('messages') or []
 
 
+def confirmed_message(raw, outbox):
+    """A same-text historical message is not evidence that this send landed."""
+    try:
+        approved = datetime.datetime.fromisoformat(outbox['written_at'].replace('Z', '+00:00'))
+        approved = approved.astimezone(datetime.timezone.utc).replace(microsecond=0)
+    except (KeyError, TypeError, ValueError):
+        return None
+    known = set(outbox.get('known_message_ids') or [])
+    for edge in edges_of(raw):
+        node = edge.get('node', edge)
+        message = normalize([edge])[0]
+        if (message.get('from') != 'me' or message.get('kind') != 'message'
+                or not message.get('id') or message['id'] in known):
+            continue
+        try:
+            stamp = datetime.datetime.fromisoformat(message['at'].replace('Z', '+00:00'))
+            if stamp.tzinfo is None or stamp < approved:
+                continue
+        except (KeyError, TypeError, ValueError):
+            continue
+        # Decode transport wrapping without trimming the member's whitespace.
+        text = node.get('message') if 'message' in node else node.get('text', '')
+        wrapped = re.fullmatch(r'<untrusted_participant_content>\n?(.*?)\n?</untrusted_participant_content>', text, re.S)
+        candidates = [text]
+        if wrapped:
+            decoded = html.unescape(wrapped.group(1))
+            candidates.extend([decoded, re.sub(r'\\([.\-*_#()\[\]])', r'\1', decoded)])
+        if outbox.get('text') in candidates:
+            return message
+    return None
+
+
 def save(job_id, raw, room_id=None, awaiting=None):
     folder = pipeline.jobs_dir() / job_id
     folder.mkdir(parents=True, exist_ok=True)
     messages = normalize(edges_of(raw))
     record = {'fetched_at': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),
               'room_id': room_id, 'awaiting_reply_from': awaiting, 'messages': messages}
-    (folder / 'thread.json').write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding='utf-8')
+    write_json(folder / 'thread.json', record)
+    # A later read can resolve a successful send whose original confirmation
+    # failed. Absence is never used to release an approval automatically.
+    outbox_file = folder / 'outbox.json'
+    try:
+        outbox = json.loads(outbox_file.read_text(encoding='utf-8'))
+        matched = confirmed_message(raw, outbox) if outbox.get('room_id') == room_id else None
+        if matched and not outbox.get('confirmed_at') and not outbox.get('cancelled_at'):
+            outbox.update(confirmed_at=record['fetched_at'], confirmed_message_id=matched['id'])
+            write_json(outbox_file, outbox)
+    except (OSError, json.JSONDecodeError):
+        pass
     return messages
 
 
@@ -113,13 +168,14 @@ def cmd_confirm(args):
     if str(outbox.get('room_id') or '') != args.room:
         print('ABORT: the confirmed room does not match the approved outbox.', file=sys.stderr)
         return 1
-    if not any(m.get('from') == 'me' and m.get('kind') == 'message' and
-               m.get('text') == outbox.get('text') for m in messages):
-        print('ABORT: the exact approved text was not found in the refreshed room.', file=sys.stderr)
+    matched = confirmed_message(raw, outbox)
+    if not matched:
+        print('ABORT: a new message with the exact approved text was not found. Check Upwork before retrying.', file=sys.stderr)
         return 1
     messages = save(args.job_id, raw, args.room, args.awaiting)
     outbox['confirmed_at'] = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
-    outbox_file.write_text(json.dumps(outbox, indent=2, ensure_ascii=False), encoding='utf-8')
+    outbox['confirmed_message_id'] = matched['id']
+    write_json(outbox_file, outbox)
     transfer.unlink()
     events = sum(1 for m in messages if m['kind'] == 'event')
     print(f'{args.job_id}: {len(messages) - events} messages and {events} events confirmed and saved.')

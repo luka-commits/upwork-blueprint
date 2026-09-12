@@ -56,10 +56,10 @@ class ThreadsTest(unittest.TestCase):
             jobs.write_text(json.dumps([{'id': '123456'}]), encoding='utf-8')
             transfer = folder / '.thread-confirm.json'
             transfer.write_text(json.dumps({'messages': [
-                {'from': 'me', 'at': '2026-09-12T12:00:00Z', 'text': 'Thanks.'},
+                {'id': 'new-1', 'from': 'me', 'at': '2026-09-12T12:00:00Z', 'text': 'Thanks.'},
             ]}), encoding='utf-8')
             (folder / 'outbox.json').write_text(json.dumps({
-                'room_id': 'room-7', 'text': 'Thanks.',
+                'room_id': 'room-7', 'text': 'Thanks.', 'written_at': '2026-09-12T11:59:59Z', 'known_message_ids': [],
             }), encoding='utf-8')
             old_jobs, old_dir = os.environ.get('BLUEPRINT_JOBS'), os.environ.get('BLUEPRINT_JOBDIR')
             os.environ['BLUEPRINT_JOBS'], os.environ['BLUEPRINT_JOBDIR'] = str(jobs), str(jobdir)
@@ -81,6 +81,16 @@ class ThreadsTest(unittest.TestCase):
             self.assertFalse(transfer.exists())
             outbox = json.loads((folder / 'outbox.json').read_text(encoding='utf-8'))
             self.assertIn('confirmed_at', outbox)
+
+    def test_confirmation_requires_a_new_exact_message_after_approval(self):
+        outbox = {'text': '  Thanks.  ', 'written_at': '2026-09-12T12:00:00Z', 'known_message_ids': ['old']}
+        def message(id='new', at='2026-09-12T12:00:01Z', text='  Thanks.  ', side='me'):
+            return {'id': id, 'at': at, 'text': text, 'from': side}
+        self.assertIsNotNone(threads.confirmed_message([message()], outbox))
+        for item in (message(id='old'), message(at='2026-09-12T11:59:00Z'), message(text='Thanks.'), message(side='client')):
+            self.assertIsNone(threads.confirmed_message([item], outbox))
+        wrapped = node(20, '2026-09-12T12:00:01Z', '  Thanks.  ', side='freelancer')
+        self.assertIsNotNone(threads.confirmed_message([wrapped], outbox))
 
     def test_confirm_rejects_a_room_without_the_exact_approved_text(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -12,15 +12,16 @@ export async function POST(req: Request) {
   const name = String(data?.command || ''), job = String(data?.job || '');
   if (!available(name)) return json({ error: `/${name} is not built yet` }, 400);
   if (RUNNABLE[name].command === false) return json({ error: 'That run has a dedicated approval endpoint.' }, 400);
-  if (RUNNABLE[name].job && !ID.test(job)) return json({ error: 'this command needs a job' }, 400);
-  if (name === 'apply') {
+  const jobScoped = RUNNABLE[name].job || (RUNNABLE[name].optionalJob && !!job);
+  if (jobScoped && !ID.test(job)) return json({ error: 'this command needs a job' }, 400);
+  if (jobScoped) {
     const lead = await pyJson('cockpit.py', ['job', job]);
     if (!lead) return json({ error: 'That job is not in the pipeline.' }, 404);
-    const blocked = applicationPrerequisiteError(lead);
+    const blocked = name === 'apply' ? applicationPrerequisiteError(lead) : '';
     if (blocked) return json({ error: blocked }, 409);
   }
   try {
-    return json({ run: startRun(name, RUNNABLE[name].job ? job : null) });
+    return json({ run: startRun(name, jobScoped ? job : null) });
   } catch (err) {
     return json({ error: String((err as Error).message || err) }, 500);
   }

@@ -32,7 +32,7 @@ export function runPython(script, args) {
 export async function pyJson(script, args) {
   const r = await runPython(script, args);
   if (!r.ok) return null;
-  return JSON.parse(r.stdout);
+  try { return JSON.parse(r.stdout); } catch { return null; }
 }
 
 /** One call to the pipeline, answered in the words the script printed. */

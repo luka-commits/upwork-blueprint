@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 // The course order from CLAUDE.md, then anything else alphabetically.
-const PATH = ['audit', 'benchmark', 'profile', 'find-jobs', 'pitch-page', 'apply', 'inbox', 'reply', 'status', 'proposal', 'won', 'sync', 'cockpit'];
+const PATH = ['audit', 'benchmark', 'profile', 'find-jobs', 'pitch-page', 'loom-review', 'apply', 'inbox', 'reply', 'follow-up', 'call-prep', 'call-review', 'proposal', 'won', 'delivery', 'status', 'sync', 'cockpit'];
 
 export async function GET(req: Request) {
   const refused = guard(req);
@@ -20,7 +20,8 @@ export async function GET(req: Request) {
     const front = text.match(/^---\n([\s\S]*?)\n---/)?.[1] || '';
     const field = (key: string) => (front.match(new RegExp(`^${key}:\\s*(.*)$`, 'm'))?.[1] || '').replace(/^"|"$/g, '').trim();
     const spec = (RUNNABLE as Record<string, { job: boolean }>)[name];
-    return { name, description: field('description'), hint: field('argument-hint'), button: !!spec, needsJob: !!spec?.job };
+    const hint = field('argument-hint');
+    return { name, description: field('description'), hint, button: !!spec, needsJob: !!spec?.job || /^<job id>/i.test(hint) };
   }) : [];
   const rank = (n: string) => (PATH.indexOf(n) + 1 || 99);
   commands.sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));

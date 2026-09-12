@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 import { JOBS_DIR, ROOT } from './root.mjs';
+import { approvalHash } from './send-guard.mjs';
 
 const UPWORK_READ = ['mcp__upwork__upwork__list_accounts', 'mcp__upwork__upwork__find_jobs',
   'mcp__upwork__upwork__get_profile'];
@@ -28,6 +29,10 @@ export const RUNNABLE = {
   apply: { prompt: '/apply {job}', job: true,
     tools: [...FILES, ...UPWORK_READ, 'mcp__upwork__upwork__list_freelancer_proposals', 'mcp__upwork__upwork__manage_proposals'] },
   reply: { prompt: '/reply {job}', job: true, tools: [...FILES] },
+  'call-prep': { prompt: '/call-prep {job}', job: true, tools: [...FILES, ...UPWORK_READ] },
+  inbox: { prompt: '/inbox {job}', job: false, optionalJob: true, tools: [...FILES, 'mcp__upwork__upwork__list_accounts',
+    'mcp__upwork__upwork__get_messages', 'mcp__upwork__upwork__list_freelancer_proposals',
+    'mcp__upwork__upwork__list_offers', 'mcp__upwork__upwork__list_contracts'] },
   'send-reply': {
     command: false,
     job: true,
@@ -35,7 +40,7 @@ export const RUNNABLE = {
       + 'Call list_accounts exactly once to obtain the org_uid. Then use that org_uid plus the room_id and text from the outbox. '
       + 'Call send_message action send exactly once with that room_id and the text character for character. '
       + 'Do not rewrite, trim, summarize, quote or repeat the message in your output. Then call get_messages action list_messages for the same room, newest 30. '
-      + 'Confirm that one returned message from the freelancer has text exactly equal to the outbox text. If it does not, stop and report the failure without changing thread.json. '
+      + 'Confirm that a NEW returned message from the freelancer has text exactly equal to the outbox text. It must not be in known_message_ids and must be at or after written_at. Never retry the send, even after an error. If confirmation is uncertain, report that the member must check Upwork before trying again. '
       + 'If it does, write the complete get_messages response to jobs/{job}/.thread-confirm.json and run '
       + '`python3 code/threads.py confirm {job} --room <the exact room_id> --awaiting them`. '
       + 'Then run `python3 code/pipeline.py follow-up {job} sent` so an active sequence advances or completes. '
@@ -64,12 +69,21 @@ export function available(name) {
   return !!spec && (spec.command === false || fs.existsSync(path.join(ROOT, '.claude', 'commands', `${name}.md`)));
 }
 
+/** Installed interactive commands are available even when they cannot run
+ * headless. Copy handoffs must not be mistaken for missing functionality. */
+export function commandAvailability() {
+  const dir = path.join(ROOT, '.claude', 'commands');
+  try {
+    return Object.fromEntries(fs.readdirSync(dir).filter(file => file.endsWith('.md')).map(file => [file.slice(0, -3), true]));
+  } catch { return {}; }
+}
+
 /** Explain why an application run cannot start before its client materials exist. */
 export function applicationPrerequisiteError(job) {
   const files = (job?.files || []).map(file => typeof file === 'string' ? file : file?.name);
   const missing = [];
   if (!files.includes('pitch.html')) missing.push('finish the Pitch page');
-  if (!String(job?.video || '').trim()) missing.push('add the Loom video link');
+  if (!/^https:\/\/(?:www\.)?(?:loom\.com\/share\/[^\s/?#]+|youtube\.com\/watch\?v=[^\s&#]+|youtu\.be\/[^\s/?#]+)/.test(String(job?.video || '').trim())) missing.push('add a valid Loom or YouTube video link');
   if (!missing.length) return '';
   const steps = missing.length === 2 ? `${missing[0]} and ${missing[1]}` : missing[0];
   return `First ${steps}. Then you can draft the application under Materials.`;
@@ -85,21 +99,57 @@ export function prepareApprovedReply(job, text, draft = null, draftSet = null) {
   const folder = path.join(JOBS_DIR, job);
   let thread;
   try { thread = JSON.parse(fs.readFileSync(path.join(folder, 'thread.json'), 'utf-8')); } catch { throw new Error('Sync this conversation before sending.'); }
+  const freshness = Date.parse(thread?.fetched_at || '') || fs.statSync(path.join(folder, 'thread.json')).mtimeMs;
+  if (Date.now() - freshness > 24 * 60 * 60 * 1000) throw new Error('This conversation is older than 24 hours. Sync it before sending.');
   const room = String(thread?.room_id || '').trim();
   if (!room) throw new Error('A freelancer cannot message first on a proposal. Wait for the client to reply.');
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.test(room)) throw new Error('The saved room id is invalid. Sync the conversation before sending.');
+  if (draftSet) {
+    let replies;
+    try { replies = JSON.parse(fs.readFileSync(path.join(folder, 'replies.json'), 'utf-8')); } catch { throw new Error('The drafts changed. Refresh this conversation before sending.'); }
+    if (replies.generated_at !== draftSet || !Number.isInteger(draft) || !replies.drafts?.[draft]) throw new Error('The drafts changed. Refresh this conversation before sending.');
+    const lastClient = Math.max(0, ...(thread.messages || []).filter(message => message.from === 'client').map(message => Date.parse(message.at) || 0));
+    if (!Number.isFinite(Date.parse(draftSet)) || lastClient > Date.parse(draftSet)) throw new Error('A newer client message needs your attention. Draft a fresh reply.');
+  }
+  const target = path.join(folder, 'outbox.json');
+  let previous;
+  try { previous = JSON.parse(fs.readFileSync(target, 'utf-8')); }
+  catch (error) { if (error.code !== 'ENOENT') throw new Error('The previous send receipt is unreadable. Check Upwork and repair the receipt before sending again.'); }
+  if (previous !== undefined && (!previous || typeof previous !== 'object' || !previous.written_at)) throw new Error('The previous send receipt is invalid. Check Upwork before sending again.');
+  if (previous && !previous.confirmed_at && !previous.cancelled_at) throw new Error('The previous send is not confirmed. Sync and check Upwork before sending again.');
+  if (previous?.confirmed_at && previous?.draft_set && previous.draft_set === draftSet && previous.draft === draft) {
+    throw new Error('This draft was already sent. Draft a new reply first.');
+  }
   const record = { written_at: new Date().toISOString(), job_id: job, room_id: room, text,
+    known_message_ids: (thread.messages || []).map(message => message.id).filter(Boolean),
     draft: Number.isInteger(draft) && draft >= 0 ? draft : null,
     draft_set: typeof draftSet === 'string' ? draftSet : null };
-  const target = path.join(folder, 'outbox.json');
   const tmp = path.join(folder, `.outbox-${process.pid}-${crypto.randomBytes(4).toString('hex')}.tmp`);
   fs.writeFileSync(tmp, JSON.stringify(record, null, 2), { encoding: 'utf-8', mode: 0o600 });
   fs.renameSync(tmp, target);
   return record;
 }
 
+/** The member has checked Upwork and explicitly attested that nothing landed.
+ * Keep the receipt, release only this approval, and never trigger a resend. */
+export function releaseApprovedReply(job, writtenAt) {
+  if (!/^[0-9]{6,25}$/.test(job)) throw new Error('That job id is not valid.');
+  if ([...RUNS.values()].some(run => run.command === 'send-reply' && !run.done)) throw new Error('Wait for the active send to finish.');
+  const target = path.join(JOBS_DIR, job, 'outbox.json');
+  const record = JSON.parse(fs.readFileSync(target, 'utf-8'));
+  if (record.written_at !== writtenAt || record.confirmed_at || record.cancelled_at) throw new Error('That approval is no longer unresolved. Refresh the conversation.');
+  record.cancelled_at = new Date().toISOString();
+  record.resolution = 'The member checked Upwork and confirmed that the message was not sent.';
+  const tmp = `${target}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(record, null, 2), { mode: 0o600 });
+  fs.renameSync(tmp, target);
+  return record;
+}
+
 export function startApprovedReply(job, text, draft = null, draftSet = null) {
-  prepareApprovedReply(job, text, draft, draftSet);
-  return startRun('send-reply', job);
+  if (!claudeBinary()) throw new Error('Claude Code is not installed or not on the PATH.');
+  const record = prepareApprovedReply(job, text, draft, draftSet);
+  return startRun('send-reply', job, record);
 }
 
 export function claudeBinary() {
@@ -143,12 +193,19 @@ export function track(name, job, child) {
   RUNS.set(id, run);
   let stderr = '';
   child.stderr?.on('data', d => { stderr = (stderr + d).slice(-4000); });
-  readline.createInterface({ input: child.stdout }).on('line', line => { run.events.push(...parseEvent(line.trim())); });
+  let result = null;
+  readline.createInterface({ input: child.stdout }).on('line', line => {
+    for (const event of parseEvent(line.trim())) {
+      if (event.kind === 'done') result = event;
+      else run.events.push(event);
+    }
+  });
   const finish = code => {
     if (run.done) return;
     if (!run.stopped) {
       if (code && stderr.trim()) run.events.push({ kind: 'error', text: stderr.trim() });
-      if (!run.events.some(e => e.kind === 'done')) run.events.push({ kind: 'done', text: `Finished with exit code ${code}.`, error: code !== 0 });
+      const failed = code !== 0 || !!result?.error;
+      run.events.push({ kind: 'done', text: code !== 0 ? `Run failed with exit code ${code}. ${result?.text || stderr.trim()}` : result?.text || 'Finished.', error: failed });
     }
     const last = [...run.events].reverse().find(e => e.kind === 'done');
     run.error = !!last?.error;
@@ -180,7 +237,7 @@ function remember(run, result) {
 export function history() {
   try {
     return fs.readdirSync(RUNS_DIR).filter(f => f.endsWith('.json'))
-      .map(f => JSON.parse(fs.readFileSync(path.join(RUNS_DIR, f), 'utf-8')))
+      .flatMap(f => { try { return [JSON.parse(fs.readFileSync(path.join(RUNS_DIR, f), 'utf-8'))]; } catch { return []; } })
       .sort((a, b) => (b.started || 0) - (a.started || 0));
   } catch { return []; }
 }
@@ -189,15 +246,39 @@ export function promptFor(name, job) {
   return RUNNABLE[name].prompt.replaceAll('{job}', job || '').trim();
 }
 
-export function startRun(name, job) {
+export function startRun(name, job, approval = null) {
   const spec = RUNNABLE[name];
+  if (!spec || !available(name)) throw new Error('That command is not available.');
+  if (name === 'send-reply' && !approval) throw new Error('A frozen approval is required.');
+  if ([...RUNS.values()].some(run => !run.done && run.command === name && (run.job === job || name === 'apply'))) {
+    throw new Error('That command is already running. Wait for its result.');
+  }
   const bin = claudeBinary();
   if (!bin) throw new Error('Claude Code is not installed or not on the PATH.');
   const prompt = promptFor(name, job);
-  const args = ['-p', prompt, '--output-format', 'stream-json', '--verbose', '--append-system-prompt', NARRATE,
-    '--permission-mode', 'acceptEdits', '--allowedTools', ...spec.tools];
-  const child = spawn(bin, args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], shell: bin.endsWith('.cmd') });
+  const args = launchArgs(name, prompt);
+  const env = { ...process.env };
+  if (name === 'send-reply') {
+    env.BLUEPRINT_SEND_FOLDER = path.join(JOBS_DIR, job);
+    env.BLUEPRINT_SEND_HASH = approvalHash(approval);
+    env.BLUEPRINT_SEND_ATTEMPTS = path.join(RUNS_DIR, 'send-attempts');
+    const command = 'node "' + path.join(ROOT, 'cockpit/lib/server/send-guard.mjs') + '"';
+    args.push('--settings', JSON.stringify({ hooks: { PreToolUse: [{ matcher: '.*', hooks: [{ type: 'command', command, timeout: 10 }] }] } }));
+  }
+  const child = spawn(bin, args, { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], shell: bin.endsWith('.cmd') });
   return track(name, job, child);
+}
+
+/** Auto-approval alone is not an allowlist. Deny outward tools explicitly and
+ * make any unapproved permission fail closed in this non-interactive process. */
+export function launchArgs(name, prompt = promptFor(name)) {
+  const spec = RUNNABLE[name];
+  const builtins = [...new Set(spec.tools.filter(tool => !tool.startsWith('mcp__')).map(tool => tool.split('(')[0]))];
+  const denied = ['confirm_preview', 'confirm_draft', 'respond_to_offer', 'submit_milestones'];
+  if (name !== 'send-reply') denied.push('send_message');
+  return ['-p', prompt, '--output-format', 'stream-json', '--verbose', '--append-system-prompt', NARRATE,
+    '--permission-mode', 'dontAsk', '--tools', builtins.join(','), '--allowedTools', ...spec.tools,
+    '--disallowedTools', ...denied.map(tool => `mcp__upwork__upwork__${tool}`)];
 }
 
 /** Ends a run you no longer want. What it already saved stays. */

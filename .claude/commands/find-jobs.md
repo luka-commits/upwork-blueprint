@@ -80,6 +80,11 @@ Write the outcome in plain language: who uses the finished work, what happens
 for them, and what changes. Expand shorthand such as "membership automation"
 into the actual behavior from the posting. A member should be able to explain
 the job aloud after reading it once. Specificity matters more than brevity.
+The list uses this outcome, or the saved `summary` when no full brief exists.
+Keep both focused on the requested work. Put proof fit, competition and advice
+in `rationale`, not in the job description. The sidebar shows that assessment.
+To clarify an existing member-written summary, use
+`python3 code/pipeline.py describe <id> "Plain-language summary"`.
 
 ## Step 6 · Close
 

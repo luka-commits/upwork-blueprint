@@ -11,6 +11,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 CODE = pathlib.Path(__file__).resolve().parent
@@ -29,6 +30,8 @@ class CockpitTest(unittest.TestCase):
             {'id': '333333', 'title': 'Previous client', 'status': 'won', 'next_follow_up': '2000-01-02',
              'follow_up_plan': {'lane': 'reactivation', 'step': 1, 'max_steps': 2}, 'history': []}]), encoding='utf-8')
         cls.jobdir = pathlib.Path(cls.tmp.name) / 'jobfiles'
+        cls.data = pathlib.Path(cls.tmp.name) / 'data'
+        cls.data.mkdir()
         (cls.jobdir / '111111').mkdir(parents=True)
         (cls.jobdir / '111111' / 'pitch.html').write_text('<h1>pitch</h1>', encoding='utf-8')
         (cls.jobdir / '111111' / 'thread.json').write_text(
@@ -37,8 +40,10 @@ class CockpitTest(unittest.TestCase):
             json.dumps({'drafts': [{'label': 'Direct', 'text': 'Hello'}]}), encoding='utf-8')
         (cls.jobdir / '111111' / 'outbox.json').write_text(
             json.dumps({'text': 'Hello'}), encoding='utf-8')
-        cls.env = dict(os.environ, BLUEPRINT_JOBS=str(cls.jobs), BLUEPRINT_JOBDIR=str(cls.jobdir))
-        os.environ.update(BLUEPRINT_JOBS=str(cls.jobs), BLUEPRINT_JOBDIR=str(cls.jobdir))
+        cls.env = dict(os.environ, BLUEPRINT_JOBS=str(cls.jobs), BLUEPRINT_JOBDIR=str(cls.jobdir),
+                       BLUEPRINT_DATA=str(cls.data))
+        os.environ.update(BLUEPRINT_JOBS=str(cls.jobs), BLUEPRINT_JOBDIR=str(cls.jobdir),
+                          BLUEPRINT_DATA=str(cls.data))
         sys.path.insert(0, str(CODE))
         import cockpit
         cls.cockpit = cockpit
@@ -47,6 +52,7 @@ class CockpitTest(unittest.TestCase):
     def tearDownClass(cls):
         os.environ.pop('BLUEPRINT_JOBS', None)
         os.environ.pop('BLUEPRINT_JOBDIR', None)
+        os.environ.pop('BLUEPRINT_DATA', None)
         cls.tmp.cleanup()
 
     def cli(self, *args):
@@ -86,6 +92,28 @@ class CockpitTest(unittest.TestCase):
         self.assertEqual(self.cockpit.applied_dates([{'history': events}]), [dt.date(2026, 9, 12)])
         self.assertEqual(self.cockpit.applied_dates([{'history': events, 'application_date_unknown': True}]), [])
 
+    @unittest.skipUnless(hasattr(time, 'tzset'), 'requires POSIX timezone control')
+    def test_platform_timestamps_use_local_day_but_manual_dates_do_not_shift(self):
+        previous = os.environ.get('TZ')
+        try:
+            os.environ['TZ'] = 'Europe/Berlin'
+            time.tzset()
+            self.assertEqual(self.cockpit.parse_day('2026-01-01T23:30:00Z'), dt.date(2026, 1, 2))
+            self.assertEqual(self.cockpit.parse_day('2026-01-01'), dt.date(2026, 1, 1))
+            self.assertEqual(self.cockpit.parse_day('2026-01-01T23:30:00'), dt.date(2026, 1, 1))
+
+            os.environ['TZ'] = 'America/Los_Angeles'
+            time.tzset()
+            self.assertEqual(self.cockpit.parse_day('2026-01-01T01:30:00Z'), dt.date(2025, 12, 31))
+            self.assertEqual(self.cockpit.parse_day('2026-01-01'), dt.date(2026, 1, 1))
+            self.assertEqual(self.cockpit.parse_day('2026-01-01T01:30:00'), dt.date(2026, 1, 1))
+        finally:
+            if previous is None:
+                os.environ.pop('TZ', None)
+            else:
+                os.environ['TZ'] = previous
+            time.tzset()
+
     def test_funnel_counts_the_highest_stage_ever_reached(self):
         jobs = [
             {'status': 'lost', 'history': [{'status': 'new', 'at': '2026-09-01T00:00:00+00:00'},
@@ -97,10 +125,86 @@ class CockpitTest(unittest.TestCase):
         ]
         ins = self.cockpit.insights(jobs, dt.date(2026, 9, 12))
         counts = {f['stage']: f['count'] for f in ins['funnel']}
-        self.assertEqual(counts['Found'], 2)
+        self.assertEqual(counts['Found'], 3)
         self.assertEqual(counts['Replied'], 1)
+        self.assertEqual(ins['funnel_scope'], 'all_saved')
+        self.assertEqual(ins['applied_total'], 1)
+        self.assertEqual(ins['replied_total'], 1)
         self.assertIsNone(ins['reply_rate'])
-        self.assertEqual(ins['reply_days'], 2)
+        self.assertIsNone(ins['reply_days'])
+        self.assertEqual(ins['reply_time_sample'], 0)
+        self.assertEqual(ins['reply_time_missing'], 1)
+
+    def test_reply_delay_uses_only_verified_paired_event_times(self):
+        def verified(applied, replied):
+            return {'status': 'replied', 'applied_at': applied, 'replied_at': replied,
+                    'applied_observation': {'verified': True, 'source': 'upwork-proposal'},
+                    'replied_observation': {'verified': True, 'source': 'upwork-thread'}}
+
+        jobs = [
+            verified('2026-09-01T10:00:00Z', '2026-09-01T22:00:00Z'),
+            verified('2026-09-02T10:00:00Z', '2026-09-03T22:00:00Z'),
+            {'status': 'replied', 'applied_at': '2026-09-04T10:00:00Z',
+             'replied_at': '2026-09-04T11:00:00Z'},
+            verified('2026-09-05T12:00:00Z', '2026-09-05T11:00:00Z'),
+        ]
+        ins = self.cockpit.insights(jobs, dt.date(2026, 9, 12))
+        self.assertEqual(ins['reply_hours'], 24)
+        self.assertEqual(ins['reply_days'], 1)
+
+        self.assertEqual(ins['reply_time_sample'], 2)
+        self.assertEqual(ins['reply_time_missing'], 2)
+
+        short = self.cockpit.insights([
+            verified('2026-09-01T10:00:00Z', '2026-09-01T10:02:00Z'),
+        ], dt.date(2026, 9, 12))
+        self.assertEqual(short['reply_hours'], 0.033)
+        self.assertGreater(short['reply_days'], 0)
+
+    def test_28_day_applications_distinguish_zero_partial_and_unknown(self):
+        today = dt.date(2026, 9, 12)
+        empty = self.cockpit.insights([], today)
+        self.assertEqual(empty['applications_28d'], 0)
+        self.assertEqual(empty['applications_28d_known'], 0)
+        self.assertTrue(empty['applications_28d_complete'])
+        self.assertEqual(empty['per_week'], 0)
+
+        jobs = [
+            {'status': 'applied', 'applied_at': '2026-09-01T10:00:00Z'},
+            {'status': 'won', 'application_date_unknown': True},
+            {'status': 'replied', 'applied_at': '2099-01-01T10:00:00Z'},
+            {'status': 'applied', 'applied_at': '2026-01-01T10:00:00Z'},
+        ]
+        partial = self.cockpit.insights(jobs, today)
+        self.assertIsNone(partial['applications_28d'])
+        self.assertEqual(partial['applications_28d_known'], 1)
+        self.assertFalse(partial['applications_28d_complete'])
+        self.assertEqual(partial['application_dates_unknown'], 2)
+        self.assertIsNone(partial['per_week'])
+        tracker = self.cockpit.tracker(jobs, 1, today)
+        self.assertEqual(tracker['application_dates_unknown'], 2)
+        self.assertEqual(tracker['week_done'], 0)
+
+    def test_profile_standing_accepts_measured_and_legacy_shapes_with_cache_time(self):
+        profile = self.data / 'profile.json'
+        profile.write_text(json.dumps({
+            'data': {
+                'profileAggregates': {'totalEarnings': '$10K+', 'totalJobs': 12, 'totalFeedback': 9},
+                'personalData': {'chargeRate': {'displayValue': '$80.00/hr'}},
+            },
+        }), encoding='utf-8')
+        measured = self.cockpit.standing()
+        self.assertEqual((measured['earned'], measured['jobs'], measured['reviews'], measured['rate']),
+                         ('$10K+', 12, 9, '$80.00/hr'))
+        self.assertIsNotNone(self.cockpit.parse_zoned_stamp(measured['profile_cached_at']))
+
+        profile.write_text(json.dumps({
+            'profileAggregates': {'totalEarnings': '$20K+', 'totalJobs': 20, 'totalFeedback': 15},
+            'personalData': {'chargeRate': {'displayValue': '$95.00/hr'}},
+        }), encoding='utf-8')
+        legacy = self.cockpit.standing()
+        self.assertEqual((legacy['earned'], legacy['jobs'], legacy['reviews'], legacy['rate']),
+                         ('$20K+', 20, 15, '$95.00/hr'))
 
 
 if __name__ == '__main__':

@@ -12,6 +12,8 @@ Usage:
     python3 code/pipeline.py add --check <job_id> [<job_id> ...]
     python3 code/pipeline.py add --file <records.json>|- [--dry-run]
     python3 code/pipeline.py detail <job_id> --file <details.json>|-
+    python3 code/pipeline.py describe <job_id> "Plain-language summary of the work"
+    python3 code/pipeline.py observe <job_id> applied|replied <ISO timestamp> --source <source> --verified
     python3 code/pipeline.py set <job_id> <status> [--follow-up +3d|YYYY-MM-DD] [--note "..."]
     python3 code/pipeline.py follow-up <job_id> plan --lane <lane> --due <date> --reason "..."
     python3 code/pipeline.py follow-up <job_id> sent [--on YYYY-MM-DD]
@@ -409,6 +411,67 @@ def cmd_follow_up(args):
     print(message)
 
 
+def cmd_describe(args):
+    """Revise the member's job summary without changing its stage or source cache."""
+    text = ' '.join(args.text.split())
+    if not text:
+        abort('a job summary needs text.')
+    jobs = load()
+    find(jobs, args.job_id)['summary'] = text
+    save(jobs)
+    print(f'{args.job_id}: job summary updated.')
+
+
+def parse_verified_timestamp(value):
+    """Canonicalize a nonfuture zoned timestamp, or return None."""
+    try:
+        stamp = datetime.datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    if stamp.tzinfo is None or stamp.utcoffset() is None:
+        return None
+    stamp = stamp.astimezone(datetime.timezone.utc)
+    if stamp > datetime.datetime.now(datetime.timezone.utc):
+        return None
+    return stamp.isoformat()
+
+
+def verified_timestamp(value):
+    """A real platform event has a timezone and cannot be in the future."""
+    stamp = parse_verified_timestamp(value)
+    if stamp is None:
+        abort('an observed event needs a valid nonfuture ISO timestamp with a timezone.')
+    return stamp
+
+
+def cmd_observe(args):
+    """Record one verified Upwork event without changing stage or history."""
+    expected_source = {'applied': 'upwork-proposal', 'replied': 'upwork-thread'}[args.event]
+    if not args.verified or args.source != expected_source:
+        abort(f'{args.event} observations require --verified --source {expected_source}.')
+    event_at = verified_timestamp(args.timestamp)
+    jobs = load()
+    job = find(jobs, args.job_id)
+    evidence_key = f'{args.event}_observation'
+    previous = job.get(evidence_key)
+    previous_at = parse_verified_timestamp(job.get(f'{args.event}_at'))
+    previous_valid = (isinstance(previous, dict) and previous.get('verified') is True
+                      and previous.get('source') == expected_source and previous_at is not None)
+    if previous_valid and previous_at <= event_at:
+        print(f'{args.job_id}: verified {args.event} time already recorded.')
+        return
+    job[f'{args.event}_at'] = event_at
+    job[evidence_key] = {
+        'source': args.source,
+        'verified': True,
+        'observed_at': now_iso(),
+    }
+    if args.event == 'applied':
+        job.pop('application_date_unknown', None)
+    save(jobs)
+    print(f'{args.job_id}: verified {args.event} time recorded.')
+
+
 def cmd_note(args):
     """A line on the job's timeline: a call, a promise, what the client said on the phone."""
     text = ' '.join(args.text.split())
@@ -616,6 +679,19 @@ def build_parser():
     p.add_argument('job_id')
     p.add_argument('--file', metavar='PATH', required=True, help='JSON object. "-" reads stdin.')
     p.set_defaults(func=cmd_detail)
+
+    p = sub.add_parser('describe', help='Revise the member-written job summary, not the source posting.')
+    p.add_argument('job_id')
+    p.add_argument('text')
+    p.set_defaults(func=cmd_describe)
+
+    p = sub.add_parser('observe', help='Record a verified Upwork event time without moving the job.')
+    p.add_argument('job_id')
+    p.add_argument('event', choices=('applied', 'replied'))
+    p.add_argument('timestamp')
+    p.add_argument('--source', required=True, choices=('upwork-proposal', 'upwork-thread'))
+    p.add_argument('--verified', action='store_true', required=True)
+    p.set_defaults(func=cmd_observe)
 
     p = sub.add_parser('set', help='Move a job to a status.')
     p.add_argument('job_id')

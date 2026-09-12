@@ -12,12 +12,15 @@ when it ran. Status changes go through code/pipeline.py, the one writer. A saved
 thread is Upwork content, so `pipeline.py prune` deletes it after 24 hours.
 
 The snapshot, one JSON object (every list optional):
-    {"proposals": [{"job_id", "title", "url", "status"}],
+    {"proposals": [{"job_id", "title", "url", "status", "applied_at"}],
      "offers":    [{"job_id", "title", "state"}],
      "contracts": [{"job_id", "title", "status"}],
-     "threads":   [{"job_id", "room_id", "awaiting_reply_from", "messages":
+     "threads":   [{"job_id", "room_id", "awaiting_reply_from", "messages_complete", "messages":
                     [{"from": "client"|"me", "name", "at", "text"}]}]}
 Offers and contracts without a job_id are matched by exact title.
+
+`applied_at` is the proposal's Upwork creation time. `messages_complete` is true
+only when connector pagination explicitly proves there are no older messages.
 """
 import argparse
 import datetime
@@ -51,6 +54,43 @@ def run_pipeline(*args, stdin=None):
     return r.returncode == 0
 
 
+def verified_timestamp(value):
+    """Return a canonical nonfuture zoned timestamp, or None for weak evidence."""
+    try:
+        stamp = datetime.datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    if stamp.tzinfo is None or stamp.utcoffset() is None:
+        return None
+    stamp = stamp.astimezone(datetime.timezone.utc)
+    if stamp > datetime.datetime.now(datetime.timezone.utc):
+        return None
+    return stamp.isoformat()
+
+
+def first_complete_client_message(thread):
+    """The first reply exists only when this response proves complete history."""
+    if thread.get('messages_complete') is not True:
+        return None
+    stamps = []
+    for message in thread.get('messages') or []:
+        if not isinstance(message, dict):
+            return None
+        author = message.get('from')
+        if author == 'me':
+            continue
+        # An unknown author could be an earlier client reply. An explicit client
+        # message without a valid timestamp could be earlier too. Either gap
+        # means this complete window still cannot prove the first reply time.
+        if author != 'client':
+            return None
+        stamp = verified_timestamp(message.get('at'))
+        if stamp is None:
+            return None
+        stamps.append(stamp)
+    return min(stamps, default=None)
+
+
 def evidence(snapshot, jobs):
     """Per job id: the furthest stage Upwork shows, and whether it says lost."""
     by_title = {}
@@ -74,7 +114,7 @@ def evidence(snapshot, jobs):
         if str(c.get('status', '')).upper() in ('ACTIVE', 'PAUSED', 'CLOSED'):
             note(c.get('job_id'), c.get('title'), 'won')
     for t in snapshot.get('threads') or []:
-        if any(m.get('from') == 'client' for m in t.get('messages') or []):
+        if any(isinstance(m, dict) and m.get('from') == 'client' for m in t.get('messages') or []):
             note(t.get('job_id'), None, 'replied')
     return seen
 
@@ -102,10 +142,7 @@ def cmd_apply(args):
         if jid and jid not in known and stage:
             record = {'id': jid, 'title': p.get('title') or 'Untitled job', 'url': p.get('url') or '',
                       'status': stage, 'found_via': ['sync'], 'notes': 'sent outside the cockpit'}
-            if p.get('applied_at'):
-                record['applied_at'] = p['applied_at']
-            else:
-                record['application_date_unknown'] = True
+            record['application_date_unknown'] = True
             if run_pipeline('add', '--file', '-', stdin=json.dumps(record)):
                 added.append(jid)
                 known.add(jid)
@@ -121,11 +158,33 @@ def cmd_apply(args):
         new = target(job.get('status'), stages)
         if new:
             follow = '+3d' if new == 'applied' else None
-            proposal = next((p for p in snapshot.get('proposals') or [] if str(p.get('job_id')) == jid), {})
-            date_args = ['--applied-at', proposal.get('applied_at') or 'unknown'] if new == 'applied' else []
+            date_args = ['--applied-at', 'unknown'] if new == 'applied' else []
             if run_pipeline('set', jid, new, *(['--follow-up', follow] if follow else []), *date_args):
                 moved.append({'id': jid, 'from': job.get('status'), 'to': new})
                 job['status'] = new
+
+    # Proposal creation time is measured Upwork evidence. Record it even when
+    # this sync did not move the job, so an old unknown import can be repaired.
+    applied_observations = {}
+    for proposal in snapshot.get('proposals') or []:
+        jid = str(proposal.get('job_id') or '')
+        stamp = verified_timestamp(proposal.get('applied_at'))
+        stage = PROPOSAL_STAGE.get(str(proposal.get('status', '')).lower())
+        if jid in known and stage and stamp:
+            applied_observations[jid] = min(stamp, applied_observations.get(jid, stamp))
+    for jid, stamp in applied_observations.items():
+        run_pipeline('observe', jid, 'applied', stamp, '--source', 'upwork-proposal', '--verified')
+
+    # A newest-message window is not proof of a first reply. Only a thread whose
+    # pagination explicitly proves completeness may establish replied_at.
+    reply_observations = {}
+    for thread in snapshot.get('threads') or []:
+        jid = str(thread.get('job_id') or '')
+        stamp = first_complete_client_message(thread)
+        if jid in known and stamp:
+            reply_observations[jid] = min(stamp, reply_observations.get(jid, stamp))
+    for jid, stamp in reply_observations.items():
+        run_pipeline('observe', jid, 'replied', stamp, '--source', 'upwork-thread', '--verified')
 
     # A client waiting on you is a follow-up due today, whatever the stage says.
     for jid, t in threads.items():

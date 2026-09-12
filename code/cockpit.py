@@ -94,9 +94,31 @@ RANK = {'new': 0, 'applied': 1, 'replied': 2, 'offer': 3, 'won': 4}
 
 def parse_day(stamp):
     try:
-        return datetime.datetime.fromisoformat(str(stamp).replace('Z', '+00:00')).date()
+        value = datetime.datetime.fromisoformat(str(stamp).replace('Z', '+00:00'))
     except ValueError:
         return None
+    # A platform timestamp is an instant and belongs to the member's local day.
+    # A manual date or naive calendar time already names its intended day.
+    return value.astimezone().date() if value.tzinfo is not None else value.date()
+
+
+def parse_zoned_stamp(stamp):
+    """Analytics event evidence must identify an absolute point in time."""
+    try:
+        value = datetime.datetime.fromisoformat(str(stamp).replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    if value.tzinfo is None or value.utcoffset() is None:
+        return None
+    return value.astimezone(datetime.timezone.utc)
+
+
+def application_day(job):
+    if job.get('application_date_unknown'):
+        return None
+    stamp = job.get('applied_at') or next(
+        (h.get('at') for h in job.get('history', []) if h.get('status') == 'applied'), None)
+    return parse_day(stamp) if stamp else None
 
 
 def applied_dates(jobs):
@@ -105,9 +127,9 @@ def applied_dates(jobs):
     for j in jobs:
         if j.get('application_date_unknown'):
             continue
-        first = j.get('applied_at') or next((h.get('at') for h in j.get('history', []) if h.get('status') == 'applied'), None)
-        stamps = [first] if first else []
-        out += [d for d in (parse_day(s) for s in stamps) if d]
+        day = application_day(j)
+        if day:
+            out.append(day)
     return out
 
 
@@ -130,14 +152,16 @@ def streak(counts, goal, today, weekdays_only=True):
 def tracker(jobs, goal, today):
     """Target, progress, streak and this week's days, Monday to Sunday."""
     counts = {}
-    for d in applied_dates(jobs):
+    for d in (day for day in applied_dates(jobs) if day <= today):
         counts[d] = counts.get(d, 0) + 1
+    unknown = sum(1 for job in jobs if reached(job) >= 1
+                  and (application_day(job) is None or application_day(job) > today))
     week_start = today - datetime.timedelta(days=today.weekday())
     week = [{'day': (week_start + datetime.timedelta(days=i)).isoformat(),
              'count': counts.get(week_start + datetime.timedelta(days=i), 0),
              'future': week_start + datetime.timedelta(days=i) > today} for i in range(7)]
     return {'goal': goal, 'done': counts.get(today, 0), 'week': week,
-            'week_done': sum(d['count'] for d in week),
+            'week_done': sum(d['count'] for d in week), 'application_dates_unknown': unknown,
             'streak': streak(counts, goal, today) if goal else 0}
 
 
@@ -151,30 +175,59 @@ def reached(job):
 
 
 def insights(jobs, today):
-    """A real cohort funnel plus three numbers. A number without enough data says
-    what unlocks it: a reply rate from two applications is worse than none."""
+    """Truthful saved-pipeline history, with explicit timing evidence gaps."""
     stages = [('Found', 0), ('Applied', 1), ('Replied', 2), ('Offer', 3), ('Won', 4)]
-    levels = [reached(j) for j in jobs if j.get('status') != 'skipped' or reached(j) >= 1]
+    levels = [reached(j) for j in jobs]
     funnel = [{'stage': label, 'count': sum(1 for r in levels if r >= rank)} for label, rank in stages]
     applied = [j for j in jobs if reached(j) >= 1]
     replied = [j for j in jobs if reached(j) >= 2]
     spans = []
+    now = datetime.datetime.now(datetime.timezone.utc)
     for j in replied:
-        h = {e['status']: e['at'] for e in j.get('history', []) if e.get('status') in ('applied', 'replied')}
-        a, b = parse_day(h.get('applied')), parse_day(h.get('replied'))
-        if a and b:
-            spans.append((b - a).days)
+        applied_evidence = j.get('applied_observation') or {}
+        replied_evidence = j.get('replied_observation') or {}
+        applied_verified = (applied_evidence.get('verified') is True
+                            and applied_evidence.get('source') == 'upwork-proposal')
+        replied_verified = (replied_evidence.get('verified') is True
+                            and replied_evidence.get('source') == 'upwork-thread')
+        a = parse_zoned_stamp(j.get('applied_at')) if applied_verified else None
+        b = parse_zoned_stamp(j.get('replied_at')) if replied_verified else None
+        if a and b and a <= b <= now:
+            spans.append((b - a).total_seconds() / 3600)
     spans.sort()
-    recent = [d for d in applied_dates(jobs) if (today - d).days < 28]
+    if spans:
+        middle = len(spans) // 2
+        median_hours = spans[middle] if len(spans) % 2 else (spans[middle - 1] + spans[middle]) / 2
+        # Millihours retain short verified delays for the UI's minute display.
+        median_hours = round(median_hours, 3)
+    else:
+        median_hours = None
+    application_days = [application_day(j) for j in applied]
+    unknown_dates = sum(1 for day in application_days if day is None or day > today)
+    recent = [day for day in application_days if day is not None and 0 <= (today - day).days < 28]
+    dates_complete = unknown_dates == 0
+    applications_28d_known = len(recent)
+    applications_28d = applications_28d_known if dates_complete else None
     skipped = [j for j in jobs if j.get('status') == 'skipped']
     return {
         'funnel': funnel,
+        'funnel_scope': 'all_saved',
+        'applied_total': len(applied),
+        'replied_total': len(replied),
+        'application_dates_unknown': unknown_dates,
         'reply_rate': round(100 * len(replied) / len(applied)) if len(applied) >= 5 else None,
         'reply_rate_hint': (f'{5 - len(applied)} more applications to go' if len(applied) < 5
                             else f'{len(replied)} of {len(applied)} replied'),
-        'reply_days': spans[len(spans) // 2] if spans else None,
-        'reply_days_hint': f'median of {len(spans)}' if spans else 'once a client replies',
-        'per_week': round(len(recent) / 4, 1) if recent else None,
+        'reply_hours': median_hours,
+        'reply_days': round(median_hours / 24, 3) if median_hours is not None else None,
+        'reply_time_sample': len(spans),
+        'reply_time_missing': len(replied) - len(spans),
+        'reply_days_hint': (f'median of {len(spans)} verified pairs' if spans
+                            else 'once verified application and first-reply times exist'),
+        'applications_28d': applications_28d,
+        'applications_28d_known': applications_28d_known,
+        'applications_28d_complete': dates_complete,
+        'per_week': round(applications_28d / 4, 1) if applications_28d is not None else None,
         'skipped': {'total': len(skipped),
                     'filled': sum(1 for j in skipped if 'already filled' in (j.get('notes') or '')),
                     'bar': sum(1 for j in skipped if 'wants ' in (j.get('notes') or '')),
@@ -189,11 +242,17 @@ def standing():
     jss = re.search(r'Job Success Score:\*\*\s*(\d+)', text)
     out = {'jss': int(jss.group(1)) if jss else None}
     try:
-        profile = json.loads((ROOT / 'data' / 'profile.json').read_text(encoding='utf-8'))
-        agg = profile.get('profileAggregates') or {}
-        rate = (profile.get('data', {}).get('personalData', {}).get('chargeRate') or {}).get('displayValue')
+        profile_file = pathlib.Path(os.environ.get('BLUEPRINT_DATA') or ROOT / 'data') / 'profile.json'
+        profile = json.loads(profile_file.read_text(encoding='utf-8'))
+        data = profile.get('data') if isinstance(profile.get('data'), dict) else {}
+        agg = profile.get('profileAggregates') or data.get('profileAggregates') or {}
+        personal = data.get('personalData') or profile.get('personalData') or {}
+        charge = personal.get('chargeRate') or {}
+        rate = charge.get('displayValue') if isinstance(charge, dict) else None
         out.update(earned=agg.get('totalEarnings'), jobs=agg.get('totalJobs'),
-                   reviews=agg.get('totalFeedback'), rate=rate)
+                   reviews=agg.get('totalFeedback'), rate=rate,
+                   profile_cached_at=datetime.datetime.fromtimestamp(
+                       profile_file.stat().st_mtime, datetime.timezone.utc).isoformat(timespec='seconds'))
     except (OSError, json.JSONDecodeError):
         pass
     return out

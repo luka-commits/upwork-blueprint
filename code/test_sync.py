@@ -71,6 +71,7 @@ class SyncTest(unittest.TestCase):
         self.assertEqual(jobs['100003']['status'], 'lost')
         self.assertEqual(jobs['100004']['status'], 'won')
         self.assertEqual(jobs['100009']['status'], 'applied')
+        self.assertNotIn('replied_at', jobs['100002'])
         thread = json.loads((self.jobdir / '100002' / 'thread.json').read_text(encoding='utf-8'))
         self.assertEqual(thread['messages'][0]['text'], 'Can we talk?')
         record = json.loads((self.data / 'sync.json').read_text(encoding='utf-8'))
@@ -106,6 +107,92 @@ class SyncTest(unittest.TestCase):
         self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(snapshot))
         self.assertEqual(self.status()['100099']['status'], 'won')
         self.assertTrue(self.status()['100099']['application_date_unknown'])
+
+    def test_verified_creation_time_repairs_unknown_import_without_new_stage_history(self):
+        first = {'proposals': [{'job_id': '100099', 'title': 'Imported', 'status': 'Accepted'}]}
+        self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(first))
+        imported = self.status()['100099']
+        self.assertTrue(imported['application_date_unknown'])
+        history = imported['history']
+
+        repaired = {'proposals': [{'job_id': '100099', 'status': 'Accepted',
+                                   'applied_at': '2026-01-05T11:30:00+01:00'}]}
+        self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(repaired))
+        imported = self.status()['100099']
+        self.assertEqual(imported['applied_at'], '2026-01-05T10:30:00+00:00')
+        self.assertNotIn('application_date_unknown', imported)
+        self.assertEqual(imported['history'], history)
+        self.assertTrue(imported['applied_observation']['verified'])
+
+        later = {'proposals': [{'job_id': '100099', 'status': 'Accepted',
+                                'applied_at': '2026-02-01T10:30:00Z'}]}
+        self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(later))
+        self.cli('pipeline.py', 'set', '100099', 'replied')
+        self.cli('pipeline.py', 'set', '100099', 'applied')
+        self.assertEqual(self.status()['100099']['applied_at'], '2026-01-05T10:30:00+00:00')
+
+    def test_unrecognized_proposal_status_never_certifies_creation_time(self):
+        before = self.status()['100002']['applied_at']
+        snapshot = {'proposals': [
+            {'job_id': '100001', 'status': 'Draft', 'applied_at': '2026-01-01T10:00:00Z'},
+            {'job_id': '100002', 'status': 'Unknown', 'applied_at': '2026-01-02T10:00:00Z'},
+        ]}
+        result = self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(snapshot))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        jobs = self.status()
+        self.assertNotIn('applied_at', jobs['100001'])
+        self.assertNotIn('applied_observation', jobs['100001'])
+        self.assertEqual(jobs['100002']['applied_at'], before)
+        self.assertNotIn('applied_observation', jobs['100002'])
+
+    def test_only_complete_explicit_client_history_records_first_reply(self):
+        complete = {
+            'proposals': [{'job_id': '100002', 'status': 'Accepted',
+                           'applied_at': '2026-01-05T10:00:00Z'}],
+            'threads': [{'job_id': '100002', 'room_id': 'room-2', 'messages_complete': True,
+                         'messages': [
+                             {'from': 'me', 'at': '2026-01-05T11:00:00Z', 'text': 'Hello'},
+                             {'from': 'client', 'at': '2026-01-05T12:30:00+01:00', 'text': 'First'},
+                             {'from': 'client', 'at': '2026-01-05T13:00:00Z', 'text': 'Second'},
+                         ]}],
+        }
+        result = self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(complete))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        job = self.status()['100002']
+        self.assertEqual(job['replied_at'], '2026-01-05T11:30:00+00:00')
+        self.assertEqual(job['replied_observation']['source'], 'upwork-thread')
+
+        for messages_complete in (False, 'true'):
+            snapshot = {'threads': [{'job_id': '100001', 'room_id': 'room-1',
+                                      'messages_complete': messages_complete,
+                                      'messages': [{'from': 'client', 'at': '2026-01-01T10:00:00Z'}]}]}
+            self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(snapshot))
+            self.assertNotIn('replied_at', self.status()['100001'])
+
+    def test_complete_history_still_needs_client_authorship_and_valid_time(self):
+        snapshot = {'threads': [{'job_id': '100001', 'room_id': 'room-1',
+                                  'messages_complete': True,
+                                  'messages': [{'from': 'me', 'at': '2026-01-01T09:00:00Z'},
+                                               {'at': '2026-01-01T10:00:00Z'},
+                                               {'from': 'client', 'at': '2026-01-01T11:00:00Z'}]}]}
+        self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(snapshot))
+        self.assertNotIn('replied_at', self.status()['100001'])
+
+        bad_client_time = {'threads': [{'job_id': '100003', 'room_id': 'room-3',
+                                         'messages_complete': True,
+                                         'messages': [{'from': 'client', 'at': 'not-a-date'},
+                                                      {'from': 'client', 'at': '2026-01-01T11:00:00Z'}]}]}
+        self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(bad_client_time))
+        self.assertNotIn('replied_at', self.status()['100003'])
+
+    def test_malformed_message_is_ignored_for_stage_and_blocks_verified_timing(self):
+        snapshot = {'threads': [{'job_id': '100002', 'room_id': 'room-2',
+                                  'messages_complete': True,
+                                  'messages': [None,
+                                               {'from': 'client', 'at': '2026-01-01T11:00:00Z'}]}]}
+        result = self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(snapshot))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('replied_at', self.status()['100002'])
 
 
 if __name__ == '__main__':

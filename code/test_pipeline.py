@@ -68,6 +68,17 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(len(self.data()), 1)
         self.assertEqual(self.data()[0]['title'], 'Build a funnel')
 
+    def test_describe_only_revises_the_member_summary(self):
+        self.add({'id': 'J1', 'summary': 'Old wording', 'rationale': 'A good fit.', 'details': {'description': 'Original posting.'}})
+        before = self.data()[0]
+        result = self.run_cli('describe', 'J1', '  Build a booking system.\n Test its reminders.  ')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.data()[0], {**before, 'summary': 'Build a booking system. Test its reminders.'})
+        saved = self.jobs.read_bytes()
+        self.assertNotEqual(self.run_cli('describe', 'J1', '  ').returncode, 0)
+        self.assertNotEqual(self.run_cli('describe', 'missing', 'New summary').returncode, 0)
+        self.assertEqual(self.jobs.read_bytes(), saved)
+
     def test_parallel_notes_do_not_lose_changes(self):
         self.add({'id': 'J1'})
         children = [subprocess.Popen([sys.executable, str(PIPELINE), 'note', 'J1', f'Note {i}'],
@@ -121,6 +132,51 @@ class PipelineTest(unittest.TestCase):
         self.run_cli('set', 'J1', 'replied')
         self.run_cli('set', 'J1', 'applied')
         self.assertEqual(self.data()[0]['applied_at'], first)
+
+    def test_verified_observations_are_zoned_nonfuture_and_never_move_stage(self):
+        self.add({'id': 'J1', 'status': 'applied', 'application_date_unknown': True})
+        before_history = self.data()[0]['history']
+        for args in (
+            ('applied', '2026-01-02T10:00:00', '--source', 'upwork-proposal', '--verified'),
+            ('applied', '2099-01-02T10:00:00Z', '--source', 'upwork-proposal', '--verified'),
+            ('applied', '2026-01-02T10:00:00Z', '--source', 'upwork-proposal'),
+            ('applied', '2026-01-02T10:00:00Z', '--source', 'up', '--verified'),
+            ('applied', '2026-01-02T10:00:00Z', '--source', 'upwork-thread', '--verified'),
+        ):
+            self.assertNotEqual(self.run_cli('observe', 'J1', *args).returncode, 0)
+        result = self.run_cli('observe', 'J1', 'applied', '2026-01-02T11:00:00+01:00',
+                              '--source', 'upwork-proposal', '--verified')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        job = self.data()[0]
+        self.assertEqual(job['status'], 'applied')
+        self.assertEqual(job['history'], before_history)
+        self.assertEqual(job['applied_at'], '2026-01-02T10:00:00+00:00')
+        self.assertNotIn('application_date_unknown', job)
+        self.assertEqual(job['applied_observation']['source'], 'upwork-proposal')
+        self.assertTrue(job['applied_observation']['verified'])
+
+        # A later read may correct the first event backward, never forward.
+        self.run_cli('observe', 'J1', 'applied', '2025-12-01T10:00:00Z',
+                     '--source', 'upwork-proposal', '--verified')
+        self.assertEqual(self.data()[0]['applied_at'], '2025-12-01T10:00:00+00:00')
+        self.run_cli('observe', 'J1', 'applied', '2026-02-01T10:00:00Z',
+                     '--source', 'upwork-proposal', '--verified')
+        self.assertEqual(self.data()[0]['applied_at'], '2025-12-01T10:00:00+00:00')
+
+        result = self.run_cli('observe', 'J1', 'replied', '2026-01-03T10:00:00Z',
+                              '--source', 'upwork-thread', '--verified')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        job = self.data()[0]
+        self.assertEqual(job['status'], 'applied')
+        self.assertEqual(job['history'], before_history)
+        self.assertEqual(job['replied_at'], '2026-01-03T10:00:00+00:00')
+
+        self.add({'id': 'J2', 'status': 'applied', 'applied_at': 'not-a-date',
+                  'applied_observation': {'verified': True, 'source': 'wrong-source'}})
+        repaired = self.run_cli('observe', 'J2', 'applied', '2026-01-04T10:00:00Z',
+                                '--source', 'upwork-proposal', '--verified')
+        self.assertEqual(repaired.returncode, 0, repaired.stderr)
+        self.assertEqual(self.data()[1]['applied_at'], '2026-01-04T10:00:00+00:00')
 
     def test_closing_clears_follow_up_and_history_records_each_step(self):
         self.add({'id': 'J1'})

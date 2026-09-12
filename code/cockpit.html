@@ -76,6 +76,29 @@
   .log .tool { color: var(--muted); font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
   .log .done { color: var(--accent); font-weight: 600; }
   .log .error { color: var(--red); white-space: pre-wrap; }
+  .tracker { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 18px; box-shadow: var(--shadow); }
+  .tracker-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  .tracker .big { font-size: 32px; font-weight: 700; letter-spacing: -.03em; }
+  .tracker .of, .tracker-meta { color: var(--muted); font-size: 15px; }
+  .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin: 14px 0 10px; }
+  .day { position: relative; height: 54px; background: var(--grey-soft); border-radius: 8px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
+  .day .fill { position: absolute; inset: 0; background: var(--amber); opacity: .55; transform-origin: bottom; }
+  .day.hit .fill { background: var(--accent); opacity: .8; }
+  .day.future { background: transparent; border: 1px dashed var(--line); }
+  .day small { position: relative; font-size: 12px; color: var(--muted); padding-bottom: 4px; }
+  .next { margin: 4px 0 0; font-size: 15px; }
+  .next a { color: var(--ink); font-weight: 600; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 4px; }
+  .tile .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .tile .val { font-size: 32px; font-weight: 700; letter-spacing: -.03em; }
+  .tile .val.empty { color: var(--line); }
+  .tile .hint { font-size: 12px; color: var(--muted); }
+  .funnel { display: grid; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .frow { display: grid; grid-template-columns: 90px 1fr 40px minmax(120px, auto); align-items: center; gap: 12px; font-size: 15px; }
+  .frow small { color: var(--muted); font-size: 12px; }
+  .track { height: 12px; background: var(--grey-soft); border-radius: 99px; overflow: hidden; }
+  .track .bar { display: block; height: 100%; width: 100%; background: var(--accent); border-radius: 99px; transform-origin: left; }
   .toast { position: fixed; right: 20px; bottom: 20px; background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; z-index: 30; }
   .toast.show { opacity: 1; }
   @media (max-width: 720px) { .card { grid-template-columns: 1fr; } .score { width: 44px; height: 44px; font-size: 16px; } dl { grid-template-columns: 1fr; } }
@@ -104,9 +127,10 @@ const TABS = [
   ['inbox', 'Inbox', j => j.status === 'new'],
   ['pipeline', 'Pipeline', j => ['applied', 'replied', 'offer'].includes(j.status)],
   ['today', 'Today', () => false],
+  ['insights', 'Insights', null],
   ['closed', 'Closed', j => ['won', 'lost', 'skipped'].includes(j.status)],
 ];
-let state = null, tab = localStorageGet('tab') || 'inbox';
+let state = null, tab = new URLSearchParams(location.search).get('tab') || localStorageGet('tab') || 'inbox';
 
 function localStorageGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 function localStorageSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -141,18 +165,62 @@ function render() {
   const find = document.getElementById('findJobs');
   find.disabled = !state.commands['find-jobs'];
   document.getElementById('tabs').innerHTML = TABS.map(([id, label, f]) => {
-    const n = id === 'today' ? t.follow_ups_due.length : state.jobs.filter(f).length;
-    return `<button class="${id === tab ? 'on' : ''}" data-tab="${id}">${label} <span class="count">${n}</span></button>`;
+    const n = id === 'today' ? t.follow_ups_due.length : f ? state.jobs.filter(f).length : null;
+    return `<button class="${id === tab ? 'on' : ''}" data-tab="${id}">${label}${n === null ? '' : ` <span class="count">${n}</span>`}</button>`;
   }).join('');
   const main = document.getElementById('main');
   if (tab === 'pipeline') main.innerHTML = board();
-  else if (tab === 'today') main.innerHTML = today();
+  else if (tab === 'today') main.innerHTML = trackerView() + today();
+  else if (tab === 'insights') main.innerHTML = insightsView();
   else {
     const f = TABS.find(x => x[0] === tab)[2];
     const jobs = state.jobs.filter(f).sort((a, b) => (b.score || 0) - (a.score || 0));
-    main.innerHTML = jobs.length ? `<div class="list">${jobs.map(card).join('')}</div>`
-      : `<p class="empty">${tab === 'inbox' ? 'No new jobs. Press Find jobs, or run /find-jobs.' : 'Nothing here yet.'}</p>`;
+    main.innerHTML = (tab === 'inbox' ? trackerView() : '') + (jobs.length ? `<div class="list">${jobs.map(card).join('')}</div>`
+      : `<p class="empty">${tab === 'inbox' ? 'No new jobs. Press Find jobs, or run /find-jobs.' : 'Nothing here yet.'}</p>`);
   }
+}
+
+function trackerView() {
+  const tr = state.tracker;
+  if (!tr.goal) return '';
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const bars = tr.week.map((d, i) => {
+    const pct = Math.min(100, Math.round(100 * d.count / tr.goal));
+    const cls = d.future ? 'future' : d.count >= tr.goal ? 'hit' : d.count ? '' : 'none';
+    return `<span class="day ${cls}" title="${esc(d.day)}: ${d.count}"><span class="fill" style="transform:scaleY(${d.future || !d.count ? 0 : Math.max(pct, 6) / 100})"></span><small>${days[i]}</small></span>`;
+  }).join('');
+  const next = state.jobs.filter(j => j.status === 'new').sort((a, b) => (b.score || 0) - (a.score || 0))[0];
+  const left = Math.max(tr.goal - tr.done, 0);
+  return `<section class="tracker">
+    <div class="tracker-head">
+      <div><span class="big">${tr.done}</span><span class="of"> of ${tr.goal} applications today</span></div>
+      <div class="tracker-meta">${tr.streak ? `${tr.streak}-day streak` : 'No streak yet'} · ${tr.week_done} this week</div>
+    </div>
+    <div class="week">${bars}</div>
+    <p class="next">${left && next ? `Next up: <a href="#" data-open="${esc(next.id)}">${esc(next.title)}</a> · score ${esc(next.score)} · ${left} to go today`
+      : left ? 'No open jobs left. Press Find jobs.' : 'Target met for today.'}</p>
+  </section>`;
+}
+
+function insightsView() {
+  const ins = state.insights, top = ins.funnel[0].count || 1;
+  const tile = (label, value, hint) => `<div class="tile"><span class="lbl">${label}</span><span class="val ${value == null ? 'empty' : ''}">${value == null ? '–' : esc(value)}</span><span class="hint">${esc(hint)}</span></div>`;
+  let prev = null;
+  const rows = ins.funnel.map(f => {
+    const w = f.count ? Math.max(3, Math.round(100 * f.count / top)) : 0;
+    const of = prev && f.count ? ` · ${Math.round(100 * f.count / prev)}% of the step before` : '';
+    prev = f.count;
+    return `<div class="frow"><span>${esc(f.stage)}</span><span class="track"><span class="bar" style="transform:scaleX(${w / 100})"></span></span><b>${f.count}</b><small>${f.count ? Math.round(100 * f.count / top) + '%' : ''}${of}</small></div>`;
+  }).join('');
+  const s = ins.skipped;
+  const skipped = s.total ? `<p class="meta">${s.total} jobs skipped: ${[s.bar && `${s.bar} asked for more than your numbers`, s.filled && `${s.filled} already filled`, s.not_fit && `${s.not_fit} not a fit`].filter(Boolean).join(' · ') || 'for other reasons'}.</p>` : '';
+  return `${trackerView()}<div class="tiles">
+      ${tile('Reply rate', ins.reply_rate == null ? null : ins.reply_rate + '%', ins.reply_rate_hint)}
+      ${tile('Time to reply', ins.reply_days == null ? null : ins.reply_days + ' days', ins.reply_days_hint)}
+      ${tile('Applications per week', ins.per_week, 'average of the last four weeks')}
+    </div>
+    <h2 class="section">Funnel</h2><div class="funnel">${rows}</div>
+    <p class="meta">A real cohort: every job counts at the highest stage it ever reached, so a lost job still shows it got a reply first.</p>${skipped}`;
 }
 
 function meta(j) {

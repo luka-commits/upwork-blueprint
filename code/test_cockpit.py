@@ -82,6 +82,32 @@ class CockpitTest(unittest.TestCase):
     def test_artifact_path_cannot_escape(self):
         self.assertEqual(self.request('GET', '/jobs/111111/..%2F..%2Fcode%2Fcockpit.py', token=False)[0], 404)
 
+    def test_streak_skips_weekends_and_never_breaks_on_today(self):
+        import datetime as dt
+        friday = dt.date(2026, 9, 11)
+        monday = dt.date(2026, 9, 14)
+        counts = {friday: 5, dt.date(2026, 9, 10): 5, dt.date(2026, 9, 9): 2}
+        self.assertEqual(self.cockpit.streak(counts, 5, monday), 2)
+        counts[monday] = 5
+        self.assertEqual(self.cockpit.streak(counts, 5, monday), 3)
+
+    def test_funnel_counts_the_highest_stage_ever_reached(self):
+        import datetime as dt
+        jobs = [
+            {'status': 'lost', 'history': [{'status': 'new', 'at': '2026-09-01T00:00:00+00:00'},
+                                            {'status': 'applied', 'at': '2026-09-01T00:00:00+00:00'},
+                                            {'status': 'replied', 'at': '2026-09-03T00:00:00+00:00'},
+                                            {'status': 'lost', 'at': '2026-09-05T00:00:00+00:00'}]},
+            {'status': 'new', 'history': [{'status': 'new', 'at': '2026-09-01T00:00:00+00:00'}]},
+            {'status': 'skipped', 'history': [{'status': 'new', 'at': '2026-09-01T00:00:00+00:00'}]},
+        ]
+        ins = self.cockpit.insights(jobs, dt.date(2026, 9, 12))
+        counts = {f['stage']: f['count'] for f in ins['funnel']}
+        self.assertEqual(counts['Found'], 2)
+        self.assertEqual(counts['Replied'], 1)
+        self.assertIsNone(ins['reply_rate'])
+        self.assertEqual(ins['reply_days'], 2)
+
     def test_stream_json_parsing(self):
         ev = self.cockpit.parse_event(json.dumps({'type': 'assistant', 'message': {'content': [
             {'type': 'text', 'text': 'Searching'}, {'type': 'tool_use', 'name': 'find_jobs'}]}}))

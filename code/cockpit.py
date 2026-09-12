@@ -82,16 +82,116 @@ def card(job):
     return j
 
 
+# --- tracker and insights, carried over from the day dashboard's Upwork tab ------
+
+# How far a job got. A lost job was often applied to and talked to first, so the
+# highest stage it ever reached comes from its history, not its current status.
+# Counting only current statuses would drop every lost job and flatter each rate.
+RANK = {'new': 0, 'applied': 1, 'replied': 2, 'offer': 3, 'won': 4}
+
+
+def parse_day(stamp):
+    try:
+        return datetime.datetime.fromisoformat(str(stamp).replace('Z', '+00:00')).date()
+    except ValueError:
+        return None
+
+
+def applied_dates(jobs):
+    """Every day an application went out, from the history (applied_at as fallback)."""
+    out = []
+    for j in jobs:
+        stamps = [h.get('at') for h in j.get('history', []) if h.get('status') == 'applied']
+        if not stamps and j.get('applied_at'):
+            stamps = [j['applied_at']]
+        out += [d for d in (parse_day(s) for s in stamps) if d]
+    return out
+
+
+def streak(counts, goal, today, weekdays_only=True):
+    """Days in a row the target was met. Today never breaks it: zero at 9 am is normal."""
+    run, day = 0, today
+    if counts.get(day, 0) < goal:
+        day -= datetime.timedelta(days=1)
+    for _ in range(3660):
+        if weekdays_only and day.weekday() >= 5:
+            day -= datetime.timedelta(days=1)
+            continue
+        if counts.get(day, 0) < goal:
+            break
+        run += 1
+        day -= datetime.timedelta(days=1)
+    return run
+
+
+def tracker(jobs, goal, today):
+    """Target, progress, streak and this week's days, Monday to Sunday."""
+    counts = {}
+    for d in applied_dates(jobs):
+        counts[d] = counts.get(d, 0) + 1
+    week_start = today - datetime.timedelta(days=today.weekday())
+    week = [{'day': (week_start + datetime.timedelta(days=i)).isoformat(),
+             'count': counts.get(week_start + datetime.timedelta(days=i), 0),
+             'future': week_start + datetime.timedelta(days=i) > today} for i in range(7)]
+    return {'goal': goal, 'done': counts.get(today, 0), 'week': week,
+            'week_done': sum(d['count'] for d in week),
+            'streak': streak(counts, goal, today) if goal else 0}
+
+
+def reached(job):
+    ranks = [RANK[h['status']] for h in job.get('history', []) if h.get('status') in RANK]
+    if job.get('status') in RANK:
+        ranks.append(RANK[job['status']])
+    if not ranks and job.get('applied_at'):
+        ranks.append(1)
+    return max(ranks) if ranks else 0
+
+
+def insights(jobs, today):
+    """A real cohort funnel plus three numbers. A number without enough data says
+    what unlocks it: a reply rate from two applications is worse than none."""
+    stages = [('Found', 0), ('Applied', 1), ('Replied', 2), ('Offer', 3), ('Won', 4)]
+    levels = [reached(j) for j in jobs if j.get('status') != 'skipped' or reached(j) >= 1]
+    funnel = [{'stage': label, 'count': sum(1 for r in levels if r >= rank)} for label, rank in stages]
+    applied = [j for j in jobs if reached(j) >= 1]
+    replied = [j for j in jobs if reached(j) >= 2]
+    spans = []
+    for j in replied:
+        h = {e['status']: e['at'] for e in j.get('history', []) if e.get('status') in ('applied', 'replied')}
+        a, b = parse_day(h.get('applied')), parse_day(h.get('replied'))
+        if a and b:
+            spans.append((b - a).days)
+    spans.sort()
+    recent = [d for d in applied_dates(jobs) if (today - d).days < 28]
+    skipped = [j for j in jobs if j.get('status') == 'skipped']
+    return {
+        'funnel': funnel,
+        'reply_rate': round(100 * len(replied) / len(applied)) if len(applied) >= 5 else None,
+        'reply_rate_hint': (f'{5 - len(applied)} more applications to go' if len(applied) < 5
+                            else f'{len(replied)} of {len(applied)} replied'),
+        'reply_days': spans[len(spans) // 2] if spans else None,
+        'reply_days_hint': f'median of {len(spans)}' if spans else 'once a client replies',
+        'per_week': round(len(recent) / 4, 1) if recent else None,
+        'skipped': {'total': len(skipped),
+                    'filled': sum(1 for j in skipped if 'already filled' in (j.get('notes') or '')),
+                    'bar': sum(1 for j in skipped if 'wants ' in (j.get('notes') or '')),
+                    'not_fit': sum(1 for j in skipped if 'not a fit' in (j.get('notes') or ''))},
+    }
+
+
 def build_state():
     jobs = pipeline.load()
-    today = datetime.date.today().isoformat()
-    applied_today = pipeline.applied_on(jobs, today)
+    day = datetime.date.today()
+    today = day.isoformat()
     due = [j['id'] for j in jobs if j.get('next_follow_up') and j['next_follow_up'] <= today
            and j.get('status') not in pipeline.CLOSED]
+    goal = daily_target()
     return {
         'generated_at': datetime.datetime.now().isoformat(timespec='seconds'),
         'jobs': [card(j) for j in jobs],
-        'today': {'applied': applied_today, 'target': daily_target(), 'follow_ups_due': due},
+        'today': {'applied': pipeline.applied_on(jobs, today), 'target': goal, 'follow_ups_due': due},
+        'tracker': tracker(jobs, goal, day),
+        'insights': insights(jobs, day),
         'commands': {name: available(name) for name in RUNNABLE},
         'statuses': list(pipeline.STATUSES),
     }

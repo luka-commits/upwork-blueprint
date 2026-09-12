@@ -29,12 +29,15 @@ Exits 1 when a job id does not exist: a silent no-op would be worse than an
 error that names the cause.
 """
 import argparse
+import contextlib
 import datetime
 import json
 import os
 import pathlib
 import re
 import sys
+import tempfile
+from urllib.parse import urlparse
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 STATUSES = ('new', 'applied', 'replied', 'offer', 'won', 'lost', 'skipped')
@@ -94,9 +97,39 @@ def save(jobs):
     """Writes through a temp file, so a crash mid-write never leaves half a pipeline."""
     path = jobs_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix('.tmp')
-    tmp.write_text(json.dumps(jobs, indent=2, ensure_ascii=False), encoding='utf-8')
-    os.replace(tmp, path)
+    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=path.parent,
+                                     prefix='.pipeline-', suffix='.tmp', delete=False) as handle:
+        tmp = pathlib.Path(handle.name)
+        json.dump(jobs, handle, indent=2, ensure_ascii=False)
+    try:
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+@contextlib.contextmanager
+def transaction():
+    """Serialize the entire read/change/write across cockpit and command processes."""
+    lock = jobs_path().with_suffix('.lock')
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with lock.open('a+b') as handle:
+        if os.name == 'nt':
+            import msvcrt
+            handle.write(b'0')
+            handle.flush()
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if os.name == 'nt':
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def now_iso():
@@ -236,8 +269,14 @@ def cmd_detail(args):
     jobs = load()
     job = find(jobs, args.job_id)
     details = job.setdefault('details', {})
+    stamp = now_iso()
+    cached_at = details.setdefault('_cached_at', {})
+    for key in details:
+        if key not in ('_cached_at', 'fetched_at'):
+            cached_at.setdefault(key, details.get('fetched_at') or job.get('found_at') or stamp)
     details.update(new)
-    details.setdefault('fetched_at', now_iso())
+    details['_cached_at'] = {**cached_at, **{key: stamp for key in new if key not in ('_cached_at', 'fetched_at')}}
+    details['fetched_at'] = stamp
     save(jobs)
     print(f'{args.job_id}: {len(new)} detail fields added ({len(details)} in total).')
 
@@ -253,11 +292,23 @@ def cmd_set(args):
     # applied_at is the day of the FIRST application and never moves. The daily
     # target counts it, so a later reply must not shift the day you applied.
     if args.status == 'applied' and not job.get('applied_at'):
-        job['applied_at'] = job['status_updated_at']
-    if args.follow_up:
-        job['next_follow_up'] = parse_follow_up(args.follow_up)
-    elif args.status in CLOSED:
+        observed = getattr(args, 'applied_at', None)
+        if observed == 'unknown':
+            job['application_date_unknown'] = True
+        elif not job.get('application_date_unknown') or observed:
+            if observed:
+                try:
+                    datetime.datetime.fromisoformat(observed.replace('Z', '+00:00'))
+                except ValueError:
+                    abort('--applied-at expects an ISO timestamp or unknown.')
+            job['applied_at'] = observed or job['status_updated_at']
+            job.pop('application_date_unknown', None)
+    if args.status in ('lost', 'skipped') or (args.status == 'won' and not args.follow_up):
         job['next_follow_up'] = None
+        job.pop('follow_up_plan', None)
+    elif args.follow_up:
+        job['next_follow_up'] = parse_follow_up(args.follow_up)
+    if args.status not in ('replied', 'offer', 'won'):
         job.pop('follow_up_plan', None)
     if args.note:
         job['notes'] = (job.get('notes', '') + ' ' + args.note).strip()
@@ -416,6 +467,28 @@ def cmd_task(args):
     print(f'{args.job_id}: {message}.')
 
 
+def cmd_pitch_url(args):
+    """Save a hosted pitch URL separately from its local preview."""
+    jobs = load()
+    job = find(jobs, args.job_id)
+    value = args.url.strip()
+    if value == '-':
+        job.pop('pitch_url', None)
+    else:
+        parsed = urlparse(value)
+        host = (parsed.hostname or '').lower()
+        import ipaddress
+        try:
+            private = not ipaddress.ip_address(host).is_global
+        except ValueError:
+            private = host in ('localhost', '') or host.endswith(('.localhost', '.local', '.test', '.invalid')) or '.' not in host
+        if parsed.scheme != 'https' or private or parsed.username or parsed.password or any(c.isspace() for c in value):
+            abort('use the public HTTPS URL of your hosted pitch page, not the local preview.')
+        job['pitch_url'] = value
+    save(jobs)
+    print(f'{args.job_id}: pitch link {"removed" if value == "-" else "saved"}.')
+
+
 def cmd_get(args):
     """Exactly one record as JSON. The cheap way to one job."""
     print(json.dumps(find(load(), args.job_id), indent=2, ensure_ascii=False))
@@ -436,8 +509,8 @@ def cmd_list(args):
 
 
 def applied_on(jobs, day):
-    return sum(1 for j in jobs for h in j.get('history', [])
-               if h.get('status') == 'applied' and str(h.get('at', ''))[:10] == day)
+    return sum(1 for j in jobs if not j.get('application_date_unknown') and str(j.get('applied_at') or next(
+        (h.get('at') for h in j.get('history', []) if h.get('status') == 'applied'), ''))[:10] == day)
 
 
 def cmd_summary(args):
@@ -462,7 +535,7 @@ def cmd_summary(args):
         print('  NOTE: nothing past "new". The funnel stops before the application.')
 
     due = sorted((j for j in jobs if j.get('next_follow_up') and j['next_follow_up'] <= today
-                  and j.get('status') not in CLOSED), key=lambda j: j['next_follow_up'])
+                  and j.get('status') not in ('lost', 'skipped')), key=lambda j: j['next_follow_up'])
     if due:
         print(f'\nFollow-ups due ({len(due)}):')
         for j in due[:10]:
@@ -482,13 +555,28 @@ def cmd_prune(args):
     cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=args.hours)
     hits = fields = 0
     for j in jobs:
+        details = j.get('details') or {}
+        cached_at = details.get('_cached_at') or {}
+        fresh_details = {}
+        for key, value in details.items():
+            if key in ('fetched_at', '_cached_at'):
+                continue
+            try:
+                fetched = datetime.datetime.fromisoformat(str(cached_at.get(key) or details.get('fetched_at') or j.get('found_at', '')).replace('Z', '+00:00'))
+                if fetched.tzinfo and fetched >= cutoff:
+                    fresh_details[key] = value
+            except ValueError:
+                pass
+        if fresh_details:
+            fresh_details['fetched_at'] = details.get('fetched_at')
+            fresh_details['_cached_at'] = {key: cached_at.get(key) or details.get('fetched_at') for key in fresh_details if key != 'fetched_at'}
         try:
             found = datetime.datetime.fromisoformat(str(j.get('found_at', '')).replace('Z', '+00:00'))
         except ValueError:
             continue
         if found >= cutoff:
             continue
-        present = [f for f in CACHED_FIELDS if j.get(f) not in (None, '', {})]
+        present = [f for f in CACHED_FIELDS if j.get(f) not in (None, '', {}) and not (f == 'details' and fresh_details == details)]
         if not present:
             continue
         hits += 1
@@ -496,6 +584,8 @@ def cmd_prune(args):
         if not args.dry_run:
             for f in present:
                 j.pop(f, None)
+            if fresh_details:
+                j['details'] = fresh_details
             j['cache_pruned_at'] = now_iso()
     # A saved client thread is Upwork's content as well, whatever job it belongs to.
     threads = [t for t in jobs_dir().glob('*/thread.json')
@@ -531,6 +621,7 @@ def build_parser():
     p.add_argument('status')
     p.add_argument('--follow-up')
     p.add_argument('--note')
+    p.add_argument('--applied-at', help='Verified submission timestamp, or unknown when sync only knows the current stage.')
     p.set_defaults(func=cmd_set)
 
     p = sub.add_parser('follow-up', help='Plan, advance or clear a contextual follow-up sequence.')
@@ -559,6 +650,11 @@ def build_parser():
     p.add_argument('--due')
     p.set_defaults(func=cmd_task)
 
+    p = sub.add_parser('pitch-url', help='Save the public URL of a hosted pitch page.')
+    p.add_argument('job_id')
+    p.add_argument('url', help='Public HTTPS URL, or "-" to remove it.')
+    p.set_defaults(func=cmd_pitch_url)
+
     p = sub.add_parser('get', help='One record as JSON.')
     p.add_argument('job_id')
     p.set_defaults(func=cmd_get)
@@ -580,7 +676,11 @@ def build_parser():
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
-    args.func(args)
+    if args.cmd in ('get', 'list', 'summary') or (args.cmd == 'add' and args.check):
+        args.func(args)
+    else:
+        with transaction():
+            args.func(args)
     return 0
 
 

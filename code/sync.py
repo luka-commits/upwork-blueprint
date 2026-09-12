@@ -53,7 +53,11 @@ def run_pipeline(*args, stdin=None):
 
 def evidence(snapshot, jobs):
     """Per job id: the furthest stage Upwork shows, and whether it says lost."""
-    by_title = {(j.get('title') or '').strip().lower(): j['id'] for j in jobs}
+    by_title = {}
+    for job in jobs:
+        title = (job.get('title') or '').strip().lower()
+        if title:
+            by_title[title] = None if title in by_title else job['id']
     seen = {}
 
     def note(job_id, title, stage):
@@ -98,6 +102,10 @@ def cmd_apply(args):
         if jid and jid not in known and stage:
             record = {'id': jid, 'title': p.get('title') or 'Untitled job', 'url': p.get('url') or '',
                       'status': stage, 'found_via': ['sync'], 'notes': 'sent outside the cockpit'}
+            if p.get('applied_at'):
+                record['applied_at'] = p['applied_at']
+            else:
+                record['application_date_unknown'] = True
             if run_pipeline('add', '--file', '-', stdin=json.dumps(record)):
                 added.append(jid)
                 known.add(jid)
@@ -113,7 +121,9 @@ def cmd_apply(args):
         new = target(job.get('status'), stages)
         if new:
             follow = '+3d' if new == 'applied' else None
-            if run_pipeline('set', jid, new, *(['--follow-up', follow] if follow else [])):
+            proposal = next((p for p in snapshot.get('proposals') or [] if str(p.get('job_id')) == jid), {})
+            date_args = ['--applied-at', proposal.get('applied_at') or 'unknown'] if new == 'applied' else []
+            if run_pipeline('set', jid, new, *(['--follow-up', follow] if follow else []), *date_args):
                 moved.append({'id': jid, 'from': job.get('status'), 'to': new})
                 job['status'] = new
 
@@ -122,12 +132,14 @@ def cmd_apply(args):
         job = next((j for j in jobs if j['id'] == jid), None)
         if not job:
             continue
-        folder = pipeline.jobs_dir() / jid
-        folder.mkdir(parents=True, exist_ok=True)
-        (folder / 'thread.json').write_text(json.dumps({
-            'fetched_at': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),
-            'room_id': t.get('room_id'), 'awaiting_reply_from': t.get('awaiting_reply_from'),
-            'messages': thread_io.normalize(t.get('messages') or [])}, indent=2, ensure_ascii=False), encoding='utf-8')
+        thread_io.save(jid, t.get('messages') or [], t.get('room_id'), t.get('awaiting_reply_from'))
+        outbox_file = pipeline.jobs_dir() / jid / 'outbox.json'
+        try:
+            outbox = json.loads(outbox_file.read_text(encoding='utf-8'))
+            if outbox.get('confirmed_at') and job.get('follow_up_plan'):
+                run_pipeline('follow-up', jid, 'sent')
+        except (OSError, json.JSONDecodeError):
+            pass
         if t.get('awaiting_reply_from') == 'you' and job.get('status') not in ('lost', 'skipped'):
             if job.get('follow_up_plan'):
                 run_pipeline('follow-up', jid, 'clear', '--reason', 'The client replied; review the new message first.')

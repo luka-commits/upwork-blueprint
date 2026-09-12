@@ -100,12 +100,13 @@ def parse_day(stamp):
 
 
 def applied_dates(jobs):
-    """Every day an application went out, from the history (applied_at as fallback)."""
+    """One application per job, even if a member moves its status back and forth."""
     out = []
     for j in jobs:
-        stamps = [h.get('at') for h in j.get('history', []) if h.get('status') == 'applied']
-        if not stamps and j.get('applied_at'):
-            stamps = [j['applied_at']]
+        if j.get('application_date_unknown'):
+            continue
+        first = j.get('applied_at') or next((h.get('at') for h in j.get('history', []) if h.get('status') == 'applied'), None)
+        stamps = [first] if first else []
         out += [d for d in (parse_day(s) for s in stamps) if d]
     return out
 

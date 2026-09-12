@@ -289,9 +289,9 @@ def clean_brief(raw):
     if not isinstance(brief, dict):
         return None
     outcome = clean(brief.get('outcome')) if isinstance(brief.get('outcome'), str) else ''
-    scope = [clean(item) for item in brief.get('scope', []) if isinstance(item, str) and clean(item)][:6]
-    requirements = [clean(item) for item in brief.get('requirements', [])
-                    if isinstance(item, str) and clean(item)][:4]
+    scope = [clean(item) for item in (brief.get('scope') if isinstance(brief.get('scope'), list) else []) if isinstance(item, str) and clean(item)]
+    requirements = [clean(item) for item in (brief.get('requirements') if isinstance(brief.get('requirements'), list) else [])
+                    if isinstance(item, str) and clean(item)]
     return {k: v for k, v in {'outcome': outcome, 'scope': scope, 'requirements': requirements}.items() if v}
 
 

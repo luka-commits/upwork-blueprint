@@ -88,6 +88,12 @@ class SyncTest(unittest.TestCase):
         self.assertEqual(jobs['100004']['status'], 'won')
         self.assertNotEqual(self.cli('sync.py', 'last').stdout.strip(), 'Never synced.')
 
+    def test_ambiguous_title_does_not_award_the_wrong_contract(self):
+        self.cli('pipeline.py', 'add', '--file', '-', stdin=json.dumps({'id': '100005', 'title': 'Roofing CRM'}))
+        self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps({'contracts': [{'title': 'Roofing CRM', 'status': 'ACTIVE'}]}))
+        self.assertEqual(self.status()['100001']['status'], 'new')
+        self.assertEqual(self.status()['100005']['status'], 'new')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -81,6 +81,11 @@ class CockpitTest(unittest.TestCase):
         counts[monday] = 5
         self.assertEqual(self.cockpit.streak(counts, 5, monday), 3)
 
+    def test_application_dates_never_count_a_stage_move_twice_or_guess_import_dates(self):
+        events = [{'status': 'applied', 'at': '2026-09-12T10:00:00Z'}, {'status': 'applied', 'at': '2026-09-13T10:00:00Z'}]
+        self.assertEqual(self.cockpit.applied_dates([{'history': events}]), [dt.date(2026, 9, 12)])
+        self.assertEqual(self.cockpit.applied_dates([{'history': events, 'application_date_unknown': True}]), [])
+
     def test_funnel_counts_the_highest_stage_ever_reached(self):
         jobs = [
             {'status': 'lost', 'history': [{'status': 'new', 'at': '2026-09-01T00:00:00+00:00'},

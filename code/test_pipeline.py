@@ -68,6 +68,22 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(len(self.data()), 1)
         self.assertEqual(self.data()[0]['title'], 'Build a funnel')
 
+    def test_parallel_notes_do_not_lose_changes(self):
+        self.add({'id': 'J1'})
+        children = [subprocess.Popen([sys.executable, str(PIPELINE), 'note', 'J1', f'Note {i}'],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.env) for i in range(12)]
+        for child in children:
+            _, stderr = child.communicate(timeout=20)
+            self.assertEqual(child.returncode, 0, stderr)
+        self.assertEqual({entry['text'] for entry in self.data()[0]['log']}, {f'Note {i}' for i in range(12)})
+
+    def test_pitch_link_rejects_local_preview(self):
+        self.add({'id': 'J1'})
+        for value in ('http://localhost:4321/pitch', 'https://127.0.0.1/page', 'https://host.local/page'):
+            self.assertNotEqual(self.run_cli('pitch-url', 'J1', value).returncode, 0)
+        self.assertEqual(self.run_cli('pitch-url', 'J1', 'https://example.com/pitch').returncode, 0)
+        self.assertEqual(self.data()[0]['pitch_url'], 'https://example.com/pitch')
+
     def test_check_writes_nothing(self):
         self.add({'id': 'J1'})
         before = self.jobs.read_text(encoding='utf-8')
@@ -84,6 +100,16 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(details['connects_cost'], 22)
         self.assertEqual(details['bid_avg'], 17.74)
         self.assertIn('fetched_at', details)
+
+    def test_refreshed_detail_survives_pruning_of_an_old_discovery(self):
+        old = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=30)).isoformat()
+        self.add({'id': 'J1', 'found_at': old, 'description': 'old', 'details': {'client_city': 'Old city'}})
+        self.run_cli('detail', 'J1', '--file', '-', stdin='{"connects_cost": 20}')
+        self.run_cli('prune')
+        job = self.data()[0]
+        self.assertNotIn('description', job)
+        self.assertNotIn('client_city', job['details'])
+        self.assertEqual(job['details']['connects_cost'], 20)
 
     def test_applied_at_is_set_once(self):
         self.add({'id': 'J1'})

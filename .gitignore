@@ -1,0 +1,22 @@
+# THE MEMBER'S WORK. Never tracked, so `git pull` never conflicts.
+# The repo ships empty starters in starters/. code/workspace.py copies them into
+# place once, and from then on these are the member's files alone. Without this
+# split, the first update collides with a month of their work and they stop
+# pulling, which quietly turns a living repo into a snapshot.
+# Anchored with a leading slash: a bare `context/` would also swallow
+# starters/context/, and the starters would never ship.
+/context/
+/data/
+/jobs/
+
+# Credentials, never
+.env
+.env.*
+!.env.example
+
+# Noise
+.DS_Store
+__pycache__/
+*.pyc
+*.log
+node_modules/

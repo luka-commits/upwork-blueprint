@@ -110,6 +110,19 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(self.data()[0]['log'][0]['text'], 'Call booked for Tuesday')
         self.assertEqual(self.run_cli('note', 'J1', '   ').returncode, 1)
 
+    def test_tasks_add_tick_and_delete(self):
+        self.add({'id': 'J1'})
+        self.run_cli('task', 'J1', 'add', 'Send the kickoff checklist', '--due', '+2d')
+        self.run_cli('task', 'J1', 'add', 'Ask for a review')
+        tasks = self.data()[0]['tasks']
+        self.assertEqual([t['id'] for t in tasks], [1, 2])
+        self.assertEqual(tasks[0]['due'], (datetime.date.today() + datetime.timedelta(days=2)).isoformat())
+        self.run_cli('task', 'J1', 'done', '1')
+        self.assertTrue(self.data()[0]['tasks'][0]['done_at'])
+        self.run_cli('task', 'J1', 'delete', '2')
+        self.assertEqual(len(self.data()[0]['tasks']), 1)
+        self.assertEqual(self.run_cli('task', 'J1', 'done', '9').returncode, 1)
+
     def test_video_takes_only_loom_or_youtube(self):
         self.add({'id': 'J1'})
         self.assertEqual(self.run_cli('video', 'J1', 'https://evil.example/x').returncode, 1)

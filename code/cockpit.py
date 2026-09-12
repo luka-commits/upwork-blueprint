@@ -45,7 +45,11 @@ RUNNABLE = {
     'find-jobs': {'prompt': '/find-jobs', 'tools': FILES + UPWORK_READ + ['WebSearch'], 'job': False},
     'pitch-page': {'prompt': '/pitch-page {job}', 'tools': FILES + UPWORK_READ + ['WebSearch', 'WebFetch'],
                    'job': True},
-    'apply': {'prompt': '/apply {job} --draft-only', 'tools': FILES + UPWORK_READ, 'job': True},
+    # The draft run makes the proposal preview (Connects price, boost bids) and
+    # stops. It never gets confirm_preview, so it cannot submit anything.
+    'apply': {'prompt': '/apply {job} --draft-only', 'job': True,
+              'tools': FILES + UPWORK_READ + ['mcp__upwork__upwork__list_freelancer_proposals',
+                                              'mcp__upwork__upwork__manage_proposals']},
 }
 
 RUNS = {}
@@ -253,8 +257,12 @@ def parse_event(line):
         for part in (ev.get('message') or {}).get('content') or []:
             if part.get('type') == 'text' and part.get('text', '').strip():
                 out.append({'kind': 'text', 'text': part['text']})
+            elif part.get('type') == 'thinking':
+                out.append({'kind': 'status', 'text': 'thinking'})
             elif part.get('type') == 'tool_use':
-                out.append({'kind': 'tool', 'text': part.get('name', 'tool')})
+                given = part.get('input') or {}
+                detail = given.get('command') or given.get('file_path') or given.get('query') or given.get('action') or ''
+                out.append({'kind': 'tool', 'text': part.get('name', 'tool'), 'detail': str(detail)[:120]})
         return out
     if ev.get('type') == 'result':
         return {'kind': 'done', 'text': ev.get('result') or '', 'error': bool(ev.get('is_error'))}
@@ -346,6 +354,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json({'error': 'missing token'}, 403)
         if path == '/api/state':
             return self.send_json(build_state())
+        if path == '/api/runs':
+            with RUNS_LOCK:
+                active = [{k: r[k] for k in ('id', 'command', 'job', 'started')} for r in RUNS.values() if not r['done']]
+            return self.send_json(active)
         m = re.match(r'^/api/job/([0-9]+)$', path)
         if m:
             job = job_view(m.group(1))
@@ -409,6 +421,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not ID.match(job_id) or not value.strip():
                 return self.send_json({'error': 'bad job or empty value'}, 400)
             ok, message = run_pipeline(path.rsplit('/', 1)[1], job_id, value)
+            return self.send_json({'ok': ok, 'message': message}, 200 if ok else 400)
+        if path == '/api/task':
+            action, value = data.get('action'), str(data.get('text') or data.get('task') or '').strip()
+            if not ID.match(job_id) or action not in ('add', 'done', 'reopen', 'delete') or not value:
+                return self.send_json({'error': 'bad job, action or empty task'}, 400)
+            args = ['task', job_id, action, value] + (['--due', str(data['due'])] if data.get('due') else [])
+            ok, message = run_pipeline(*args)
             return self.send_json({'ok': ok, 'message': message}, 200 if ok else 400)
         if path == '/api/run':
             name = data.get('command')

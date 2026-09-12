@@ -5,16 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Upwork Cockpit</title>
 <style>
-  /* One lean CRM list in the Sqanit layout (List or Board, search, filters, status
-     right in the row), the columns and pop-up card of the original Upwork OS tab,
-     and a full lead view for a job that is really moving. */
+  /* A lean CRM in the Sqanit master-list layout: one list (or board) with search,
+     column filters, columns you pick, move and resize, and saved views. A row opens
+     a side panel next to the list; a job that moves gets a full page. Won jobs
+     become clients with the same tools, and every task sits on one Tasks page. */
   :root {
     --bg: #EEF1F6; --card: #FFFFFF; --border: #E7EAF0; --border-strong: #C9CFDA;
     --text: #0B2540; --text-2: #475467; --text-3: #667085;
     --brand: #6362F9; --brand-deep: #0B2540; --brand-soft: #EEEEFE;
     --red: #B42318; --red-soft: #FDECEA; --red-deep: #911C13;
     --amber-soft: #FDF1DD; --amber-deep: #92400E; --ok: #1a7f4b; --ok-soft: #E6F4EC;
-    --shadow-1: 0 1px 2px rgba(11, 37, 64, 0.04);
+    --shadow-1: 0 1px 2px rgba(11, 37, 64, 0.04); --drawer: 440px;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
@@ -27,54 +28,88 @@
     display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-weight: 600; }
   button:hover, .btn:hover { border-color: var(--brand); text-decoration: none; }
   :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-  button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-  button.primary:hover { background: var(--brand-deep); border-color: var(--brand-deep); }
+  button.primary, .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  button.primary:hover, .btn.primary:hover { background: var(--brand-deep); border-color: var(--brand-deep); }
   button[disabled] { opacity: .45; cursor: not-allowed; }
+  button.link { border: 0; background: none; padding: 0; color: var(--text-3); font-size: 12px; font-weight: 600; }
+  button.link:hover { color: var(--text); }
   input, select, textarea { font: inherit; color: var(--text); }
+  input[type="text"], input[type="search"], input[type="number"], input[type="date"], input:not([type]) {
+    border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 10px; font-size: 13px; background: var(--card); }
 
   header.top { background: var(--card); border-bottom: 1px solid var(--border); }
-  .top-inner { max-width: 1440px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+  .top-inner { padding: 0 32px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
   .brand { font-weight: 700; font-size: 15px; padding: 14px 0; }
   .tabs { display: flex; gap: 4px; }
   .tabs a { color: var(--text-2); font-weight: 600; font-size: 15px; padding: 16px 12px 13px; border-bottom: 3px solid transparent; }
   .tabs a:hover { text-decoration: none; color: var(--text); }
   .tabs a[aria-current="page"] { color: var(--brand); border-bottom-color: var(--brand); }
+  .tabs .badge { font-size: 11px; background: var(--red-soft); color: var(--red-deep); border-radius: 999px; padding: 1px 7px; margin-left: 4px; }
   .spacer { flex: 1; }
   .stamp { font-size: 12.5px; color: var(--text-3); }
-  .wrap { max-width: 1440px; margin: 0 auto; padding: 22px 32px 60px; }
+  .wrap { padding: 22px 32px 60px; transition: margin-right .22s cubic-bezier(.22, 1, .36, 1); }
+  @media (min-width: 1100px) { body.drawer-open .wrap { margin-right: var(--drawer); } }
 
   .today { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin: 0 0 6px; }
   .today-lbl { font-size: 14px; font-weight: 600; }
   .today-n b { font-size: 24px; }
-  .today-n span { color: var(--text-3); font-size: 13px; }
-  .today-meta { font-size: 12.5px; color: var(--text-3); }
+  .today-n span, .today-meta { color: var(--text-3); font-size: 13px; }
   .today-bar { height: 5px; max-width: 480px; border-radius: 999px; background: color-mix(in srgb, var(--brand) 12%, transparent); margin: 0 0 20px; overflow: hidden; }
   .today-bar span { display: block; height: 100%; background: var(--brand); border-radius: 999px; min-width: 5px; }
 
   .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 14px; }
+  .toolbar > button, .menu > button { padding: 9px 14px; font-size: 13.5px; border-radius: 10px; }
   .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 10px; overflow: hidden; background: var(--card); }
-  .seg button { border: 0; border-radius: 0; padding: 9px 16px; color: var(--text-2); font-size: 14px; }
+  .seg button { border: 0; border-radius: 0; padding: 9px 16px; color: var(--text-2); font-size: 13.5px; }
   .seg button[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand); }
-  .search { flex: 1; min-width: 220px; padding: 9px 14px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--card); font-size: 14px; }
+  .search { flex: 1; min-width: 200px; padding: 9px 14px !important; border-radius: 10px !important; font-size: 14px !important; }
   .count { font-size: 13px; color: var(--text-3); }
-  .filters { position: relative; }
-  .filters > summary { list-style: none; cursor: pointer; border: 1px solid var(--border-strong); border-radius: 10px; padding: 9px 14px; font-weight: 600; background: var(--card); }
-  .filters > summary::-webkit-details-marker { display: none; }
-  .filters[open] > summary, .filters.on > summary { border-color: var(--brand); color: var(--brand); }
-  .pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; background: var(--card); border: 1px solid var(--border);
-    border-radius: 10px; box-shadow: 0 12px 32px rgba(11,37,64,.14); padding: 14px; width: 260px; display: grid; gap: 6px; }
-  .pop h5 { margin: 6px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); }
-  .pop label { display: flex; gap: 8px; align-items: center; font-size: 13.5px; cursor: pointer; }
-  .pop .n { margin-left: auto; color: var(--text-3); font-size: 12px; }
+  .menu { position: relative; }
+  .menu > button[aria-expanded="true"], .menu > button.on { border-color: var(--brand); color: var(--brand); }
+  .pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; box-shadow: 0 12px 32px rgba(11, 37, 64, .14); padding: 14px; width: 320px; max-width: calc(100vw - 32px); display: grid; gap: 8px; }
+  .pop.left { right: auto; left: 0; }
+  .pop[hidden] { display: none; }
+  .pop h5 { margin: 4px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); }
+  .pop-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .pop-head b { font-size: 13px; }
+  .pop-foot { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .pop-hint { font-size: 12px; color: var(--text-3); margin: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 12.5px; padding: 4px 10px; border-radius: 7px; border: 1px solid var(--border); background: var(--bg); font-weight: 500; }
+  .chip[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand); border-color: color-mix(in srgb, var(--brand) 30%, transparent); font-weight: 600; }
+  .chip .x { margin-left: 4px; color: var(--text-3); }
+  .opt-list { max-height: 280px; overflow-y: auto; display: grid; gap: 2px; }
+  .opt-list label { display: flex; gap: 8px; align-items: center; font-size: 13.5px; cursor: pointer; padding: 3px 2px; }
+  .opt-list .n { margin-left: auto; color: var(--text-3); font-size: 12px; }
+  .range { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--text-3); }
+  .range input { width: 100%; }
+  .view-row { display: flex; align-items: center; gap: 6px; }
+  .view-row button:first-child { flex: 1; justify-content: flex-start; }
+  .view-row button[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand); border-color: transparent; }
+  .save-row { display: flex; gap: 6px; }
+  .save-row input { flex: 1; min-width: 0; }
+  #colpop { position: fixed; width: 280px; }
 
-  .rt-table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border);
-    border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-1); table-layout: fixed; }
-  .rt-table th { text-align: left; font-size: 12.5px; font-weight: 700; color: var(--text); padding: 12px 14px;
-    border-bottom: 1px solid var(--border-strong); background: var(--bg); }
-  .rt-table td { padding: 12px 14px; border-top: 1px solid var(--border); vertical-align: top; }
+  .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-1); }
+  .rt-table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+  .rt-table th { position: relative; text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border-strong); background: var(--bg); user-select: none; }
+  .rt-table th[draggable="true"] { cursor: grab; }
+  .rt-table th.drop-before { box-shadow: inset 3px 0 0 var(--brand); }
+  .rt-table th.drop-after { box-shadow: inset -3px 0 0 var(--brand); }
+  .th { display: flex; align-items: center; gap: 4px; }
+  .th-sort { border: 0; background: none; padding: 0; font-size: 12.5px; font-weight: 700; color: var(--text); flex: 1; min-width: 0; justify-content: flex-start; overflow: hidden; }
+  .th-sort span { overflow: hidden; text-overflow: ellipsis; }
+  .th-filter { border: 0; background: none; padding: 2px 3px; color: var(--text-3); border-radius: 5px; }
+  .th-filter:hover { background: var(--card); }
+  .th-filter.on { color: var(--brand); }
+  .grip { position: absolute; top: 0; right: -4px; bottom: 0; width: 8px; cursor: col-resize; z-index: 2; }
+  .grip:hover, .grip.active { background: color-mix(in srgb, var(--brand) 35%, transparent); }
+  .rt-table td { padding: 12px; border-top: 1px solid var(--border); vertical-align: top; overflow: hidden; }
   .uw-row { cursor: pointer; }
   .uw-row:hover { background: color-mix(in srgb, var(--brand) 4%, transparent); }
   .uw-row.due { background: color-mix(in srgb, #B0143C 6%, transparent); }
+  .uw-row.sel { background: color-mix(in srgb, var(--brand) 9%, transparent); box-shadow: inset 3px 0 0 var(--brand); }
   .rt-td-title { font-size: 14px; font-weight: 600; color: var(--brand); display: block; }
   .rt-td-desc { display: block; font-size: 12.5px; color: var(--text-2); margin-top: 2px; }
   .rt-td-why { display: block; margin-top: 3px; font-size: 11.5px; font-style: italic; color: var(--text-3); }
@@ -89,7 +124,6 @@
     padding: 6px 28px 6px 10px; font-size: 13px; font-weight: 600; cursor: pointer; background-repeat: no-repeat; background-position: right 9px center;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23475467' fill='none' stroke-width='1.5'/%3E%3C/svg%3E"); }
   .uw-stagechip, .uw-duechip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
-  .uw-stagechip.closed { background: var(--bg); color: var(--text-2); }
   .uw-duechip.over { background: var(--red-soft); color: var(--red-deep); }
   .uw-duechip.soon { background: var(--amber-soft); color: var(--amber-deep); }
   .uw-due-inline { display: block; margin-top: 5px; }
@@ -97,10 +131,9 @@
   .uw-flag.gone { background: var(--bg); color: var(--text-2); }
   .uw-flag.bar { background: var(--red-soft); color: var(--red-deep); }
   .uw-flag.soft { background: var(--amber-soft); color: var(--amber-deep); }
-  .uw-excluded { font-size: 12.5px; color: var(--text-3); margin: 10px 0 0; }
   .empty { color: var(--text-2); padding: 28px 0; text-align: center; }
 
-  .board { display: grid; grid-template-columns: repeat(4, minmax(230px, 1fr)); gap: 14px; align-items: start; overflow-x: auto; }
+  .board { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 14px; align-items: start; overflow-x: auto; }
   .col { background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-1); min-height: 120px; }
   .col.drop { outline: 2px dashed var(--brand); outline-offset: -4px; }
   .col-head { display: flex; justify-content: space-between; gap: 8px; padding: 11px 13px; border-top: 3px solid var(--border); border-radius: 12px 12px 0 0; border-bottom: 1px solid var(--border); }
@@ -109,42 +142,61 @@
   .col-count { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 8px; background: var(--bg); height: fit-content; }
   .col-body { list-style: none; margin: 0; padding: 8px; display: grid; gap: 8px; }
   .card { border: 1px solid var(--border); border-radius: 9px; padding: 9px 10px; background: var(--bg); cursor: pointer; }
-  .card:hover { border-color: var(--brand); }
+  .card:hover, .card.sel { border-color: var(--brand); }
   .card.due { background: color-mix(in srgb, #B0143C 6%, var(--bg)); }
   .card-top { display: flex; gap: 7px; align-items: baseline; }
   .card-title { font-size: 13px; font-weight: 600; line-height: 1.3; }
   .card-meta { margin-top: 3px; font-size: 11.5px; color: var(--text-3); }
   .col-empty { text-align: center; padding: 14px 0; font-size: 12px; color: var(--text-3); }
-  .closed-box { margin-top: 14px; }
-  .closed-box summary { cursor: pointer; font-weight: 600; color: var(--text-2); padding: 6px 2px; }
 
-  .uw-modal { border: 1px solid var(--border); border-radius: 14px; padding: 24px 26px; max-width: 640px; width: calc(100vw - 32px);
-    background: var(--card); color: var(--text); box-shadow: 0 24px 60px rgb(13 31 26 / .18); }
-  .uw-modal::backdrop { background: rgb(13 31 26 / .38); }
-  .uw-modal-close { position: absolute; top: 12px; right: 12px; border: 0; background: transparent; font-size: 15px; color: var(--text-3); padding: 6px; }
-  .uw-detail-head { display: flex; align-items: flex-start; gap: 10px; margin: 0 26px 6px 0; }
-  .uw-detail-head h3 { margin: 0; font-size: 18px; line-height: 1.3; }
-  .uw-detail-meta { margin: 0 0 10px; font-size: 12.5px; color: var(--text-2); }
-  .uw-due-badge { display: inline-block; background: var(--red-soft); color: var(--red-deep); font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
-  .uw-modal h4, .panel h4 { margin: 16px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-2); }
-  .uw-modal p { margin: 0 0 6px; font-size: 14px; line-height: 1.55; }
-  .uw-lage { margin: 4px 0 0; display: flex; flex-direction: column; gap: 4px; }
-  .uw-lage div { display: flex; gap: 10px; font-size: 13.5px; }
-  .uw-lage dt { color: var(--text-2); min-width: 132px; flex: none; }
-  .uw-lage dd { margin: 0; }
-  .uw-nodata { color: var(--text-3); font-size: 13px; }
-  .uw-hist { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
-  .uw-hist li { display: flex; gap: 10px; font-size: 13px; }
-  .uw-hist-when { color: var(--text-2); min-width: 90px; }
-  .uw-actions { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .reason { display: none; width: 100%; gap: 6px; }
+  /* The side panel: only what the row does not already show. */
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(var(--drawer), 100vw); background: var(--card); border-left: 1px solid var(--border);
+    box-shadow: -12px 0 32px rgba(11, 37, 64, .08); z-index: 35; display: flex; flex-direction: column;
+    transform: translateX(100%); visibility: hidden; transition: transform .22s cubic-bezier(.22, 1, .36, 1), visibility 0s linear .22s; }
+  .drawer.open { transform: none; visibility: visible; transition: transform .22s cubic-bezier(.22, 1, .36, 1); }
+  .drawer-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--border); display: grid; gap: 10px; }
+  .drawer-title { display: flex; gap: 10px; align-items: flex-start; }
+  .drawer-title h3 { margin: 0; font-size: 17px; line-height: 1.3; flex: 1; }
+  .drawer-close { border: 0; background: transparent; font-size: 15px; color: var(--text-3); padding: 2px 6px; }
+  .drawer-stage { display: flex; gap: 8px; align-items: center; }
+  .drawer-stage .uw-due-inline { display: inline; margin: 0; }
+  .drawer-body { flex: 1; overflow-y: auto; padding: 2px 20px 24px; }
+  .drawer-foot { border-top: 1px solid var(--border); padding: 12px 20px; display: flex; justify-content: flex-end; }
+  .drawer h4, .panel h4 { margin: 18px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-2); }
+  .say { margin: 0 0 10px; font-size: 13.5px; color: var(--text-2); }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .reason { display: none; width: 100%; gap: 6px; margin-top: 6px; }
   .reason.open { display: flex; }
-  .reason input { flex: 1; font-size: 13px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border-strong); }
+  .reason input { flex: 1; }
+  .facts { margin: 0; display: grid; gap: 5px; }
+  .facts div { display: flex; gap: 10px; font-size: 13.5px; }
+  .facts dt { color: var(--text-2); min-width: 118px; flex: none; }
+  .facts dd { margin: 0; }
+  .boost { background: var(--brand-soft); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; }
+  .boost b { color: var(--brand); }
+  .boost .uw-sub { color: var(--text-2); }
+  .checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .checklist li { display: flex; gap: 8px; align-items: center; font-size: 13.5px; }
+  .tick { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; flex: none; }
+  .checklist .done .tick { background: var(--ok-soft); color: var(--ok); }
+  .checklist .todo .tick { border: 1px dashed var(--border-strong); }
+  .checklist .todo { color: var(--text-3); }
+  .tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .tasks li { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; }
+  .tasks input[type="checkbox"] { margin-top: 3px; }
+  .tasks .when { margin-left: auto; font-size: 12px; color: var(--text-3); white-space: nowrap; }
+  .tasks .when.over { color: var(--red-deep); font-weight: 600; }
+  .tasks li.done span { text-decoration: line-through; color: var(--text-3); }
+  .task-add { display: flex; gap: 6px; margin-top: 8px; }
+  .task-add input:first-child { flex: 1; min-width: 0; }
+  .task-add input[type="date"] { width: 140px; }
+  .posting { white-space: pre-wrap; font-size: 13px; color: var(--text-2); max-height: 320px; overflow-y: auto; background: var(--bg); border-radius: 8px; padding: 10px 12px; margin-top: 6px; }
+  details > summary { cursor: pointer; }
 
-  /* The full lead view: details left, conversation middle, next step and files right. */
+  /* The full lead page: details left, conversation middle, next step and files right. */
   .lead-head { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; flex-wrap: wrap; }
   .lead-head h2 { margin: 0; font-size: 19px; }
-  .lead { display: grid; grid-template-columns: minmax(270px, 1fr) minmax(360px, 1.55fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+  .lead { display: grid; grid-template-columns: minmax(270px, 1fr) minmax(360px, 1.55fr) minmax(290px, 1fr); gap: 16px; align-items: start; }
   .panel { background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-1); padding: 16px 18px; min-width: 0; }
   .panel > h3 { margin: 0 0 10px; font-size: 16px; }
   .panel + .panel { margin-top: 14px; }
@@ -152,7 +204,6 @@
   .fields div { display: grid; gap: 1px; }
   .fields dt { font-size: 12.5px; color: var(--text-3); }
   .fields dd { margin: 0; font-size: 14px; }
-  .posting { white-space: pre-wrap; font-size: 13px; color: var(--text-2); max-height: 320px; overflow-y: auto; background: var(--bg); border-radius: 8px; padding: 10px 12px; margin-top: 6px; }
   .convo { display: flex; flex-direction: column; min-height: 560px; padding: 0; }
   .convo-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); padding: 0 14px; }
   .convo-tabs button { border: 0; border-radius: 0; background: transparent; color: var(--text-2); padding: 14px 10px 11px; border-bottom: 3px solid transparent; font-size: 14px; }
@@ -162,29 +213,37 @@
   .msg { max-width: 82%; padding: 10px 13px; border-radius: 12px; font-size: 14px; white-space: pre-wrap; background: var(--bg); align-self: flex-start; }
   .msg.me { background: var(--brand-soft); align-self: flex-end; }
   .msg-meta { display: block; font-size: 11.5px; color: var(--text-3); margin-top: 4px; }
-  .tl { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+  .tl { list-style: none; margin: 0; padding: 0; }
   .tl li { display: grid; grid-template-columns: 16px 1fr; gap: 10px; padding: 0 0 14px; position: relative; }
   .tl li::before { content: ""; position: absolute; left: 7px; top: 14px; bottom: 0; width: 1px; background: var(--border); }
   .tl li:last-child::before { display: none; }
   .tl-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--brand); margin-top: 5px; margin-left: 2px; }
   .tl-dot.note { background: var(--amber-deep); }
   .tl-dot.file { background: var(--ok); }
+  .tl-dot.task { background: var(--text-3); }
   .tl-when { font-size: 12px; color: var(--text-3); }
   .composer { border-top: 1px solid var(--border); padding: 12px 14px; display: grid; gap: 8px; }
-  .composer-row { display: flex; gap: 8px; }
-  .composer input { flex: 1; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border-strong); font-size: 14px; }
-  .composer-note { font-size: 12px; color: var(--text-3); }
-  .next-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
-  .next-row input[type="date"] { padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border-strong); }
+  .composer-row { display: flex; gap: 8px; align-items: center; }
+  .composer-row input { flex: 1; padding: 9px 12px; border-radius: 10px; font-size: 14px; }
+  .note-sm { font-size: 12px; color: var(--text-3); }
   .video { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: var(--bg); max-width: 100%; }
   .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-  .video-form { display: flex; gap: 6px; margin-top: 8px; }
-  .video-form input { flex: 1; min-width: 0; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border-strong); font-size: 13px; }
+  .inline-form { display: flex; gap: 6px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+  .inline-form input:not([type="date"]) { flex: 1; min-width: 0; }
   .preview { position: relative; width: 100%; height: 190px; overflow: hidden; border-radius: 10px; border: 1px solid var(--border); background: #fff; }
   .preview iframe { position: absolute; top: 0; left: 0; width: 400%; height: 400%; border: 0; transform: scale(.25); transform-origin: 0 0; pointer-events: none; }
   .doc { white-space: pre-wrap; font-size: 12.5px; background: var(--bg); border-radius: 8px; padding: 10px 12px; max-height: 220px; overflow-y: auto; margin: 6px 0; }
-  .file-row { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 7px 0; border-top: 1px solid var(--border); font-size: 13.5px; }
+  .file-row { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-top: 1px solid var(--border); font-size: 13.5px; }
   .file-row:first-of-type { border-top: 0; }
+
+  .task-page { max-width: 900px; }
+  .task-group { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; }
+  .task-group h3 { margin: 0 0 8px; font-size: 14px; }
+  .task-row { display: grid; grid-template-columns: 22px 1fr auto auto; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--border); font-size: 13.5px; }
+  .task-row:first-of-type { border-top: 0; }
+  .task-row .job { color: var(--text-3); font-size: 12.5px; display: block; }
+  .kind { font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 8px; background: var(--bg); color: var(--text-2); }
+  .kind.client { background: var(--ok-soft); color: var(--ok); }
 
   .tiles { display: flex; flex-wrap: wrap; margin: 0 0 20px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--card); }
   .tile { flex: 1 1 190px; padding: 14px 18px; display: flex; flex-direction: column; gap: 1px; border-left: 1px solid var(--border); }
@@ -196,7 +255,7 @@
   .funnel-row { display: grid; grid-template-columns: 90px 1fr 36px 200px; gap: 10px; align-items: center; font-size: 13px; }
   .track { height: 10px; border-radius: 999px; background: var(--bg); overflow: hidden; }
   .track span { display: block; height: 100%; background: var(--brand); border-radius: 999px; }
-  .funnel-pct, .note-sm { font-size: 12px; color: var(--text-2); }
+  .funnel-pct { font-size: 12px; color: var(--text-2); }
   .days { display: flex; gap: 6px; align-items: flex-end; height: 70px; max-width: 520px; }
   .daybar { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 4px; }
   .daybar span:first-child { width: 100%; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--brand) 45%, transparent); }
@@ -207,24 +266,28 @@
   .me-lbl { font-size: 12px; color: var(--text-2); }
   .section-title { font-size: 15px; margin: 22px 0 10px; }
 
-  .run { position: fixed; left: 20px; bottom: 20px; width: min(520px, calc(100% - 40px)); max-height: 46vh; background: var(--card);
-    border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 32px rgba(11,37,64,.14); display: none; flex-direction: column; z-index: 40; }
+  .run { position: fixed; left: 20px; bottom: 20px; width: min(520px, calc(100% - 40px)); max-height: 50vh; background: var(--card);
+    border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 32px rgba(11, 37, 64, .16); display: none; flex-direction: column; z-index: 40; }
   .run.open { display: flex; }
-  .run-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px; }
-  .run-log { overflow-y: auto; padding: 12px 14px; font-size: 12.5px; display: grid; gap: 6px; }
-  .run-log .tool { color: var(--text-3); font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; }
-  .run-log .done { color: var(--ok); font-weight: 600; }
+  .run-head { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px; }
+  .run-head .grow { flex: 1; }
+  .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--brand-soft); border-top-color: var(--brand); animation: spin .8s linear infinite; }
+  .run.finished .spin { animation: none; border-color: var(--ok); }
+  .run.failed .spin { animation: none; border-color: var(--red); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .run-status { padding: 9px 14px; font-size: 13px; color: var(--text-2); border-bottom: 1px solid var(--border); }
+  .run-log { overflow-y: auto; padding: 10px 14px; font-size: 12.5px; display: grid; gap: 6px; }
+  .run-log .text { white-space: pre-wrap; }
+  .run-log .tool { color: var(--text-3); font-size: 12px; }
+  .run-log .done { color: var(--ok); font-weight: 600; white-space: pre-wrap; }
   .run-log .error { color: var(--red); white-space: pre-wrap; }
   .toast { position: fixed; right: 20px; bottom: 20px; background: var(--text); color: #fff; padding: 9px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; z-index: 50; pointer-events: none; }
   .toast.show { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .drawer, .wrap { transition: none; } .spin { animation: none; } }
   @media (max-width: 1100px) { .lead { grid-template-columns: 1fr 1fr; } .lead > :nth-child(2) { grid-column: 1 / -1; order: -1; } }
   @media (max-width: 860px) {
     .top-inner, .wrap { padding-left: 16px; padding-right: 16px; }
     .lead { grid-template-columns: 1fr; }
-    .rt-table, .rt-table thead, .rt-table tbody, .rt-table tr, .rt-table td { display: block; }
-    .rt-table colgroup, .rt-table thead { display: none; }
-    .rt-table tr { border-top: 1px solid var(--border); padding: 10px 14px; }
-    .rt-table td { border-top: 0; padding: 2px 0; }
     .funnel-row { grid-template-columns: 80px 1fr 30px; }
     .funnel-pct { display: none; }
   }
@@ -234,19 +297,18 @@
 <header class="top">
   <div class="top-inner">
     <span class="brand">Upwork Cockpit</span>
-    <nav class="tabs" aria-label="Sections"><a href="#" data-tab="jobs">Jobs</a><a href="#numbers" data-tab="numbers">Numbers</a></nav>
+    <nav class="tabs" aria-label="Sections" id="tabs"></nav>
     <div class="spacer"></div>
     <span class="stamp" id="stamp"></span>
     <button class="primary" id="findJobs">Find jobs</button>
   </div>
 </header>
 <main class="wrap" id="main"><p class="empty">Loading.</p></main>
-<dialog class="uw-modal" id="modal" aria-label="Job details">
-  <button type="button" class="uw-modal-close" data-close aria-label="Close">✕</button>
-  <div id="modalBody"></div>
-</dialog>
+<aside class="drawer" id="drawer" aria-label="Job"></aside>
+<div class="pop" id="colpop" hidden></div>
 <section class="run" id="run" aria-live="polite">
-  <div class="run-head"><span id="runTitle">Run</span><button id="runClose">Close</button></div>
+  <div class="run-head"><span class="spin"></span><span class="grow" id="runTitle">Run</span><span class="stamp" id="runClock"></span><button id="runClose">Hide</button></div>
+  <div class="run-status" id="runStatus">Starting.</div>
   <div class="run-log" id="runLog"></div>
 </section>
 <div class="toast" id="toast" role="status"></div>
@@ -258,17 +320,25 @@ const STAGES = [
   {key: 'replied', label: 'In conversation', hint: 'the client wrote back', mix: 74},
   {key: 'offer', label: 'Offer', hint: 'an offer is on the table', mix: 100},
 ];
+const ORDER = ['new', 'applied', 'replied', 'offer', 'won', 'lost', 'skipped'];
 const CLOSED = ['won', 'lost', 'skipped'];
 const LABEL = {new: 'Not applied', applied: 'Applied', replied: 'In conversation', offer: 'Offer', won: 'Won', lost: 'Lost', skipped: 'Skipped'};
-const OPEN_STATUSES = STAGES.map(s => s.key);
+const OPEN_LABELS = STAGES.map(s => s.label);
+const FILE_LABEL = {'pitch.html': 'Pitch page', 'application.md': 'Application', 'loom-script.md': 'Loom script'};
+const TOOL_WORDS = {
+  mcp__upwork__upwork__find_jobs: 'Searching Upwork', mcp__upwork__upwork__get_profile: 'Reading your Upwork profile',
+  mcp__upwork__upwork__list_accounts: 'Connecting to Upwork', mcp__upwork__upwork__list_freelancer_proposals: 'Checking your proposals',
+  mcp__upwork__upwork__manage_proposals: 'Preparing the proposal preview (nothing is sent)', Read: 'Reading', Write: 'Writing', Edit: 'Editing',
+  Bash: 'Running', Glob: 'Looking through files', Grep: 'Looking through files', WebSearch: 'Searching the web', WebFetch: 'Reading a web page',
+};
 const today = new Date().toISOString().slice(0, 10);
 
-let state = null, current = null, query = '', convoTab = 'conversation';
-let layout = read('layout', 'list');
-let filters = read('filters', {statuses: OPEN_STATUSES, due: false, strong: false});
+let state = null, current = null, drawerId = null, space = 'jobs', menu = null, colFilter = null, convoTab = 'conversation', runSource = null;
 
+// ---- small helpers -------------------------------------------------------------------
 function read(k, fallback) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
 function keep(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked: the page still works */ } }
+const clone = o => JSON.parse(JSON.stringify(o));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const $ = id => document.getElementById(id);
 const api = (path, body) => fetch(path, {method: body ? 'POST' : 'GET', headers: {'X-Cockpit-Token': TOKEN, 'Content-Type': 'application/json'},
@@ -276,12 +346,19 @@ const api = (path, body) => fetch(path, {method: body ? 'POST' : 'GET', headers:
 function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2800); }
 function ago(iso) { if (!iso) return '–'; const h = (Date.now() - new Date(iso)) / 36e5; return h < 1 ? '<1h ago' : h < 24 ? `${Math.floor(h)}h ago` : `${Math.floor(h / 24)}d ago`; }
 function day(iso) { return iso ? new Date(iso).toLocaleDateString('en-GB', {weekday: 'long', day: 'numeric', month: 'long'}) : ''; }
+function short(iso) { return iso ? new Date(iso).toLocaleDateString('en-GB', {day: 'numeric', month: 'short'}) : ''; }
 function stamp(iso) { return iso ? new Date(iso).toLocaleString('en-GB', {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'}) : ''; }
 function money(n) { n = Number(n); if (!n) return ''; return n >= 1000 ? '$' + Math.round(n / 1000) + 'K' : '$' + Math.round(n); }
+const firstNum = s => { const m = String(s ?? '').replace(/,/g, '').match(/\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; };
 const isDue = j => !!j.next_follow_up && j.next_follow_up <= today && !CLOSED.includes(j.status);
+const openTasks = j => (j.tasks || []).filter(t => !t.done_at);
+const wonAt = j => ((j.history || []).filter(h => h.status === 'won').pop() || {}).at;
+const ageBucket = iso => { if (!iso) return 'Unknown'; const h = (Date.now() - new Date(iso)) / 36e5; return h < 24 ? 'Last 24 hours' : h < 72 ? '1 to 3 days' : 'Older'; };
+const dueBucket = j => !j.next_follow_up || CLOSED.includes(j.status) ? 'No follow-up' : j.next_follow_up < today ? 'Overdue' : j.next_follow_up === today ? 'Today' : 'Later';
 const scoreHtml = j => `<span class="uw-score${(j.score || 0) >= 70 ? ' strong' : ''}">${esc(j.score ?? '–')}</span>`;
+const dash = '<span class="none">–</span>';
 
-// ---- the cells of the original Upwork OS list ------------------------------------
+// ---- cells, as in the original Upwork OS list ------------------------------------------
 function clientText(j) {
   const c = j.client || {}, bits = [];
   if (c.rating) bits.push(`${c.rating}★`);
@@ -300,29 +377,25 @@ function flags(j) {
   const d = j.details || {}, me = state.me || {}, out = [];
   if (d.total_hired) out.push('<span class="uw-flag gone">taken</span>');
   if (d.min_jss && me.jss != null && d.min_jss > me.jss) out.push('<span class="uw-flag bar">below the bar</span>');
-  if (String(j.engagement || d.engagement_type || '').toUpperCase().includes('FULL_TIME') || /30\+ hrs/.test(j.engagement || '')) out.push('<span class="uw-flag soft">full time</span>');
+  if (/FULL_TIME|30\+ hrs/i.test(j.engagement || d.engagement_type || '')) out.push('<span class="uw-flag soft">full time</span>');
   if (j.trap) out.push(`<span class="uw-flag soft">${esc(j.trap)}</span>`);
   return out.join('');
 }
 function compCell(j) {
   const n = j.proposals, d = j.details || {};
-  if (n == null || n === '') return '<span class="none">–</span>';
+  if (n == null || n === '') return dash;
   const num = typeof n === 'number' ? n : null;
   const cls = num == null ? '' : num <= 5 ? ' low' : num >= 30 ? ' high' : '';
-  const lbl = num === 0 ? 'none yet' : num != null ? `${num} bids` : `${esc(n)} bids`;
+  const lbl = num === 0 ? 'none yet' : `${esc(n)} bids`;
   return `<span class="uw-comp-n${cls}">${lbl}</span>` + (d.invites_sent ? `<span class="uw-sub">${d.invites_sent} invited</span>` : '');
 }
 function stageMix(status) { const s = STAGES.find(x => x.key === status); return s ? s.mix : 0; }
 function stageSelect(j) {
   const mix = stageMix(j.status);
-  const style = mix ? `background-color:color-mix(in srgb, var(--brand) ${Math.round(mix * .45)}%, var(--card));color:color-mix(in srgb, var(--brand) 55%, var(--text))` : 'background-color:var(--bg);color:var(--text-2)';
+  const style = mix ? `background-color:color-mix(in srgb, var(--brand) ${Math.round(mix * .45)}%, var(--card));color:color-mix(in srgb, var(--brand) 55%, var(--text))`
+    : j.status === 'won' ? 'background-color:var(--ok-soft);color:var(--ok)' : 'background-color:var(--bg);color:var(--text-2)';
   return `<select class="stage-select" data-stage-for="${esc(j.id)}" aria-label="Stage" style="${style}">${
-    Object.entries(LABEL).map(([k, l]) => `<option value="${k}"${k === j.status ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
-}
-function stageChip(j) {
-  const mix = stageMix(j.status);
-  if (!mix) return `<span class="uw-stagechip closed">${esc(LABEL[j.status] || j.status)}</span>`;
-  return `<span class="uw-stagechip" style="background:color-mix(in srgb, var(--brand) ${mix}%, var(--card));color:color-mix(in srgb, var(--brand) 55%, var(--text))">${LABEL[j.status]}</span>`;
+    ORDER.map(k => `<option value="${k}"${k === j.status ? ' selected' : ''}>${LABEL[k]}</option>`).join('')}</select>`;
 }
 function dueChip(j) {
   if (!j.next_follow_up || CLOSED.includes(j.status)) return '';
@@ -330,84 +403,231 @@ function dueChip(j) {
   const txt = days < 0 ? `${-days}d overdue` : days === 0 ? 'due today' : `in ${days} days`;
   return `<span class="uw-due-inline"><span class="uw-duechip ${days <= 0 ? 'over' : 'soon'}">${txt}</span></span>`;
 }
+function jobCell(j) {
+  return `<span class="rt-td-title">${esc(j.title)}${flags(j)}</span><span class="rt-td-desc">${esc((j.summary || j.rationale || '').split('\n\n')[0])}</span>`
+    + (j.summary && j.rationale && j.status === 'new' ? `<span class="rt-td-why">${esc(j.rationale)}</span>` : '');
+}
+function tasksCell(j) {
+  const open = openTasks(j).sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')));
+  if (!open.length) return dash;
+  const t = open[0];
+  return `${esc(t.text)}${t.due ? `<span class="uw-sub"${t.due < today ? ' style="color:var(--red-deep)"' : ''}>${esc(short(t.due))}</span>` : ''}${open.length > 1 ? `<span class="uw-sub">+${open.length - 1} more</span>` : ''}`;
+}
 
-// ---- routing: the list, the numbers, or one lead in full -------------------------
+// Every column the list can show. `filter` is how its funnel filters; `value` feeds it.
+const COLS = {
+  score: {label: 'Score', w: 92, cell: scoreHtml, sort: j => j.score ?? -1, filter: 'range', value: j => j.score},
+  job: {label: 'Job', w: 420, fixed: true, asc: true, cell: jobCell, sort: j => (j.title || '').toLowerCase()},
+  client: {label: 'Client', w: 150, cell: j => esc(clientText(j)) || dash, sort: j => (j.client || {}).rating ?? -1, filter: 'range', value: j => (j.client || {}).rating, unit: 'rating'},
+  comp: {label: 'Competition', w: 124, cell: compCell, sort: j => firstNum(j.proposals) ?? -1, filter: 'multi', value: j => j.proposals == null ? 'Unknown' : `${j.proposals} bids`},
+  budget: {label: 'Budget', w: 150, cell: j => esc(budgetText(j)) + ((j.details || {}).connects_cost != null ? `<span class="uw-sub">${j.details.connects_cost} connects</span>` : ''),
+    sort: j => firstNum(j.budget) ?? -1, filter: 'multi', value: j => j.job_type === 'hourly' ? 'Hourly' : j.job_type === 'fixed' ? 'Fixed price' : 'Unknown'},
+  posted: {label: 'Posted', w: 100, cell: j => esc(ago(j.posted_date)), sort: j => j.posted_date || '', filter: 'multi', value: j => ageBucket(j.posted_date)},
+  stage: {label: 'Stage', w: 190, asc: true, cell: j => stageSelect(j) + dueChip(j), sort: j => ORDER.indexOf(j.status), filter: 'multi', value: j => LABEL[j.status] || j.status},
+  followup: {label: 'Follow-up', w: 130, asc: true, cell: j => dueChip(j) || dash, sort: j => j.next_follow_up || '9999', filter: 'multi', value: dueBucket},
+  tasks: {label: 'Next task', w: 210, asc: true, cell: tasksCell, sort: j => (openTasks(j).map(t => t.due || '9999').sort()[0]) || '99999',
+    filter: 'multi', value: j => openTasks(j).some(t => t.due && t.due <= today) ? 'Task due' : openTasks(j).length ? 'Open tasks' : 'No open tasks'},
+  connects: {label: 'Connects', w: 96, cell: j => (j.details || {}).connects_cost ?? dash, sort: j => (j.details || {}).connects_cost ?? -1, filter: 'range', value: j => (j.details || {}).connects_cost},
+  boost: {label: 'Top slot', w: 110, cell: j => (j.details || {}).boost_recommended != null ? `+${j.details.boost_recommended} connects` : dash,
+    sort: j => (j.details || {}).boost_recommended ?? -1, filter: 'range', value: j => (j.details || {}).boost_recommended},
+  country: {label: 'Country', w: 130, asc: true, cell: j => esc((j.client || {}).country || '') || dash, sort: j => (j.client || {}).country || '', filter: 'multi', value: j => (j.client || {}).country || 'Unknown'},
+  spent: {label: 'Client spent', w: 120, cell: j => money((j.client || {}).spent) || dash, sort: j => (j.client || {}).spent ?? -1, filter: 'range', value: j => (j.client || {}).spent},
+  engagement: {label: 'Engagement', w: 150, asc: true, cell: j => esc(j.engagement || '') || dash, sort: j => j.engagement || '', filter: 'multi', value: j => j.engagement || 'Unknown'},
+  fit: {label: 'Niche fit', w: 96, cell: j => j.niche_fit != null ? `${j.niche_fit}/40` : dash, sort: j => j.niche_fit ?? -1, filter: 'range', value: j => j.niche_fit},
+  files: {label: 'Files', w: 170, cell: j => esc((j.artifacts || []).map(f => FILE_LABEL[f] || f).join(', ')) || dash, sort: j => (j.artifacts || []).length,
+    filter: 'multi', value: j => (j.artifacts || []).length ? j.artifacts.map(f => FILE_LABEL[f] || f) : ['No files']},
+  won: {label: 'Client since', w: 130, cell: j => wonAt(j) ? esc(short(wonAt(j))) : dash, sort: j => wonAt(j) || ''},
+  found: {label: 'Found', w: 100, cell: j => esc(ago(j.found_at)), sort: j => j.found_at || '', filter: 'multi', value: j => ageBucket(j.found_at)},
+};
+
+// Two lists with the same machinery: leads and won clients.
+const SPACES = {
+  jobs: {
+    title: 'Jobs', board: true, base: j => j.status !== 'won',
+    cols: Object.keys(COLS).filter(k => k !== 'won'),
+    presets: [
+      {name: 'All open', layout: 'list', query: '', filters: {stage: {kind: 'multi', values: OPEN_LABELS}}, cols: ['score', 'job', 'client', 'comp', 'budget', 'posted', 'stage'], widths: {}, sort: null},
+      {name: 'To apply', layout: 'list', query: '', filters: {stage: {kind: 'multi', values: ['Not applied']}, score: {kind: 'range', min: 60, max: null}},
+        cols: ['score', 'job', 'client', 'comp', 'budget', 'boost', 'posted'], widths: {}, sort: {id: 'score', desc: true}},
+      {name: 'Follow-ups', layout: 'list', query: '', filters: {stage: {kind: 'multi', values: OPEN_LABELS}, followup: {kind: 'multi', values: ['Overdue', 'Today']}},
+        cols: ['score', 'job', 'client', 'followup', 'tasks', 'stage'], widths: {}, sort: {id: 'followup', desc: false}},
+      {name: 'In play', layout: 'list', query: '', filters: {stage: {kind: 'multi', values: ['Applied', 'In conversation', 'Offer']}},
+        cols: ['score', 'job', 'client', 'budget', 'followup', 'tasks', 'stage'], widths: {}, sort: null},
+      {name: 'Closed', layout: 'list', query: '', filters: {stage: {kind: 'multi', values: ['Lost', 'Skipped']}}, cols: ['score', 'job', 'client', 'found', 'stage'], widths: {}, sort: {id: 'found', desc: true}},
+    ],
+  },
+  clients: {
+    title: 'Clients', board: false, base: j => j.status === 'won',
+    cols: Object.keys(COLS).filter(k => !['stage', 'followup', 'boost', 'comp', 'posted'].includes(k)),
+    presets: [
+      {name: 'All clients', layout: 'list', query: '', filters: {}, cols: ['job', 'client', 'won', 'tasks', 'files'], widths: {}, sort: {id: 'won', desc: true}},
+      {name: 'Tasks due', layout: 'list', query: '', filters: {tasks: {kind: 'multi', values: ['Task due']}}, cols: ['job', 'client', 'tasks', 'won'], widths: {}, sort: {id: 'tasks', desc: false}},
+    ],
+  },
+};
+
+// Per list: the view on screen, which preset or saved view it came from, and the saved ones.
+const spaces = read('cockpit-spaces', {});
+function S() {
+  const sp = SPACES[space];
+  const st = spaces[space] || (spaces[space] = {view: clone(sp.presets[0]), saved: []});
+  const v = st.view;
+  v.cols = (v.cols || []).filter(c => sp.cols.includes(c));
+  if (!v.cols.includes('job')) v.cols.splice(1, 0, 'job');
+  v.filters = Object.fromEntries(Object.entries(v.filters || {}).filter(([k]) => COLS[k] && COLS[k].filter));
+  v.widths = v.widths || {};
+  if (!sp.board) v.layout = 'list';
+  return st;
+}
+function saveSpaces() { keep('cockpit-spaces', spaces); }
+function viewSource(st) { return [...SPACES[space].presets, ...st.saved].find(x => x.name === st.view.name); }
+function edited(st) {
+  const src = viewSource(st);
+  if (!src) return true;
+  const strip = o => JSON.stringify({...o, name: undefined, query: undefined});
+  return strip(src) !== strip(st.view);
+}
+
+// ---- routing: a list, the tasks, the numbers, or one lead in full ---------------------------
 function route() {
-  const h = location.hash;
-  const m = h.match(/^#job\/(\d+)$/);
-  document.querySelectorAll('.tabs a').forEach(a => a.setAttribute('aria-current', (a.dataset.tab === 'numbers') === (h === '#numbers') && !m ? 'page' : 'false'));
-  if (m) return openLead(m[1]);
+  if (!state) return;
+  const h = location.hash, m = h.match(/^#job\/(\d+)$/);
+  const page = m ? 'lead' : h === '#clients' ? 'clients' : h === '#tasks' ? 'tasks' : h === '#numbers' ? 'numbers' : 'jobs';
+  renderTabs(page);
+  closePops();
+  if (page === 'lead') return openLead(m[1]);
   current = null;
-  $('main').innerHTML = h === '#numbers' ? numbersPage() : jobsPage();
+  if (page === 'jobs' || page === 'clients') { space = page; $('main').innerHTML = listPage(); return; }
+  closeDrawer();
+  $('main').innerHTML = page === 'tasks' ? tasksPage() : numbersPage();
+}
+function renderTabs(page) {
+  const due = taskItems().filter(i => i.due && i.due <= today).length;
+  const tab = (key, href, label, extra = '') => `<a href="${href}" aria-current="${page === key ? 'page' : 'false'}">${label}${extra}</a>`;
+  $('tabs').innerHTML = tab('jobs', '#', 'Jobs') + tab('clients', '#clients', 'Clients', ` <span class="count">${state.jobs.filter(j => j.status === 'won').length}</span>`)
+    + tab('tasks', '#tasks', 'Tasks', due ? `<span class="badge">${due}</span>` : '') + tab('numbers', '#numbers', 'Numbers');
 }
 
 async function load() {
   const r = await api('/api/state');
-  if (!r.ok) { $('main').innerHTML = '<p class="empty">The cockpit lost its connection. Reload the page.</p>'; return; }
+  if (!r.ok) { $('main').innerHTML = '<p class="empty">The cockpit lost its connection. Start it again with /cockpit, then reload.</p>'; return; }
   state = r.data;
   $('stamp').textContent = 'updated ' + new Date(state.generated_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
   $('findJobs').disabled = !state.commands['find-jobs'];
   route();
+  if (drawerId) openDrawer(drawerId, true);
 }
 
-// ---- the jobs page ----------------------------------------------------------------
+// ---- the list page ----------------------------------------------------------------------------
 function todayLine() {
   const tr = state.tracker;
-  if (!tr.goal) return '';
+  if (!tr.goal || space !== 'jobs') return '';
   return `<div class="today"><span class="today-lbl">Applications today</span><span class="today-n"><b>${tr.done}</b> <span>/ ${tr.goal}</span></span>
     <span class="today-meta">${tr.streak}-day streak · ${tr.week_done} this week</span></div>
     <div class="today-bar"><span style="width:${Math.min(100, 100 * tr.done / tr.goal)}%"></span></div>`;
 }
 
-function passes(j) {
-  if (!filters.statuses.includes(j.status)) return false;
-  if (filters.due && !isDue(j)) return false;
-  if (filters.strong && (j.score || 0) < 70) return false;
-  if (!query) return true;
-  const hay = [j.title, j.summary, j.rationale, j.notes, j.trap, (j.client || {}).country].join(' ').toLowerCase();
-  return query.toLowerCase().split(/\s+/).every(w => hay.includes(w));
+function passes(j, except) {
+  const v = S().view;
+  if (!SPACES[space].base(j)) return false;
+  for (const [id, f] of Object.entries(v.filters)) {
+    if (id === except || !active(f)) continue;
+    const val = COLS[id].value(j);
+    if (f.kind === 'multi') {
+      const vals = (Array.isArray(val) ? val : [val]).map(String);
+      if (!vals.some(x => f.values.includes(x))) return false;
+    } else {
+      if (val == null) return false;
+      if (f.min != null && val < f.min) return false;
+      if (f.max != null && val > f.max) return false;
+    }
+  }
+  if (v.query && except !== '__query') {
+    const hay = [j.title, j.summary, j.rationale, j.notes, j.trap, (j.client || {}).country, ...(j.tasks || []).map(t => t.text)].join(' ').toLowerCase();
+    if (!v.query.toLowerCase().split(/\s+/).every(w => hay.includes(w))) return false;
+  }
+  return true;
 }
+const active = f => f && (f.kind === 'multi' ? f.values.length > 0 : f.min != null || f.max != null);
 const byUrgency = (a, b) => (isDue(b) - isDue(a)) || (b.score || 0) - (a.score || 0);
-
-function filterPop() {
-  const count = s => state.jobs.filter(j => j.status === s).length;
-  const changed = JSON.stringify(filters) !== JSON.stringify({statuses: OPEN_STATUSES, due: false, strong: false});
-  return `<details class="filters${changed ? ' on' : ''}" id="filters"><summary>Filters${changed ? ' · on' : ''}</summary><div class="pop">
-    <h5>Stage</h5>${Object.entries(LABEL).map(([k, l]) => `<label><input type="checkbox" data-filter-status="${k}"${filters.statuses.includes(k) ? ' checked' : ''}> ${l}<span class="n">${count(k)}</span></label>`).join('')}
-    <h5>Only</h5><label><input type="checkbox" data-filter-flag="due"${filters.due ? ' checked' : ''}> Follow-up due</label>
-    <label><input type="checkbox" data-filter-flag="strong"${filters.strong ? ' checked' : ''}> Score 70 and up</label>
-    <button data-filter-reset style="margin-top:6px">Reset to open jobs</button></div></details>`;
+function sorted(jobs) {
+  const s = S().view.sort;
+  if (!s || !COLS[s.id]) return jobs.sort(space === 'clients' ? (a, b) => String(wonAt(b) || '').localeCompare(String(wonAt(a) || '')) : byUrgency);
+  const f = COLS[s.id].sort, dir = s.desc ? -1 : 1;
+  return jobs.sort((a, b) => { const x = f(a), y = f(b); return (x < y ? -1 : x > y ? 1 : 0) * dir; });
 }
 
-function jobsPage() {
+function listPage() {
+  const st = S(), v = st.view, sp = SPACES[space];
   return todayLine() + `<div class="toolbar">
-      <div class="seg" role="group" aria-label="Layout"><button data-layout="list" aria-pressed="${layout === 'list'}">List</button><button data-layout="board" aria-pressed="${layout === 'board'}">Board</button></div>
-      <input type="search" class="search" id="search" placeholder="Search jobs, clients, notes" aria-label="Search jobs" value="${esc(query)}">
-      <span class="count" id="count"></span>${filterPop()}</div><div id="results">${results()}</div>`;
+    ${sp.board ? `<div class="seg" role="group" aria-label="Layout"><button data-layout="list" aria-pressed="${v.layout === 'list'}">List</button><button data-layout="board" aria-pressed="${v.layout === 'board'}">Board</button></div>` : ''}
+    <div class="menu" id="menu-views">${viewsMenu()}</div>
+    <input type="search" class="search" id="search" placeholder="Search ${space === 'clients' ? 'clients' : 'jobs'}, notes, tasks" aria-label="Search" value="${esc(v.query)}">
+    <span class="count" id="count"></span>
+    <div class="menu" id="menu-filters">${filtersMenu()}</div>
+    ${v.layout === 'list' ? `<div class="menu" id="menu-columns">${columnsMenu()}</div>` : ''}
+  </div><div id="results">${results()}</div>`;
+}
+function refreshList() {
+  if (!$('results')) return;
+  $('results').innerHTML = results();
+  ['views', 'filters', 'columns'].forEach(m => { const el = $('menu-' + m); if (el) el.innerHTML = m === 'views' ? viewsMenu() : m === 'filters' ? filtersMenu() : columnsMenu(); });
+  if (colFilter) renderColPop();
+}
+function commit() { saveSpaces(); refreshList(); }
+
+function viewsMenu() {
+  const st = S(), sp = SPACES[space], label = `${esc(st.view.name || 'View')}${edited(st) ? ' · edited' : ''}`;
+  const row = (x, i, kind) => `<div class="view-row"><button data-apply-view="${kind}:${i}" aria-pressed="${st.view.name === x.name && !edited(st)}">${esc(x.name)}</button>${
+    kind === 'saved' ? `<button class="link" data-delete-view="${i}" aria-label="Delete ${esc(x.name)}">Delete</button>` : ''}</div>`;
+  return `<button data-menu="views" aria-expanded="${menu === 'views'}">▤ ${label}</button>${menu === 'views' ? `<div class="pop left">
+    <h5>Ready-made</h5>${sp.presets.map((x, i) => row(x, i, 'preset')).join('')}
+    ${st.saved.length ? `<h5>Saved by you</h5>${st.saved.map((x, i) => row(x, i, 'saved')).join('')}` : ''}
+    <h5>Save what you see now</h5><div class="save-row"><input id="viewName" maxlength="40" placeholder="View name" value="${edited(st) ? '' : esc(st.view.name)}" aria-label="View name"><button data-save-view>Save</button></div>
+    <p class="pop-hint">A view keeps its filters, columns, widths, order, sort and layout.</p></div>` : ''}`;
+}
+function filtersMenu() {
+  const v = S().view, list = Object.entries(v.filters).filter(([, f]) => active(f));
+  const describe = (id, f) => f.kind === 'multi' ? f.values.join(', ') : [f.min != null ? `from ${f.min}` : '', f.max != null ? `to ${f.max}` : ''].filter(Boolean).join(' ');
+  const filterable = SPACES[space].cols.filter(c => COLS[c].filter);
+  return `<button data-menu="filters" aria-expanded="${menu === 'filters'}" class="${list.length ? 'on' : ''}">Filters${list.length ? ' · ' + list.length : ''}</button>${menu === 'filters' ? `<div class="pop">
+    <div class="pop-head"><b>Active filters</b>${list.length ? '<button class="link" data-clear-filters>Clear all</button>' : ''}</div>
+    ${list.length ? `<div class="chips">${list.map(([id, f]) => `<button class="chip" aria-pressed="true" data-open-colfilter="${id}">${esc(COLS[id].label)}: ${esc(describe(id, f))}<span class="x" data-drop-filter="${id}" aria-label="Remove">✕</span></button>`).join('')}</div>` : '<p class="pop-hint">None. Everything in this list shows.</p>'}
+    <h5>Filter by</h5><div class="chips">${filterable.map(id => `<button class="chip" data-open-colfilter="${id}">${esc(COLS[id].label)}</button>`).join('')}</div>
+    <p class="pop-hint">Or use the funnel in any column header.</p></div>` : ''}`;
+}
+function columnsMenu() {
+  const v = S().view;
+  return `<button data-menu="columns" aria-expanded="${menu === 'columns'}">Columns · ${v.cols.length}</button>${menu === 'columns' ? `<div class="pop">
+    <div class="pop-head"><b>Columns</b><button class="link" data-reset-cols>Reset columns</button></div>
+    <div class="chips">${SPACES[space].cols.map(id => `<button class="chip" data-toggle-col="${id}" aria-pressed="${v.cols.includes(id)}"${COLS[id].fixed ? ' disabled title="Always visible"' : ''}>${esc(COLS[id].label)}</button>`).join('')}</div>
+    <p class="pop-hint">Drag a header to move a column, drag its right edge to make it wider.</p></div>` : ''}`;
 }
 
 function results() {
-  const jobs = state.jobs.filter(passes).sort(byUrgency);
-  queueMicrotask(() => { const c = $('count'); if (c) c.textContent = `${jobs.length} of ${state.jobs.length} jobs`; });
-  const s = state.insights.skipped;
-  const excluded = s.total && !filters.statuses.includes('skipped') ? `<p class="uw-excluded">${s.total} skipped and hidden: ${[s.bar && `${s.bar} asked for more than your numbers`, s.filled && `${s.filled} already filled`, s.not_fit && `${s.not_fit} not a fit`].filter(Boolean).join(' · ') || 'switch on Skipped under Filters'}.</p>` : '';
-  if (layout === 'board') return board(jobs) + excluded;
-  if (!jobs.length) return `<p class="empty">${query ? 'Nothing matches that search.' : 'No jobs under these filters. Press Find jobs, or change the filters.'}</p>` + excluded;
-  const rows = jobs.map(j => `<tr class="uw-row${isDue(j) ? ' due' : ''}" data-open="${esc(j.id)}" tabindex="0">
-      <td>${scoreHtml(j)}</td>
-      <td><span class="rt-td-title">${esc(j.title)}${flags(j)}</span><span class="rt-td-desc">${esc((j.summary || j.rationale || '').split('\n\n')[0])}</span>
-        ${j.summary && j.rationale ? `<span class="rt-td-why">${esc(j.rationale)}</span>` : ''}</td>
-      <td>${esc(clientText(j)) || '<span class="none">–</span>'}</td>
-      <td>${compCell(j)}</td>
-      <td>${esc(budgetText(j))}${(j.details || {}).connects_cost != null ? `<span class="uw-sub">${j.details.connects_cost} connects</span>` : ''}</td>
-      <td>${esc(ago(j.posted_date))}</td>
-      <td>${stageSelect(j)}${dueChip(j)}</td></tr>`).join('');
-  return `<table class="rt-table"><colgroup><col style="width:6%"><col style="width:36%"><col style="width:12%"><col style="width:10%"><col style="width:13%"><col style="width:8%"><col style="width:15%"></colgroup>
-    <thead><tr><th>Score</th><th>Job</th><th>Client</th><th>Competition</th><th>Budget</th><th>Posted</th><th>Stage</th></tr></thead><tbody>${rows}</tbody></table>` + excluded;
+  const v = S().view;
+  const jobs = sorted(state.jobs.filter(j => passes(j)));
+  const all = state.jobs.filter(SPACES[space].base).length;
+  queueMicrotask(() => { const c = $('count'); if (c) c.textContent = `${jobs.length} of ${all}`; });
+  if (v.layout === 'board') return board(jobs);
+  if (!jobs.length) return `<p class="empty">${all ? 'Nothing matches this view. Loosen a filter or clear the search.' : space === 'clients' ? 'No clients yet. A job you set to Won shows up here.' : 'No jobs yet. Press Find jobs.'}</p>`;
+  const cols = v.cols.map(id => ({id, ...COLS[id]}));
+  const width = c => v.widths[c.id] || c.w;
+  const minWidth = cols.reduce((s, c) => s + width(c), 0);
+  const head = cols.map(c => {
+    const s = v.sort && v.sort.id === c.id ? (v.sort.desc ? ' ↓' : ' ↑') : '';
+    return `<th data-col="${c.id}" draggable="true" aria-sort="${s ? (v.sort.desc ? 'descending' : 'ascending') : 'none'}"><div class="th">
+      <button class="th-sort" data-sort="${c.id}"><span>${esc(c.label)}${s}</span></button>
+      ${c.filter ? `<button class="th-filter${active(v.filters[c.id]) ? ' on' : ''}" data-open-colfilter="${c.id}" aria-label="Filter by ${esc(c.label)}"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 2h10L7 6.5V10l-2 1V6.5z" fill="${active(v.filters[c.id]) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></button>` : ''}
+      </div><span class="grip" data-grip="${c.id}" role="separator" aria-orientation="vertical" aria-label="Resize ${esc(c.label)}"></span></th>`;
+  }).join('');
+  const rows = jobs.map(j => `<tr class="uw-row${isDue(j) ? ' due' : ''}${j.id === drawerId ? ' sel' : ''}" data-open="${esc(j.id)}" tabindex="0">${cols.map(c => `<td>${c.cell(j)}</td>`).join('')}</tr>`).join('');
+  return `<div class="table-wrap"><table class="rt-table" id="table" style="min-width:${minWidth}px"><colgroup>${cols.map(c => `<col data-colw="${c.id}"${c.id === 'job' && !v.widths.job ? '' : ` style="width:${width(c)}px"`}>`).join('')}</colgroup>
+    <thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function board(jobs) {
-  const card = j => `<li class="card${isDue(j) ? ' due' : ''}" draggable="true" data-drag="${esc(j.id)}" data-open="${esc(j.id)}" tabindex="0">
+  const card = j => `<li class="card${isDue(j) ? ' due' : ''}${j.id === drawerId ? ' sel' : ''}" draggable="true" data-drag="${esc(j.id)}" data-open="${esc(j.id)}" tabindex="0">
     <div class="card-top">${scoreHtml(j)}<span class="card-title">${esc(j.title)}</span></div>
     <div class="card-meta">${esc([clientText(j), budgetText(j), ago(j.posted_date)].filter(Boolean).join(' · '))}</div>${dueChip(j)}</li>`;
   const cols = STAGES.map(s => {
@@ -416,147 +636,203 @@ function board(jobs) {
       <div><div class="col-title">${s.label}</div><div class="col-hint">${s.hint}</div></div><span class="col-count">${list.length}</span></div>
       <ul class="col-body">${list.map(card).join('') || '<li class="col-empty">Drop a job here</li>'}</ul></section>`;
   }).join('');
-  const closed = jobs.filter(j => CLOSED.includes(j.status));
-  return `<div class="board">${cols}</div>` + (closed.length ? `<details class="closed-box"><summary>Closed · ${closed.length}</summary><ul class="col-body">${closed.map(card).join('')}</ul></details>` : '');
+  return `<div class="board">${cols}</div>`;
 }
 
-// ---- the pop-up card, as in the original Upwork OS -------------------------------
-function situation(j) {
-  const d = j.details || {}, me = state.me || {};
-  if (!d.fetched_at) return `<h4>Where this application stands</h4><p class="uw-nodata">Not fetched yet. /find-jobs pulls this for the best five, /pitch-page and /apply for the job you pick.</p>`;
-  const rows = [];
-  if (d.connects_cost != null) rows.push(['Costs', `${d.connects_cost} connects`]);
-  if (d.bid_avg != null) rows.push(['Competing bids', j.job_type === 'hourly' ? `$${d.bid_avg}/hr average, $${d.bid_min ?? '?'}–${d.bid_max ?? '?'} range` : `$${d.bid_avg} average bid, $${d.bid_min ?? '?'}–${d.bid_max ?? '?'} range`]);
-  if (j.proposals != null) rows.push(['Proposals so far', String(j.proposals)]);
-  const live = [d.total_hired && 'someone already hired', d.offers && 'an offer is out', d.interviewing && `${d.interviewing} interviewing`, d.invites_sent && `${d.invites_sent} invitations sent`].filter(Boolean);
-  rows.push(['Client status', live.join(' · ') || 'open, nobody hired yet']);
-  const bar = [d.min_jss && `JSS ≥ ${d.min_jss}%`, d.min_earnings && !/any/i.test(d.min_earnings) && `${d.min_earnings}+ earned`].filter(Boolean);
-  if (bar.length) rows.push(['Minimum bar', bar.join(' · ')]);
-  if (me.jss != null) {
-    const fails = d.min_jss && d.min_jss > me.jss ? [`JSS ${d.min_jss}% required, you have ${me.jss}%`] : [];
-    rows.push(['Fit', fails.length ? `You fall short: ${fails.join(' · ')}` : 'You clear the bar']);
+// The funnel popover of one column.
+function renderColPop() {
+  const pop = $('colpop'), id = colFilter, c = COLS[id], v = S().view;
+  if (!id || !c) { pop.hidden = true; return; }
+  const f = v.filters[id] || (c.filter === 'multi' ? {kind: 'multi', values: []} : {kind: 'range', min: null, max: null});
+  let body = '';
+  if (c.filter === 'multi') {
+    const opts = new Map();
+    state.jobs.filter(SPACES[space].base).forEach(j => { const val = c.value(j); (Array.isArray(val) ? val : [val]).forEach(x => opts.set(String(x), 0)); });
+    state.jobs.filter(j => passes(j, id)).forEach(j => { const val = c.value(j); (Array.isArray(val) ? val : [val]).forEach(x => opts.set(String(x), (opts.get(String(x)) || 0) + 1)); });
+    const order = id === 'stage' ? ORDER.map(k => LABEL[k]) : [...opts.keys()].sort();
+    body = `<div class="opt-list">${order.filter(o => opts.has(o)).map(o => `<label><input type="checkbox" data-colfilter-opt="${esc(o)}"${f.values.includes(o) ? ' checked' : ''}> ${esc(o)}<span class="n">${opts.get(o)}</span></label>`).join('')}</div>`;
+  } else {
+    const vals = state.jobs.filter(SPACES[space].base).map(c.value).filter(x => x != null);
+    const lo = vals.length ? Math.min(...vals) : '', hi = vals.length ? Math.max(...vals) : '';
+    body = `<div class="range"><input type="number" data-range="min" placeholder="${esc(lo)}" value="${f.min ?? ''}" aria-label="From"> to <input type="number" data-range="max" placeholder="${esc(hi)}" value="${f.max ?? ''}" aria-label="To"></div>
+      <p class="pop-hint">Between ${esc(lo)} and ${esc(hi)} in this list${c.unit ? ` (${c.unit})` : ''}.</p>`;
   }
-  const shape = [j.engagement || d.engagement_type, d.experience_level && String(d.experience_level).toLowerCase()].filter(Boolean);
-  if (shape.length) rows.push(['Engagement', shape.join(' · ')]);
-  const where = [d.client_city, (j.client || {}).country, d.client_timezone && d.client_timezone.split('/').pop().replace(/_/g, ' ')].filter(Boolean);
-  if (where.length) rows.push(['Client is in', [...new Set(where)].join(' · ')]);
-  const rec = d.client_record || {};
-  if (rec.spend_total) rows.push(['Client record', `${money(rec.spend_total)} spent · ${rec.jobs_with_hires ?? '?'} jobs hired · ★${rec.feedback_score ?? '?'} from ${rec.feedback_count ?? '?'} reviews`]);
-  return `<h4>Where this application stands</h4><dl class="uw-lage">${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`;
+  pop.innerHTML = `<div class="pop-head"><b>${esc(c.label)}</b></div>${body}<div class="pop-foot"><button class="link" data-colfilter-clear>Clear</button><button data-colfilter-done>Done</button></div>`;
+  pop.hidden = false;
+}
+function openColPop(id, anchor) {
+  colFilter = id; menu = null;
+  renderColPop();
+  const r = anchor.getBoundingClientRect(), pop = $('colpop');
+  pop.style.top = `${Math.min(r.bottom + 6, window.innerHeight - pop.offsetHeight - 10)}px`;
+  pop.style.left = `${Math.max(10, Math.min(r.left - 20, window.innerWidth - pop.offsetWidth - 10))}px`;
+  ['views', 'filters', 'columns'].forEach(m => { const el = $('menu-' + m); if (el) el.innerHTML = m === 'views' ? viewsMenu() : m === 'filters' ? filtersMenu() : columnsMenu(); });
+}
+function closePops() { colFilter = null; $('colpop').hidden = true; if (menu) { menu = null; refreshMenus(); } }
+function refreshMenus() { ['views', 'filters', 'columns'].forEach(m => { const el = $('menu-' + m); if (el) el.innerHTML = m === 'views' ? viewsMenu() : m === 'filters' ? filtersMenu() : columnsMenu(); }); }
+
+// ---- the side panel ------------------------------------------------------------------------------
+function boostBlock(d) {
+  if (d.boost_available === false) return `<div class="boost">Boosting is not open to you on this job${d.boost_reason ? `: ${esc(d.boost_reason)}` : ''}.</div>`;
+  if (d.boost_recommended == null && d.boost_top_bids === undefined) return `<p class="note-sm" style="margin:0">The competing boost bids show up here once Draft application has made the proposal preview.</p>`;
+  const bids = d.boost_top_bids;
+  const top = bids == null ? 'The current bids could not be read.' : bids.length ? `Top bids now: <b>${bids.slice(0, 3).map(b => esc(b)).join(' · ')}</b> Connects.` : 'Nobody has boosted yet.';
+  const need = d.boost_recommended != null ? ` <b>+${esc(d.boost_recommended)} Connects</b> gets you a top slot${d.connects_cost != null ? `, ${esc(Number(d.connects_cost) + Number(d.boost_recommended))} in total` : ''}.` : '';
+  const skip = d.boost_recommendation === 'skip' ? '<span class="uw-sub">Upwork advises against boosting this one.</span>' : '';
+  return `<div class="boost">${top}${need}<span class="uw-sub">A bid, charged only if you land in the paid slots${d.boost_note ? ` (${esc(d.boost_note)})` : ''}. You choose it when you send.</span>${skip}</div>`;
 }
 
-function actions(j, full) {
-  const id = esc(j.id);
-  const run = (cmd, label) => `<button data-run="${cmd}" data-job="${id}" ${state.commands[cmd] ? '' : `disabled title="Arrives with /${cmd}"`}>${label}</button>`;
+function tasksBlock(j) {
+  const tasks = (j.tasks || []).slice().sort((a, b) => (!!a.done_at - !!b.done_at) || String(a.due || '9999').localeCompare(String(b.due || '9999')));
+  const shown = tasks.filter(t => !t.done_at).concat(tasks.filter(t => t.done_at).slice(0, 3));
+  return `<ul class="tasks">${shown.map(t => `<li class="${t.done_at ? 'done' : ''}"><input type="checkbox" data-task-toggle="${esc(j.id)}:${t.id}" ${t.done_at ? 'checked' : ''} aria-label="Done">
+      <span>${esc(t.text)}</span><span class="when${!t.done_at && t.due && t.due < today ? ' over' : ''}">${t.due ? esc(short(t.due)) : ''}</span></li>`).join('') || '<li class="note-sm">No tasks yet.</li>'}</ul>
+    <div class="task-add"><input id="taskText-${esc(j.id)}" placeholder="Add a task" aria-label="New task"><input type="date" id="taskDue-${esc(j.id)}" aria-label="Due date"><button data-task-add="${esc(j.id)}">Add</button></div>`;
+}
+
+function nextStep(j) {
+  const d = j.details || {}, id = esc(j.id), files = j.artifacts || [];
+  const run = (cmd, label, primary) => state.commands[cmd] ? `<button class="${primary ? 'primary' : ''}" data-run="${cmd}" data-job="${id}">${label}</button>` : '';
   const move = (status, label, follow) => `<button data-move="${status}" data-job="${id}"${follow ? ` data-follow="${follow}"` : ''}>${label}</button>`;
-  const open = j.url ? `<a class="btn" href="${esc(j.url)}" target="_blank" rel="noopener">Open on Upwork</a>` : '';
-  let out = '';
-  if (j.status === 'new') out = run('pitch-page', 'Generate pitch page') + run('apply', 'Draft application') + open + move('applied', 'I applied →', '+3d') + move('replied', 'Got a reply →')
-    + `<button data-skip="${id}">Not a fit</button><span class="reason" id="reason-${id}"><input placeholder="Why not? One line, it teaches the next search" aria-label="Reason"><button data-confirm-skip="${id}">Skip it</button></span>`;
-  else if (j.status === 'applied') out = move('replied', 'Got a reply →') + move('lost', 'Declined') + open;
-  else if (j.status === 'replied') out = move('offer', 'Offer sent →', '+3d') + move('lost', 'Declined') + open;
-  else if (j.status === 'offer') out = move('won', 'Won') + move('lost', 'Declined') + open;
-  else out = move('new', 'Reopen') + open;
-  if (isDue(j)) out += move(j.status, 'Followed up, next in 3 days', '+3d');
-  if (!full) out += `<a class="btn" href="#job/${id}" data-full style="margin-left:auto">Open full view →</a>`;
-  return out;
+  const skip = `<button data-skip="${id}">Not a fit</button><span class="reason" id="reason-${id}"><input placeholder="Why not? One line teaches the next search" aria-label="Reason"><button data-confirm-skip="${id}">Skip it</button></span>`;
+  if (j.status === 'new') {
+    const cost = d.connects_cost != null ? ` Applying costs ${d.connects_cost} Connects.` : '';
+    if (!files.includes('pitch.html')) return `<p class="say">Start with the pitch page, the application links to it.${cost}</p><div class="actions">${run('pitch-page', 'Generate pitch page', true)}${run('apply', 'Draft application')}${skip}</div>`;
+    if (!files.includes('application.md')) return `<p class="say">The pitch page is ready. Next, the application.${cost}</p><div class="actions">${run('apply', 'Draft application', true)}${skip}</div>`;
+    return `<p class="say">Everything is drafted. Record the Loom, send it on Upwork yourself, then set the stage to Applied.${cost}</p><div class="actions">${j.url ? `<a class="btn primary" href="${esc(j.url)}" target="_blank" rel="noopener">Open on Upwork to send</a>` : ''}${skip}</div>`;
+  }
+  if (j.status === 'won') return `<p class="say">Client since ${esc(day(wonAt(j)))}. Keep what you owe them as tasks below.</p>`;
+  if (CLOSED.includes(j.status)) return `<p class="say">${esc(LABEL[j.status])}${j.notes ? `: ${esc(j.notes)}` : ''}.</p><div class="actions">${move('new', 'Reopen')}</div>`;
+  if (isDue(j)) return `<p class="say">Follow-up due. Check the proposal or the thread on Upwork and nudge the client there.</p><div class="actions">${move(j.status, 'Followed up, next in 3 days', '+3d')}${run('reply', 'Draft a reply')}</div>`;
+  return `<p class="say">Waiting on the client${j.next_follow_up ? `. Follow up on ${esc(day(j.next_follow_up))}` : ''}.</p>${run('reply', 'Draft a reply') ? `<div class="actions">${run('reply', 'Draft a reply')}</div>` : ''}`;
 }
 
-async function openCard(id) {
+function drawerHtml(j) {
+  const d = j.details || {}, c = j.client || {}, files = j.artifacts || [], id = esc(j.id);
+  const facts = [];
+  if (d.bid_avg != null) facts.push(['Competing bids', j.job_type === 'hourly' ? `$${d.bid_avg}/hr average, $${d.bid_min ?? '?'} to ${d.bid_max ?? '?'}` : `$${d.bid_avg} average, $${d.bid_min ?? '?'} to ${d.bid_max ?? '?'}`]);
+  if (d.fetched_at) facts.push(['Still open?', [d.total_hired && 'someone already hired', d.offers && 'an offer is out', d.interviewing && `${d.interviewing} interviewing`, d.invites_sent && `${d.invites_sent} invited`].filter(Boolean).join(' · ') || 'yes, nobody hired yet']);
+  const me = state.me || {}, bar = [d.min_jss && `JSS ${d.min_jss}%`, d.min_earnings && !/any/i.test(d.min_earnings) && `${d.min_earnings} earned`].filter(Boolean);
+  if (bar.length) facts.push(['Their minimum', bar.join(' · ') + (me.jss != null && d.min_jss ? (d.min_jss > me.jss ? `, you have ${me.jss}%` : ', you clear it') : '')]);
+  const rec = d.client_record || {};
+  const who = [rec.spend_total ? `${money(rec.spend_total)} spent` : c.spent ? `${money(c.spent)} spent` : '', c.country, d.client_timezone && d.client_timezone.split('/').pop().replace(/_/g, ' ')].filter(Boolean);
+  if (who.length) facts.push(['Client', [...new Set(who)].join(' · ')]);
+  const item = (ok, label, href) => `<li class="${ok ? 'done' : 'todo'}"><span class="tick">${ok ? '✓' : ''}</span>${ok && href ? `<a href="${href}" target="_blank" rel="noopener">${label}</a>` : label}</li>`;
+  return `<div class="drawer-head">
+      <div class="drawer-title">${j.score != null ? scoreHtml(j) : ''}<h3>${j.url ? `<a href="${esc(j.url)}" target="_blank" rel="noopener" title="Open on Upwork">${esc(j.title)}</a>` : esc(j.title)}</h3><button class="drawer-close" data-close-drawer aria-label="Close">✕</button></div>
+      <div class="drawer-stage">${stageSelect(j)}${dueChip(j)}</div></div>
+    <div class="drawer-body">
+      <h4>Next step</h4>${nextStep(j)}
+      <h4>Tasks</h4>${tasksBlock(j)}
+      ${j.status === 'new' ? `<h4>Top slot</h4>${boostBlock(d)}` : ''}
+      ${facts.length ? `<h4>The deal</h4><dl class="facts">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
+      ${j.niche_fit != null ? `<h4>Score</h4><p class="note-sm" style="margin:0;font-size:13px">fit ${j.niche_fit} of 40 · client ${j.client_trust ?? '?'} of 30 · deal ${j.deal_quality ?? '?'} of 20 · fresh ${j.recency ?? '?'} of 10</p>` : ''}
+      <h4>Files</h4><ul class="checklist">${item(files.includes('pitch.html'), 'Pitch page', `/jobs/${id}/pitch.html`)}${item(files.includes('loom-script.md'), 'Loom script', `/jobs/${id}/loom-script.md`)}
+        ${item(!!j.video, 'Loom video', j.video ? esc(j.video) : '')}${item(files.includes('application.md'), 'Application', `/jobs/${id}/application.md`)}</ul>
+      ${d.description ? `<details><summary><h4 style="display:inline">The full posting</h4></summary><div class="posting">${esc(d.description)}</div></details>` : ''}
+    </div>
+    <div class="drawer-foot"><a class="btn" href="#job/${id}">Open full page →</a></div>`;
+}
+
+async function openDrawer(id, quiet) {
   const r = await api('/api/job/' + id);
-  if (!r.ok) return toast('Could not load that job.');
-  const j = r.data;
-  const hist = (j.history || []).map(h => `<li><span class="uw-hist-when">${esc(String(h.at).slice(0, 10))}</span><span>${esc(LABEL[h.status] || h.status)}</span></li>`).join('');
-  const meta = [clientText(j), budgetText(j), ago(j.posted_date), LABEL[j.status]].filter(Boolean);
-  $('modalBody').innerHTML = `
-    <div class="uw-detail-head">${scoreHtml(j)}<h3>${j.url ? `<a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a>` : esc(j.title)}</h3></div>
-    <p class="uw-detail-meta">${esc(meta.join(' · '))}</p>${isDue(j) ? `<span class="uw-due-badge">Follow-up due (${esc(j.next_follow_up)})</span>` : ''}
-    <h4>Why this job</h4><p>${esc(j.rationale || '')}</p>
-    ${j.summary ? `<h4>Description</h4>${j.summary.split('\n\n').map(p => `<p>${esc(p)}</p>`).join('')}` : ''}
-    ${situation(j)}
-    ${hist ? `<h4>History</h4><ul class="uw-hist">${hist}</ul>` : ''}
-    <div class="uw-actions">${actions(j, false)}</div>`;
-  if (!$('modal').open) $('modal').showModal();
+  if (!r.ok) { if (!quiet) toast('Could not load that job.'); return closeDrawer(); }
+  drawerId = id;
+  const card = state.jobs.find(j => j.id === id) || {};
+  const j = {...r.data, artifacts: card.artifacts || (r.data.files || []).map(f => f.name)};
+  const dr = $('drawer'), scroll = dr.querySelector('.drawer-body')?.scrollTop || 0;
+  dr.innerHTML = drawerHtml(j);
+  if (quiet) dr.querySelector('.drawer-body').scrollTop = scroll;
+  dr.classList.add('open');
+  document.body.classList.add('drawer-open');
+  document.querySelectorAll('[data-open]').forEach(el => el.classList.toggle('sel', el.dataset.open === id));
+}
+function closeDrawer() {
+  drawerId = null;
+  $('drawer').classList.remove('open');
+  document.body.classList.remove('drawer-open');
+  document.querySelectorAll('.sel').forEach(el => el.classList.remove('sel'));
 }
 
-// ---- the full lead view ------------------------------------------------------------
+// ---- the full lead page ---------------------------------------------------------------------------
 function embedUrl(url) {
   let m = url.match(/loom\.com\/share\/([\w-]+)/);
   if (m) return `https://www.loom.com/embed/${m[1]}`;
   m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{6,})/);
   return m ? `https://www.youtube-nocookie.com/embed/${m[1]}` : null;
 }
-
 function timeline(j) {
   const items = [];
   if (j.found_at) items.push({at: j.found_at, kind: 'status', text: 'Found by /find-jobs'});
   (j.history || []).forEach((h, i) => { if (i > 0 || h.status !== 'new') items.push({at: h.at, kind: 'status', text: `Moved to ${LABEL[h.status] || h.status}`}); });
   (j.log || []).forEach(l => items.push({at: l.at, kind: 'note', text: l.text}));
-  (j.files || []).forEach(f => items.push({at: f.at, kind: 'file', text: `${f.name} made`}));
+  (j.files || []).forEach(f => items.push({at: f.at, kind: 'file', text: `${FILE_LABEL[f.name] || f.name} made`}));
+  (j.tasks || []).forEach(t => { items.push({at: t.created_at, kind: 'task', text: `Task added: ${t.text}`}); if (t.done_at) items.push({at: t.done_at, kind: 'task', text: `Task done: ${t.text}`}); });
   items.sort((a, b) => String(b.at).localeCompare(String(a.at)));
   return `<ul class="tl">${items.map(i => `<li><span class="tl-dot ${i.kind}"></span><div>${esc(i.text)}<div class="tl-when">${esc(stamp(i.at))}</div></div></li>`).join('')}</ul>`;
 }
-
 function conversation(j) {
   const msgs = (j.thread && j.thread.messages) || [];
-  if (!msgs.length) return `<p class="empty">No conversation saved for this job yet.<br>${state.commands.inbox ? 'Run /inbox to pull the thread.' : '/inbox pulls client threads into this window once it is built.'}</p>`;
+  if (!msgs.length) return `<p class="empty">No conversation saved for this job yet.<br>${state.commands.inbox ? 'Run /inbox to pull the thread.' : 'Once /inbox is built it pulls the client thread into this window.'}</p>`;
   let last = '';
   return msgs.map(m => {
-    const d = m.at ? day(m.at) : '';
-    const sep = d && d !== last ? `<span class="day">${esc(d)}</span>` : '';
+    const d = m.at ? day(m.at) : '', sep = d && d !== last ? `<span class="day">${esc(d)}</span>` : '';
     last = d || last;
     return sep + `<div class="msg${m.from === 'me' ? ' me' : ''}">${esc(m.text)}<span class="msg-meta">${esc([m.name, m.at && new Date(m.at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})].filter(Boolean).join(' · '))}</span></div>`;
   }).join('');
 }
 
 async function openLead(id) {
-  if ($('modal').open) $('modal').close();
+  closeDrawer();
   const r = await api('/api/job/' + id);
   if (!r.ok) { $('main').innerHTML = '<p class="empty">That job is not in the pipeline. <a href="#">Back to all jobs</a></p>'; return; }
-  const j = current = r.data, d = j.details || {}, c = j.client || {}, files = (j.files || []).map(f => f.name);
+  const j = current = {...r.data, artifacts: (r.data.files || []).map(f => f.name)}, d = j.details || {}, c = j.client || {}, files = j.artifacts;
+  const back = j.status === 'won' ? '#clients' : '#';
   const field = (k, v) => v || v === 0 ? `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>` : '';
-  const emb = j.video && embedUrl(j.video);
-  const docs = ['application.md', 'loom-script.md'].filter(f => files.includes(f));
+  const emb = j.video && embedUrl(j.video), docs = ['application.md', 'loom-script.md'].filter(f => files.includes(f));
   const others = files.filter(f => f !== 'pitch.html' && !docs.includes(f));
   $('main').innerHTML = `
-    <div class="lead-head"><a class="btn" href="#">← All jobs</a>${scoreHtml(j)}<h2>${esc(j.title)}</h2>${stageSelect(j)}${dueChip(j)}</div>
+    <div class="lead-head"><a class="btn" href="${back}">← ${j.status === 'won' ? 'All clients' : 'All jobs'}</a>${j.score != null ? scoreHtml(j) : ''}<h2>${esc(j.title)}</h2>${stageSelect(j)}${dueChip(j)}
+      ${j.url ? `<a class="btn" href="${esc(j.url)}" target="_blank" rel="noopener" style="margin-left:auto">Open on Upwork</a>` : ''}</div>
     <div class="lead">
       <div>
-        <section class="panel"><h3>Job details</h3><dl class="fields">
+        <section class="panel"><h3>${j.status === 'won' ? 'The project' : 'Job details'}</h3><dl class="fields">
           ${field('Budget', budgetText(j))}${field('Posted', j.posted_date ? `${day(j.posted_date)} (${ago(j.posted_date)})` : '')}
           ${field('Engagement', [j.engagement || d.engagement_type, d.experience_level && String(d.experience_level).toLowerCase()].filter(Boolean).join(' · '))}
-          ${field('Skills', (j.skills || []).join(', '))}${field('Found via', (j.found_via || []).join(', '))}</dl>
+          ${field('Skills', (j.skills || []).join(', '))}${j.status === 'won' ? field('Client since', day(wonAt(j))) : ''}</dl>
           ${flags(j) ? `<p style="margin:10px 0 0">${flags(j)}</p>` : ''}
-          <h4>Why this job</h4><p class="note-sm" style="font-size:13.5px;color:var(--text)">${esc(j.rationale || '')}</p>
-          <p class="note-sm">fit ${j.niche_fit ?? '?'} of 40 · client ${j.client_trust ?? '?'} of 30 · deal ${j.deal_quality ?? '?'} of 20 · fresh ${j.recency ?? '?'} of 10</p>
+          ${j.rationale ? `<h4>Why this job</h4><p style="font-size:13.5px;margin:0">${esc(j.rationale)}</p>` : ''}
           ${j.summary ? `<h4>What they want</h4><p style="font-size:13.5px;margin:0">${esc(j.summary)}</p>` : ''}
-          ${d.description ? `<details><summary style="cursor:pointer;margin-top:12px;font-weight:600;color:var(--brand)">The full posting</summary><div class="posting">${esc(d.description)}</div></details>` : ''}
+          ${d.description ? `<details><summary style="margin-top:12px;font-weight:600;color:var(--brand)">The full posting</summary><div class="posting">${esc(d.description)}</div></details>` : ''}
         </section>
         <section class="panel"><h3>Client</h3><dl class="fields">
-          ${field('Rating', c.rating ? `${c.rating}★ from ${c.reviews ?? '?'} reviews` : '')}${field('Hires', c.hires != null ? `${c.hires}${c.posted_jobs != null ? ` of ${c.posted_jobs} jobs posted` : ''}` : c.posted_jobs != null ? `${c.posted_jobs} jobs posted` : '')}
-          ${field('Spent', c.spent ? money(c.spent) : '')}${field('Payment', c.verified ? 'verified' : c.verified === false ? 'not verified' : '')}
+          ${field('Rating', c.rating ? `${c.rating}★ from ${c.reviews ?? '?'} reviews` : '')}
+          ${field('Hires', c.hires != null ? `${c.hires}${c.posted_jobs != null ? ` of ${c.posted_jobs} jobs posted` : ''}` : c.posted_jobs != null ? `${c.posted_jobs} jobs posted` : '')}
+          ${field('Spent', (d.client_record || {}).spend_total ? money(d.client_record.spend_total) : c.spent ? money(c.spent) : '')}
+          ${field('Payment', c.verified ? 'verified' : c.verified === false ? 'not verified' : '')}
           ${field('Location', [d.client_city, c.country].filter(Boolean).join(', '))}${field('Time zone', d.client_timezone)}</dl>
-          ${situation(j)}</section>
+          ${j.status === 'new' ? `<h4>Top slot</h4>${boostBlock(d)}` : ''}</section>
       </div>
       <section class="panel convo">
         <div class="convo-tabs"><button data-convo="conversation" aria-pressed="${convoTab === 'conversation'}">Conversation</button><button data-convo="timeline" aria-pressed="${convoTab === 'timeline'}">Timeline</button></div>
         <div class="convo-body" id="convoBody">${convoTab === 'timeline' ? timeline(j) : conversation(j)}</div>
         <div class="composer">
           <div class="composer-row"><input id="noteText" placeholder="Add a note to the timeline: a call, a promise, what they said" aria-label="Note"><button data-note="${esc(j.id)}">Add note</button></div>
-          <div class="composer-row"><button data-run="reply" data-job="${esc(j.id)}" ${state.commands.reply ? '' : 'disabled title="Arrives with /reply"'}>Draft a reply</button>
-            <span class="composer-note">Nothing is sent from here. /reply drafts the answer, you approve it in Claude before it goes out on Upwork.</span></div>
+          <div class="composer-row">${state.commands.reply ? `<button data-run="reply" data-job="${esc(j.id)}">Draft a reply</button>` : ''}
+            <span class="note-sm">Nothing is sent from here. Replies are drafted by /reply and go out on Upwork only after your yes.</span></div>
         </div>
       </section>
       <div>
-        <section class="panel"><h3>Next step</h3><div class="uw-actions" style="margin-top:0">${actions(j, true)}</div>
-          <div class="next-row"><label for="followDate" class="note-sm">Follow up on</label><input type="date" id="followDate" value="${esc(j.next_follow_up || '')}"><button data-follow-save="${esc(j.id)}">Save</button></div></section>
+        <section class="panel"><h3>${j.status === 'won' ? 'Client' : 'Next step'}</h3>${nextStep(j)}
+          ${CLOSED.includes(j.status) ? '' : `<div class="inline-form"><label for="followDate" class="note-sm">Follow up on</label><input type="date" id="followDate" value="${esc(j.next_follow_up || '')}"><button data-follow-save="${esc(j.id)}">Save</button></div>`}</section>
+        <section class="panel"><h3>Tasks</h3>${tasksBlock(j)}</section>
         <section class="panel"><h3>Video</h3>${emb ? `<div class="video"><iframe src="${esc(emb)}" allowfullscreen title="Video for this job"></iframe></div>` : '<p class="note-sm" style="margin:0">Record your Loom over the pitch page, then paste the share link here.</p>'}
-          <div class="video-form"><input id="videoUrl" placeholder="https://www.loom.com/share/…" value="${esc(j.video || '')}" aria-label="Video link"><button data-video="${esc(j.id)}">Save</button>${j.video ? `<button data-video-clear="${esc(j.id)}" title="Remove the link">✕</button>` : ''}</div></section>
+          <div class="inline-form"><input id="videoUrl" placeholder="https://www.loom.com/share/…" value="${esc(j.video || '')}" aria-label="Video link"><button data-video="${esc(j.id)}">Save</button>${j.video ? `<button data-video-clear="${esc(j.id)}" title="Remove the link">✕</button>` : ''}</div></section>
         <section class="panel"><h3>Pitch page</h3>${files.includes('pitch.html') ? `<div class="preview"><iframe src="/jobs/${esc(j.id)}/pitch.html" title="Pitch page preview" loading="lazy"></iframe></div>
-          <div class="uw-actions" style="margin-top:10px"><a class="btn" href="/jobs/${esc(j.id)}/pitch.html" target="_blank" rel="noopener">Open pitch page</a></div>`
-          : `<p class="note-sm" style="margin:0 0 8px">No pitch page yet.</p><button data-run="pitch-page" data-job="${esc(j.id)}" ${state.commands['pitch-page'] ? '' : 'disabled'}>Generate pitch page</button>`}</section>
-        ${docs.map(f => `<section class="panel"><h3>${f === 'application.md' ? 'Application' : 'Loom script'}</h3><div class="doc" data-doc="${esc(f)}">Loading.</div>
-          <div class="uw-actions" style="margin-top:6px"><button data-copy="${esc(f)}">Copy text</button><a class="btn" href="/jobs/${esc(j.id)}/${esc(f)}" target="_blank" rel="noopener">Open</a></div></section>`).join('')}
+          <div class="actions" style="margin-top:10px"><a class="btn" href="/jobs/${esc(j.id)}/pitch.html" target="_blank" rel="noopener">Open pitch page</a></div>`
+          : `<p class="note-sm" style="margin:0 0 8px">No pitch page yet.</p>${state.commands['pitch-page'] ? `<button data-run="pitch-page" data-job="${esc(j.id)}">Generate pitch page</button>` : ''}`}</section>
+        ${docs.map(f => `<section class="panel"><h3>${FILE_LABEL[f]}</h3><div class="doc" data-doc="${esc(f)}">Loading.</div>
+          <div class="actions" style="margin-top:6px"><button data-copy="${esc(f)}">Copy text</button><a class="btn" href="/jobs/${esc(j.id)}/${esc(f)}" target="_blank" rel="noopener">Open</a></div></section>`).join('')}
         ${others.length ? `<section class="panel"><h3>Other files</h3>${others.map(f => `<div class="file-row"><span>${esc(f)}</span><a href="/jobs/${esc(j.id)}/${esc(f)}" target="_blank" rel="noopener">Open</a></div>`).join('')}</section>` : ''}
       </div>
     </div>`;
@@ -564,10 +840,33 @@ async function openLead(id) {
     const res = await fetch(`/jobs/${j.id}/${el.dataset.doc}`);
     el.textContent = res.ok ? await res.text() : 'Could not read the file.';
   });
-  window.scrollTo(0, 0);
 }
 
-// ---- the numbers page ----------------------------------------------------------------
+// ---- tasks across every lead and client -------------------------------------------------------------
+function taskItems() {
+  const items = [];
+  state.jobs.forEach(j => {
+    openTasks(j).forEach(t => items.push({kind: 'task', j, t, due: t.due}));
+    if (isDue(j)) items.push({kind: 'follow', j, due: j.next_follow_up});
+  });
+  return items;
+}
+function tasksPage() {
+  const items = taskItems().sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')));
+  const groups = [['Overdue', i => i.due && i.due < today], ['Today', i => i.due === today], ['Coming up', i => i.due && i.due > today], ['No date', i => !i.due]];
+  const row = i => {
+    const who = `<a href="#job/${esc(i.j.id)}">${esc(i.j.title)}</a>`;
+    const kind = i.j.status === 'won' ? '<span class="kind client">Client</span>' : `<span class="kind">${esc(LABEL[i.j.status])}</span>`;
+    if (i.kind === 'follow') return `<div class="task-row"><input type="checkbox" data-move="${i.j.status}" data-job="${esc(i.j.id)}" data-follow="+3d" aria-label="Followed up">
+      <div>Follow up on the application<span class="job">${who}</span></div>${kind}<span class="note-sm">${esc(short(i.due))}</span></div>`;
+    return `<div class="task-row"><input type="checkbox" data-task-toggle="${esc(i.j.id)}:${i.t.id}" aria-label="Done"><div>${esc(i.t.text)}<span class="job">${who}</span></div>${kind}<span class="note-sm">${i.due ? esc(short(i.due)) : ''}</span></div>`;
+  };
+  const html = groups.map(([name, test]) => { const list = items.filter(test); return list.length ? `<section class="task-group"><h3>${name} · ${list.length}</h3>${list.map(row).join('')}</section>` : ''; }).join('');
+  return `<div class="task-page">${html || '<p class="empty">Nothing to do. Add tasks from any job or client, follow-ups land here on their own.</p>'}
+    <p class="note-sm">Tasks live on a job or a client: add them in the side panel or on the full page. A ticked follow-up sets the next one three days out.</p></div>`;
+}
+
+// ---- the numbers page ------------------------------------------------------------------------------
 function numbersPage() {
   const ins = state.insights, tr = state.tracker, m = state.me || {}, top = ins.funnel[0].count || 1;
   const tile = (l, v, h) => `<div class="tile"><span class="tile-lbl">${l}</span><span class="tile-val${v == null ? ' empty' : ''}">${v == null ? '–' : esc(v)}</span><span class="tile-hint">${esc(h)}</span></div>`;
@@ -587,95 +886,202 @@ function numbersPage() {
     ${week}${stats.length ? `<h3 class="section-title">Where you stand</h3><div class="me-stats">${stats.map(([v, l]) => `<div><span class="me-val">${esc(v)}</span><span class="me-lbl">${l}</span></div>`).join('')}</div>` : ''}`;
 }
 
-// ---- doing things ----------------------------------------------------------------------
+// ---- runs: a button starts a local Claude run, the panel shows what it does -------------------------
+function attachRun(id, command, job, started) {
+  if (runSource) runSource.close();
+  const panel = $('run'), log = $('runLog');
+  $('runTitle').textContent = '/' + command + (job ? ' · ' + ((state.jobs.find(j => j.id === job) || {}).title || job) : '');
+  $('runStatus').textContent = 'Starting Claude. A search takes a few minutes, you can keep working.';
+  log.innerHTML = ''; panel.classList.remove('finished', 'failed'); panel.classList.add('open');
+  const t0 = started ? started * 1000 : Date.now();
+  clearInterval(panel._clock);
+  panel._clock = setInterval(() => { const s = Math.round((Date.now() - t0) / 1000); $('runClock').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }, 1000);
+  const src = runSource = new EventSource('/api/run/' + id);
+  src.onmessage = e => {
+    const ev = JSON.parse(e.data);
+    if (ev.kind === 'status') { $('runStatus').textContent = 'Thinking.'; return; }
+    const p = document.createElement('div');
+    p.className = ev.kind;
+    if (ev.kind === 'tool') {
+      const word = TOOL_WORDS[ev.text] || ev.text.replace(/^mcp__upwork__upwork__/, 'Upwork: ');
+      $('runStatus').textContent = word + (ev.detail ? ` · ${ev.detail.split('/').pop().slice(0, 70)}` : '');
+      p.textContent = '→ ' + word + (ev.detail ? ` · ${ev.detail.slice(0, 90)}` : '');
+    } else p.textContent = ev.text;
+    log.appendChild(p); log.scrollTop = log.scrollHeight;
+    if (ev.kind === 'done') {
+      src.close(); runSource = null; clearInterval(panel._clock);
+      panel.classList.add(ev.error ? 'failed' : 'finished');
+      $('runStatus').textContent = ev.error ? 'Stopped with an error. The last lines say why.' : 'Finished. The list is up to date.';
+      toast(ev.error ? 'The run stopped with an error.' : 'Run finished.');
+      load();
+    }
+  };
+  src.onerror = () => { src.close(); };
+}
 function runCommand(command, job) {
   api('/api/run', {command, job}).then(r => {
     if (!r.ok) return toast(r.data.error || 'Could not start it.');
-    const log = $('runLog');
-    $('runTitle').textContent = '/' + command + (job ? ' ' + job : '');
-    log.innerHTML = ''; $('run').classList.add('open');
-    const src = new EventSource('/api/run/' + r.data.run);
-    src.onmessage = e => {
-      const ev = JSON.parse(e.data), p = document.createElement('div');
-      p.className = ev.kind; p.textContent = ev.kind === 'tool' ? '→ ' + ev.text : ev.text;
-      log.appendChild(p); log.scrollTop = log.scrollHeight;
-      if (ev.kind === 'done') { src.close(); load(); }
-    };
-    src.onerror = () => src.close();
+    attachRun(r.data.run, command, job);
   });
 }
+async function resumeRuns() {
+  const r = await api('/api/runs');
+  if (r.ok && r.data.length) { const x = r.data[r.data.length - 1]; attachRun(x.id, x.command, x.job, x.started); }
+}
 
+// ---- changing things ---------------------------------------------------------------------------------
 async function post(path, body) {
   const r = await api(path, body);
   toast(r.ok ? r.data.message : (r.data.error || r.data.message || 'That did not work.'));
-  const wasOpen = $('modal').open;
   await load();
-  if (wasOpen && r.ok) openCard(body.id);
   return r.ok;
 }
 const move = (id, status, follow, note) => post('/api/status', Object.assign({id, status}, follow ? {follow_up: follow} : {}, note ? {note} : {}));
 
+const on = (sel, fn) => [sel, fn];
+const CLICKS = [
+  on('[data-close-drawer]', () => closeDrawer()),
+  on('[data-menu]', el => { menu = menu === el.dataset.menu ? null : el.dataset.menu; colFilter = null; $('colpop').hidden = true; refreshMenus(); }),
+  on('[data-layout]', el => { S().view.layout = el.dataset.layout; menu = null; saveSpaces(); route(); }),
+  on('[data-apply-view]', el => {
+    const [kind, i] = el.dataset.applyView.split(':'), st = S();
+    st.view = clone(kind === 'preset' ? SPACES[space].presets[i] : st.saved[i]); menu = null; saveSpaces(); route();
+  }),
+  on('[data-delete-view]', el => { const st = S(); st.saved.splice(Number(el.dataset.deleteView), 1); commit(); }),
+  on('[data-save-view]', () => {
+    const name = $('viewName').value.trim(); if (!name) return $('viewName').focus();
+    const st = S(); st.view.name = name; st.saved = st.saved.filter(x => x.name !== name).concat(clone(st.view)); menu = null; commit(); toast(`View "${name}" saved.`);
+  }),
+  on('[data-drop-filter]', el => { delete S().view.filters[el.dataset.dropFilter]; commit(); }),
+  on('[data-clear-filters]', () => { S().view.filters = {}; commit(); }),
+  on('[data-open-colfilter]', el => openColPop(el.dataset.openColfilter, el)),
+  on('[data-colfilter-clear]', () => { delete S().view.filters[colFilter]; commit(); }),
+  on('[data-colfilter-done]', () => closePops()),
+  on('[data-toggle-col]', el => {
+    const v = S().view, id = el.dataset.toggleCol;
+    v.cols = v.cols.includes(id) ? v.cols.filter(c => c !== id) : [...v.cols, id]; commit();
+  }),
+  on('[data-reset-cols]', () => { const v = S().view, src = viewSource(S()) || SPACES[space].presets[0]; v.cols = clone(src.cols); v.widths = {}; commit(); }),
+  on('[data-sort]', el => {
+    const v = S().view, id = el.dataset.sort, first = !COLS[id].asc;
+    if (!v.sort || v.sort.id !== id) v.sort = {id, desc: first};
+    else if (v.sort.desc === first) v.sort = {id, desc: !first};
+    else v.sort = null;
+    commit();
+  }),
+  on('#findJobs', () => runCommand('find-jobs')),
+  on('#runClose', () => $('run').classList.remove('open')),
+  on('[data-run]', el => runCommand(el.dataset.run, el.dataset.job)),
+  on('[data-move]', el => move(el.dataset.job, el.dataset.move, el.dataset.follow)),
+  on('[data-skip]', el => { const box = $('reason-' + el.dataset.skip); box.classList.add('open'); box.querySelector('input').focus(); }),
+  on('[data-confirm-skip]', el => { const note = document.querySelector(`#reason-${el.dataset.confirmSkip} input`).value.trim(); move(el.dataset.confirmSkip, 'skipped', null, note ? 'not a fit: ' + note : 'not a fit'); }),
+  on('[data-convo]', el => { convoTab = el.dataset.convo; document.querySelectorAll('[data-convo]').forEach(b => b.setAttribute('aria-pressed', b === el)); $('convoBody').innerHTML = convoTab === 'timeline' ? timeline(current) : conversation(current); }),
+  on('[data-note]', el => { const t = $('noteText').value.trim(); if (!t) return $('noteText').focus(); post('/api/note', {id: el.dataset.note, text: t}); }),
+  on('[data-video]', el => { const u = $('videoUrl').value.trim(); if (!u) return $('videoUrl').focus(); post('/api/video', {id: el.dataset.video, url: u}); }),
+  on('[data-video-clear]', el => post('/api/video', {id: el.dataset.videoClear, url: '-'})),
+  on('[data-follow-save]', el => { const v = $('followDate').value; if (!v) return toast('Pick a date first.'); move(el.dataset.followSave, current.status, v); }),
+  on('[data-task-add]', el => {
+    const id = el.dataset.taskAdd, text = $('taskText-' + id).value.trim(), due = $('taskDue-' + id).value;
+    if (!text) return $('taskText-' + id).focus();
+    post('/api/task', Object.assign({id, action: 'add', text}, due ? {due} : {}));
+  }),
+  on('[data-copy]', el => { const doc = document.querySelector(`[data-doc="${el.dataset.copy}"]`); navigator.clipboard.writeText(doc.textContent).then(() => toast('Copied.'), () => toast('Copy was blocked, select the text instead.')); }),
+];
+
 document.addEventListener('click', e => {
-  const el = e.target.closest('[data-close], [data-layout], [data-filter-reset], [data-run], [data-move], [data-skip], [data-confirm-skip], [data-convo], [data-note], [data-video], [data-video-clear], [data-follow-save], [data-copy], [data-full], #findJobs, #runClose, [data-open]');
-  if (!el) return;
-  if (el.matches('[data-close]')) return $('modal').close();
-  if (el.matches('[data-full]')) { $('modal').close(); return; }
-  if (el.dataset.layout) { layout = el.dataset.layout; keep('layout', layout); return route(); }
-  if (el.matches('[data-filter-reset]')) { filters = {statuses: OPEN_STATUSES, due: false, strong: false}; keep('filters', filters); route(); $('filters').open = true; return; }
-  if (el.id === 'findJobs') return runCommand('find-jobs');
-  if (el.id === 'runClose') return $('run').classList.remove('open');
-  if (el.dataset.run) { $('modal').close(); return runCommand(el.dataset.run, el.dataset.job); }
-  if (el.dataset.move) return move(el.dataset.job, el.dataset.move, el.dataset.follow);
-  if (el.dataset.skip) { const box = $('reason-' + el.dataset.skip); box.classList.add('open'); return box.querySelector('input').focus(); }
-  if (el.dataset.confirmSkip) {
-    const note = document.querySelector(`#reason-${el.dataset.confirmSkip} input`).value.trim();
-    return move(el.dataset.confirmSkip, 'skipped', null, note ? 'not a fit: ' + note : 'not a fit');
-  }
-  if (el.dataset.convo) { convoTab = el.dataset.convo; document.querySelectorAll('[data-convo]').forEach(b => b.setAttribute('aria-pressed', b === el)); $('convoBody').innerHTML = convoTab === 'timeline' ? timeline(current) : conversation(current); return; }
-  if (el.dataset.note) { const t = $('noteText').value.trim(); if (!t) return $('noteText').focus(); return post('/api/note', {id: el.dataset.note, text: t}); }
-  if (el.dataset.video) { const u = $('videoUrl').value.trim(); if (!u) return $('videoUrl').focus(); return post('/api/video', {id: el.dataset.video, url: u}); }
-  if (el.dataset.videoClear) return post('/api/video', {id: el.dataset.videoClear, url: '-'});
-  if (el.dataset.followSave) { const v = $('followDate').value; if (!v) return toast('Pick a date first.'); return move(el.dataset.followSave, current.status, v); }
-  if (el.dataset.copy) { const doc = document.querySelector(`[data-doc="${el.dataset.copy}"]`); navigator.clipboard.writeText(doc.textContent).then(() => toast('Copied.'), () => toast('Copy was blocked, select the text instead.')); return; }
-  if (el.dataset.open && !e.target.closest('a, button, select, input')) { e.preventDefault(); return openCard(el.dataset.open); }
+  if (e.target.closest('[data-drop-filter]')) { e.stopPropagation(); return CLICKS.find(([s]) => s === '[data-drop-filter]')[1](e.target.closest('[data-drop-filter]')); }
+  for (const [sel, fn] of CLICKS) { const el = e.target.closest(sel); if (el) { if (el.tagName === 'A' && !el.target) e.preventDefault(); return fn(el, e); } }
+  const row = e.target.closest('[data-open]');
+  if (row && !e.target.closest('a, button, select, input, label')) return drawerId === row.dataset.open ? closeDrawer() : openDrawer(row.dataset.open);
+  if (!e.target.closest('.menu, #colpop')) closePops();
 });
 document.addEventListener('change', e => {
   const t = e.target;
-  if (t.dataset.stageFor) {
-    const status = t.value;
-    return move(t.dataset.stageFor, status, status === 'applied' ? '+3d' : null, status === 'skipped' ? 'not a fit' : null);
+  if (t.dataset.stageFor) { const s = t.value; return move(t.dataset.stageFor, s, s === 'applied' ? '+3d' : null, s === 'skipped' ? 'not a fit' : null); }
+  if (t.dataset.taskToggle) { const [id, n] = t.dataset.taskToggle.split(':'); return post('/api/task', {id, action: t.checked ? 'done' : 'reopen', task: n}); }
+  if (t.dataset.colfilterOpt !== undefined) {
+    const v = S().view, f = v.filters[colFilter] || {kind: 'multi', values: []};
+    f.values = t.checked ? [...new Set([...f.values, t.dataset.colfilterOpt])] : f.values.filter(x => x !== t.dataset.colfilterOpt);
+    v.filters[colFilter] = f; return commit();
   }
-  if (t.dataset.filterStatus) {
-    const s = t.dataset.filterStatus;
-    filters.statuses = t.checked ? [...new Set([...filters.statuses, s])] : filters.statuses.filter(x => x !== s);
-  } else if (t.dataset.filterFlag) filters[t.dataset.filterFlag] = t.checked;
-  else return;
-  keep('filters', filters);
-  $('results').innerHTML = results();
-  $('filters').classList.toggle('on', JSON.stringify(filters) !== JSON.stringify({statuses: OPEN_STATUSES, due: false, strong: false}));
+  if (t.dataset.range) {
+    const v = S().view, f = v.filters[colFilter] || {kind: 'range', min: null, max: null};
+    f[t.dataset.range] = t.value === '' ? null : Number(t.value); v.filters[colFilter] = f; return commit();
+  }
 });
-document.addEventListener('input', e => { if (e.target.id === 'search') { query = e.target.value.trim(); $('results').innerHTML = results(); } });
+document.addEventListener('input', e => { if (e.target.id === 'search') { S().view.query = e.target.value.trim(); saveSpaces(); $('results').innerHTML = results(); } });
 document.addEventListener('keydown', e => {
-  if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.open) { e.preventDefault(); openCard(e.target.dataset.open); }
+  if (e.key === 'Escape') { if (colFilter || menu) return closePops(); if (drawerId) return closeDrawer(); }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.open && e.target.tagName !== 'INPUT') { e.preventDefault(); openDrawer(e.target.dataset.open); }
   if (e.key === 'Enter' && e.target.id === 'noteText') document.querySelector('[data-note]').click();
+  if (e.key === 'Enter' && e.target.id && e.target.id.startsWith('taskText-')) document.querySelector(`[data-task-add="${e.target.id.slice(9)}"]`).click();
+  if (e.key === 'Enter' && e.target.id === 'viewName') document.querySelector('[data-save-view]').click();
 });
-document.addEventListener('click', e => { const f = $('filters'); if (f && f.open && !f.contains(e.target)) f.open = false; });
-// Board: drag a card onto another stage.
-document.addEventListener('dragstart', e => { const c = e.target.closest && e.target.closest('[data-drag]'); if (c) e.dataTransfer.setData('text/plain', c.dataset.drag); });
-document.addEventListener('dragover', e => { const col = e.target.closest && e.target.closest('[data-drop]'); if (col) { e.preventDefault(); col.classList.add('drop'); } });
+
+// Drag: board cards onto a stage, table headers onto another position.
+let dragCol = null, resizing = null;
+document.addEventListener('dragstart', e => {
+  if (resizing) return e.preventDefault();
+  const th = e.target.closest && e.target.closest('th[data-col]');
+  if (th) { dragCol = th.dataset.col; e.dataTransfer.setData('text/col', dragCol); e.dataTransfer.effectAllowed = 'move'; return; }
+  const c = e.target.closest && e.target.closest('[data-drag]');
+  if (c) e.dataTransfer.setData('text/plain', c.dataset.drag);
+});
+document.addEventListener('dragover', e => {
+  const th = e.target.closest && e.target.closest('th[data-col]');
+  if (th && dragCol && th.dataset.col !== dragCol) {
+    e.preventDefault();
+    const cols = S().view.cols, after = cols.indexOf(dragCol) < cols.indexOf(th.dataset.col);
+    document.querySelectorAll('th.drop-before, th.drop-after').forEach(x => x.classList.remove('drop-before', 'drop-after'));
+    th.classList.add(after ? 'drop-after' : 'drop-before'); return;
+  }
+  const col = e.target.closest && e.target.closest('[data-drop]');
+  if (col && !dragCol) { e.preventDefault(); col.classList.add('drop'); }
+});
 document.addEventListener('dragleave', e => { const col = e.target.closest && e.target.closest('[data-drop]'); if (col && !col.contains(e.relatedTarget)) col.classList.remove('drop'); });
+document.addEventListener('dragend', () => { dragCol = null; document.querySelectorAll('th.drop-before, th.drop-after').forEach(x => x.classList.remove('drop-before', 'drop-after')); });
 document.addEventListener('drop', e => {
+  const th = e.target.closest && e.target.closest('th[data-col]');
+  if (th && dragCol) {
+    e.preventDefault();
+    const v = S().view, from = v.cols.indexOf(dragCol);
+    v.cols.splice(from, 1);
+    const to = v.cols.indexOf(th.dataset.col) + (from <= v.cols.indexOf(th.dataset.col) ? 1 : 0);
+    v.cols.splice(to, 0, dragCol); dragCol = null; return commit();
+  }
   const col = e.target.closest && e.target.closest('[data-drop]');
   if (!col) return;
   e.preventDefault(); col.classList.remove('drop');
   const id = e.dataTransfer.getData('text/plain'), job = state.jobs.find(j => j.id === id);
   if (job && job.status !== col.dataset.drop) move(id, col.dataset.drop, col.dataset.drop === 'applied' ? '+3d' : null);
 });
-$('modal').addEventListener('click', e => { if (e.target.id === 'modal') e.target.close(); });
+// Resize: drag the right edge of a header.
+document.addEventListener('pointerdown', e => {
+  const grip = e.target.closest && e.target.closest('[data-grip]');
+  if (!grip) return;
+  e.preventDefault(); e.stopPropagation();
+  const th = grip.closest('th');
+  resizing = {id: grip.dataset.grip, x: e.clientX, w: th.getBoundingClientRect().width, grip};
+  grip.classList.add('active'); grip.setPointerCapture(e.pointerId);
+});
+document.addEventListener('pointermove', e => {
+  if (!resizing) return;
+  const w = Math.max(56, Math.min(720, Math.round(resizing.w + e.clientX - resizing.x)));
+  resizing.now = w;
+  const col = document.querySelector(`col[data-colw="${resizing.id}"]`);
+  if (col) col.style.width = w + 'px';
+});
+document.addEventListener('pointerup', () => {
+  if (!resizing) return;
+  resizing.grip.classList.remove('active');
+  if (resizing.now) { S().view.widths[resizing.id] = resizing.now; saveSpaces(); const v = S().view; $('table').style.minWidth = v.cols.reduce((s, id) => s + (v.widths[id] || COLS[id].w), 0) + 'px'; refreshMenus(); }
+  setTimeout(() => { resizing = null; }, 0);
+});
+
 window.addEventListener('hashchange', route);
-load();
+load().then(resumeRuns);
 setInterval(() => {
-  const busy = $('modal').open || current || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || $('filters')?.open;
+  const busy = current || colFilter || menu || drawerId || resizing || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
   if (!busy) load();
 }, 15000);
 </script>

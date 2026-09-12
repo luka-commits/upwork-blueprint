@@ -9,7 +9,7 @@ The application itself. Early applications win, so this is fast, and it never se
 
 Read first: [references/upwork-rules.md](../../references/upwork-rules.md), the proposals section of [references/upwork-mcp.md](../../references/upwork-mcp.md), [references/profile-formula.md](../../references/profile-formula.md) (the proof tiers), `context/me.md`, `context/proof.md`.
 
-`--draft-only` (what the cockpit button runs): stop after Step 4. The send happens in a session where you read the draft.
+`--draft-only` (what the cockpit button runs): stop after Step 5. The preview is made and its facts saved, nothing is confirmed; that run cannot even call `confirm_preview`. The send happens in a session where you read the draft.
 
 ## Step 1 · The job, the posting, the pitch page
 
@@ -42,6 +42,7 @@ Screening answers go after a line `Screening answers`, each question in its exac
 1. `list_freelancer_proposals` action `invitations`: an invitation for this job means `accept_invitation` instead of `create`.
 2. `list_freelancer_proposals` action `list`: an existing proposal for this job means stop and say so.
 3. `manage_proposals` action `create` with `job_reference`, `cover_letter`, `charged_amount` (the member's rate unless they said otherwise) and the screening `answers`. **This returns a preview and submits nothing.**
+4. Save what the preview knows, so the cockpit shows it next to the job: `python3 code/pipeline.py detail <id> --file -` with one JSON object holding `connects_cost`, `connects_balance`, `boost_available`, `boost_reason`, `boost_top_bids` (the list of `current_top_bids`, highest first, or `null` when `current_top_bids_available` is false), `boost_recommended` (`recommended_connects`), `boost_max` (`max_boost_connects`), `boost_note`, `boost_recommendation` and `screening_questions`. Leave out what the preview did not return; never estimate a bid.
 
 ## Step 6 · Show it and ask
 

@@ -34,6 +34,8 @@ Everything under "Measured" was called against a real account and produced the r
 ## Proposals, from the tool description 12 September 2026
 
 - `manage_proposals` action `create` prepares a proposal and returns a **preview, not a submission**: Connects price and balance, competing bid stats (Freelancer Plus), the client's screening questions, unmet preferred qualifications, and a boost block with the real competing boost bids. `confirm_preview` with type `proposal` submits it.
+- **Boost bids live only in that preview,** never in `find_jobs get`. The `boost` block: `available` (false means do not offer it, `reason` says why), `current_top_bids` (the real competing bids, highest first, empty when nobody boosted; `current_top_bids_available` false means unknown, not zero), `recommended_connects` (the smallest bid that secures a top slot), `max_boost_connects` (balance minus the application's own price), `note` (how many paid slots this job has), `recommendation` (`skip` when boosting makes no sense). A boost is a bid, charged only if you land in the paid slots or the client engages before the auction closes. It cannot be edited or withdrawn once submitted.
+- **Only one pending preview per action type.** A new `create` replaces the last unconfirmed one.
 - **Mandatory before `create`:** `list_freelancer_proposals` action `invitations` (an invited job takes `accept_invitation` instead) and action `list` (an existing proposal makes `create` fail).
 - **Before submitting, always ask** about attachments and which portfolio projects or certificates to highlight.
 - **A freelancer cannot message a client first on a proposal.** No room exists until the client writes. A "follow-up" on an application therefore means re-checking it, not messaging.

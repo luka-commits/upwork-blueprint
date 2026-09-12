@@ -99,6 +99,23 @@ class CockpitTest(unittest.TestCase):
         self.assertEqual(record['log'][0]['text'], 'Call on Tuesday')
         self.assertEqual(record['video'], 'https://www.loom.com/share/abc')
 
+    def test_tasks_go_through_the_pipeline(self):
+        self.assertEqual(self.request('POST', '/api/task', {'id': '222222', 'action': 'add', 'text': 'Send kickoff',
+                                                            'due': '+1d'})[0], 200)
+        self.assertEqual(self.request('POST', '/api/task', {'id': '222222', 'action': 'done', 'task': 1})[0], 200)
+        self.assertEqual(self.request('POST', '/api/task', {'id': '222222', 'action': 'rm', 'text': 'x'})[0], 400)
+        record = next(j for j in json.loads(self.jobs.read_text(encoding='utf-8')) if j['id'] == '222222')
+        self.assertTrue(record['tasks'][0]['done_at'])
+
+    def test_no_button_can_submit_to_upwork(self):
+        for name, spec in self.cockpit.RUNNABLE.items():
+            self.assertNotIn('mcp__upwork__upwork__confirm_preview', spec['tools'], name)
+            self.assertFalse(any('send_message' in t or 'confirm_draft' in t for t in spec['tools']), name)
+
+    def test_runs_list_is_empty_when_idle(self):
+        status, data = self.request('GET', '/api/runs')
+        self.assertEqual((status, json.loads(data)), (200, []))
+
     def test_unknown_or_unbuilt_command_is_refused(self):
         self.assertEqual(self.request('POST', '/api/run', {'command': 'rm-rf'})[0], 400)
 

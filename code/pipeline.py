@@ -15,6 +15,8 @@ Usage:
     python3 code/pipeline.py set <job_id> <status> [--follow-up +3d|YYYY-MM-DD] [--note "..."]
     python3 code/pipeline.py note <job_id> "what happened"
     python3 code/pipeline.py video <job_id> <loom or youtube link>|-
+    python3 code/pipeline.py task <job_id> add "what to do" [--due +2d|YYYY-MM-DD]
+    python3 code/pipeline.py task <job_id> done|reopen|delete <task_number>
     python3 code/pipeline.py get <job_id>
     python3 code/pipeline.py list [--status new] [--limit 25]
     python3 code/pipeline.py summary
@@ -269,6 +271,34 @@ def cmd_video(args):
     print(f'{args.job_id}: video linked.')
 
 
+def cmd_task(args):
+    """Tasks on a lead or a won client: add one, tick it off, reopen or delete it."""
+    jobs = load()
+    job = find(jobs, args.job_id)
+    tasks = job.setdefault('tasks', [])
+    if args.action == 'add':
+        text = ' '.join((args.text or '').split())
+        if not text:
+            abort('a task needs text.')
+        number = max((t['id'] for t in tasks), default=0) + 1
+        tasks.append({'id': number, 'text': text[:300], 'due': parse_follow_up(args.due) if args.due else None,
+                      'created_at': now_iso(), 'done_at': None})
+        message = f'task {number} added'
+    else:
+        task = next((t for t in tasks if str(t['id']) == str(args.text)), None)
+        if not task:
+            abort(f'there is no task {args.text} on {args.job_id}.')
+        if args.action == 'done':
+            task['done_at'] = now_iso()
+        elif args.action == 'reopen':
+            task['done_at'] = None
+        else:
+            tasks.remove(task)
+        message = f'task {task["id"]} {"deleted" if args.action == "delete" else args.action}'
+    save(jobs)
+    print(f'{args.job_id}: {message}.')
+
+
 def cmd_get(args):
     """Exactly one record as JSON. The cheap way to one job."""
     print(json.dumps(find(load(), args.job_id), indent=2, ensure_ascii=False))
@@ -395,6 +425,13 @@ def build_parser():
     p.add_argument('job_id')
     p.add_argument('url')
     p.set_defaults(func=cmd_video)
+
+    p = sub.add_parser('task', help='Tasks on a lead or client.')
+    p.add_argument('job_id')
+    p.add_argument('action', choices=('add', 'done', 'reopen', 'delete'))
+    p.add_argument('text', help='The task text for add, the task number otherwise.')
+    p.add_argument('--due')
+    p.set_defaults(func=cmd_task)
 
     p = sub.add_parser('get', help='One record as JSON.')
     p.add_argument('job_id')

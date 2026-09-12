@@ -20,7 +20,7 @@ There is no setup step. Each command walks you through exactly what it needs, th
 | 2 | `/benchmark` | Measures three strong visible profiles in your profession and what they do |
 | 3 | `/profile` | Writes your optimal profile, ready to paste into Upwork |
 | 4 | `/find-jobs` | Finds and scores the jobs worth your Connects, straight into your cockpit |
-| 5 | `/pitch-page`, `/loom-review` | A one-page pitch site and Loom, followed by a recording quality check |
+| 5 | `/pitch-page`, `/loom-review` | A one-page pitch site and Loom, with an optional transcript-based recording check |
 | 6 | `/apply` | After the Pitch page and Loom video: cover letter, answers and bid, ready for you to submit on Upwork |
 | 7 | `/inbox`, `/reply`, `/follow-up` | Client messages, reply drafts and the morning follow-up queue |
 | 8 | `/call-prep`, `/call-review` | Prepares the sales decision and records what the call actually agreed |

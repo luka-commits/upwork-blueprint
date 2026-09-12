@@ -1,12 +1,14 @@
 ---
-description: Reviews a pitch Loom transcript for job fit, proof, structure, delivery and a safe Upwork next step before the application uses it.
+description: Optionally reviews a pitch Loom transcript for job fit, proof, structure, delivery and a safe Upwork next step.
 argument-hint: "<job id> <transcript.txt or transcript.md>"
 ---
 
 # /loom-review
 
-Review the Loom the member recorded for one pitch page. This is a quality gate
-before `/apply`, not a rewrite of the whole pitch. It sends nothing.
+Review the Loom the member recorded for one pitch page. This is an optional
+quality check, not an application prerequisite or a rewrite of the whole pitch.
+Application readiness still requires the pitch page and valid video link, not a
+transcript review. It sends nothing.
 
 Read first: `context/me.md`, `context/proof.md`, the job pipeline record,
 `jobs/<id>/pitch.html` and `jobs/<id>/loom-script.md`.

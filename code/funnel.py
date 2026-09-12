@@ -201,7 +201,9 @@ def target_from_context():
 
 def status_markdown(jobs, today):
     labels = (('Found', 0), ('Applied', 1), ('Replied', 2), ('Offer', 3), ('Won', 4))
-    levels = [reached(j) for j in jobs if j.get('status') != 'skipped' or reached(j) >= 1]
+    # This is saved-pipeline history, not a cohort. Every saved lead reached
+    # Found, including one that was later skipped before an application.
+    levels = [reached(j) for j in jobs]
     counts = {label: sum(1 for level in levels if level >= rank) for label, rank in labels}
     applied = pipeline.applied_on(jobs, today.isoformat())
     target = target_from_context()
@@ -241,7 +243,7 @@ def status_markdown(jobs, today):
     if len(actions) < 8 and best:
         actions.append(f'- Prepare {one_line(best[0].get("title"))} next. It scored {best[0].get("score", "unscored")} of 100.')
     lines += actions or ['- Nothing is due. Run /find-jobs for the next opportunity.']
-    lines += ['', '## Funnel']
+    lines += ['', '## Funnel', 'Saved pipeline history. Found includes every saved lead, including leads later skipped.']
     lines += [f'- {label}: {counts[label]}' for label, _ in labels]
     lines += ['', '## Community sprint post', '', '```text']
     progress = f'I sent {applied} application{"s" if applied != 1 else ""} today'

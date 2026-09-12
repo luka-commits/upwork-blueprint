@@ -34,9 +34,11 @@ stale local record as proof that nothing happened on Upwork.
 Run `python3 code/funnel.py status --write data/status.md`. Read the result and,
 when a focus was given, show only that section without changing the file.
 
-The counts come from status history, not only current stage. A lost lead that
-replied still counts as a reply. Never invent a rate when there is too little
-data; name the count that exists.
+The counts describe all saved pipeline history, not a dated cohort. Found
+includes every saved lead, including one skipped before applying. Later stages
+come from status history, not only current stage, so a lost lead that replied
+still counts as a reply. Never invent a rate when there is too little data; name
+the count that exists.
 
 ## Step 3: Report
 

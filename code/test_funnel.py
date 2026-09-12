@@ -66,12 +66,18 @@ class FunnelAcceptanceTest(unittest.TestCase):
         self.assertIn('/reply 111111', result.stdout)
 
     def test_status_writes_a_readable_report_from_pipeline_evidence(self):
+        self.run_pipeline('add', '--file', '-', stdin=json.dumps({
+            'id': '222222', 'title': 'Not a fit after review', 'score': 30,
+        }))
+        self.run_pipeline('set', '222222', 'skipped', '--note', 'not a fit')
         target = self.data / 'status.md'
         result = self.run_funnel('status', '--today', '2026-09-12', '--write', str(target))
         self.assertEqual(result.returncode, 0, result.stderr)
         text = target.read_text(encoding='utf-8')
         self.assertIn('1 of 5 applications sent today', text)
         self.assertIn('1 client waiting', text)
+        self.assertIn('Saved pipeline history', text)
+        self.assertIn('- Found: 2', text)
         self.assertIn('- Replied: 1', text)
         self.assertIn('Reply to Build the sales system', text)
 

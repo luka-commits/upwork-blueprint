@@ -82,10 +82,10 @@ def evidence(snapshot, jobs):
 def target(current, stages):
     """The status Upwork's evidence calls for, or None when nothing should move."""
     best = max((s for s in stages if s in RANK), key=RANK.get, default=None)
+    if 'lost' in stages and not ({'offer', 'won'} & stages) and current not in ('won', 'lost'):
+        return 'lost'
     if best and (current not in RANK or RANK[best] > RANK[current]):
         return best
-    if 'lost' in stages and not best and current not in ('won', 'lost'):
-        return 'lost'
     return None
 
 
@@ -116,7 +116,7 @@ def cmd_apply(args):
     threads = {str(t.get('job_id')): t for t in snapshot.get('threads') or [] if t.get('job_id')}
     for jid, stages in evidence(snapshot, jobs).items():
         job = next((j for j in jobs if j['id'] == jid), None)
-        if not job or jid in added:
+        if not job:
             continue
         new = target(job.get('status'), stages)
         if new:

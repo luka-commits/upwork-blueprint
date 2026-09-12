@@ -79,7 +79,7 @@ class PipelineTest(unittest.TestCase):
 
     def test_pitch_link_rejects_local_preview(self):
         self.add({'id': 'J1'})
-        for value in ('http://localhost:4321/pitch', 'https://127.0.0.1/page', 'https://host.local/page'):
+        for value in ('http://localhost:4321/pitch', 'https://127.0.0.1/page', 'https://host.local/page', 'https://localhost./pitch', 'https://127.1/pitch'):
             self.assertNotEqual(self.run_cli('pitch-url', 'J1', value).returncode, 0)
         self.assertEqual(self.run_cli('pitch-url', 'J1', 'https://example.com/pitch').returncode, 0)
         self.assertEqual(self.data()[0]['pitch_url'], 'https://example.com/pitch')

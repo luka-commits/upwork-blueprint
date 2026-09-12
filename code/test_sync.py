@@ -94,6 +94,19 @@ class SyncTest(unittest.TestCase):
         self.assertEqual(self.status()['100001']['status'], 'new')
         self.assertEqual(self.status()['100005']['status'], 'new')
 
+    def test_declined_proposal_is_not_revived_by_an_old_conversation(self):
+        snapshot = {'proposals': [{'job_id': '100002', 'status': 'Declined'}],
+                    'threads': [{'job_id': '100002', 'room_id': 'room-2', 'messages': [{'from': 'client', 'text': 'Old message'}]}]}
+        self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(snapshot))
+        self.assertEqual(self.status()['100002']['status'], 'lost')
+
+    def test_newly_imported_proposal_can_reach_its_contract_in_the_same_sync(self):
+        snapshot = {'proposals': [{'job_id': '100099', 'status': 'Accepted'}],
+                    'contracts': [{'job_id': '100099', 'status': 'ACTIVE'}]}
+        self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(snapshot))
+        self.assertEqual(self.status()['100099']['status'], 'won')
+        self.assertTrue(self.status()['100099']['application_date_unknown'])
+
 
 if __name__ == '__main__':
     unittest.main()

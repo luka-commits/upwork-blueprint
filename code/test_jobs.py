@@ -86,17 +86,25 @@ class JobsTest(unittest.TestCase):
         self.run_jobs('candidates', str(self.dir / 'search' / 't.json'))
         self.assertEqual(self.run_jobs('score').returncode, 1)
 
-    def test_detail_skips_filled_job(self):
+    def test_hiring_progress_does_not_mean_a_multi_hire_job_is_closed(self):
         (self.dir / 'jobs.json').write_text(json.dumps([{'id': '9', 'status': 'new', 'title': 'x',
                                                           'found_at': iso(1)}]), encoding='utf-8')
         get = {'data': {'marketplaceJobPosting': {'activityStat': {'jobActivity': {'totalHired': 1}}},
                         'connects_cost': 16}}
         (self.dir / 'get.json').write_text(json.dumps(get), encoding='utf-8')
         r = self.run_jobs('detail', '9', str(self.dir / 'get.json'))
-        self.assertIn('already filled', r.stdout)
+        self.assertIn('already hired', r.stdout)
         rec = json.loads((self.dir / 'jobs.json').read_text(encoding='utf-8'))[0]
-        self.assertEqual(rec['status'], 'skipped')
+        self.assertEqual(rec['status'], 'new')
         self.assertEqual(rec['details']['connects_cost'], 16)
+
+    def test_cannot_apply_skips_only_new_jobs_not_existing_conversations(self):
+        get = self.dir / 'get.json'
+        get.write_text(json.dumps({'can_apply': False, 'preferred_qualifications': {'min_job_success_score': 100}}), encoding='utf-8')
+        for stage, expected in [('new', 'skipped'), ('replied', 'replied'), ('won', 'won')]:
+            (self.dir / 'jobs.json').write_text(json.dumps([{'id': '9', 'status': stage, 'found_at': iso(1)}]), encoding='utf-8')
+            self.assertEqual(self.run_jobs('detail', '9', str(get)).returncode, 0)
+            self.assertEqual(json.loads((self.dir / 'jobs.json').read_text(encoding='utf-8'))[0]['status'], expected)
 
     def test_detail_saves_the_structured_job_brief(self):
         (self.dir / 'jobs.json').write_text(json.dumps([{'id': '8', 'status': 'new', 'title': 'x',

@@ -326,11 +326,16 @@ def cmd_detail(args):
     if out.returncode:
         print(out.stderr, file=sys.stderr)
         return 1
+    current = next((job for job in load_json(jobs_file(), []) if str(job.get('id')) == args.job_id), {})
+    if details.get('can_apply') is False and current.get('status') == 'new':
+        pipeline('set', args.job_id, 'skipped', '--note', 'Upwork says you cannot apply')
+        print(f'{args.job_id}: skipped, Upwork says you cannot apply')
+        return 0
+    # A posting can hire more than one person. Preferred qualifications are
+    # signals for a human decision, not proof that an application is forbidden.
     reasons = []
     if (details.get('total_hired') or 0) >= 1:
-        reasons.append('already filled')
-    if details.get('can_apply') is False:
-        reasons.append('Upwork says you cannot apply')
+        reasons.append(f'{details["total_hired"]} already hired; check whether more people are needed')
     me = member_standing()
     if details.get('min_jss') and me['jss'] is not None and details['min_jss'] > me['jss']:
         reasons.append(f'wants Job Success {details["min_jss"]}, you have {me["jss"]}')
@@ -338,10 +343,8 @@ def cmd_detail(args):
     if need and me['earnings'] is not None and need > me['earnings']:
         reasons.append(f'wants {details["min_earnings"]} earned, you have ${me["earnings"]:,.0f}+')
     if reasons:
-        pipeline('set', args.job_id, 'skipped', '--note', '; '.join(reasons))
-        print(f'{args.job_id}: skipped, {"; ".join(reasons)}')
-        return 0
-    print(f'{args.job_id}: open. {details.get("connects_cost", "?")} Connects to apply, '
+        print(f'{args.job_id}: advisory, {"; ".join(reasons)}')
+    print(f'{args.job_id}: details saved. {details.get("connects_cost", "?")} Connects to apply, '
           f'{details.get("invites_sent", 0)} invites, {details.get("interviewing", 0)} interviewing, '
           f'bids average {details.get("bid_avg", "?")}.')
     return 0

@@ -476,12 +476,13 @@ def cmd_pitch_url(args):
         job.pop('pitch_url', None)
     else:
         parsed = urlparse(value)
-        host = (parsed.hostname or '').lower()
+        host = (parsed.hostname or '').lower().rstrip('.')
         import ipaddress
         try:
             private = not ipaddress.ip_address(host).is_global
         except ValueError:
-            private = host in ('localhost', '') or host.endswith(('.localhost', '.local', '.test', '.invalid')) or '.' not in host
+            private = (host in ('localhost', '') or host.endswith(('.localhost', '.local', '.test', '.invalid'))
+                       or '.' not in host or bool(re.fullmatch(r'[\d.]+', host)))
         if parsed.scheme != 'https' or private or parsed.username or parsed.password or any(c.isspace() for c in value):
             abort('use the public HTTPS URL of your hosted pitch page, not the local preview.')
         job['pitch_url'] = value

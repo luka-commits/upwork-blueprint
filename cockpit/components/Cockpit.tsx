@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Drawer from '@/components/Drawer';
 import RunsDock, { runTitle } from '@/components/RunsDock';
 import { CockpitContext, type CockpitApi, type Made, type Run, type State } from '@/lib/context';
 import { FILE_LABEL, TOOL_WORDS, todoBucket } from '@/lib/model';
 import { followRunStream, RECONNECTING_RUN, RUN_TRACKING_LOST } from '@/lib/run-stream.mjs';
+import { revealContent, sectionIndex } from '@/lib/surface-motion.mjs';
 
 type Snapshot = { jobs: Set<string>; files: Set<string> };
 type RunMeta = { before: Snapshot | null; narrated: boolean; controller: AbortController };
@@ -58,6 +59,12 @@ export function CockpitProvider({ token, children }: { token: string; children: 
   const runMetaRef = useRef(new Map<string, RunMeta>());
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notificationAskedRef = useRef(false);
+  const pageRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const animation = revealContent(pageRef.current);
+    return () => animation?.cancel();
+  }, [pathname]);
 
   useEffect(() => {
     // Pointer feedback stays tactile. Keyboard navigation is immediate.
@@ -364,7 +371,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
       <header className={`top${pathname.startsWith('/job/') ? ' sticky' : ''}`}>
         <div className="top-inner">
           <span className="brand"><img src="/icon.png" width="30" height="30" alt="" />Automatable Cockpit</span>
-          <nav className="tabs" aria-label="Sections">
+          <nav className="tabs" aria-label="Sections" style={{ '--section-index': sectionIndex(pathname) } as CSSProperties}>
             <Link href="/" aria-current={pathname === '/' ? 'page' : pathname.startsWith('/job/') ? 'location' : undefined}>Leads{due ? <span className="badge" title="Due today or earlier">{due}</span> : null}</Link>
             <Link href="/follow-ups" aria-current={pathname === '/follow-ups' ? 'page' : undefined}>Follow-ups</Link>
             <Link href="/analytics" aria-current={pathname === '/analytics' ? 'page' : undefined}>Analytics</Link>
@@ -379,7 +386,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
           </div>
         </div>
       </header>
-      <main className="wrap">
+      <main className="wrap" ref={pageRef}>
         {connectionLost ? <div className="empty-state" role="alert"><strong>Connection lost</strong><p>{CONNECTION_LOST}</p><button onClick={() => void load()}>Try again</button></div>
           : state ? children : <p className="empty" role="status">Loading cockpit.</p>}
       </main>

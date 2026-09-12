@@ -29,6 +29,7 @@
     --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   * { box-sizing: border-box; }
+  .tabs::before, .seg::before { box-sizing: border-box; }
   html, body { margin: 0; }
   html { scroll-padding-top: 80px; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text);
@@ -61,10 +62,11 @@
   .top-inner { padding: 14px 32px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; letter-spacing: -.035em; padding: 0; }
   .brand img { width: 30px; height: 30px; object-fit: contain; border-radius: var(--radius-control); box-shadow: 0 2px 5px #0056a824; }
-  .tabs { display: flex; gap: 3px; padding: 4px; border: 1px solid #ffffffb3; border-radius: 8px; background: #dce5f14d; box-shadow: inset 0 1px 3px #435c7d0a; }
-  .tabs a { color: var(--text-2); font-weight: 550; font-size: 13px; padding: 6px 15px; border: 1px solid transparent; border-radius: var(--radius-control); }
+  .tabs { position: relative; isolation: isolate; display: grid; grid-template-columns: repeat(4, 1fr); padding: 4px; border: 1px solid #ffffffb3; border-radius: 8px; background: #dce5f14d; box-shadow: inset 0 1px 3px #435c7d0a; }
+  .tabs::before { content: ''; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 4); border-radius: var(--radius-control); background: linear-gradient(180deg, #fffffff5, #ffffffb3); border: 1px solid #fff; box-shadow: inset 0 1px 0 #fff, 0 2px 5px #26496e12; pointer-events: none; transform: translateX(calc(var(--section-index, 0) * 100%)); transition: transform 180ms var(--ease-out); }
+  .tabs a { position: relative; text-align: center; color: var(--text-2); font-weight: 550; font-size: 13px; padding: 6px 15px; border: 1px solid transparent; border-radius: var(--radius-control); transition: color 140ms ease; }
   .tabs a:hover { text-decoration: none; color: var(--text); }
-  .tabs a[aria-current] { color: var(--text); background: linear-gradient(180deg, #fffffff5, #ffffffb3); border-color: #ffffff; box-shadow: inset 0 1px 0 #fff, 0 2px 5px #26496e12; }
+  .tabs a[aria-current] { color: var(--text); }
   .tabs .badge { font-size: 11px; background: var(--red-soft); color: var(--red-deep); border-radius: 999px; padding: 1px 7px; margin-left: 4px; }
   .top-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
   .top-actions .sync-stamp { margin-right: 10px; }
@@ -94,9 +96,10 @@
   /* Toolbar, menus and filter panel as in the Sqanit master list. */
   .toolbar { position: relative; z-index: 10; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 12px; padding: 9px;
     border: 1px solid var(--glass-line); border-radius: var(--radius-floating); background: #f4f7fc; box-shadow: var(--glass-shadow); }
-  .seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid #ffffff8c; border-radius: 8px; background: #dce5f166; }
-  .seg button { border: 0; border-radius: var(--radius-control); padding: 5px 11px; font-size: 12px; font-weight: 550; color: var(--text-2); background: transparent; }
-  .seg button[aria-pressed="true"] { background: #fffffff2; color: var(--text); box-shadow: 0 1px 4px #26496e1c; }
+  .seg { position: relative; isolation: isolate; display: inline-grid; grid-template-columns: repeat(2, 1fr); padding: 3px; border: 1px solid #ffffff8c; border-radius: 8px; background: #dce5f166; }
+  .seg::before { content: ''; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / 2); border-radius: var(--radius-control); background: #fffffff2; box-shadow: 0 1px 4px #26496e1c; transform: translateX(calc(var(--segment-index, 0) * 100%)); transition: transform 180ms var(--ease-out); pointer-events: none; }
+  .seg button { position: relative; justify-content: center; border: 0; border-radius: var(--radius-control); padding: 5px 11px; font-size: 12px; font-weight: 550; color: var(--text-2); background: transparent; }
+  .seg button[aria-pressed="true"] { color: var(--text); }
   .tool { padding: 8px 12px; font-size: 12px; border-color: #ffffffbf; background: #ffffffa6; }
   .tool.on, .tool[aria-expanded="true"] { border-color: #bfd6f2; color: var(--brand); background: #eef5ffcc; }
   .search-box { position: relative; flex: 1; min-width: 240px; display: block; margin: 0; }
@@ -253,8 +256,8 @@
   /* The side panel: only what the row does not already show. */
   .drawer { position: fixed; top: 12px; right: 12px; bottom: 12px; width: min(var(--drawer), calc(100vw - 24px)); background: #f7f9fd; border: 1px solid #ffffffed; border-radius: var(--radius-floating); overflow: hidden;
     box-shadow: inset 0 1px 0 #fff, 0 0 0 1px #b5c5db33, -8px 10px 48px #26496e29; z-index: 35; display: flex; flex-direction: column;
-    transform: translateX(100%); visibility: hidden; transition: none; }
-  .drawer.open { transform: none; visibility: visible; transition: transform .22s cubic-bezier(.22, 1, .36, 1); }
+    transform: translateX(calc(100% + 24px)); opacity: 0; visibility: hidden; transition: transform 140ms var(--ease-out), opacity 140ms ease, visibility 0s 140ms; }
+  .drawer.open { transform: none; opacity: 1; visibility: visible; transition: transform 180ms var(--ease-out), opacity 180ms ease, visibility 0s; }
   .drawer-head { padding: 22px 22px 18px; border-bottom: 1px solid #c6d4e64d; display: grid; gap: 14px; background: #ffffff47; }
   .drawer-title { display: flex; gap: 10px; align-items: flex-start; }
   .drawer-title h3 { margin: 0; font-size: 19px; font-weight: 600; line-height: 1.35; letter-spacing: -.025em; flex: 1; }
@@ -418,7 +421,18 @@
     .top-actions button:not(.primary), .tool, .search-box input, .tabs a[aria-current] { background: #fff; }
     .table-card, .panel { border-color: var(--border-strong); }
   }
-  html[data-input="keyboard"] :is(button, .btn, .drawer, .chev, summary, summary *),
+  .pop { transform-origin: top right; }
+  .pop.left { transform-origin: top left; }
+  html[data-input="pointer"] :is(.pop, .action-menu, details[open] > .disclosure-body, details[open] > .analytics-notes-body) {
+    transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out);
+  }
+  @starting-style {
+    html[data-input="pointer"] :is(.pop, .action-menu) { opacity: 0; transform: translateY(-4px) scale(.98); }
+    html[data-input="pointer"] :is(details[open] > .disclosure-body, details[open] > .analytics-notes-body) { opacity: 0; transform: translateY(-3px); }
+  }
+  html[data-input="keyboard"] :is(button, .btn, .drawer, .chev, summary, summary *, .pop, .action-menu),
+  html[data-input="keyboard"] .tabs::before,
+  html[data-input="keyboard"] .seg::before,
   html[data-input="keyboard"] summary::before,
   html[data-input="keyboard"] summary::after { transition: none !important; }
   html[data-input="keyboard"] :is(button, .btn, summary):active { transform: none !important; }

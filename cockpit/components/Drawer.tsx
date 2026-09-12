@@ -60,7 +60,7 @@ export default function Drawer() {
   }, [drawerId, closeDrawer]);
 
   useEffect(() => {
-    if (!drawerId) { setJob(null); loadedId.current = null; return; }
+    if (!drawerId) { loadedId.current = null; return; }
     let cancelled = false;
     const preserveScroll = loadedId.current === drawerId;
     const scroll = preserveScroll ? bodyRef.current?.scrollTop || 0 : 0;
@@ -124,8 +124,7 @@ function LeadDrawer({ j }: { j: any }) {
   const ready = Number(files.includes('pitch.html')) + Number(files.includes('loom-script.md')) +
     Number(validVideoUrl(j.video)) + Number(files.includes('application.md'));
   return <>
-    <section className={`drawer-next stage-${j.status}`}>
-      <h4>Next step</h4>
+    <section className="drawer-next" aria-label="Next step">
       <NextStep key={`next-${j.id}`} j={j} />
     </section>
     <LeadOverview j={j} />

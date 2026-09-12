@@ -567,12 +567,29 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
   font-weight: 700;
 }
 
+.next-panel {
+  padding: 12px 4px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
 .next-step .say {
   margin: 0 0 11px;
   color: var(--text-2);
   font-size: 13px;
   line-height: 1.55;
 }
+
+.next-step:has(.next-more) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 10px;
+}
+
+.next-step:has(.next-more) > .say { margin: 0; color: var(--text); font-size: 14px; }
+.next-step:has(.next-more) > .next-primary { grid-column: 1; }
+.next-step:has(.next-more) > .next-secondary { grid-column: 2; grid-row: 1; margin: 0; }
+.next-step:has(.next-more) > .say + .next-primary { margin-top: 2px; }
 
 .next-primary > button,
 .next-primary > .btn {
@@ -627,6 +644,24 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
 .action-more[open] > summary {
   border-color: var(--brand);
   color: var(--brand);
+}
+
+.next-step .next-more > summary {
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+}
+.next-more > summary::after { display: none; }
+.next-step .next-more[open] > summary { background: var(--brand-soft); }
+
+@media (hover: hover) and (pointer: fine) {
+  .next-step .next-more > summary:hover { background: var(--hover); color: var(--text); }
 }
 
 .action-menu {

@@ -6,30 +6,37 @@ import { leadWorkspace, nextPreparationMaterial, preparationProgress } from '../
 const cases = {
   new: {
     mode: 'prepare', label: 'Application preparation', defaultView: 'work',
-    tabs: [['work', 'Preparation'], ['conversation', 'Conversation'], ['timeline', 'Timeline']],
+    layout: { context: 'job', contextOpen: true, tools: false, toolsOpen: false },
+    tabs: [['work', 'Preparation']],
   },
   applied: {
     mode: 'waiting', label: 'Waiting for the client', defaultView: 'work',
-    tabs: [['work', 'Overview'], ['materials', 'Materials'], ['conversation', 'Conversation'], ['timeline', 'Timeline']],
+    layout: { context: 'job', contextOpen: true, tools: false, toolsOpen: false },
+    tabs: [['work', 'Overview'], ['materials', 'Materials']],
   },
   replied: {
     mode: 'sales', label: 'Sales workspace', defaultView: 'conversation',
+    layout: { context: 'job', contextOpen: true, tools: true, toolsOpen: true },
     tabs: [['conversation', 'Conversation'], ['work', 'Call and proposal'], ['materials', 'Application materials'], ['timeline', 'Timeline']],
   },
   offer: {
     mode: 'sales', label: 'Sales workspace', defaultView: 'conversation',
+    layout: { context: 'job', contextOpen: true, tools: true, toolsOpen: true },
     tabs: [['conversation', 'Conversation'], ['work', 'Call and proposal'], ['materials', 'Application materials'], ['timeline', 'Timeline']],
   },
   won: {
     mode: 'delivery', label: 'Client delivery', defaultView: 'work',
+    layout: { context: 'project', contextOpen: false, tools: false, toolsOpen: false },
     tabs: [['work', 'Delivery'], ['conversation', 'Conversation'], ['timeline', 'Timeline'], ['materials', 'Sales history']],
   },
   lost: {
     mode: 'closed', label: 'Lead history', defaultView: 'timeline',
+    layout: { context: 'job', contextOpen: false, tools: false, toolsOpen: false },
     tabs: [['timeline', 'Timeline'], ['conversation', 'Conversation'], ['materials', 'Materials']],
   },
   skipped: {
     mode: 'closed', label: 'Lead history', defaultView: 'timeline',
+    layout: { context: 'job', contextOpen: false, tools: false, toolsOpen: false },
     tabs: [['timeline', 'Timeline'], ['conversation', 'Conversation'], ['materials', 'Materials']],
   },
 };
@@ -40,6 +47,7 @@ for (const [status, expected] of Object.entries(cases)) {
     assert.equal(actual.mode, expected.mode);
     assert.equal(actual.label, expected.label);
     assert.equal(actual.defaultView, expected.defaultView);
+    assert.deepEqual(actual.layout, expected.layout);
     assert.deepEqual(actual.tabs.map(tab => [tab.key, tab.label]), expected.tabs);
     assert.ok(actual.tabs.some(tab => tab.key === actual.defaultView));
   });
@@ -51,6 +59,7 @@ test('unknown and empty statuses fail closed to safe lead history', () => {
       mode: 'closed',
       label: 'Lead history',
       defaultView: 'timeline',
+      layout: { context: 'job', contextOpen: false, tools: false, toolsOpen: false },
       tabs: [
         { key: 'timeline', label: 'Timeline' },
         { key: 'conversation', label: 'Conversation' },
@@ -63,7 +72,9 @@ test('unknown and empty statuses fail closed to safe lead history', () => {
 test('workspace results and preparation inputs are not mutated or shared', () => {
   const first = leadWorkspace('new');
   first.tabs[0].label = 'Changed';
+  first.layout.contextOpen = false;
   assert.equal(leadWorkspace('new').tabs[0].label, 'Preparation');
+  assert.equal(leadWorkspace('new').layout.contextOpen, true);
 
   const files = Object.freeze([
     Object.freeze({ name: 'pitch.html' }),

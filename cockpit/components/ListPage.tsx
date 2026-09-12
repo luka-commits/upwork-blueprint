@@ -11,6 +11,7 @@ import {
 import { useCockpit } from '@/lib/context';
 import { jobPreview } from '@/lib/job-brief.mjs';
 import { clampColumnWidth, columnWidthForKey, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH } from '@/lib/column-width.mjs';
+import { revealContent } from '@/lib/surface-motion.mjs';
 
 type SpaceName = 'jobs';
 type SpaceState = { view: View; saved: View[] };
@@ -59,6 +60,7 @@ export default function ListPage({ space }: { space: SpaceName }) {
   const resizing = useRef<{ id: string; x: number; w: number; now?: number; grip: HTMLElement } | null>(null);
   const dragCol = useRef<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
   const [st, setSt] = useState<SpaceState>(() => S({}, space));
   const [menu, setMenu] = useState<Menu>(null);
   const [colFilter, setColFilter] = useState<string | null>(null);
@@ -70,6 +72,11 @@ export default function ListPage({ space }: { space: SpaceName }) {
   const [dropCol, setDropCol] = useState<{ id: string; after: boolean } | null>(null);
   const [dropStage, setDropStage] = useState<string | null>(null);
   const [liveWidth, setLiveWidth] = useState<{ id: string; width: number } | null>(null);
+
+  useEffect(() => {
+    const animation = revealContent(resultsRef.current);
+    return () => animation?.cancel();
+  }, [st.view.layout]);
 
   useEffect(() => {
     let spaces: SpacesState = {};
@@ -372,7 +379,8 @@ export default function ListPage({ space }: { space: SpaceName }) {
       {dueNow ? <button className="tool due-now" onClick={() => applyView(SPACES[space].presets.find(p => p.name === 'To do')!)}
         title="Follow-ups and tasks due today or earlier">{dueNow} due now</button> : null}
 
-      {SPACES[space].board ? <div className="seg" role="group" aria-label="Layout">
+      {SPACES[space].board ? <div className="seg" role="group" aria-label="Layout"
+        style={{ '--segment-index': Number(st.view.layout === 'board') } as React.CSSProperties}>
         <button onClick={() => chooseLayout('list')} aria-pressed={st.view.layout === 'list'}>List</button>
         <button onClick={() => chooseLayout('board')} aria-pressed={st.view.layout === 'board'}>Board</button>
       </div> : null}
@@ -428,7 +436,7 @@ export default function ListPage({ space }: { space: SpaceName }) {
       </div> : null}
     </div>
 
-    <div id="results">
+    <div id="results" ref={resultsRef}>
       {jobs.length
         ? st.view.layout === 'board'
           ? <Board jobs={jobs} drawerId={drawerId} openDrawer={openDrawer} closeDrawer={closeDrawer} move={move} dropStage={dropStage} setDropStage={setDropStage} />

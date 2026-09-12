@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Fragment, type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useCockpit } from '@/lib/context';
 import { formatApplicationBid, parseApplication } from '@/lib/application-review.mjs';
+import { revealContent } from '@/lib/surface-motion.mjs';
 import { artifactUrl, artifactVersion, useArtifactText } from '@/lib/artifact-content.mjs';
 import { leadWorkspace, nextPreparationMaterial } from '@/lib/lead-workspace.mjs';
 import { BoostBlock, NextStep, TasksBlock } from './JobParts';
@@ -25,6 +26,7 @@ import {
   wonAt,
 } from '@/lib/model';
 import './lead.css';
+import './stage-layout.css';
 
 type WorkspaceView = 'work' | 'conversation' | 'timeline' | 'materials';
 
@@ -34,7 +36,17 @@ export default function LeadPage({ id }: { id: string }) {
   const [missing, setMissing] = useState(false);
   const [selection, setSelection] = useState<{ workspace: string; view: WorkspaceView } | null>(null);
   const [note, setNote] = useState('');
+  const [sidebars, setSidebars] = useState<{ workspace: string; context: boolean; tools: boolean } | null>(null);
   const noteRef = useRef<HTMLInputElement>(null);
+  const contextToggleRef = useRef<HTMLButtonElement>(null);
+  const toolsToggleRef = useRef<HTMLButtonElement>(null);
+  const centerRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!sidebars) return;
+    const animation = revealContent(centerRef.current);
+    return () => animation?.cancel();
+  }, [sidebars]);
 
   useEffect(() => { closeDrawer(); }, [id, closeDrawer]);
   useEffect(() => {
@@ -56,6 +68,23 @@ export default function LeadPage({ id }: { id: string }) {
   const d = j.details || {};
   const workspace = leadWorkspace(j.status);
   const workspaceKey = `${j.id}:${workspace.mode}`;
+  const contextOpen = sidebars?.workspace === workspaceKey ? sidebars.context : workspace.layout.contextOpen;
+  const toolsOpen = sidebars?.workspace === workspaceKey ? sidebars.tools : workspace.layout.toolsOpen;
+  const setSidebar = (key: 'context' | 'tools', open: boolean) => setSidebars(current => ({
+    workspace: workspaceKey,
+    context: current?.workspace === workspaceKey ? current.context : workspace.layout.contextOpen,
+    tools: current?.workspace === workspaceKey ? current.tools : workspace.layout.toolsOpen,
+    [key]: open,
+  }));
+  const toggleSidebar = (key: 'context' | 'tools', open: boolean) => {
+    if (!open) {
+      const panel = document.getElementById(key === 'context' ? 'lead-context' : 'lead-tools');
+      if (panel?.contains(document.activeElement)) {
+        (key === 'context' ? contextToggleRef : toolsToggleRef).current?.focus({ preventScroll: true });
+      }
+    }
+    setSidebar(key, open);
+  };
   const tab: WorkspaceView = selection?.workspace === workspaceKey ? selection.view : workspace.defaultView as WorkspaceView;
   const setTab = (view: WorkspaceView) => {
     setSelection({ workspace: workspaceKey, view });
@@ -85,46 +114,68 @@ export default function LeadPage({ id }: { id: string }) {
       <div className="lead-head-actions">
         <StageSelect j={j} />
         {j.url ? <a className="btn" href={j.url} target="_blank" rel="noopener">Open on Upwork</a> : null}
+        {workspace.mode === 'prepare' ? <NextStep key={`next-${j.id}`} j={j} preparationActionsOnly /> : null}
       </div>
     </header>
 
-    <div className="lead">
-      <aside className="lead-left">
+    <div className="lead-layout-toggles" aria-label="Workspace panels">
+      <button ref={contextToggleRef} className="lead-layout-toggle" aria-expanded={contextOpen} aria-controls="lead-context"
+        onClick={() => toggleSidebar('context', !contextOpen)}>
+        {workspace.layout.context === 'project' ? 'Project details' : 'Job details'}
+      </button>
+      {workspace.layout.tools ? <button ref={toolsToggleRef} className="lead-layout-toggle" aria-expanded={toolsOpen} aria-controls="lead-tools"
+        onClick={() => toggleSidebar('tools', !toolsOpen)}>Sales tools</button> : null}
+    </div>
+
+    <div className={`lead stage-layout context-${contextOpen ? 'open' : 'closed'} tools-${toolsOpen ? 'open' : 'closed'}`}>
+      <aside id="lead-context" className="lead-left" hidden={!contextOpen} inert={!contextOpen ? true : undefined}>
         {isClient
-          ? <ClientDetails j={j} />
+          ? <><ClientDetails j={j} /><section className="panel checkin-panel"><h2>Next check-in</h2><DateChip j={j} label="Next check-in" move={move} /><FollowUpPlan j={j} /></section></>
           : <LeadDetails j={j} hasFlags={hasFlags} />}
+        {workspace.mode === 'prepare' ? <section className="lead-reminder" aria-label="Reminder">
+          <DateChip j={j} label="Review" move={move} /><FollowUpPlan j={j} />
+        </section> : null}
       </aside>
 
-      <WorkspacePanel j={j} workspace={workspace} tab={tab} setTab={setTab} note={note} setNote={setNote} noteRef={noteRef} addNote={addNote} />
+      <div ref={centerRef} className="lead-center">
+        {workspace.mode !== 'sales' && workspace.mode !== 'prepare' ? <StageActions j={j} workspace={workspace} tab={tab} setTab={setTab} move={move} /> : null}
+        <WorkspacePanel j={j} workspace={workspace} tab={tab} setTab={setTab} note={note} setNote={setNote} noteRef={noteRef} addNote={addNote} />
+        {workspace.mode !== 'delivery' && workspace.mode !== 'sales' ? <TasksPanel j={j} /> : null}
+      </div>
 
-      <aside className="lead-right">
-        {isClient ? <>
-          <section className="panel next-panel">
-            <h2>Next delivery step</h2>
-            <NextStep key={`next-${j.id}`} j={j} materialsLabel="Preparation" salesLabel="Call and proposal" />
-          </section>
-          <section className="panel checkin-panel">
-            <h2>Next check-in</h2>
-            <DateChip j={j} label="Next check-in" move={move} />
-            <FollowUpPlan j={j} />
-          </section>
-        </> : <>
-          <section className="panel next-panel">
-            <h2>Next step</h2>
+      {workspace.layout.tools ? <aside id="lead-tools" className="lead-right" hidden={!toolsOpen} inert={!toolsOpen ? true : undefined}>
+          <section className="next-panel" aria-label="Next step">
             <NextStep key={`next-${j.id}`} j={j} materialsLabel="Preparation" salesLabel="Call and proposal"
               replyOpen={tab === 'conversation'} onReviewReply={() => setTab('conversation')} />
             {!CLOSED.includes(j.status) ? <DateChip j={j} label={workspace.mode === 'waiting' && !j.thread?.room_id ? 'Check again' : 'Follow up'} move={move} /> : null}
             <FollowUpPlan j={j} />
           </section>
           {workspace.mode === 'sales' && tab !== 'work' ? <SalesSupport j={j} open={() => setTab('work')} /> : null}
-          <section className="panel tasks-panel">
-            <h2>Tasks</h2>
-            <TasksBlock key={`tasks-${j.id}`} j={j} />
-          </section>
-        </>}
-      </aside>
+          <TasksPanel j={j} />
+      </aside> : null}
     </div>
   </main>;
+}
+
+function StageActions({ j, workspace, tab, setTab, move }: {
+  j: any;
+  workspace: ReturnType<typeof leadWorkspace>;
+  tab: WorkspaceView;
+  setTab: (tab: WorkspaceView) => void;
+  move: (id: string, status: string, follow?: string | null) => Promise<boolean>;
+}) {
+  const isClient = workspace.mode === 'delivery';
+  if (isClient && j.artifacts?.includes('project.md')) return null;
+  return <section className="stage-actions" aria-label={isClient ? 'Next delivery step' : 'Next step'}>
+    <NextStep key={`next-${j.id}`} j={j} materialsLabel="Preparation" salesLabel="Call and proposal"
+      replyOpen={tab === 'conversation'} onReviewReply={() => setTab('conversation')} />
+    {!isClient && !CLOSED.includes(j.status) ? <DateChip j={j} label={workspace.mode === 'waiting' && !j.thread?.room_id ? 'Check again' : 'Follow up'} move={move} /> : null}
+    {!isClient ? <FollowUpPlan j={j} /> : null}
+  </section>;
+}
+
+function TasksPanel({ j }: { j: any }) {
+  return <section className="panel tasks-panel"><h2>Tasks</h2><TasksBlock key={`tasks-${j.id}`} j={j} /></section>;
 }
 
 function LeadDetails({ j, hasFlags }: { j: any; hasFlags: boolean }) {
@@ -203,7 +254,6 @@ function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, add
   noteRef: React.RefObject<HTMLInputElement | null>;
   addNote: () => void;
 }) {
-  const { state } = useCockpit();
   const contentRef = useRef<HTMLDivElement>(null);
   const previousTab = useRef(tab);
   useLayoutEffect(() => {
@@ -213,6 +263,7 @@ function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, add
     return () => animation?.cancel();
   }, [tab]);
   const files: string[] = j.artifacts || [];
+  const hasTabs = workspace.tabs.length > 1;
   const selectByKey = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
     let next = index;
     if (event.key === 'ArrowRight') next = (index + 1) % workspace.tabs.length;
@@ -224,17 +275,17 @@ function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, add
     setTab(workspace.tabs[next].key as WorkspaceView);
   };
   return <section className={`panel workspace-panel${tab === 'conversation' ? ' is-conversation' : ''}`} aria-label={workspace.label}>
-    <div className="workspace-tabs" role="tablist" aria-label={workspace.label}
+    {hasTabs ? <div className="workspace-tabs" role="tablist" aria-label={workspace.label}
       style={{ '--tab-count': workspace.tabs.length, '--tab-index': workspace.tabs.findIndex(item => item.key === tab) } as CSSProperties}>
       {workspace.tabs.map((item, index) => <button key={item.key} id={`workspace-tab-${item.key}`} role="tab"
         aria-selected={tab === item.key} aria-controls="workspace-content" tabIndex={tab === item.key ? 0 : -1}
         onClick={() => setTab(item.key as WorkspaceView)} onKeyDown={event => selectByKey(event, index)}>{item.label}</button>)}
-    </div>
-    <div ref={contentRef} id="workspace-content" role="tabpanel" aria-labelledby={`workspace-tab-${tab}`} tabIndex={0}
+    </div> : null}
+    <div ref={contentRef} id="workspace-content" role={hasTabs ? 'tabpanel' : undefined} aria-labelledby={hasTabs ? `workspace-tab-${tab}` : undefined} tabIndex={hasTabs ? 0 : undefined}
       className={tab === 'conversation' ? 'convo-body' : 'workspace-content'}>
       {tab === 'timeline' ? <><WorkspaceHeading title="Timeline" hint="Decisions, notes and work saved for this lead." /><Timeline j={j} /></> : null}
       <div className="workspace-conversation" hidden={tab !== 'conversation'}>
-        <Conversation j={j} inbox={!!state?.commands?.inbox} />
+        <Conversation j={j} />
         <ReplyDrafts key={`${j.id}:${j.replies?.generated_at || 'no-drafts'}`} j={j} />
       </div>
       {workspace.tabs.some(item => item.key === 'materials') ? <div hidden={tab !== 'materials'}>
@@ -279,32 +330,22 @@ function WorkspaceHeading({ title, hint }: { title: string; hint?: string }) {
   return <div className="workspace-heading"><h2>{title}</h2>{hint ? <p>{hint}</p> : null}</div>;
 }
 
-function revealContent(element: HTMLElement | null) {
-  if (!element || document.documentElement.dataset.input !== 'pointer'
-    || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  element.getAnimations().forEach(animation => animation.cancel());
-  return element.animate([{ opacity: .55, transform: 'translateY(2px)' }, { opacity: 1, transform: 'translateY(0)' }],
-    { duration: 160, easing: 'cubic-bezier(.23, 1, .32, 1)' });
-}
-
 function ApplicationStatus({ j, open }: { j: any; open: (view: WorkspaceView) => void }) {
   const hasReply = (j.thread?.messages || []).some((message: any) => message?.from === 'client' && message?.kind !== 'event');
   const appliedAt = !j.application_date_unknown && (j.applied_at || j.history?.find((event: any) => event.status === 'applied')?.at);
   const applicationSaved = j.artifacts?.includes('application.md');
   return <>
     <WorkspaceHeading title={hasReply ? 'A client reply is saved' : 'Waiting for the client'}
-      hint={hasReply ? 'Open the conversation to see what they need. This lead is still marked Applied.' : 'The preparation is behind you. Check for a reply when your next reminder is due.'} />
+      hint={hasReply ? 'Use Sync to update this lead from Applied to In conversation.' : undefined} />
     <div className="application-status-card">
-      <span className="workspace-state-label">Applied</span>
-      <h3>{appliedAt ? day(appliedAt) : 'Submission date not recorded'}</h3>
-      <p>{j.thread?.room_id ? 'A chat room is saved. Read the latest conversation before deciding whether to follow up.'
-        : 'A freelancer cannot message first on a proposal. Send becomes available after the client opens an Upwork conversation.'}</p>
-      {hasReply ? <button onClick={() => open('conversation')}>Read the conversation</button> : null}
+      <h3>{appliedAt ? `Applied ${day(appliedAt)}` : 'Submission date not recorded'}</h3>
+      <p>{j.thread?.room_id ? 'Read the latest conversation before following up.'
+        : 'You can send a message once the client opens an Upwork conversation.'}</p>
     </div>
     <div className="saved-application">
-      <div><h3>{applicationSaved ? 'Your saved application draft' : 'No application draft saved here'}</h3>
-        <p>{applicationSaved ? 'Keep the prepared copy as a reference. It may differ from what you finally submitted on Upwork.'
-          : 'Applications sent outside the cockpit may have no local copy. The Applied stage is kept independently.'}</p></div>
+      <div><h3>{applicationSaved ? 'Application draft' : 'No application draft saved'}</h3>
+        <p>{applicationSaved ? 'Your local draft may differ from the submitted application.'
+          : 'Applications sent outside the cockpit may have no local copy.'}</p></div>
       <button onClick={() => open('materials')}>View materials</button>
     </div>
   </>;
@@ -450,13 +491,13 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
           <a className="btn" href={artifactUrl(j.id, 'pitch.html', version('pitch.html'))} target="_blank" rel="noopener">Open local preview</a>
         </div>
         <PitchUrlEditor j={j} post={post} copy={copy} />
-      </> : canRun('pitch-page') ? <button onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button> : <p className="material-note">Pitch page generation is unavailable.</p>}
+      </> : canRun('pitch-page') ? <button className={nextMaterial === 'pitch' ? 'primary' : undefined} onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button> : <p className="material-note">Pitch page generation is unavailable.</p>}
     </MaterialRow>
 
     <MaterialRow label="Loom script" ready={scriptReady} defaultOpen={nextMaterial === 'script'}>
       {scriptReady
         ? <MaterialDocument id={j.id} file="loom-script.md" version={version('loom-script.md')} />
-        : canRun('pitch-page') ? <button onClick={() => runCommand('pitch-page', j.id)}>Generate Loom script</button> : <p className="material-note">The Loom script is made with the pitch page.</p>}
+        : canRun('pitch-page') ? <button className={nextMaterial === 'script' ? 'primary' : undefined} onClick={() => runCommand('pitch-page', j.id)}>Generate Loom script</button> : <p className="material-note">The Loom script is made with the pitch page.</p>}
     </MaterialRow>
 
     <MaterialRow label="Loom video" ready={videoReady} defaultOpen={nextMaterial === 'video'}>
@@ -472,7 +513,7 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
       {applicationReady
         ? <ApplicationReview j={j} />
         : canRun('apply') ? <>
-          <button disabled={!applicationUnlocked} title={applicationBlocker || undefined} onClick={() => runCommand('apply', j.id)}>Draft application</button>
+          <button className={nextMaterial === 'application' ? 'primary' : undefined} disabled={!applicationUnlocked} title={applicationBlocker || undefined} onClick={() => runCommand('apply', j.id)}>Draft application</button>
           {applicationBlocker ? <p className="material-note material-blocker">{applicationBlocker}</p> : null}
         </> : <p className="material-note">Application drafting is unavailable.</p>}
       {j.status === 'new' && (d.boost_available === false || d.boost_recommended != null || d.boost_top_bids !== undefined)
@@ -749,12 +790,10 @@ function Timeline({ j }: { j: any }) {
   </li>)}</ul> : <p className="empty">No timeline activity yet.</p>;
 }
 
-function Conversation({ j, inbox }: { j: any; inbox: boolean }) {
-  const { runCommand } = useCockpit();
+function Conversation({ j }: { j: any }) {
   const messages = (j.thread && j.thread.messages) || [];
   if (!messages.length) return <div className="conversation-empty"><strong>No conversation saved yet</strong>
-    <p>{inbox ? 'Check Upwork for the first client reply.' : 'Inbox sync is not available yet.'}</p>
-    {inbox ? <button onClick={() => runCommand('inbox', j.id)}>Check for messages</button> : null}
+    <p>Use Sync to load the conversation.</p>
   </div>;
   let last = '';
   return <>{messages.map((message: any, index: number) => {

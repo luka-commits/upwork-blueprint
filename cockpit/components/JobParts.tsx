@@ -15,8 +15,8 @@ import {
 } from '@/lib/model';
 import './lead.css';
 
-export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materials', replyOpen = false, onReviewReply }: {
-  j: any; materialsLabel?: string; salesLabel?: string; replyOpen?: boolean; onReviewReply?: () => void;
+export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materials', replyOpen = false, onReviewReply, preparationActionsOnly = false }: {
+  j: any; materialsLabel?: string; salesLabel?: string; replyOpen?: boolean; onReviewReply?: () => void; preparationActionsOnly?: boolean;
 }) {
   const { state, move, runCommand, toast } = useCockpit();
   const [reasonOpen, setReasonOpen] = useState(false);
@@ -45,7 +45,7 @@ export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materi
     <button className="primary" onClick={() => copyCommand(command, message, trailing)}>{label}</button>;
   useEffect(() => { if (reasonOpen) reasonRef.current?.focus(); }, [reasonOpen]);
   const skip = <details className="action-more next-more">
-    <summary>More</summary>
+    <summary aria-label="More actions" title="More actions"><span aria-hidden="true">…</span></summary>
     <div className="action-menu">
       {!reasonOpen ? <button onClick={() => setReasonOpen(true)}>Not a fit</button> : <div className="skip-reason">
         <input
@@ -62,6 +62,7 @@ export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materi
   </details>;
 
   if (j.status === 'new') {
+    if (preparationActionsOnly) return <div className="next-step">{skip}</div>;
     if (!files.includes('pitch.html')) return <div className="next-step">
       {!canRun('pitch-page') ? <p className="say">Create the pitch page first.</p> : null}
       {canRun('pitch-page') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button></div> : null}
@@ -93,13 +94,17 @@ export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materi
   }
   if (CLOSED.includes(j.status)) return <div className="next-step">
     <p className="say">{LABEL[j.status]}{j.notes ? `: ${j.notes}` : ''}.</p>
-    <div className="next-secondary"><details className="action-more next-more"><summary>More</summary>
+    <div className="next-secondary"><details className="action-more next-more"><summary aria-label="More actions" title="More actions"><span aria-hidden="true">…</span></summary>
       <div className="action-menu"><button onClick={() => move(j.id, 'new')}>Reopen</button></div>
     </details></div>
   </div>;
-  if (j.status === 'applied' && !room) return <div className="next-step">
-    <p className="say">There is no Upwork chat room yet. Check whether the client replied before drafting or following up.</p>
-    {canRun('inbox') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('inbox', j.id)}>Check for a reply</button></div> : null}
+  if (j.status === 'applied') return <div className="next-step">
+    <p className="say">{room ? 'Waiting for the client.' : 'You can message once the client opens an Upwork conversation.'}</p>
+  </div>;
+  // The open conversation already owns message checks and reply drafting.
+  if (j.status === 'replied' && replyOpen) return null;
+  if (j.status === 'replied' && !room) return <div className="next-step">
+    <p className="say">No conversation saved. Use Sync to load it.</p>
   </div>;
   if (j.status === 'replied' && clientWaiting) return <div className="next-step">
     <p className="say">{hasReplyDrafts ? 'A reply is prepared. Read the latest message, edit the draft and approve the exact text when you are ready.'
@@ -108,24 +113,17 @@ export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materi
       ? <button className="primary" onClick={onReviewReply}>Review reply drafts</button>
       : <a className="btn primary" href={`/job/${j.id}`}>Review reply drafts</a>}</div> : null
       : canRun('reply') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('reply', j.id)}>Draft a reply</button></div> : null}
-    {canRun('inbox') ? <div className="next-secondary"><button onClick={() => runCommand('inbox', j.id)}>Check latest messages</button></div> : null}
   </div>;
   if (j.status === 'offer') return <div className="next-step">
     <p className="say">An offer is on the table. Review the terms on Upwork; after it becomes a contract, Sync moves the job to Won.</p>
     {j.url ? <div className="next-primary"><a className="btn primary" href={j.url} target="_blank" rel="noopener">Review offer on Upwork</a></div> : null}
-    {canRun('sync') ? <div className="next-secondary"><button onClick={() => runCommand('sync')}>Sync contract status</button></div> : null}
   </div>;
   if (isDue(j)) return <div className="next-step">
     <p className="say">A follow-up reminder is due. Review the current Upwork conversation before deciding what to send.</p>
-    {canRun('inbox') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('inbox', j.id)}>Review conversation</button></div> : null}
     <div className="next-secondary">
       {room && clientMessages.length && canRun('reply') ? <button onClick={() => runCommand('reply', j.id)}>Draft a reply</button> : null}
       {!hasFollowUpPlan ? <button onClick={() => move(j.id, j.status, '+3d')}>Snooze reminder 3 days</button> : null}
     </div>
-  </div>;
-  if (j.status === 'applied') return <div className="next-step">
-    <p className="say">Waiting on the client{j.next_follow_up ? `. Follow up on ${day(j.next_follow_up)}` : ''}. Check Upwork before writing anything.</p>
-    {canRun('inbox') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('inbox', j.id)}>Check for a reply</button></div> : null}
   </div>;
   if (j.status === 'replied') {
     if (!files.includes('call-prep.md') && callMentioned) return <div className="next-step">
@@ -134,7 +132,6 @@ export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materi
     </div>;
     if (!files.includes('call-prep.md')) return <div className="next-step">
       <p className="say">You replied and the client has the next move. Check the conversation for a new message before preparing anything else.</p>
-      {canRun('inbox') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('inbox', j.id)}>Check latest messages</button></div> : null}
     </div>;
     if (!files.includes('call-review.md')) return <div className="next-step">
       <p className="say">Call prep is ready. After the call, paste the transcript into Claude Code for a checked review.</p>

@@ -3,27 +3,26 @@ const WORKSPACES = {
     mode: 'prepare',
     label: 'Application preparation',
     defaultView: 'work',
+    layout: { context: 'job', contextOpen: true, tools: false, toolsOpen: false },
     tabs: [
       ['work', 'Preparation'],
-      ['conversation', 'Conversation'],
-      ['timeline', 'Timeline'],
     ],
   },
   applied: {
     mode: 'waiting',
     label: 'Waiting for the client',
     defaultView: 'work',
+    layout: { context: 'job', contextOpen: true, tools: false, toolsOpen: false },
     tabs: [
       ['work', 'Overview'],
       ['materials', 'Materials'],
-      ['conversation', 'Conversation'],
-      ['timeline', 'Timeline'],
     ],
   },
   sales: {
     mode: 'sales',
     label: 'Sales workspace',
     defaultView: 'conversation',
+    layout: { context: 'job', contextOpen: true, tools: true, toolsOpen: true },
     tabs: [
       ['conversation', 'Conversation'],
       ['work', 'Call and proposal'],
@@ -35,6 +34,7 @@ const WORKSPACES = {
     mode: 'delivery',
     label: 'Client delivery',
     defaultView: 'work',
+    layout: { context: 'project', contextOpen: false, tools: false, toolsOpen: false },
     tabs: [
       ['work', 'Delivery'],
       ['conversation', 'Conversation'],
@@ -46,6 +46,7 @@ const WORKSPACES = {
     mode: 'closed',
     label: 'Lead history',
     defaultView: 'timeline',
+    layout: { context: 'job', contextOpen: false, tools: false, toolsOpen: false },
     tabs: [
       ['timeline', 'Timeline'],
       ['conversation', 'Conversation'],
@@ -59,6 +60,7 @@ function copyWorkspace(workspace) {
     mode: workspace.mode,
     label: workspace.label,
     defaultView: workspace.defaultView,
+    layout: { ...workspace.layout },
     tabs: workspace.tabs.map(([key, label]) => ({ key, label })),
   };
 }

@@ -5,6 +5,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useCockpit } from '@/lib/context';
 import { DueChip, Flags, Score, StageSelect, ago, budgetText, day, money, stamp, wonAt } from '@/lib/model';
 import { BoostBlock, FilesChecklist, NextStep, TasksBlock } from './JobParts';
+import JobBrief from './JobBrief';
 import './drawer.css';
 
 const PIPELINE_FILES = new Set(['pitch.html', 'loom-script.md', 'application.md']);
@@ -129,7 +130,6 @@ function LeadDrawer({ j }: { j: any }) {
 function LeadOverview({ j }: { j: any }) {
   const { state } = useCockpit();
   const d = j.details || {}, c = j.client || {}, record = d.client_record || {};
-  const what = j.summary || firstParagraph(d.description) || 'No job summary is saved yet. Open the original posting before deciding.';
   const terms = [budgetText(j), j.job_type === 'fixed' ? 'fixed price' : j.job_type === 'hourly' ? 'hourly' : '',
     j.engagement || d.engagement_type].filter(value => value && value !== '–').join(' · ');
   const competition = [j.proposals != null ? `${j.proposals} bids` : '', d.interviewing ? `${d.interviewing} interviewing` : '',
@@ -145,7 +145,7 @@ function LeadOverview({ j }: { j: any }) {
     /FULL_TIME|30\+ hrs/i.test(j.engagement || d.engagement_type || '') || j.trap);
   return <section className="drawer-overview" aria-label="Job overview">
     <h4>Job overview</h4>
-    <p className="drawer-need">{what}</p>
+    <JobBrief job={j} />
     {j.rationale ? <div className="drawer-fit"><span>Fit check</span><p>{j.rationale}</p></div> : null}
     {hasFlags ? <div className="drawer-flags"><Flags j={j} /></div> : null}
     <dl className="drawer-quickfacts">
@@ -239,12 +239,6 @@ function clientSummary(j: any) {
   const d = j.details || {}, c = j.client || {};
   const name = c.name || c.company || c.company_name || d.client_name || d.client_company || j.client_name;
   return [name, budgetText(j), j.engagement || d.engagement_type].filter(value => value && value !== '–').join(' · ') || 'Project details';
-}
-
-function firstParagraph(value: any) {
-  const text = String(value || '').replace(/\s+/g, ' ').trim();
-  if (!text) return '';
-  return text.length > 360 ? `${text.slice(0, 357).trimEnd()}...` : text;
 }
 
 function scoreTotal(j: any) {

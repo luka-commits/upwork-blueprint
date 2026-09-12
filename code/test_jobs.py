@@ -98,6 +98,21 @@ class JobsTest(unittest.TestCase):
         self.assertEqual(rec['status'], 'skipped')
         self.assertEqual(rec['details']['connects_cost'], 16)
 
+    def test_detail_saves_the_structured_job_brief(self):
+        (self.dir / 'jobs.json').write_text(json.dumps([{'id': '8', 'status': 'new', 'title': 'x',
+                                                          'found_at': iso(1)}]), encoding='utf-8')
+        get = {'description': 'Build the complete system.', 'brief': {
+            'outcome': 'A working lead system.',
+            'scope': ['Build the pipeline.', '', 4, 'Test every route.'],
+            'requirements': ['Five years of direct experience.'],
+        }}
+        (self.dir / 'get.json').write_text(json.dumps(get), encoding='utf-8')
+        r = self.run_jobs('detail', '8', str(self.dir / 'get.json'))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        brief = json.loads((self.dir / 'jobs.json').read_text(encoding='utf-8'))[0]['details']['brief']
+        self.assertEqual(brief['outcome'], 'A working lead system.')
+        self.assertEqual(brief['scope'], ['Build the pipeline.', 'Test every route.'])
+
     def test_points(self):
         sys.path.insert(0, str(CODE))
         import jobs

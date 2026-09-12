@@ -1,0 +1,48 @@
+.job-brief {
+  display: grid;
+  gap: 10px;
+}
+
+.job-brief-part {
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+
+.job-brief-part:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.job-brief-part h3 {
+  margin: 0 0 4px;
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.job-brief-part p,
+.job-brief-part ul,
+.job-brief-empty {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.52;
+}
+
+.job-brief-outcome p {
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.job-brief-part ul {
+  display: grid;
+  gap: 4px;
+  padding-left: 17px;
+}
+
+.job-brief-empty {
+  color: var(--text-3);
+}

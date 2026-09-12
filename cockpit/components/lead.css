@@ -112,6 +112,10 @@
   padding-bottom: 12px;
 }
 
+.detail-panel > .job-brief {
+  padding: 0 0 12px;
+}
+
 .lead-flags {
   display: flex;
   flex-wrap: wrap;

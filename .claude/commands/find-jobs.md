@@ -39,7 +39,7 @@ Then give every candidate a niche fit from 0 to 40 against `context/me.md` and `
 
 Signals that raise fit: a manual, repetitive process described step by step (automation in disguise, even without the word), your exact tools named, your niche named. Traps that look like a match and are not: support or ticket grinding sold as a project ("100% success rate", "hundreds of cases daily"), open-ended account-manager or operator roles instead of a build, a full-time employee disguised as a contract, and anything the member ruled out in `context/me.md`.
 
-Write `data/fit.json`: per job id `{"fit": 0-40, "rationale": "<what the score bets on, in one sentence>", "summary": "<what they want built, and the one thing that makes this job distinctive, two sentences>", "trap": "<only when one applies>"}`. The rationale never repeats what the card already shows (budget, client rating).
+Write `data/fit.json`: per job id `{"fit": 0-40, "rationale": "<what the score bets on, in one sentence>", "summary": "<what they want built and the one thing that makes this job distinctive, in two or three concrete sentences>", "trap": "<only when one applies>"}`. The rationale never repeats what the card already shows (budget, client rating). The summary must let a member explain the job without reopening the posting; never reduce a multi-part build to a category label.
 
 ## Step 4 · Score and log
 
@@ -47,7 +47,19 @@ Run `python3 code/jobs.py score`. It adds the four parts, logs every job with fi
 
 ## Step 5 · Open the best five
 
-For the five highest new jobs, one at a time: `find_jobs` action `get` with the job id. Save to `data/details/<id>.json` these parts of the response, as returned: `connects_cost`, `can_apply`, `activityStat`, `preferred_qualifications`, `client_record` and the full `description`. Then `python3 code/jobs.py detail <id> data/details/<id>.json`. It stores the Connects price, the competition's bids, how far hiring has gone and the full posting, and skips the job when it is already filled or asks for more Job Success or earnings than you have. Never fetch details for a whole list: that is the request pattern Upwork flags as scraping.
+For the five highest new jobs, one at a time: `find_jobs` action `get` with the job id. Save to `data/details/<id>.json` these parts of the response, as returned: `connects_cost`, `can_apply`, `activityStat`, `preferred_qualifications`, `client_record` and the full `description`.
+
+After reading that full description, add a `brief` object to the same file:
+
+```json
+{
+  "outcome": "Two or three concrete sentences: what should exist when the work is done and who uses it.",
+  "scope": ["Three to six specific deliverables or workstreams."],
+  "requirements": ["Only explicit must-have experience, constraints or application instructions."]
+}
+```
+
+Use the client's facts, not guesses. Do not mix fit, competition or sales advice into this brief; those have their own places in the cockpit. Then `python3 code/jobs.py detail <id> data/details/<id>.json`. It stores the brief, Connects price, competition, hiring progress and full posting, and skips the job when it is already filled or asks for more Job Success or earnings than you have. Never fetch details for a whole list: that is the request pattern Upwork flags as scraping.
 
 ## Step 6 · Close
 

@@ -5,6 +5,7 @@ import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
 import { useCockpit } from '@/lib/context';
 import { parseApplication } from '@/lib/application-review.mjs';
 import { BoostBlock, NextStep, TasksBlock } from './JobParts';
+import JobBrief from './JobBrief';
 import {
   CLOSED,
   FILE_LABEL,
@@ -135,9 +136,9 @@ function LeadDetails({ j, hasFlags }: { j: any; hasFlags: boolean }) {
       <Field label="Engagement" value={[j.engagement || d.engagement_type, d.experience_level && String(d.experience_level).toLowerCase()].filter(Boolean).join(' · ')} />
     </dl>
     {hasFlags ? <div className="lead-flags"><Flags j={j} /></div> : null}
+    <JobBrief job={j} />
     {skillText ? <Disclosure label="Skills" summary={skillText}><p>{skillText}</p></Disclosure> : null}
     {j.rationale ? <Disclosure label="Why this job" summary={j.rationale}><p>{j.rationale}</p></Disclosure> : null}
-    {j.summary ? <Disclosure label="What they want" summary={j.summary}><p>{j.summary}</p></Disclosure> : null}
     <Disclosure label="Client" summary={clientSummary || 'Client details'}>
       <dl className="fields">
         <Field label="Rating" value={c.rating ? `${c.rating}★ from ${c.reviews ?? '?'} reviews` : ''} />

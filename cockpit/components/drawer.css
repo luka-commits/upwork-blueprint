@@ -6,14 +6,6 @@
   margin-top: 0;
 }
 
-.drawer-need {
-  margin: 0;
-  color: var(--text);
-  font-size: 13.5px;
-  font-weight: 600;
-  line-height: 1.5;
-}
-
 .drawer-fit {
   margin-top: 11px;
   padding-left: 10px;

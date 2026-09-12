@@ -284,6 +284,17 @@ def member_standing():
     return {'earnings': money_value(agg.get('totalEarnings')), 'jss': jss}
 
 
+def clean_brief(raw):
+    brief = find_key(raw, 'brief')
+    if not isinstance(brief, dict):
+        return None
+    outcome = clean(brief.get('outcome')) if isinstance(brief.get('outcome'), str) else ''
+    scope = [clean(item) for item in brief.get('scope', []) if isinstance(item, str) and clean(item)][:6]
+    requirements = [clean(item) for item in brief.get('requirements', [])
+                    if isinstance(item, str) and clean(item)][:4]
+    return {k: v for k, v in {'outcome': outcome, 'scope': scope, 'requirements': requirements}.items() if v}
+
+
 def cmd_detail(args):
     raw = load_json(args.file, {})
     activity = find_key(raw, 'jobActivity') or {}
@@ -308,6 +319,7 @@ def cmd_detail(args):
         'min_jss': quals.get('min_job_success_score'), 'min_earnings': quals.get('min_earnings'),
         'client_record': find_key(raw, 'client_record'),
         'description': clean(find_key(raw, 'description') if isinstance(find_key(raw, 'description'), str) else ''),
+        'brief': clean_brief(raw),
     }
     details = {k: v for k, v in details.items() if v not in (None, '', {})}
     out = pipeline('detail', args.job_id, '--file', '-', stdin=json.dumps(details))

@@ -74,7 +74,7 @@ function liveResult(run: Run) {
 
 function stateWord(run: Pick<DisplayRun, 'done' | 'stopped' | 'error'>) {
   if (!run.done) return 'Running';
-  return run.stopped ? 'Stopped' : run.error ? 'Broke off' : 'Done';
+  return run.stopped ? 'Stopped' : run.error ? 'Failed' : 'Done';
 }
 
 function runClass(run: Pick<DisplayRun, 'done' | 'stopped' | 'error'>) {
@@ -83,11 +83,16 @@ function runClass(run: Pick<DisplayRun, 'done' | 'stopped' | 'error'>) {
 }
 
 function RunRow({ run, jobTitle, now }: { run: DisplayRun; jobTitle?: string; now: number }) {
+  const summary = run.summary || (!run.done
+    ? 'Waiting for the first update.'
+    : run.stopped ? 'Stopped before a result was saved.'
+      : run.error ? 'No failure detail was saved.' : 'No result was saved.');
   return (
     <details className={`command-run ${runClass(run)}${run.job && jobTitle ? ' has-job' : ''}`}>
       <summary className="command-run-summary">
         <span className="command-run-state">{stateWord(run)}</span>
         <code className="command-run-name">/{run.command}</code>
+        <span className="command-run-result" title={summary}>{summary}</span>
         <span className="command-run-job">
           {run.job && jobTitle ? (
             <Link href={`/job/${encodeURIComponent(run.job)}`} onClick={event => event.stopPropagation()}>{jobTitle}</Link>
@@ -95,11 +100,10 @@ function RunRow({ run, jobTitle, now }: { run: DisplayRun; jobTitle?: string; no
         </span>
         <time className="command-run-start" dateTime={new Date(run.started * 1000).toISOString()}>{startedAt(run.started)}</time>
         <span className="command-run-duration">{duration(run.started, run.ended || now)}</span>
-        <span className="command-run-result" title={run.summary}>{run.summary || 'No result yet.'}</span>
         <span className="command-run-chevron" aria-hidden="true">›</span>
       </summary>
       <div className="command-run-detail">
-        <div className="command-run-full">{run.result || 'No result yet.'}</div>
+        <div className="command-run-full">{run.result || summary}</div>
         <details className="command-run-steps">
           <summary>Steps <span>{run.log.length}</span></summary>
           {run.log.length ? (
@@ -184,6 +188,23 @@ export default function CommandsPage() {
 
   const jobTitles = useMemo(() => new Map<string, string>((state?.jobs || []).map((job: any) => [job.id, job.title])), [state]);
   const firstRunnable = commands.find(command => command.button && !command.needsJob);
+  const commandGroups = useMemo(() => [
+    {
+      title: 'Run here',
+      hint: 'Starts now and stays visible in Recent runs.',
+      commands: commands.filter(command => command.button && !command.needsJob),
+    },
+    {
+      title: 'Run from a job',
+      hint: 'Choose a lead first so the command has the right context.',
+      commands: commands.filter(command => command.needsJob),
+    },
+    {
+      title: 'Copy to Claude Code',
+      hint: 'These commands continue in a Claude Code conversation.',
+      commands: commands.filter(command => !command.button && !command.needsJob),
+    },
+  ].filter(group => group.commands.length), [commands]);
 
   const copyCommand = async (name: string) => {
     try {
@@ -205,19 +226,27 @@ export default function CommandsPage() {
         {commandsState === 'loading' ? <p className="empty">Loading commands.</p> : null}
         {commandsState === 'error' ? <p className="empty">Could not load commands. Reload the page to try again.</p> : null}
         {commandsState === 'ready' && !commands.length ? <p className="empty">No commands are available yet.</p> : null}
-        {commands.map(command => (
-          <div className="command-row" key={command.name}>
-            <code className="command-name">/{command.name}</code>
-            <span className="command-description" title={command.description}>{command.description || 'No description yet.'}</span>
-            <div className="command-action">
-              {command.button && !command.needsJob ? (
-                <button onClick={() => runCommand(command.name)}>Run</button>
-              ) : command.needsJob ? (
-                <span className="note-sm">From a job&apos;s side panel</span>
-              ) : (
-                <button className="link command-copy" onClick={() => void copyCommand(command.name)}>Copy</button>
-              )}
+        {commandGroups.map(group => (
+          <div className="command-group" key={group.title}>
+            <div className="command-group-heading">
+              <h2>{group.title}</h2>
+              <p className="note-sm">{group.hint}</p>
             </div>
+            {group.commands.map(command => (
+              <div className="command-row" key={command.name}>
+                <code className="command-name">/{command.name}</code>
+                <span className="command-description" title={command.description}>{command.description || 'No description yet.'}</span>
+                <div className="command-action">
+                  {command.button && !command.needsJob ? (
+                    <button onClick={() => runCommand(command.name)}>Run</button>
+                  ) : command.needsJob ? (
+                    <Link className="btn" href="/">Choose job</Link>
+                  ) : (
+                    <button className="link command-copy" onClick={() => void copyCommand(command.name)}>Copy</button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         ))}
       </section>
@@ -229,9 +258,10 @@ export default function CommandsPage() {
         {!liveRuns.length && historyState === 'loading' ? <p className="empty">Loading recent runs.</p> : null}
         {historyState === 'error' ? <p className="empty">Could not load recent runs. Reload the page to try again.</p> : null}
         {!liveRuns.length && historyState === 'ready' && !historyRuns.length && commandsState === 'ready' ? (
-          <p className="empty">No runs yet. {firstRunnable
-            ? <>Press Run next to <code>/{firstRunnable.name}</code> to start.</>
-            : 'No Run button is available on this page.'}</p>
+          firstRunnable ? <div className="command-empty">
+            <p>No runs yet. Start the first one here.</p>
+            <button onClick={() => runCommand(firstRunnable.name)}>Run /{firstRunnable.name}</button>
+          </div> : <p className="empty">No runs yet. No command can run from this page.</p>
         ) : null}
       </section>
     </div>

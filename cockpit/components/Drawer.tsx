@@ -1,20 +1,41 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useCockpit } from '@/lib/context';
-import { DueChip, Score, StageSelect } from '@/lib/model';
+import { DueChip, Score, StageSelect, budgetText, day, money, stamp, wonAt } from '@/lib/model';
 import { BoostBlock, Facts, FilesChecklist, NextStep, TasksBlock } from './JobParts';
+import './drawer.css';
+
+const PIPELINE_FILES = new Set(['pitch.html', 'loom-script.md', 'application.md']);
 
 export default function Drawer() {
   const { state, api, toast, drawerId, closeDrawer } = useCockpit();
   const [job, setJob] = useState<any>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const loadedId = useRef<string | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
     document.body.classList.toggle('drawer-open', !!drawerId);
     return () => document.body.classList.remove('drawer-open');
+  }, [drawerId]);
+
+  useEffect(() => {
+    const opening = !!drawerId;
+    if (opening) {
+      if (!wasOpenRef.current && document.activeElement instanceof HTMLElement) {
+        returnFocusRef.current = document.activeElement;
+      }
+      requestAnimationFrame(() => closeRef.current?.focus());
+    } else if (wasOpenRef.current) {
+      const target = returnFocusRef.current;
+      requestAnimationFrame(() => { if (target?.isConnected) target.focus(); });
+      returnFocusRef.current = null;
+    }
+    wasOpenRef.current = opening;
   }, [drawerId]);
 
   useEffect(() => {
@@ -44,36 +65,165 @@ export default function Drawer() {
       if (preserveScroll) requestAnimationFrame(() => { if (bodyRef.current) bodyRef.current.scrollTop = scroll; });
     });
     return () => { cancelled = true; };
-  }, [drawerId, state?.generated_at]);
+  }, [api, closeDrawer, drawerId, state?.generated_at, toast]);
 
-  const d = job?.details || {};
-  return <aside className={`drawer${drawerId ? ' open' : ''}`} aria-label="Job">
+  const isClient = job?.status === 'won';
+  const titleId = job ? 'drawer-title' : undefined;
+  return <aside
+    className={`drawer${drawerId ? ' open' : ''}`}
+    aria-label={job ? undefined : 'Job details'}
+    aria-labelledby={titleId}
+    aria-hidden={!drawerId}
+    aria-busy={!!drawerId && !job}
+  >
     {job ? <>
       <div className="drawer-head">
         <div className="drawer-title">
-          {job.score != null ? <Score j={job} /> : null}
-          <h3>{job.url ? <a href={job.url} target="_blank" rel="noopener" title="Open on Upwork">{job.title}</a> : job.title}</h3>
-          <button className="drawer-close" onClick={closeDrawer} aria-label="Close">✕</button>
+          {!isClient && job.score != null ? <Score j={job} /> : null}
+          <h3 id="drawer-title">{job.url ? <a href={job.url} target="_blank" rel="noopener" title="Open on Upwork">{job.title}</a> : job.title}</h3>
+          <button ref={closeRef} className="drawer-close" onClick={closeDrawer} aria-label="Close">✕</button>
         </div>
-        <div className="drawer-stage"><StageSelect j={job} /><DueChip j={job} /></div>
+        <div className="drawer-stage">
+          <StageSelect j={job} />
+          {isClient ? <span className="stamp">{wonAt(job) ? `Client since ${day(wonAt(job))}` : 'Client'}</span> : <DueChip j={job} />}
+        </div>
       </div>
       <div className="drawer-body" ref={bodyRef}>
-        <h4>Next step</h4><NextStep key={`next-${job.id}`} j={job} />
-        <h4>Tasks</h4><TasksBlock key={`tasks-${job.id}`} j={job} />
-        {job.status === 'new' ? <><h4>Top slot</h4><BoostBlock d={d} /></> : null}
-        <FactsHeading j={job} />
-        {job.niche_fit != null ? <><h4>Score</h4><p className="note-sm" style={{ margin: 0, fontSize: 13 }}>fit {job.niche_fit} of 40 · client {job.client_trust ?? '?'} of 30 · deal {job.deal_quality ?? '?'} of 20 · fresh {job.recency ?? '?'} of 10</p></> : null}
-        <h4>Files</h4><FilesChecklist j={job} />
-        {d.description ? <details><summary><h4 style={{ display: 'inline' }}>The full posting</h4></summary><div className="posting">{d.description}</div></details> : null}
+        {isClient ? <ClientDrawer j={job} /> : <LeadDrawer j={job} />}
       </div>
       <div className="drawer-foot"><Link className="btn" href={`/job/${job.id}`} onClick={closeDrawer}>Open full page →</Link></div>
+    </> : drawerId ? <>
+      <div className="drawer-head">
+        <div className="drawer-title">
+          <h3>Loading job</h3>
+          <button ref={closeRef} className="drawer-close" onClick={closeDrawer} aria-label="Close">✕</button>
+        </div>
+      </div>
+      <div className="drawer-body" ref={bodyRef}><p className="empty">Loading job.</p></div>
     </> : null}
   </aside>;
 }
 
-function FactsHeading({ j }: { j: any }) {
+function LeadDrawer({ j }: { j: any }) {
+  const d = j.details || {};
+  const files: string[] = j.artifacts || [];
+  const ready = Number(files.includes('pitch.html')) + Number(files.includes('loom-script.md')) +
+    Number(!!j.video) + Number(files.includes('application.md'));
+  return <>
+    <h4>Next step</h4><NextStep key={`next-${j.id}`} j={j} />
+    <h4>Tasks</h4><TasksBlock key={`tasks-${j.id}`} j={j} />
+    <div className="drawer-supporting">
+      <DrawerDisclosure label="Materials" summary={`${ready} of 4 ready`}>
+        <FilesChecklist j={j} />
+        {j.status === 'new' ? <div className="boost-slot"><span>Top slot</span><BoostBlock d={d} /></div> : null}
+      </DrawerDisclosure>
+      {hasFacts(j) ? <DrawerDisclosure label="The deal" summary={dealSummary(j)}><Facts j={j} /></DrawerDisclosure> : null}
+      {j.niche_fit != null ? <DrawerDisclosure label="Score details" summary={`${j.score ?? scoreTotal(j)} of 100`}>
+        <p className="drawer-score-details">Fit {j.niche_fit} of 40 · client {j.client_trust ?? '?'} of 30 · deal {j.deal_quality ?? '?'} of 20 · fresh {j.recency ?? '?'} of 10</p>
+      </DrawerDisclosure> : null}
+      {d.description ? <DrawerDisclosure label="The full posting" summary="Original Upwork brief"><div className="posting">{d.description}</div></DrawerDisclosure> : null}
+    </div>
+  </>;
+}
+
+function ClientDrawer({ j }: { j: any }) {
+  const projectFiles = (j.files || []).filter((file: any) => !PIPELINE_FILES.has(file.name));
+  return <>
+    <h4>Tasks</h4><TasksBlock key={`tasks-${j.id}`} j={j} />
+    <h4>Next check-in</h4><NextCheckIn j={j} />
+    <div className="drawer-supporting">
+      <DrawerDisclosure label="Client and project" summary={clientSummary(j)}>
+        <ClientProjectFields j={j} />
+      </DrawerDisclosure>
+      <DrawerDisclosure label="Files" summary={projectFiles.length ? `${projectFiles.length} project ${projectFiles.length === 1 ? 'file' : 'files'}` : 'No project files yet'}>
+        {projectFiles.length ? <div className="client-files">{projectFiles.map((file: any) => <a className="client-file" key={file.name} href={`/files/${j.id}/${file.name}`} target="_blank" rel="noopener">
+          <span><b>{file.name}</b></span>
+          <time>{stamp(file.at)}</time>
+        </a>)}</div> : <p className="quiet-empty">No project files yet.</p>}
+      </DrawerDisclosure>
+    </div>
+  </>;
+}
+
+function NextCheckIn({ j }: { j: any }) {
+  const { move } = useCockpit();
+  const [editing, setEditing] = useState(false);
+  const [date, setDate] = useState(j.next_follow_up || '');
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { setDate(j.next_follow_up || ''); }, [j.next_follow_up]);
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+  const text = date ? `Next check-in ${shortDate(date)}` : 'Set next check-in';
+  return <div className={`date-chip-wrap${editing ? ' editing' : ''}`}>
+    <button className="date-chip" onClick={() => setEditing(true)} aria-expanded={editing}>{text}</button>
+    {editing ? <input
+      ref={inputRef}
+      type="date"
+      value={date}
+      aria-label="Next check-in"
+      onBlur={() => setEditing(false)}
+      onChange={event => {
+        const value = event.target.value;
+        setDate(value);
+        if (value) { void move(j.id, j.status, value); setEditing(false); }
+      }}
+    /> : null}
+  </div>;
+}
+
+function DrawerDisclosure({ label, summary, children }: {
+  label: string;
+  summary: string;
+  children: ReactNode;
+}) {
+  return <details className="lead-disclosure drawer-disclosure">
+    <summary>
+      <span className="disclosure-label">{label}</span>
+      <span className="disclosure-summary">{summary}</span>
+      <span className="disclosure-chevron" aria-hidden="true">⌄</span>
+    </summary>
+    <div className="disclosure-body">{children}</div>
+  </details>;
+}
+
+function ClientProjectFields({ j }: { j: any }) {
   const d = j.details || {}, c = j.client || {};
-  const hasFacts = d.bid_avg != null || d.fetched_at || d.min_jss || (d.min_earnings && !/any/i.test(d.min_earnings)) ||
+  const name = c.name || c.company || c.company_name || d.client_name || d.client_company || j.client_name;
+  return <dl className="fields">
+    <Field label="Name" value={name} />
+    <Field label="Location" value={[d.client_city, c.country].filter(Boolean).join(', ')} />
+    <Field label="Spent" value={(d.client_record || {}).spend_total ? money(d.client_record.spend_total) : c.spent ? money(c.spent) : ''} />
+    <Field label="Rating" value={c.rating ? `${c.rating}★${c.reviews != null ? ` from ${c.reviews} reviews` : ''}` : ''} />
+    <Field label="Budget" value={budgetText(j)} />
+    <Field label="Engagement" value={[j.engagement || d.engagement_type, d.experience_level && String(d.experience_level).toLowerCase()].filter(Boolean).join(' · ')} />
+  </dl>;
+}
+
+function Field({ label, value }: { label: string; value: any }) {
+  return value || value === 0 ? <div><dt>{label}</dt><dd>{value}</dd></div> : null;
+}
+
+function hasFacts(j: any) {
+  const d = j.details || {}, c = j.client || {};
+  return d.bid_avg != null || d.fetched_at || d.min_jss || (d.min_earnings && !/any/i.test(d.min_earnings)) ||
     (d.client_record || {}).spend_total || c.spent || c.country || d.client_timezone;
-  return hasFacts ? <><h4>The deal</h4><Facts j={j} /></> : null;
+}
+
+function dealSummary(j: any) {
+  const d = j.details || {}, c = j.client || {};
+  return [budgetText(j), j.proposals != null ? `${j.proposals} bids` : '', c.country || d.client_timezone]
+    .filter(value => value && value !== '–').join(' · ') || 'Job and client details';
+}
+
+function clientSummary(j: any) {
+  const d = j.details || {}, c = j.client || {};
+  const name = c.name || c.company || c.company_name || d.client_name || d.client_company || j.client_name;
+  return [name, budgetText(j), j.engagement || d.engagement_type].filter(value => value && value !== '–').join(' · ') || 'Project details';
+}
+
+function scoreTotal(j: any) {
+  return Number(j.niche_fit || 0) + Number(j.client_trust || 0) + Number(j.deal_quality || 0) + Number(j.recency || 0);
+}
+
+function shortDate(value: string) {
+  return new Date(`${value}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }

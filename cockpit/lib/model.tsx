@@ -29,11 +29,13 @@ export function short(iso?: string) { return iso ? new Date(iso).toLocaleDateStr
 export function stamp(iso?: string) { return iso ? new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''; }
 export function money(n: any) { n = Number(n); if (!n) return ''; return n >= 1000 ? '$' + Math.round(n / 1000) + 'K' : '$' + Math.round(n); }
 export function firstNum(s: any): number | null { const m = String(s ?? '').replace(/,/g, '').match(/\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; }
-export const isDue = (j: any) => !!j.next_follow_up && j.next_follow_up <= todayIso() && !CLOSED.includes(j.status);
+// Lost and skipped jobs are over. A won job is a client: its check-in date still counts.
+export const ENDED = ['lost', 'skipped'];
+export const isDue = (j: any) => !!j.next_follow_up && j.next_follow_up <= todayIso() && !ENDED.includes(j.status);
 export const openTasks = (j: any): any[] => (j.tasks || []).filter((t: any) => !t.done_at);
 export const wonAt = (j: any): string | undefined => ((j.history || []).filter((h: any) => h.status === 'won').pop() || {}).at;
 export function ageBucket(iso?: string) { if (!iso) return 'Unknown'; const h = (Date.now() - +new Date(iso)) / 36e5; return h < 24 ? 'Last 24 hours' : h < 72 ? '1 to 3 days' : 'Older'; }
-export function dueBucket(j: any) { const t = todayIso(); return !j.next_follow_up || CLOSED.includes(j.status) ? 'No follow-up' : j.next_follow_up < t ? 'Overdue' : j.next_follow_up === t ? 'Today' : 'Later'; }
+export function dueBucket(j: any) { const t = todayIso(); return !j.next_follow_up || ENDED.includes(j.status) ? 'No follow-up' : j.next_follow_up < t ? 'Overdue' : j.next_follow_up === t ? 'Today' : 'Later'; }
 export function clientText(j: any) {
   const c = j.client || {}, bits: string[] = [];
   if (c.rating) bits.push(`${c.rating}★`);
@@ -67,7 +69,7 @@ export function Score({ j }: { j: any }) {
 }
 
 export function DueChip({ j }: { j: any }) {
-  if (!j.next_follow_up || CLOSED.includes(j.status)) return null;
+  if (!j.next_follow_up || ENDED.includes(j.status)) return null;
   const days = Math.round((+new Date(j.next_follow_up) - +new Date(todayIso())) / 864e5);
   const txt = days < 0 ? `${-days}d overdue` : days === 0 ? 'due today' : `in ${days} days`;
   return <span className="uw-due-inline"><span className={`uw-duechip ${days <= 0 ? 'over' : 'soon'}`}>{txt}</span></span>;
@@ -105,10 +107,11 @@ export function StageSelect({ j }: { j: any }) {
 }
 
 export function JobCell({ j }: { j: any }) {
+  const rationale = j.status === 'new' && j.rationale;
+  const decisionText = (rationale || j.summary || j.rationale || '').split('\n\n')[0];
   return <>
     <span className="rt-td-title">{j.title}<Flags j={j} /></span>
-    <span className="rt-td-desc">{(j.summary || j.rationale || '').split('\n\n')[0]}</span>
-    {j.summary && j.rationale && j.status === 'new' ? <span className="rt-td-why">{j.rationale}</span> : null}
+    {decisionText ? <span className={rationale ? 'rt-td-why' : 'rt-td-desc'}>{decisionText}</span> : null}
   </>;
 }
 
@@ -148,7 +151,7 @@ export const COLS: Record<string, Col> = {
     sort: j => firstNum(j.budget) ?? -1, filter: 'multi', value: j => j.job_type === 'hourly' ? 'Hourly' : j.job_type === 'fixed' ? 'Fixed price' : 'Unknown' },
   posted: { label: 'Posted', w: 100, cell: j => ago(j.posted_date), sort: j => j.posted_date || '', filter: 'multi', value: j => ageBucket(j.posted_date) },
   stage: { label: 'Stage', w: 190, asc: true, cell: j => <><StageSelect j={j} /><DueChip j={j} /></>, sort: j => ORDER.indexOf(j.status), filter: 'multi', value: j => LABEL[j.status] || j.status },
-  followup: { label: 'Follow-up', w: 130, asc: true, cell: j => j.next_follow_up && !CLOSED.includes(j.status) ? <DueChip j={j} /> : <Dash />, sort: j => j.next_follow_up || '9999', filter: 'multi', value: dueBucket },
+  followup: { label: 'Follow-up', w: 130, asc: true, cell: j => j.next_follow_up && !ENDED.includes(j.status) ? <DueChip j={j} /> : <Dash />, sort: j => j.next_follow_up || '9999', filter: 'multi', value: dueBucket },
   tasks: { label: 'Next task', w: 210, asc: true, cell: j => <TasksCell j={j} />, sort: j => openTasks(j).map(t => t.due || '9999').sort()[0] || '99999',
     filter: 'multi', value: j => openTasks(j).some(t => t.due && t.due <= todayIso()) ? 'Task due' : openTasks(j).length ? 'Open tasks' : 'No open tasks' },
   connects: { label: 'Connects', w: 96, cell: j => (j.details || {}).connects_cost ?? <Dash />, sort: j => (j.details || {}).connects_cost ?? -1, filter: 'range', value: j => (j.details || {}).connects_cost },
@@ -167,7 +170,7 @@ export const COLS: Record<string, Col> = {
 /** The next thing to do on a job: its follow-up or its earliest dated task, whichever comes first. */
 export function nextTodo(j: any): { text: string; due: string | null } | null {
   const items: { text: string; due: string | null }[] = openTasks(j).map(t => ({ text: t.text, due: t.due || null }));
-  if (j.next_follow_up && !CLOSED.includes(j.status)) items.push({ text: j.status === 'won' ? 'Check in with the client' : 'Follow up', due: j.next_follow_up });
+  if (j.next_follow_up && !ENDED.includes(j.status)) items.push({ text: j.status === 'won' ? 'Check in with the client' : 'Follow up', due: j.next_follow_up });
   items.sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')));
   return items[0] || null;
 }

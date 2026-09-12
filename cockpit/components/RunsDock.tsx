@@ -2,9 +2,15 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { useCockpit, type Run } from '@/lib/context';
+import { useCockpit, type Run, type State } from '@/lib/context';
 
 const DOCK_OPEN_EVENT = 'cockpit-dock-open';
+const RUN_LABEL: Record<string, string> = {
+  'find-jobs': 'Find jobs',
+  sync: 'Sync Upwork',
+  'pitch-page': 'Prepare pitch page',
+  apply: 'Draft application',
+};
 
 function clock(ms: number) {
   const seconds = Math.max(0, Math.round(ms / 1000));
@@ -18,7 +24,12 @@ function runClass(run: Run) {
 
 function stateWord(run: Run) {
   if (!run.done) return 'Running';
-  return run.stopped ? 'Stopped' : run.error ? 'Broke off' : 'Done';
+  return run.stopped ? 'Stopped' : run.error ? 'Failed' : 'Done';
+}
+
+export function runTitle(run: Pick<Run, 'command' | 'job'>, state: State | null) {
+  const job = run.job ? ((state?.jobs || []).find((item: any) => item.id === run.job) || {}).title || 'Job' : '';
+  return `${RUN_LABEL[run.command] || run.command.replaceAll('-', ' ')}${job ? ` · ${job}` : ''}`;
 }
 
 export default function RunsDock() {
@@ -70,21 +81,21 @@ export default function RunsDock() {
   const live = newest.filter(run => !run.done);
   const lead = live[0] || newest[0];
   const count = (test: (run: Run) => boolean) => newest.filter(test).length;
-  const done = count(run => run.done && !run.error);
+  const done = count(run => run.done && !run.error && !run.stopped);
   const stopped = count(run => !!run.stopped);
   const brokeOff = count(run => !!run.error && !run.stopped);
   const summary = [
+    'Runs',
     live.length && `${live.length} running`,
     done && `${done} done`,
     stopped && `${stopped} stopped`,
-    brokeOff && `${brokeOff} broke off`,
+    brokeOff && `${brokeOff} failed`,
   ].filter(Boolean).join(' · ');
-  const title = (run: Run) => `/${run.command}${run.job ? ` · ${((state?.jobs || []).find((job: any) => job.id === run.job) || {}).title || run.job}` : ''}`;
 
   return (
     <section className={`dock${collapsed ? ' collapsed' : ''}`} aria-label="Runs">
       <button className="dock-head" onClick={toggleCollapsed} aria-expanded={!collapsed}>
-        <span className={`spin ${live.length ? '' : lead.error ? 'failed' : 'finished'}`} style={{ display: 'inline-block' }} />
+        <span className={`spin ${live.length ? '' : runClass(lead)}`} style={{ display: 'inline-block' }} />
         <span className="grow">
           {summary}{collapsed ? <span> · {lead.status}</span> : null}
         </span>
@@ -96,10 +107,10 @@ export default function RunsDock() {
           <div className={`runitem ${runClass(run)}`} key={run.id}>
             <div className="runitem-head">
               <span className="spin" />
-              <span className="grow">{title(run)}</span>
+              <span className="grow">{runTitle(run, state)}</span>
               <span className="state">{stateWord(run)}</span>
               <span className="stamp">{clock((run.t1 || now) - run.t0)}</span>
-              {run.done ? <button className="link" onClick={() => dismissRun(run.id)} aria-label="Remove">✕</button> : null}
+              {run.done ? <button className="link" onClick={() => dismissRun(run.id)} aria-label="Remove run">✕</button> : null}
             </div>
             <div className="runitem-status">{run.status}</div>
             {run.made.length ? (
@@ -111,12 +122,12 @@ export default function RunsDock() {
                 ) : <span key={`${made.label}-${index}`}>{made.label}</span>)}
               </div>
             ) : null}
-            <div className="runitem-foot">
-              <button className="link" onClick={() => toggleRunLog(run.id)}>
-                {run.showLog ? 'Hide steps' : `Show all steps · ${run.log.length}`}
-              </button>
+            {run.log.length || !run.done ? <div className="runitem-foot">
+              {run.log.length ? <button className="link" onClick={() => toggleRunLog(run.id)}>
+                {run.showLog ? 'Hide steps' : `Show steps · ${run.log.length}`}
+              </button> : null}
               {!run.done ? <button className="link" onClick={() => stopRun(run.id)}>Stop</button> : null}
-            </div>
+            </div> : null}
             {run.showLog ? (
               <div className="run-log" ref={node => {
                 if (node) logRefs.current.set(run.id, node);

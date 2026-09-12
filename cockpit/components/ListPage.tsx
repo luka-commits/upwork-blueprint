@@ -46,7 +46,8 @@ function edited(st: SpaceState, space: SpaceName) {
 }
 
 function byUrgency(a: any, b: any) {
-  return (Number(isDue(b)) - Number(isDue(a))) || (b.score || 0) - (a.score || 0);
+  const due = (job: any) => Number(todoBucket(job) === 'Due now');
+  return (due(b) - due(a)) || (b.score || 0) - (a.score || 0);
 }
 
 export default function ListPage({ space }: { space: SpaceName }) {
@@ -206,6 +207,8 @@ export default function ListPage({ space }: { space: SpaceName }) {
   const noun = 'job';
   const dueNow = (state?.jobs || []).filter((j: any) => todoBucket(j) === 'Due now').length;
   const activeFilters = Object.entries(st.view.filters).filter(([, f]) => filterActive(f));
+  const viewEdited = edited(st, space);
+  const viewLabel = `${st.view.name || 'Custom'}${viewEdited ? ' (edited)' : ''}`;
 
   useEffect(() => {
     if (pageNo >= pages) setPageNo(pages - 1);
@@ -321,7 +324,15 @@ export default function ListPage({ space }: { space: SpaceName }) {
     if (event.target !== event.currentTarget) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
-    openDrawer(id);
+    openRow(id);
+  };
+
+  const clearFiltersAndSearch = () => {
+    setQueryInput('');
+    update(draft => {
+      draft.view.query = '';
+      draft.view.filters = {};
+    });
   };
 
   const bulkMove = async (status: string) => {
@@ -347,18 +358,21 @@ export default function ListPage({ space }: { space: SpaceName }) {
     </> : null}
 
     <div className="toolbar">
+      {dueNow ? <button className="tool due-now" onClick={() => applyView(SPACES[space].presets.find(p => p.name === 'To do')!)}
+        title="Follow-ups and tasks due today or earlier">{dueNow} due now</button> : null}
+
       {SPACES[space].board ? <div className="seg" role="group" aria-label="Layout">
         <button onClick={() => chooseLayout('list')} aria-pressed={st.view.layout === 'list'}>List</button>
         <button onClick={() => chooseLayout('board')} aria-pressed={st.view.layout === 'board'}>Board</button>
       </div> : null}
 
       <div className="menu" id="menu-views">
-        <button className="tool" onClick={() => toggleMenu('views')} aria-expanded={menu === 'views'}><Icon name="bookmark" /> Saved views{st.saved.length ? ` · ${st.saved.length}` : ''}</button>
+        <button className="tool" onClick={() => toggleMenu('views')} aria-expanded={menu === 'views'}><Icon name="bookmark" /> View: {viewLabel}</button>
         {menu === 'views' ? <div className="pop left views-pop">
-          <div><div className="pop-group">Ready-made</div><div className="view-chips">
+          <div><div className="pop-group">Views</div><div className="view-chips">
             {SPACES[space].presets.map((v, i) => <ViewChip key={`preset-${i}`} view={v} pressed={st.view.name === v.name && !edited(st, space)} onApply={() => applyView(v)} />)}
           </div></div>
-          {st.saved.length ? <div><div className="pop-group">Yours</div><div className="view-chips">
+          {st.saved.length ? <div><div className="pop-group">Saved</div><div className="view-chips">
             {st.saved.map((v, i) => <ViewChip key={`saved-${i}-${v.name}`} view={v} pressed={st.view.name === v.name && !edited(st, space)} onApply={() => applyView(v)}
               onDelete={() => update(draft => { draft.saved.splice(i, 1); })} />)}
           </div></div> : null}
@@ -366,9 +380,6 @@ export default function ListPage({ space }: { space: SpaceName }) {
             onChange={e => setViewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveView(); }} /><button onClick={saveView}>Save</button></div>
         </div> : null}
       </div>
-
-      {dueNow ? <button className="tool due-now" onClick={() => applyView(SPACES[space].presets.find(p => p.name === 'To do')!)}
-        title="Follow-ups and tasks due today or earlier">{dueNow} due now</button> : null}
 
       <label className="search-box"><span className="sr-only" hidden>Search</span><Icon name="search" size={15} />
         <input type="search" id="search" placeholder="Search jobs, clients, notes and tasks" aria-label="Search" value={queryInput}
@@ -407,13 +418,14 @@ export default function ListPage({ space }: { space: SpaceName }) {
     </div>
 
     <div id="results">
-      {st.view.layout === 'board'
-        ? <Board jobs={jobs} drawerId={drawerId} openDrawer={openDrawer} closeDrawer={closeDrawer} move={move} dropStage={dropStage} setDropStage={setDropStage} />
-        : jobs.length
-          ? <Table jobs={shown} st={st} drawerId={drawerId} selected={selected} setSelected={setSelected} menu={menu} colFilter={colFilter}
+      {jobs.length
+        ? st.view.layout === 'board'
+          ? <Board jobs={jobs} drawerId={drawerId} openDrawer={openDrawer} closeDrawer={closeDrawer} move={move} dropStage={dropStage} setDropStage={setDropStage} />
+          : <Table jobs={shown} st={st} drawerId={drawerId} selected={selected} setSelected={setSelected} menu={menu} colFilter={colFilter}
             openFilter={openFilter} toggleSort={toggleSort} rowClick={rowClick} rowKey={rowKey} liveWidth={liveWidth}
             resizeStart={resizeStart} dropCol={dropCol} onDragStart={columnDragStart} onDragOver={columnDragOver} onDrop={columnDrop} onDragEnd={columnDragEnd} />
-          : <p className="empty">{all ? 'Nothing matches this view. Loosen a filter or clear the search.' : 'No jobs yet. Press Find jobs.'}</p>}
+        : <p className="empty">{all ? <>Nothing matches this view. <button className="link" onClick={clearFiltersAndSearch}>Clear filters and search</button>.</>
+          : state.commands?.['find-jobs'] ? 'No jobs yet. Use Find jobs above to build your lead list.' : 'No jobs yet. Job search is unavailable.'}</p>}
     </div>
   </div>;
 }
@@ -603,7 +615,7 @@ function Board({ jobs, drawerId, openDrawer, closeDrawer, move, dropStage, setDr
           onDragStart={e => { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; }}
           onDragEnd={() => setDropStage(null)} onClick={() => drawerId === id ? closeDrawer() : openDrawer(id)}
           onDoubleClick={() => router.push(`/job/${id}`)}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(id); } }}>
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drawerId === id ? closeDrawer() : openDrawer(id); } }}>
           <div className="card-top"><Score j={j} /><span className="card-title">{j.title}</span></div>
           <div className="card-meta">{[clientText(j), budgetText(j), ago(j.posted_date)].filter(Boolean).join(' · ')}</div><DueChip j={j} />
         </li>;

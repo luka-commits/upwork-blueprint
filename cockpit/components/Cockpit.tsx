@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Drawer from '@/components/Drawer';
-import RunsDock from '@/components/RunsDock';
+import RunsDock, { runTitle } from '@/components/RunsDock';
 import { CockpitContext, type CockpitApi, type Made, type Run, type State } from '@/lib/context';
 import { FILE_LABEL, TOOL_WORDS, todoBucket } from '@/lib/model';
 
@@ -42,11 +42,6 @@ function deliverables(run: Run, before: Snapshot | null, state: State | null): M
     label: `${FILE_LABEL[file] || file} ready`,
     href: `/files/${run.job}/${file}`,
   }));
-}
-
-function runTitle(run: Pick<Run, 'command' | 'job'>, state: State | null) {
-  const title = run.job ? ((state?.jobs || []).find((job: any) => job.id === run.job) || {}).title || run.job : '';
-  return `/${run.command}${title ? ` · ${title}` : ''}`;
 }
 
 export function CockpitProvider({ token, children }: { token: string; children: ReactNode }) {
@@ -184,7 +179,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
           stopped: !!event.stopped,
           t1: current.t1 || Date.now(),
           status: event.stopped ? 'Stopped by you. Anything it already saved stays.'
-            : event.error ? 'Broke off with an error. Show all steps says why.'
+            : event.error ? 'Failed. Show steps to see why.'
               : lastLine(event.text || '') || 'Finished.',
           log: [...current.log, { kind: event.error ? 'error' : 'done', text: event.text || '' }],
         }));
@@ -193,8 +188,8 @@ export function CockpitProvider({ token, children }: { token: string; children: 
         const made = finished.error ? [] : deliverables(finished, meta.before, stateRef.current);
         const completed = update(current => ({ ...current, made }));
         if (completed && !completed.stopped) {
-          const title = completed.error ? `${runTitle(completed, stateRef.current)} broke off` : `${runTitle(completed, stateRef.current)} is done`;
-          const body = completed.error ? 'Open the runs panel for why.' : (made.map(item => item.label).join(', ') || completed.status);
+          const title = completed.error ? `${runTitle(completed, stateRef.current)} failed` : `${runTitle(completed, stateRef.current)} is done`;
+          const body = completed.error ? 'Open Runs to see why.' : (made.map(item => item.label).join(', ') || completed.status);
           notify(title, body);
         }
       }
@@ -319,7 +314,6 @@ export function CockpitProvider({ token, children }: { token: string; children: 
 
   const jobs = state?.jobs || [];
   const due = state ? jobs.filter((job: any) => todoBucket(job) === 'Due now').length : 0;
-  const updated = state?.generated_at ? new Date(state.generated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   // How fresh the list is against Upwork. The poll re-renders often enough to keep the minutes honest.
   const syncedAt = state?.sync?.synced_at;
   const syncMinutes = syncedAt ? Math.max(0, Math.round((Date.now() - +new Date(syncedAt)) / 60000)) : null;
@@ -338,13 +332,13 @@ export function CockpitProvider({ token, children }: { token: string; children: 
             <Link href="/analytics" aria-current={pathname === '/analytics' ? 'page' : undefined}>Analytics</Link>
             <Link href="/commands" aria-current={pathname === '/commands' ? 'page' : undefined}>Commands</Link>
           </nav>
-          <div className="spacer" />
-          <span className="stamp">{updated ? `updated ${updated}` : ''}</span>
-          <span className={`stamp sync-stamp${syncMinutes == null || syncMinutes > 1440 ? ' stale' : ''}`}
-            title={state?.sync ? `Last sync moved ${state.sync.moved?.length || 0}, added ${state.sync.added?.length || 0}, saved ${state.sync.threads || 0} threads` : undefined}>{syncText}</span>
-          <button disabled={!state?.commands?.sync || syncing} onClick={() => runCommand('sync')}
-            title="Read replies, offers, contracts and proposals from Upwork. Sends nothing.">{syncing ? 'Syncing…' : 'Sync'}</button>
-          <button className="primary" disabled={!state?.commands?.['find-jobs']} onClick={() => runCommand('find-jobs')}>Find jobs</button>
+          <div className="top-actions">
+            <span className={`stamp sync-stamp${syncMinutes == null || syncMinutes > 1440 ? ' stale' : ''}`}
+              title={state?.sync ? `Last sync moved ${state.sync.moved?.length || 0}, added ${state.sync.added?.length || 0}, saved ${state.sync.threads || 0} threads` : undefined}>{syncText}</span>
+            {state?.commands?.sync ? <button disabled={syncing} onClick={() => runCommand('sync')}
+              title="Read replies, offers, contracts and proposals from Upwork. Sends nothing.">{syncing ? 'Syncing…' : 'Sync'}</button> : null}
+            {state?.commands?.['find-jobs'] ? <button className="primary" onClick={() => runCommand('find-jobs')}>Find jobs</button> : null}
+          </div>
         </div>
       </header>
       <main className="wrap">

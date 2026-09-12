@@ -45,8 +45,17 @@ def artifacts(job_id):
     folder = JOBS_DIR / job_id
     if not folder.is_dir():
         return []
+    internal = {'thread.json', 'replies.json', 'outbox.json'}
     return sorted(p.name for p in folder.iterdir()
-                  if p.is_file() and not p.name.startswith('.') and p.name != 'thread.json')
+                  if p.is_file() and not p.name.startswith('.') and p.name not in internal)
+
+
+def read_json(folder, name):
+    file = folder / name
+    try:
+        return json.loads(file.read_text(encoding='utf-8')) if file.is_file() else None
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 def job_view(job_id):
@@ -59,11 +68,8 @@ def job_view(job_id):
     j['files'] = [{'name': name, 'at': datetime.datetime.fromtimestamp(
         (folder / name).stat().st_mtime, datetime.timezone.utc).isoformat(timespec='seconds')}
         for name in artifacts(job_id)]
-    thread = folder / 'thread.json'
-    try:
-        j['thread'] = json.loads(thread.read_text(encoding='utf-8')) if thread.is_file() else None
-    except (OSError, json.JSONDecodeError):
-        j['thread'] = None
+    j['thread'] = read_json(folder, 'thread.json')
+    j['replies'] = read_json(folder, 'replies.json')
     return j
 
 

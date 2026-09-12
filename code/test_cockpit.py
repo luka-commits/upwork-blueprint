@@ -31,6 +31,10 @@ class CockpitTest(unittest.TestCase):
         (cls.jobdir / '111111' / 'pitch.html').write_text('<h1>pitch</h1>', encoding='utf-8')
         (cls.jobdir / '111111' / 'thread.json').write_text(
             json.dumps({'messages': [{'from': 'client', 'text': 'Hi'}]}), encoding='utf-8')
+        (cls.jobdir / '111111' / 'replies.json').write_text(
+            json.dumps({'drafts': [{'label': 'Direct', 'text': 'Hello'}]}), encoding='utf-8')
+        (cls.jobdir / '111111' / 'outbox.json').write_text(
+            json.dumps({'text': 'Hello'}), encoding='utf-8')
         cls.env = dict(os.environ, BLUEPRINT_JOBS=str(cls.jobs), BLUEPRINT_JOBDIR=str(cls.jobdir))
         os.environ.update(BLUEPRINT_JOBS=str(cls.jobs), BLUEPRINT_JOBDIR=str(cls.jobdir))
         sys.path.insert(0, str(CODE))
@@ -62,6 +66,8 @@ class CockpitTest(unittest.TestCase):
         job = json.loads(r.stdout)
         self.assertEqual([f['name'] for f in job['files']], ['pitch.html'])
         self.assertEqual(job['thread']['messages'][0]['text'], 'Hi')
+        self.assertEqual(job['replies']['drafts'][0]['text'], 'Hello')
+        self.assertEqual([f['name'] for f in job['files']], ['pitch.html'])
         self.assertEqual(self.cli('job', '999999').returncode, 1)
 
     def test_streak_skips_weekends_and_never_breaks_on_today(self):

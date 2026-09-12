@@ -1,0 +1,23 @@
+{
+  "name": "upwork-cockpit",
+  "private": true,
+  "version": "1.0.0",
+  "description": "The local cockpit of the Upwork Blueprint. Started by python3 code/cockpit.py, never on its own.",
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1 -p 4321",
+    "build": "next build",
+    "start": "next start -H 127.0.0.1",
+    "test": "node --test \"lib/server/*.test.mjs\""
+  },
+  "dependencies": {
+    "next": "^15.5.25",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^5.9.3"
+  }
+}

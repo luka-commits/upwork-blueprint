@@ -1,71 +1,35 @@
 #!/usr/bin/env python3
 """The cockpit: your jobs, your pipeline and buttons that run the commands, in the browser.
 
-    python3 code/cockpit.py [--port 4321] [--no-open]
+    python3 code/cockpit.py [--port 4321] [--no-open]   start it (installs and builds on first run)
+    python3 code/cockpit.py state                         the list data as JSON
+    python3 code/cockpit.py job <id>                      one job in full as JSON
 
-Runs on this computer only (127.0.0.1) and never on the internet: a page that
-can start Claude with your Upwork connector must not be reachable by anyone
-else. Every status change goes through code/pipeline.py, the one writer, and
-every button that needs Claude starts the same command you could type, with
-only the tools that command needs. Nothing here sends anything to a client.
+The page itself is a small Next.js app in cockpit/. This script starts it, and it
+is also where the app reads its data from, so the numbers the page shows come from
+the same tested Python as everything else. The app runs on this computer only
+(127.0.0.1): a page that can start Claude with your Upwork connector must not be
+reachable by anyone else. Every status change goes through code/pipeline.py.
 """
 import argparse
 import datetime
-import http.server
 import json
+import os
 import pathlib
 import re
-import secrets
 import shutil
 import subprocess
 import sys
-import threading
 import time
-import urllib.parse
+import urllib.request
 import webbrowser
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'code'))
-import pipeline  # noqa: E402  (read-only use: load, jobs_path)
+import pipeline  # noqa: E402  (read-only use: load, jobs_dir)
 
-PAGE = ROOT / 'code' / 'cockpit.html'
-COMMANDS_DIR = ROOT / '.claude' / 'commands'
+APP = ROOT / 'cockpit'
 JOBS_DIR = pipeline.jobs_dir()
-TOKEN = secrets.token_urlsafe(24)
-ID = re.compile(r'^[0-9]{6,25}$')
-
-UPWORK_READ = ['mcp__upwork__upwork__list_accounts', 'mcp__upwork__upwork__find_jobs',
-               'mcp__upwork__upwork__get_profile']
-FILES = ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash(python3 code/*)']
-
-# What a button may start. A command runs only when its file exists, and only
-# with the tools listed here. No entry grants a tool that writes to Upwork: a
-# send always happens in a session where the member reads the draft first.
-RUNNABLE = {
-    'find-jobs': {'prompt': '/find-jobs', 'tools': FILES + UPWORK_READ + ['WebSearch'], 'job': False},
-    'pitch-page': {'prompt': '/pitch-page {job}', 'tools': FILES + UPWORK_READ + ['WebSearch', 'WebFetch'],
-                   'job': True},
-    # The draft run makes the proposal preview (Connects price, boost bids) and
-    # stops. It never gets confirm_preview, so it cannot submit anything.
-    'apply': {'prompt': '/apply {job} --draft-only', 'job': True,
-              'tools': FILES + UPWORK_READ + ['mcp__upwork__upwork__list_freelancer_proposals',
-                                              'mcp__upwork__upwork__manage_proposals']},
-}
-
-# A button run has no chat to talk into, only the cockpit's status line. This makes
-# Claude say what it is doing and what it found, so that line stays current.
-NARRATE = ('You were started by a button in the cockpit. The member sees only a one-line status panel. '
-           'Before each step write one short plain sentence saying what you are doing now, and after each '
-           'finding one sentence with what you found so far, with counts or names. No markdown in these lines. '
-           'End with one sentence that says what changed and what the member should look at next.')
-
-RUNS = {}
-PROCS = {}
-RUNS_LOCK = threading.Lock()
-
-
-def available(name):
-    return name in RUNNABLE and (COMMANDS_DIR / f'{name}.md').is_file()
 
 
 def daily_target():
@@ -241,259 +205,79 @@ def build_state():
         'tracker': tracker(jobs, goal, day),
         'insights': insights(jobs, day),
         'me': standing(),
-        'commands': {name: available(name) for name in RUNNABLE},
-        'statuses': list(pipeline.STATUSES),
     }
 
 
-def claude_binary():
-    found = shutil.which('claude')
-    if found:
-        return found
-    fallback = pathlib.Path.home() / '.local' / 'bin' / 'claude'
-    return str(fallback) if fallback.exists() else None
+# --- starting the app ---------------------------------------------------------------
+
+def needs_build():
+    """A build is stale when any source file is newer than it."""
+    build = APP / '.next' / 'BUILD_ID'
+    if not build.is_file():
+        return True
+    built = build.stat().st_mtime
+    sources = [APP / 'package.json', APP / 'next.config.mjs']
+    for folder in ('app', 'components', 'lib'):
+        sources += [p for p in (APP / folder).rglob('*') if p.is_file()]
+    return any(p.stat().st_mtime > built for p in sources if p.exists())
 
 
-def parse_event(line):
-    """One line of `claude --output-format stream-json`, reduced to what the panel shows."""
+def npm(*args):
+    """npm on macOS, Linux and Windows (where it is a .cmd file and needs the shell)."""
+    exe = shutil.which('npm')
+    if not exe:
+        print('The cockpit needs Node.js. Install the LTS version from https://nodejs.org, '
+              'open a new terminal, then run this again.', file=sys.stderr)
+        sys.exit(1)
+    return [exe, *args], os.name == 'nt'
+
+
+def serve(port, open_browser):
+    if not (APP / 'node_modules').is_dir():
+        print('First start: installing the cockpit (about a minute, only this once).')
+        cmd, shell = npm('install', '--no-audit', '--no-fund')
+        subprocess.run(cmd, cwd=APP, check=True, shell=shell)
+    if needs_build():
+        print('Building the cockpit (about a minute after each update).')
+        cmd, shell = npm('run', 'build')
+        subprocess.run(cmd, cwd=APP, check=True, shell=shell)
+    cmd, shell = npm('run', 'start', '--', '-p', str(port))
+    env = dict(os.environ, BLUEPRINT_ROOT=str(ROOT))
+    child = subprocess.Popen(cmd, cwd=APP, env=env, shell=shell)
+    url = f'http://127.0.0.1:{port}/'
+    for _ in range(60):
+        try:
+            urllib.request.urlopen(url, timeout=1)
+            break
+        except OSError:
+            if child.poll() is not None:
+                return child.returncode
+            time.sleep(0.5)
+    print(f'Cockpit running at {url}  (Ctrl+C stops it)')
+    if open_browser:
+        webbrowser.open(url)
     try:
-        ev = json.loads(line)
-    except json.JSONDecodeError:
-        return {'kind': 'text', 'text': line}
-    if ev.get('type') == 'assistant':
-        out = []
-        for part in (ev.get('message') or {}).get('content') or []:
-            if part.get('type') == 'text' and part.get('text', '').strip():
-                out.append({'kind': 'text', 'text': part['text']})
-            elif part.get('type') == 'thinking':
-                out.append({'kind': 'status', 'text': 'thinking'})
-            elif part.get('type') == 'tool_use':
-                given = part.get('input') or {}
-                detail = given.get('command') or given.get('file_path') or given.get('query') or given.get('action') or ''
-                out.append({'kind': 'tool', 'text': part.get('name', 'tool'), 'detail': str(detail)[:120]})
-        return out
-    if ev.get('type') == 'result':
-        return {'kind': 'done', 'text': ev.get('result') or '', 'error': bool(ev.get('is_error'))}
-    return None
-
-
-def start_run(name, job_id=None):
-    spec = RUNNABLE[name]
-    binary = claude_binary()
-    if not binary:
-        raise RuntimeError('Claude Code is not installed or not on the PATH.')
-    prompt = spec['prompt'].format(job=job_id or '').strip()
-    args = [binary, '-p', prompt, '--output-format', 'stream-json', '--verbose',
-            '--append-system-prompt', NARRATE,
-            '--permission-mode', 'acceptEdits', '--allowedTools', *spec['tools']]
-    child = subprocess.Popen(args, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    return track(name, job_id, child)
-
-
-def track(name, job_id, child):
-    """Follows one child process: its events, how it ended, and whether you stopped it."""
-    run_id = secrets.token_hex(6)
-    run = {'id': run_id, 'command': name, 'job': job_id, 'events': [], 'done': False,
-           'started': time.time(), 'ended': None, 'error': False, 'stopped': False}
-
-    def pump():
-        for line in child.stdout:
-            parsed = parse_event(line.strip())
-            for ev in parsed if isinstance(parsed, list) else ([parsed] if parsed else []):
-                run['events'].append(ev)
-        err = (child.stderr.read() if child.stderr else '').strip()
-        code = child.wait()
-        if not run['stopped']:
-            if code and err:
-                run['events'].append({'kind': 'error', 'text': err[-2000:]})
-            if not any(e['kind'] == 'done' for e in run['events']):
-                run['events'].append({'kind': 'done', 'text': f'Finished with exit code {code}.', 'error': code != 0})
-        final = next(e for e in reversed(run['events']) if e['kind'] == 'done')
-        run['error'] = bool(final.get('error'))
-        run['ended'] = time.time()
-        run['done'] = True
-
-    with RUNS_LOCK:
-        RUNS[run_id] = run
-        PROCS[run_id] = child
-    threading.Thread(target=pump, daemon=True).start()
-    return run_id
-
-
-def stop_run(run_id):
-    """Ends a run you no longer want. What it already saved stays."""
-    run, child = RUNS.get(run_id), PROCS.get(run_id)
-    if not run or run['done'] or not child:
-        return False
-    run['stopped'] = True
-    run['events'].append({'kind': 'done', 'text': 'Stopped by you. Anything it already saved stays.',
-                          'error': True, 'stopped': True})
-    child.terminate()
-    return True
-
-
-def run_pipeline(*args):
-    r = subprocess.run([sys.executable, str(ROOT / 'code' / 'pipeline.py'), *args],
-                       capture_output=True, text=True, cwd=ROOT)
-    return r.returncode == 0, (r.stdout or r.stderr).strip().removeprefix('ABORT: ')
-
-
-def set_status(job_id, status, note=None, follow_up=None):
-    args = ['set', job_id, status]
-    if note:
-        args += ['--note', note]
-    if follow_up:
-        args += ['--follow-up', follow_up]
-    return run_pipeline(*args)
-
-
-class Handler(http.server.BaseHTTPRequestHandler):
-    server_version = 'Cockpit/1'
-
-    def log_message(self, fmt, *args):
-        pass
-
-    def local_only(self):
-        host = (self.headers.get('Host') or '').split(':')[0]
-        return host in ('127.0.0.1', 'localhost')
-
-    def send_json(self, payload, code=200):
-        body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
-        self.send_response(code)
-        self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self.send_header('Cache-Control', 'no-store')
-        self.send_header('Content-Length', str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def authorized(self):
-        return self.local_only() and secrets.compare_digest(self.headers.get('X-Cockpit-Token') or '', TOKEN)
-
-    def do_GET(self):
-        if not self.local_only():
-            return self.send_json({'error': 'local only'}, 403)
-        path = urllib.parse.urlparse(self.path).path
-        if path == '/':
-            html = PAGE.read_text(encoding='utf-8').replace('__COCKPIT_TOKEN__', TOKEN)
-            body = html.encode('utf-8')
-            self.send_response(200)
-            self.send_header('Content-Type', 'text/html; charset=utf-8')
-            self.send_header('Content-Length', str(len(body)))
-            self.end_headers()
-            return self.wfile.write(body)
-        if not self.authorized() and not path.startswith('/jobs/'):
-            return self.send_json({'error': 'missing token'}, 403)
-        if path == '/api/state':
-            return self.send_json(build_state())
-        if path == '/api/runs':
-            with RUNS_LOCK:
-                runs = [{k: r[k] for k in ('id', 'command', 'job', 'started', 'ended', 'done', 'error', 'stopped')}
-                        for r in RUNS.values()]
-            return self.send_json(runs)
-        m = re.match(r'^/api/job/([0-9]+)$', path)
-        if m:
-            job = job_view(m.group(1))
-            return self.send_json(job or {'error': 'not found'}, 200 if job else 404)
-        m = re.match(r'^/api/run/([0-9a-f]+)$', path)
-        if m:
-            return self.stream_run(m.group(1))
-        m = re.match(r'^/jobs/([0-9]+)/([\w.\-]+)$', path)
-        if m and ID.match(m.group(1)):
-            target = (JOBS_DIR / m.group(1) / m.group(2)).resolve()
-            if JOBS_DIR.resolve() in target.parents and target.is_file():
-                body = target.read_bytes()
-                kind = {'.html': 'text/html', '.pdf': 'application/pdf', '.md': 'text/plain',
-                        '.png': 'image/png'}.get(target.suffix, 'application/octet-stream')
-                self.send_response(200)
-                self.send_header('Content-Type', f'{kind}; charset=utf-8' if kind.startswith('text') else kind)
-                self.send_header('Content-Length', str(len(body)))
-                self.end_headers()
-                return self.wfile.write(body)
-        return self.send_json({'error': 'not found'}, 404)
-
-    def stream_run(self, run_id):
-        run = RUNS.get(run_id)
-        if not run:
-            return self.send_json({'error': 'no such run'}, 404)
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/event-stream')
-        self.send_header('Cache-Control', 'no-store')
-        self.end_headers()
-        sent = 0
-        try:
-            while True:
-                events = run['events']
-                while sent < len(events):
-                    self.wfile.write(f'data: {json.dumps(events[sent], ensure_ascii=False)}\n\n'.encode('utf-8'))
-                    sent += 1
-                self.wfile.flush()
-                if run['done'] and sent >= len(run['events']):
-                    break
-                time.sleep(0.4)
-        except (BrokenPipeError, ConnectionResetError):
-            pass
-
-    def do_POST(self):
-        if not self.authorized():
-            return self.send_json({'error': 'missing token'}, 403)
-        length = int(self.headers.get('Content-Length') or 0)
-        try:
-            data = json.loads(self.rfile.read(length) or b'{}')
-        except json.JSONDecodeError:
-            return self.send_json({'error': 'bad json'}, 400)
-        path = urllib.parse.urlparse(self.path).path
-        job_id = str(data.get('id') or data.get('job') or '')
-        if path == '/api/status':
-            if not ID.match(job_id) or data.get('status') not in pipeline.STATUSES:
-                return self.send_json({'error': 'bad job or status'}, 400)
-            ok, message = set_status(job_id, data['status'], data.get('note'), data.get('follow_up'))
-            return self.send_json({'ok': ok, 'message': message}, 200 if ok else 400)
-        if path in ('/api/note', '/api/video'):
-            value = str(data.get('text') if path == '/api/note' else data.get('url') or '')
-            if not ID.match(job_id) or not value.strip():
-                return self.send_json({'error': 'bad job or empty value'}, 400)
-            ok, message = run_pipeline(path.rsplit('/', 1)[1], job_id, value)
-            return self.send_json({'ok': ok, 'message': message}, 200 if ok else 400)
-        if path == '/api/task':
-            action, value = data.get('action'), str(data.get('text') or data.get('task') or '').strip()
-            if not ID.match(job_id) or action not in ('add', 'done', 'reopen', 'delete') or not value:
-                return self.send_json({'error': 'bad job, action or empty task'}, 400)
-            args = ['task', job_id, action, value] + (['--due', str(data['due'])] if data.get('due') else [])
-            ok, message = run_pipeline(*args)
-            return self.send_json({'ok': ok, 'message': message}, 200 if ok else 400)
-        m = re.match(r'^/api/run/([0-9a-f]+)/stop$', path)
-        if m:
-            ok = stop_run(m.group(1))
-            return self.send_json({'ok': ok, 'message': 'Stopped.' if ok else 'That run is not running.'}, 200 if ok else 404)
-        if path == '/api/run':
-            name = data.get('command')
-            if not available(name):
-                return self.send_json({'error': f'/{name} is not built yet'}, 400)
-            if RUNNABLE[name]['job'] and not ID.match(job_id):
-                return self.send_json({'error': 'this command needs a job'}, 400)
-            try:
-                run_id = start_run(name, job_id if RUNNABLE[name]['job'] else None)
-            except RuntimeError as e:
-                return self.send_json({'error': str(e)}, 500)
-            return self.send_json({'run': run_id})
-        return self.send_json({'error': 'not found'}, 404)
+        return child.wait()
+    except KeyboardInterrupt:
+        child.terminate()
+        return 0
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('what', nargs='?', default='serve', choices=('serve', 'state', 'job'))
+    ap.add_argument('job_id', nargs='?')
     ap.add_argument('--port', type=int, default=4321)
     ap.add_argument('--no-open', action='store_true')
     args = ap.parse_args(argv)
-    server = http.server.ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
-    url = f'http://127.0.0.1:{args.port}/'
-    print(f'Cockpit running at {url}  (Ctrl+C stops it)')
-    if not args.no_open:
-        webbrowser.open(url)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    return 0
+    if args.what == 'state':
+        print(json.dumps(build_state(), ensure_ascii=False))
+        return 0
+    if args.what == 'job':
+        job = job_view(args.job_id or '')
+        print(json.dumps(job, ensure_ascii=False))
+        return 0 if job else 1
+    return serve(args.port, not args.no_open)
 
 
 if __name__ == '__main__':

@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Upwork Cockpit</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --ink: #1c1c1a; --muted: #6b6a66; --line: #e4e2dc;
+    --accent: #14805e; --accent-soft: #e3f2ec; --amber: #b7791f; --amber-soft: #fbf1df;
+    --grey-soft: #efeee9; --red: #b42318; --red-soft: #fdecea; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.04);
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #151514; --panel: #1f1f1d; --ink: #f0efea; --muted: #a09f99; --line: #33322e;
+      --accent: #3fbf8f; --accent-soft: #173529; --amber: #e3a948; --amber-soft: #3a2d15; --grey-soft: #2a2a27;
+      --red: #f0645a; --red-soft: #3b1a17; --shadow: none; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  .bar { max-width: 1180px; margin: 0 auto; padding: 14px 20px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 19px; margin: 0; letter-spacing: -.015em; }
+  h1 span { color: var(--muted); font-weight: 500; }
+  .target { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+  .meter { width: 120px; height: 8px; background: var(--grey-soft); border-radius: 99px; overflow: hidden; }
+  .meter i { display: block; width: 100%; height: 100%; background: var(--accent); border-radius: 99px; transform-origin: left; transform: scaleX(0); transition: transform .4s ease; }
+  .spacer { flex: 1; }
+  button, .btn { font: inherit; font-size: 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 7px 12px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  button:hover, .btn:hover { border-color: var(--muted); }
+  button:focus-visible, .btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button[disabled] { opacity: .45; cursor: not-allowed; }
+  nav.tabs { max-width: 1180px; margin: 0 auto; padding: 0 20px; display: flex; gap: 4px; }
+  nav.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 10px 12px; color: var(--muted); }
+  nav.tabs button.on { color: var(--ink); border-bottom-color: var(--ink); }
+  nav.tabs .count { background: var(--grey-soft); border-radius: 99px; padding: 0 7px; font-size: 12px; }
+  main { max-width: 1180px; margin: 0 auto; padding: 20px; }
+  .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+  .list { display: grid; gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); display: grid; grid-template-columns: 56px 1fr; gap: 14px; }
+  .score { width: 56px; height: 56px; border-radius: 12px; display: grid; place-items: center; font-weight: 700; font-size: 24px; letter-spacing: -.02em; background: var(--grey-soft); color: var(--muted); }
+  .score.hi { background: var(--accent-soft); color: var(--accent); }
+  .score.mid { background: var(--amber-soft); color: var(--amber); }
+  .title { font-weight: 650; font-size: 19px; line-height: 1.25; letter-spacing: -.01em; margin: 0 0 6px; cursor: pointer; }
+  .title:hover { text-decoration: underline; }
+  .meta { color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .why { margin: 10px 0 0; font-size: 15px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { font-size: 12px; background: var(--grey-soft); color: var(--muted); border-radius: 99px; padding: 2px 9px; }
+  .chip.art { background: var(--accent-soft); color: var(--accent); text-decoration: none; }
+  .chip.warn { background: var(--red-soft); color: var(--red); }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+  .reason { display: none; gap: 8px; margin-top: 10px; }
+  .reason.open { display: flex; }
+  .reason input { flex: 1; font: inherit; font-size: 13px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+  .board { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 14px; overflow-x: auto; }
+  .col h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  .mini { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; cursor: pointer; }
+  .mini b { display: block; font-size: 14px; margin-bottom: 4px; }
+  .mini small { color: var(--muted); }
+  .due { color: var(--red); font-weight: 600; }
+  h2.section { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 26px 0 10px; }
+  aside { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%); background: var(--panel); border-left: 1px solid var(--line); box-shadow: -8px 0 32px rgba(0,0,0,.08); transform: translateX(100%); transition: transform .25s ease; z-index: 10; overflow-y: auto; padding: 22px 24px 60px; }
+  aside.open { transform: none; }
+  aside h2 { margin: 10px 0 8px; font-size: 24px; line-height: 1.2; letter-spacing: -.015em; }
+  aside .close { float: right; }
+  dl { display: grid; grid-template-columns: 140px 1fr; gap: 8px 12px; font-size: 15px; margin: 18px 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  .posting { white-space: pre-wrap; font-size: 14px; background: var(--bg); border-radius: 10px; padding: 14px; max-height: 360px; overflow-y: auto; }
+  .run { position: fixed; left: 20px; bottom: 20px; width: min(520px, calc(100% - 40px)); max-height: 46vh; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,.14); display: none; flex-direction: column; z-index: 20; }
+  .run.open { display: flex; }
+  .run header { position: static; display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: none; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 14px; }
+  .run .log { overflow-y: auto; padding: 12px 14px; font-size: 13px; display: grid; gap: 6px; }
+  .log .tool { color: var(--muted); font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .log .done { color: var(--accent); font-weight: 600; }
+  .log .error { color: var(--red); white-space: pre-wrap; }
+  .toast { position: fixed; right: 20px; bottom: 20px; background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; z-index: 30; }
+  .toast.show { opacity: 1; }
+  @media (max-width: 720px) { .card { grid-template-columns: 1fr; } .score { width: 44px; height: 44px; font-size: 16px; } dl { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>Upwork Cockpit <span id="stamp"></span></h1>
+    <div class="target"><span id="targetText"></span><div class="meter"><i id="meter"></i></div></div>
+    <div class="spacer"></div>
+    <button class="primary" id="findJobs">Find jobs</button>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+</header>
+<main id="main"><p class="empty">Loading.</p></main>
+<aside id="drawer" aria-label="Job details"></aside>
+<section class="run" id="run" aria-live="polite">
+  <header><span id="runTitle">Run</span><button id="runClose">Close</button></header>
+  <div class="log" id="runLog"></div>
+</section>
+<div class="toast" id="toast" role="status"></div>
+<script>
+const TOKEN = '__COCKPIT_TOKEN__';
+const TABS = [
+  ['inbox', 'Inbox', j => j.status === 'new'],
+  ['pipeline', 'Pipeline', j => ['applied', 'replied', 'offer'].includes(j.status)],
+  ['today', 'Today', () => false],
+  ['closed', 'Closed', j => ['won', 'lost', 'skipped'].includes(j.status)],
+];
+let state = null, tab = localStorageGet('tab') || 'inbox';
+
+function localStorageGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function localStorageSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const api = (path, body) => fetch(path, {
+  method: body ? 'POST' : 'GET',
+  headers: {'X-Cockpit-Token': TOKEN, 'Content-Type': 'application/json'},
+  body: body ? JSON.stringify(body) : undefined,
+}).then(async r => ({ok: r.ok, data: await r.json().catch(() => ({}))}));
+
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2600); }
+function ago(iso) {
+  if (!iso) return '';
+  const h = (Date.now() - new Date(iso)) / 36e5;
+  return h < 1 ? `${Math.max(1, Math.round(h * 60))} min ago` : h < 48 ? `${Math.round(h)} h ago` : `${Math.round(h / 24)} days ago`;
+}
+function money(n) { return n ? '$' + Math.round(n).toLocaleString('en-US') : ''; }
+function scoreClass(s) { return s >= 75 ? 'hi' : s >= 60 ? 'mid' : ''; }
+
+async function load() {
+  const r = await api('/api/state');
+  if (!r.ok) { document.getElementById('main').innerHTML = '<p class="empty">The cockpit lost its connection. Reload the page.</p>'; return; }
+  state = r.data; render();
+}
+
+function render() {
+  const t = state.today;
+  document.getElementById('stamp').textContent = '· updated ' + new Date(state.generated_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  const target = t.target || 0;
+  document.getElementById('targetText').textContent = target ? `${t.applied} of ${target} applications today` : `${t.applied} applications today`;
+  document.getElementById('meter').style.transform = `scaleX(${target ? Math.min(1, t.applied / target) : 0})`;
+  const find = document.getElementById('findJobs');
+  find.disabled = !state.commands['find-jobs'];
+  document.getElementById('tabs').innerHTML = TABS.map(([id, label, f]) => {
+    const n = id === 'today' ? t.follow_ups_due.length : state.jobs.filter(f).length;
+    return `<button class="${id === tab ? 'on' : ''}" data-tab="${id}">${label} <span class="count">${n}</span></button>`;
+  }).join('');
+  const main = document.getElementById('main');
+  if (tab === 'pipeline') main.innerHTML = board();
+  else if (tab === 'today') main.innerHTML = today();
+  else {
+    const f = TABS.find(x => x[0] === tab)[2];
+    const jobs = state.jobs.filter(f).sort((a, b) => (b.score || 0) - (a.score || 0));
+    main.innerHTML = jobs.length ? `<div class="list">${jobs.map(card).join('')}</div>`
+      : `<p class="empty">${tab === 'inbox' ? 'No new jobs. Press Find jobs, or run /find-jobs.' : 'Nothing here yet.'}</p>`;
+  }
+}
+
+function meta(j) {
+  const c = j.client || {}, d = j.details || {};
+  return [
+    c.rating ? `★ ${c.rating}` : 'unrated client',
+    c.spent ? `${money(c.spent)} spent` : '',
+    c.country || '',
+    j.budget || '',
+    j.proposals != null ? `${j.proposals} proposals` : '',
+    d.connects_cost ? `${d.connects_cost} Connects` : '',
+    ago(j.posted_date),
+  ].filter(Boolean).map(esc).map(s => `<span>${s}</span>`).join('');
+}
+
+function card(j) {
+  const cmds = state.commands;
+  const arts = (j.artifacts || []).map(a => `<a class="chip art" href="/jobs/${esc(j.id)}/${esc(a)}" target="_blank" rel="noopener">${esc(a)}</a>`).join('');
+  const label = v => v.startsWith('recommended') ? 'Upwork picks for you' : v.startsWith('title-') ? 'search: ' + v.slice(6).replace(/-\d+$/, '') : v;
+  const via = [...new Set((j.found_via || []).map(label))].map(v => `<span class="chip">${esc(v)}</span>`).join('');
+  const trap = j.trap ? `<span class="chip warn">${esc(j.trap)}</span>` : '';
+  const why = j.status === 'skipped' || j.status === 'lost' ? (j.notes || j.rationale) : j.rationale;
+  return `<article class="card" data-id="${esc(j.id)}">
+    <div class="score ${scoreClass(j.score)}" title="fit ${j.niche_fit ?? '?'} · trust ${j.client_trust ?? '?'} · deal ${j.deal_quality ?? '?'} · recency ${j.recency ?? '?'}">${esc(j.score ?? '?')}</div>
+    <div>
+      <p class="title" data-open="${esc(j.id)}">${esc(j.title)}</p>
+      <div class="meta">${meta(j)}</div>
+      ${why ? `<p class="why">${esc(why)}</p>` : ''}
+      <div class="chips">${trap}${arts}${via}</div>
+      ${j.status === 'new' ? `<div class="actions">
+        ${j.url ? `<a class="btn" href="${esc(j.url)}" target="_blank" rel="noopener">Open on Upwork</a>` : ''}
+        <button data-run="pitch-page" data-job="${esc(j.id)}" ${cmds['pitch-page'] ? '' : 'disabled title="Arrives with /pitch-page"'}>Pitch page</button>
+        <button data-run="apply" data-job="${esc(j.id)}" ${cmds['apply'] ? '' : 'disabled title="Arrives with /apply"'}>Draft application</button>
+        <button data-skip="${esc(j.id)}">Not a fit</button>
+      </div>
+      <div class="reason" id="reason-${esc(j.id)}"><input placeholder="Why not? One line, it teaches the next search" aria-label="Reason"><button data-confirm-skip="${esc(j.id)}">Skip it</button></div>` : ''}
+    </div>
+  </article>`;
+}
+
+function board() {
+  const cols = [['applied', 'Applied'], ['replied', 'In conversation'], ['offer', 'Offer'], ['won', 'Won']];
+  const today = new Date().toISOString().slice(0, 10);
+  return `<div class="board">${cols.map(([s, label]) => {
+    const jobs = state.jobs.filter(j => j.status === s);
+    return `<div class="col"><h3>${label} · ${jobs.length}</h3>${jobs.map(j => `<div class="mini" data-open="${esc(j.id)}">
+      <b>${esc(j.title)}</b><small>${j.next_follow_up ? `<span class="${j.next_follow_up <= today ? 'due' : ''}">follow up ${esc(j.next_follow_up)}</span>` : esc(ago(j.status_updated_at))}</small></div>`).join('') || '<p class="empty">None</p>'}</div>`;
+  }).join('')}</div>`;
+}
+
+function today() {
+  const due = state.jobs.filter(j => state.today.follow_ups_due.includes(j.id));
+  const best = state.jobs.filter(j => j.status === 'new').sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 5);
+  return `<h2 class="section">Follow-ups due · ${due.length}</h2>${due.length ? `<div class="list">${due.map(card).join('')}</div>` : '<p class="empty">Nobody is waiting on you.</p>'}
+    <h2 class="section">Best new jobs</h2>${best.length ? `<div class="list">${best.map(card).join('')}</div>` : '<p class="empty">No new jobs.</p>'}`;
+}
+
+async function openJob(id) {
+  const r = await api('/api/job/' + id);
+  if (!r.ok) return toast('Could not load that job.');
+  const j = r.data, d = j.details || {}, c = j.client || {};
+  const history = (j.history || []).map(h => `${esc(h.status)} · ${esc(new Date(h.at).toLocaleString())}`).join('<br>');
+  const moves = state.statuses.map(s => `<option value="${s}" ${s === j.status ? 'selected' : ''}>${s}</option>`).join('');
+  document.getElementById('drawer').innerHTML = `
+    <button class="close" id="drawerClose">Close</button>
+    <div class="score ${scoreClass(j.score)}">${esc(j.score ?? '?')}</div>
+    <h2>${esc(j.title)}</h2>
+    <div class="meta">${meta(j)}</div>
+    <div class="actions">
+      ${j.url ? `<a class="btn" href="${esc(j.url)}" target="_blank" rel="noopener">Open on Upwork</a>` : ''}
+      <label>Status <select id="moveTo">${moves}</select></label>
+      <button id="moveBtn" data-id="${esc(j.id)}">Save</button>
+    </div>
+    <dl>
+      <dt>Why this score</dt><dd>${esc(j.rationale || '')}</dd>
+      <dt>What they want</dt><dd>${esc(j.summary || '')}</dd>
+      <dt>Score parts</dt><dd>fit ${j.niche_fit ?? '?'} of 40 · client ${j.client_trust ?? '?'} of 30 · deal ${j.deal_quality ?? '?'} of 20 · fresh ${j.recency ?? '?'} of 10</dd>
+      <dt>Client</dt><dd>${esc([c.rating ? '★ ' + c.rating : 'unrated', c.reviews ? c.reviews + ' reviews' : '', c.spent ? money(c.spent) + ' spent' : '', c.country].filter(Boolean).join(' · '))}</dd>
+      ${d.connects_cost ? `<dt>To apply</dt><dd>${esc(d.connects_cost)} Connects · ${esc(d.invites_sent ?? 0)} invites · ${esc(d.interviewing ?? 0)} interviewing · bids around ${esc(d.bid_avg ?? '?')}</dd>` : ''}
+      ${j.next_follow_up ? `<dt>Follow up</dt><dd>${esc(j.next_follow_up)}</dd>` : ''}
+      ${j.notes ? `<dt>Notes</dt><dd>${esc(j.notes)}</dd>` : ''}
+      <dt>History</dt><dd>${history || 'none'}</dd>
+    </dl>
+    ${(j.artifacts || []).length ? '' : ''}
+    ${d.description ? `<h3>The posting</h3><div class="posting">${esc(d.description)}</div>` : '<p class="meta">The full posting is fetched when a job is opened by /find-jobs or before applying, and deleted after a day.</p>'}`;
+  document.getElementById('drawer').classList.add('open');
+}
+
+function runCommand(command, job) {
+  api('/api/run', {command, job}).then(r => {
+    if (!r.ok) return toast(r.data.error || 'Could not start it.');
+    const panel = document.getElementById('run'), log = document.getElementById('runLog');
+    document.getElementById('runTitle').textContent = '/' + command + (job ? ' ' + job : '');
+    log.innerHTML = ''; panel.classList.add('open');
+    const src = new EventSource('/api/run/' + r.data.run);
+    src.onmessage = e => {
+      const ev = JSON.parse(e.data), p = document.createElement('div');
+      p.className = ev.kind; p.textContent = ev.kind === 'tool' ? '→ ' + ev.text : ev.text;
+      log.appendChild(p); log.scrollTop = log.scrollHeight;
+      if (ev.kind === 'done') { src.close(); load(); }
+    };
+    src.onerror = () => src.close();
+  });
+}
+
+document.addEventListener('click', async e => {
+  const el = e.target.closest('button, [data-open], [data-tab]');
+  if (!el) return;
+  if (el.dataset.tab) { tab = el.dataset.tab; localStorageSet('tab', tab); return render(); }
+  if (el.dataset.open) return openJob(el.dataset.open);
+  if (el.id === 'drawerClose') return document.getElementById('drawer').classList.remove('open');
+  if (el.id === 'runClose') return document.getElementById('run').classList.remove('open');
+  if (el.id === 'findJobs') return runCommand('find-jobs');
+  if (el.dataset.run) return runCommand(el.dataset.run, el.dataset.job);
+  if (el.dataset.skip) { const box = document.getElementById('reason-' + el.dataset.skip); box.classList.add('open'); return box.querySelector('input').focus(); }
+  if (el.dataset.confirmSkip) {
+    const note = document.querySelector(`#reason-${el.dataset.confirmSkip} input`).value.trim();
+    const r = await api('/api/status', {id: el.dataset.confirmSkip, status: 'skipped', note: note ? 'not a fit: ' + note : 'not a fit'});
+    toast(r.ok ? 'Skipped. The next search learns from it.' : (r.data.error || r.data.message)); return load();
+  }
+  if (el.id === 'moveBtn') {
+    const status = document.getElementById('moveTo').value;
+    const body = {id: el.dataset.id, status};
+    if (status === 'applied' || status === 'offer') body.follow_up = '+3d';
+    const r = await api('/api/status', body);
+    toast(r.ok ? r.data.message : (r.data.error || r.data.message));
+    document.getElementById('drawer').classList.remove('open'); return load();
+  }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('drawer').classList.remove('open'); });
+load(); setInterval(load, 15000);
+</script>
+</body>
+</html>

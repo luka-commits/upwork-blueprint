@@ -16,6 +16,12 @@ Last verified: not yet. Next: run /profile, it fills this in with you.
 **Smallest project worth taking:** not answered yet
 **Timezone and hours you answer messages:** not answered yet
 
+**Job Success Score:** not answered yet
+
 ## Your daily target
 
 **Applications per day:** not answered yet
+
+## Job search tracks
+
+Not set yet. /find-jobs proposes them from your profile the first time it runs. One short line each, a tool or role a client would put in a job title.

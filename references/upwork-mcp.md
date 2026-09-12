@@ -48,7 +48,12 @@ More results come from **paging**: repeat the identical filters with `cursor` se
 
 **Filters that exist:** `title` (job title only, words ANDed), `query` (whole posting, semantic), `skills`, `category`, `proposals_max` and `proposals_min`, `client_hires_min` and `max`, `budget_min` and `max` (fixed price), `rate_min` and `rate_max` (hourly), `experience_level`, `workload`, `timezone`, `location`, `previous_clients_only`, `job_type`. A client's `preferred_qualifications` are **not** in search results, only in `get`.
 
-**There is no working public job link.** The returned `id` is an internal number, not the `~ciphertext` a real `upwork.com/jobs/~...` URL needs. The fallback is Upwork's search page with the exact job title as the query.
+**Measured 12 September 2026, and it changes three things from August:**
+
+- **Every result now carries `url`,** a working job link. The old workaround (a search page with the job title) is gone.
+- **`title` filters on the job title only,** words ANDed. Cleaner than `query`, which matches the whole posting semantically. It cannot be combined with `query` or `sort` relevance.
+- **`smart_search`** reads Upwork's own recommendation feeds for your profile. `mode` `most_recent` is the only search with a real date filter (`days_posted`, `from_date`, `to_date`); `best_match` ranks by fit and ignores dates. Its results carry `connect_price` and `applied` but a proposals tier instead of a count.
+- Search results carry `proposal_count`, `applied`, `featured` and the client's `total_posted_jobs`, but no hire count; the hire record comes only from `get` (`client_record`).
 
 ### What `find_jobs get` adds beyond search
 

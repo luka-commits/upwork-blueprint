@@ -1,0 +1,297 @@
+#!/usr/bin/env python3
+"""The cockpit: your jobs, your pipeline and buttons that run the commands, in the browser.
+
+    python3 code/cockpit.py [--port 4321] [--no-open]
+
+Runs on this computer only (127.0.0.1) and never on the internet: a page that
+can start Claude with your Upwork connector must not be reachable by anyone
+else. Every status change goes through code/pipeline.py, the one writer, and
+every button that needs Claude starts the same command you could type, with
+only the tools that command needs. Nothing here sends anything to a client.
+"""
+import argparse
+import datetime
+import http.server
+import json
+import pathlib
+import re
+import secrets
+import shutil
+import subprocess
+import sys
+import threading
+import time
+import urllib.parse
+import webbrowser
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'code'))
+import pipeline  # noqa: E402  (read-only use: load, jobs_path)
+
+PAGE = ROOT / 'code' / 'cockpit.html'
+COMMANDS_DIR = ROOT / '.claude' / 'commands'
+JOBS_DIR = ROOT / 'jobs'
+TOKEN = secrets.token_urlsafe(24)
+ID = re.compile(r'^[0-9]{6,25}$')
+
+UPWORK_READ = ['mcp__upwork__upwork__list_accounts', 'mcp__upwork__upwork__find_jobs',
+               'mcp__upwork__upwork__get_profile']
+FILES = ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash(python3 code/*)']
+
+# What a button may start. A command runs only when its file exists, and only
+# with the tools listed here. No entry grants a tool that writes to Upwork: a
+# send always happens in a session where the member reads the draft first.
+RUNNABLE = {
+    'find-jobs': {'prompt': '/find-jobs', 'tools': FILES + UPWORK_READ + ['WebSearch'], 'job': False},
+    'pitch-page': {'prompt': '/pitch-page {job}', 'tools': FILES + UPWORK_READ + ['WebSearch', 'WebFetch'],
+                   'job': True},
+    'apply': {'prompt': '/apply {job} --draft-only', 'tools': FILES + UPWORK_READ, 'job': True},
+}
+
+RUNS = {}
+RUNS_LOCK = threading.Lock()
+
+
+def available(name):
+    return name in RUNNABLE and (COMMANDS_DIR / f'{name}.md').is_file()
+
+
+def daily_target():
+    me = ROOT / 'context' / 'me.md'
+    if me.is_file():
+        m = re.search(r'Applications per day:\*\*\s*(\d+)', me.read_text(encoding='utf-8'))
+        if m:
+            return int(m.group(1))
+    return None
+
+
+def artifacts(job_id):
+    folder = JOBS_DIR / job_id
+    if not folder.is_dir():
+        return []
+    return sorted(p.name for p in folder.iterdir() if p.is_file() and not p.name.startswith('.'))
+
+
+def card(job):
+    """A record as the list needs it: everything but the full posting."""
+    j = {k: v for k, v in job.items() if k not in ('description',)}
+    details = dict(job.get('details') or {})
+    j['has_posting'] = bool(details.pop('description', None) or job.get('description'))
+    j['details'] = details
+    j['artifacts'] = artifacts(job.get('id', ''))
+    return j
+
+
+def build_state():
+    jobs = pipeline.load()
+    today = datetime.date.today().isoformat()
+    applied_today = pipeline.applied_on(jobs, today)
+    due = [j['id'] for j in jobs if j.get('next_follow_up') and j['next_follow_up'] <= today
+           and j.get('status') not in pipeline.CLOSED]
+    return {
+        'generated_at': datetime.datetime.now().isoformat(timespec='seconds'),
+        'jobs': [card(j) for j in jobs],
+        'today': {'applied': applied_today, 'target': daily_target(), 'follow_ups_due': due},
+        'commands': {name: available(name) for name in RUNNABLE},
+        'statuses': list(pipeline.STATUSES),
+    }
+
+
+def claude_binary():
+    found = shutil.which('claude')
+    if found:
+        return found
+    fallback = pathlib.Path.home() / '.local' / 'bin' / 'claude'
+    return str(fallback) if fallback.exists() else None
+
+
+def parse_event(line):
+    """One line of `claude --output-format stream-json`, reduced to what the panel shows."""
+    try:
+        ev = json.loads(line)
+    except json.JSONDecodeError:
+        return {'kind': 'text', 'text': line}
+    if ev.get('type') == 'assistant':
+        out = []
+        for part in (ev.get('message') or {}).get('content') or []:
+            if part.get('type') == 'text' and part.get('text', '').strip():
+                out.append({'kind': 'text', 'text': part['text']})
+            elif part.get('type') == 'tool_use':
+                out.append({'kind': 'tool', 'text': part.get('name', 'tool')})
+        return out
+    if ev.get('type') == 'result':
+        return {'kind': 'done', 'text': ev.get('result') or '', 'error': bool(ev.get('is_error'))}
+    return None
+
+
+def start_run(name, job_id=None):
+    spec = RUNNABLE[name]
+    binary = claude_binary()
+    if not binary:
+        raise RuntimeError('Claude Code is not installed or not on the PATH.')
+    prompt = spec['prompt'].format(job=job_id or '').strip()
+    args = [binary, '-p', prompt, '--output-format', 'stream-json', '--verbose',
+            '--permission-mode', 'acceptEdits', '--allowedTools', *spec['tools']]
+    child = subprocess.Popen(args, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    run_id = secrets.token_hex(6)
+    run = {'id': run_id, 'command': name, 'job': job_id, 'events': [], 'done': False,
+           'started': time.time()}
+
+    def pump():
+        for line in child.stdout:
+            parsed = parse_event(line.strip())
+            for ev in parsed if isinstance(parsed, list) else ([parsed] if parsed else []):
+                run['events'].append(ev)
+        err = child.stderr.read().strip()
+        code = child.wait()
+        if code and err:
+            run['events'].append({'kind': 'error', 'text': err[-2000:]})
+        if not any(e['kind'] == 'done' for e in run['events']):
+            run['events'].append({'kind': 'done', 'text': f'Finished with exit code {code}.', 'error': code != 0})
+        run['done'] = True
+
+    threading.Thread(target=pump, daemon=True).start()
+    with RUNS_LOCK:
+        RUNS[run_id] = run
+    return run_id
+
+
+def set_status(job_id, status, note=None, follow_up=None):
+    args = [sys.executable, str(ROOT / 'code' / 'pipeline.py'), 'set', job_id, status]
+    if note:
+        args += ['--note', note]
+    if follow_up:
+        args += ['--follow-up', follow_up]
+    r = subprocess.run(args, capture_output=True, text=True, cwd=ROOT)
+    return r.returncode == 0, (r.stdout or r.stderr).strip()
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    server_version = 'Cockpit/1'
+
+    def log_message(self, fmt, *args):
+        pass
+
+    def local_only(self):
+        host = (self.headers.get('Host') or '').split(':')[0]
+        return host in ('127.0.0.1', 'localhost')
+
+    def send_json(self, payload, code=200):
+        body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def authorized(self):
+        return self.local_only() and secrets.compare_digest(self.headers.get('X-Cockpit-Token') or '', TOKEN)
+
+    def do_GET(self):
+        if not self.local_only():
+            return self.send_json({'error': 'local only'}, 403)
+        path = urllib.parse.urlparse(self.path).path
+        if path == '/':
+            html = PAGE.read_text(encoding='utf-8').replace('__COCKPIT_TOKEN__', TOKEN)
+            body = html.encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            return self.wfile.write(body)
+        if not self.authorized() and not path.startswith('/jobs/'):
+            return self.send_json({'error': 'missing token'}, 403)
+        if path == '/api/state':
+            return self.send_json(build_state())
+        m = re.match(r'^/api/job/([0-9]+)$', path)
+        if m:
+            job = next((j for j in pipeline.load() if j.get('id') == m.group(1)), None)
+            return self.send_json(job or {'error': 'not found'}, 200 if job else 404)
+        m = re.match(r'^/api/run/([0-9a-f]+)$', path)
+        if m:
+            return self.stream_run(m.group(1))
+        m = re.match(r'^/jobs/([0-9]+)/([\w.\-]+)$', path)
+        if m and ID.match(m.group(1)):
+            target = (JOBS_DIR / m.group(1) / m.group(2)).resolve()
+            if JOBS_DIR.resolve() in target.parents and target.is_file():
+                body = target.read_bytes()
+                kind = {'.html': 'text/html', '.pdf': 'application/pdf', '.md': 'text/plain',
+                        '.png': 'image/png'}.get(target.suffix, 'application/octet-stream')
+                self.send_response(200)
+                self.send_header('Content-Type', f'{kind}; charset=utf-8' if kind.startswith('text') else kind)
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                return self.wfile.write(body)
+        return self.send_json({'error': 'not found'}, 404)
+
+    def stream_run(self, run_id):
+        run = RUNS.get(run_id)
+        if not run:
+            return self.send_json({'error': 'no such run'}, 404)
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/event-stream')
+        self.send_header('Cache-Control', 'no-store')
+        self.end_headers()
+        sent = 0
+        try:
+            while True:
+                events = run['events']
+                while sent < len(events):
+                    self.wfile.write(f'data: {json.dumps(events[sent], ensure_ascii=False)}\n\n'.encode('utf-8'))
+                    sent += 1
+                self.wfile.flush()
+                if run['done'] and sent >= len(run['events']):
+                    break
+                time.sleep(0.4)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+    def do_POST(self):
+        if not self.authorized():
+            return self.send_json({'error': 'missing token'}, 403)
+        length = int(self.headers.get('Content-Length') or 0)
+        try:
+            data = json.loads(self.rfile.read(length) or b'{}')
+        except json.JSONDecodeError:
+            return self.send_json({'error': 'bad json'}, 400)
+        path = urllib.parse.urlparse(self.path).path
+        job_id = str(data.get('id') or data.get('job') or '')
+        if path == '/api/status':
+            if not ID.match(job_id) or data.get('status') not in pipeline.STATUSES:
+                return self.send_json({'error': 'bad job or status'}, 400)
+            ok, message = set_status(job_id, data['status'], data.get('note'), data.get('follow_up'))
+            return self.send_json({'ok': ok, 'message': message}, 200 if ok else 400)
+        if path == '/api/run':
+            name = data.get('command')
+            if not available(name):
+                return self.send_json({'error': f'/{name} is not built yet'}, 400)
+            if RUNNABLE[name]['job'] and not ID.match(job_id):
+                return self.send_json({'error': 'this command needs a job'}, 400)
+            try:
+                run_id = start_run(name, job_id if RUNNABLE[name]['job'] else None)
+            except RuntimeError as e:
+                return self.send_json({'error': str(e)}, 500)
+            return self.send_json({'run': run_id})
+        return self.send_json({'error': 'not found'}, 404)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('--port', type=int, default=4321)
+    ap.add_argument('--no-open', action='store_true')
+    args = ap.parse_args(argv)
+    server = http.server.ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
+    url = f'http://127.0.0.1:{args.port}/'
+    print(f'Cockpit running at {url}  (Ctrl+C stops it)')
+    if not args.no_open:
+        webbrowser.open(url)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

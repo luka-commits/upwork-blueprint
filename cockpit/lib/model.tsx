@@ -191,7 +191,7 @@ export type View = {
 export type Space = { title: string; board: boolean; base: (j: any) => boolean; cols: string[]; presets: View[] };
 
 const view = (name: string, v: Partial<View>): View => ({ name, layout: 'list', query: '', filters: {}, cols: [], widths: {}, sort: null, ...v });
-// One list for everything: leads, clients and what is due are views of it, not tabs (Luka, 12 September).
+// One list for everything: leads, clients and what is due are views of it, not tabs.
 export const SPACES: Record<'jobs', Space> = {
   jobs: {
     title: 'Jobs', board: true, base: () => true,

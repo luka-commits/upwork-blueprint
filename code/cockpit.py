@@ -30,7 +30,7 @@ import pipeline  # noqa: E402  (read-only use: load, jobs_path)
 
 PAGE = ROOT / 'code' / 'cockpit.html'
 COMMANDS_DIR = ROOT / '.claude' / 'commands'
-JOBS_DIR = ROOT / 'jobs'
+JOBS_DIR = pipeline.jobs_dir()
 TOKEN = secrets.token_urlsafe(24)
 ID = re.compile(r'^[0-9]{6,25}$')
 
@@ -69,7 +69,26 @@ def artifacts(job_id):
     folder = JOBS_DIR / job_id
     if not folder.is_dir():
         return []
-    return sorted(p.name for p in folder.iterdir() if p.is_file() and not p.name.startswith('.'))
+    return sorted(p.name for p in folder.iterdir()
+                  if p.is_file() and not p.name.startswith('.') and p.name != 'thread.json')
+
+
+def job_view(job_id):
+    """One job for the full lead view: the record, its files with dates, the saved thread."""
+    job = next((j for j in pipeline.load() if j.get('id') == job_id), None)
+    if not job:
+        return None
+    j = dict(job)
+    folder = JOBS_DIR / job_id
+    j['files'] = [{'name': name, 'at': datetime.datetime.fromtimestamp(
+        (folder / name).stat().st_mtime, datetime.timezone.utc).isoformat(timespec='seconds')}
+        for name in artifacts(job_id)]
+    thread = folder / 'thread.json'
+    try:
+        j['thread'] = json.loads(thread.read_text(encoding='utf-8')) if thread.is_file() else None
+    except (OSError, json.JSONDecodeError):
+        j['thread'] = None
+    return j
 
 
 def card(job):
@@ -179,6 +198,23 @@ def insights(jobs, today):
     }
 
 
+def standing():
+    """Your numbers, the ones a client's minimums test against, from what /audit saved."""
+    me_file = ROOT / 'context' / 'me.md'
+    text = me_file.read_text(encoding='utf-8') if me_file.is_file() else ''
+    jss = re.search(r'Job Success Score:\*\*\s*(\d+)', text)
+    out = {'jss': int(jss.group(1)) if jss else None}
+    try:
+        profile = json.loads((ROOT / 'data' / 'profile.json').read_text(encoding='utf-8'))
+        agg = profile.get('profileAggregates') or {}
+        rate = (profile.get('data', {}).get('personalData', {}).get('chargeRate') or {}).get('displayValue')
+        out.update(earned=agg.get('totalEarnings'), jobs=agg.get('totalJobs'),
+                   reviews=agg.get('totalFeedback'), rate=rate)
+    except (OSError, json.JSONDecodeError):
+        pass
+    return out
+
+
 def build_state():
     jobs = pipeline.load()
     day = datetime.date.today()
@@ -192,6 +228,7 @@ def build_state():
         'today': {'applied': pipeline.applied_on(jobs, today), 'target': goal, 'follow_ups_due': due},
         'tracker': tracker(jobs, goal, day),
         'insights': insights(jobs, day),
+        'me': standing(),
         'commands': {name: available(name) for name in RUNNABLE},
         'statuses': list(pipeline.STATUSES),
     }
@@ -256,14 +293,19 @@ def start_run(name, job_id=None):
     return run_id
 
 
+def run_pipeline(*args):
+    r = subprocess.run([sys.executable, str(ROOT / 'code' / 'pipeline.py'), *args],
+                       capture_output=True, text=True, cwd=ROOT)
+    return r.returncode == 0, (r.stdout or r.stderr).strip().removeprefix('ABORT: ')
+
+
 def set_status(job_id, status, note=None, follow_up=None):
-    args = [sys.executable, str(ROOT / 'code' / 'pipeline.py'), 'set', job_id, status]
+    args = ['set', job_id, status]
     if note:
         args += ['--note', note]
     if follow_up:
         args += ['--follow-up', follow_up]
-    r = subprocess.run(args, capture_output=True, text=True, cwd=ROOT)
-    return r.returncode == 0, (r.stdout or r.stderr).strip()
+    return run_pipeline(*args)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -306,7 +348,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json(build_state())
         m = re.match(r'^/api/job/([0-9]+)$', path)
         if m:
-            job = next((j for j in pipeline.load() if j.get('id') == m.group(1)), None)
+            job = job_view(m.group(1))
             return self.send_json(job or {'error': 'not found'}, 200 if job else 404)
         m = re.match(r'^/api/run/([0-9a-f]+)$', path)
         if m:
@@ -361,6 +403,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not ID.match(job_id) or data.get('status') not in pipeline.STATUSES:
                 return self.send_json({'error': 'bad job or status'}, 400)
             ok, message = set_status(job_id, data['status'], data.get('note'), data.get('follow_up'))
+            return self.send_json({'ok': ok, 'message': message}, 200 if ok else 400)
+        if path in ('/api/note', '/api/video'):
+            value = str(data.get('text') if path == '/api/note' else data.get('url') or '')
+            if not ID.match(job_id) or not value.strip():
+                return self.send_json({'error': 'bad job or empty value'}, 400)
+            ok, message = run_pipeline(path.rsplit('/', 1)[1], job_id, value)
             return self.send_json({'ok': ok, 'message': message}, 200 if ok else 400)
         if path == '/api/run':
             name = data.get('command')

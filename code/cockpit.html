@@ -5,316 +5,595 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Upwork Cockpit</title>
 <style>
+  /* One lean CRM list in the Sqanit layout (List or Board, search, filters, status
+     right in the row), the columns and pop-up card of the original Upwork OS tab,
+     and a full lead view for a job that is really moving. */
   :root {
-    --bg: #f6f5f2; --panel: #ffffff; --ink: #1c1c1a; --muted: #6b6a66; --line: #e4e2dc;
-    --accent: #14805e; --accent-soft: #e3f2ec; --amber: #b7791f; --amber-soft: #fbf1df;
-    --grey-soft: #efeee9; --red: #b42318; --red-soft: #fdecea; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.04);
-    --radius: 12px;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #151514; --panel: #1f1f1d; --ink: #f0efea; --muted: #a09f99; --line: #33322e;
-      --accent: #3fbf8f; --accent-soft: #173529; --amber: #e3a948; --amber-soft: #3a2d15; --grey-soft: #2a2a27;
-      --red: #f0645a; --red-soft: #3b1a17; --shadow: none; }
+    --bg: #EEF1F6; --card: #FFFFFF; --border: #E7EAF0; --border-strong: #C9CFDA;
+    --text: #0B2540; --text-2: #475467; --text-3: #667085;
+    --brand: #6362F9; --brand-deep: #0B2540; --brand-soft: #EEEEFE;
+    --red: #B42318; --red-soft: #FDECEA; --red-deep: #911C13;
+    --amber-soft: #FDF1DD; --amber-deep: #92400E; --ok: #1a7f4b; --ok-soft: #E6F4EC;
+    --shadow-1: 0 1px 2px rgba(11, 37, 64, 0.04);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
-  header { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
-  .bar { max-width: 1180px; margin: 0 auto; padding: 14px 20px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
-  h1 { font-size: 19px; margin: 0; letter-spacing: -.015em; }
-  h1 span { color: var(--muted); font-weight: 500; }
-  .target { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
-  .meter { width: 120px; height: 8px; background: var(--grey-soft); border-radius: 99px; overflow: hidden; }
-  .meter i { display: block; width: 100%; height: 100%; background: var(--accent); border-radius: 99px; transform-origin: left; transform: scaleX(0); transition: transform .4s ease; }
-  .spacer { flex: 1; }
-  button, .btn { font: inherit; font-size: 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 7px 12px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-  button:hover, .btn:hover { border-color: var(--muted); }
-  button:focus-visible, .btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  html, body { margin: 0; }
+  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text);
+    -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; line-height: 1.5; font-size: 14px; }
+  a { color: var(--brand); text-decoration: none; font-weight: 500; }
+  a:hover { text-decoration: underline; }
+  button, .btn { font: inherit; font-size: 13px; border: 1px solid var(--border-strong); background: var(--card);
+    color: var(--text); border-radius: 8px; padding: 6px 12px; cursor: pointer; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-weight: 600; }
+  button:hover, .btn:hover { border-color: var(--brand); text-decoration: none; }
+  :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  button.primary:hover { background: var(--brand-deep); border-color: var(--brand-deep); }
   button[disabled] { opacity: .45; cursor: not-allowed; }
-  nav.tabs { max-width: 1180px; margin: 0 auto; padding: 0 20px; display: flex; gap: 4px; }
-  nav.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 10px 12px; color: var(--muted); }
-  nav.tabs button.on { color: var(--ink); border-bottom-color: var(--ink); }
-  nav.tabs .count { background: var(--grey-soft); border-radius: 99px; padding: 0 7px; font-size: 12px; }
-  main { max-width: 1180px; margin: 0 auto; padding: 20px; }
-  .empty { color: var(--muted); padding: 40px 0; text-align: center; }
-  .list { display: grid; gap: 12px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); display: grid; grid-template-columns: 56px 1fr; gap: 14px; }
-  .score { width: 56px; height: 56px; border-radius: 12px; display: grid; place-items: center; font-weight: 700; font-size: 24px; letter-spacing: -.02em; background: var(--grey-soft); color: var(--muted); }
-  .score.hi { background: var(--accent-soft); color: var(--accent); }
-  .score.mid { background: var(--amber-soft); color: var(--amber); }
-  .title { font-weight: 650; font-size: 19px; line-height: 1.25; letter-spacing: -.01em; margin: 0 0 6px; cursor: pointer; }
-  .title:hover { text-decoration: underline; }
-  .meta { color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
-  .why { margin: 10px 0 0; font-size: 15px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-  .chip { font-size: 12px; background: var(--grey-soft); color: var(--muted); border-radius: 99px; padding: 2px 9px; }
-  .chip.art { background: var(--accent-soft); color: var(--accent); text-decoration: none; }
-  .chip.warn { background: var(--red-soft); color: var(--red); }
-  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
-  .reason { display: none; gap: 8px; margin-top: 10px; }
+  input, select, textarea { font: inherit; color: var(--text); }
+
+  header.top { background: var(--card); border-bottom: 1px solid var(--border); }
+  .top-inner { max-width: 1440px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+  .brand { font-weight: 700; font-size: 15px; padding: 14px 0; }
+  .tabs { display: flex; gap: 4px; }
+  .tabs a { color: var(--text-2); font-weight: 600; font-size: 15px; padding: 16px 12px 13px; border-bottom: 3px solid transparent; }
+  .tabs a:hover { text-decoration: none; color: var(--text); }
+  .tabs a[aria-current="page"] { color: var(--brand); border-bottom-color: var(--brand); }
+  .spacer { flex: 1; }
+  .stamp { font-size: 12.5px; color: var(--text-3); }
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 22px 32px 60px; }
+
+  .today { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin: 0 0 6px; }
+  .today-lbl { font-size: 14px; font-weight: 600; }
+  .today-n b { font-size: 24px; }
+  .today-n span { color: var(--text-3); font-size: 13px; }
+  .today-meta { font-size: 12.5px; color: var(--text-3); }
+  .today-bar { height: 5px; max-width: 480px; border-radius: 999px; background: color-mix(in srgb, var(--brand) 12%, transparent); margin: 0 0 20px; overflow: hidden; }
+  .today-bar span { display: block; height: 100%; background: var(--brand); border-radius: 999px; min-width: 5px; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 14px; }
+  .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 10px; overflow: hidden; background: var(--card); }
+  .seg button { border: 0; border-radius: 0; padding: 9px 16px; color: var(--text-2); font-size: 14px; }
+  .seg button[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand); }
+  .search { flex: 1; min-width: 220px; padding: 9px 14px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--card); font-size: 14px; }
+  .count { font-size: 13px; color: var(--text-3); }
+  .filters { position: relative; }
+  .filters > summary { list-style: none; cursor: pointer; border: 1px solid var(--border-strong); border-radius: 10px; padding: 9px 14px; font-weight: 600; background: var(--card); }
+  .filters > summary::-webkit-details-marker { display: none; }
+  .filters[open] > summary, .filters.on > summary { border-color: var(--brand); color: var(--brand); }
+  .pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; box-shadow: 0 12px 32px rgba(11,37,64,.14); padding: 14px; width: 260px; display: grid; gap: 6px; }
+  .pop h5 { margin: 6px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); }
+  .pop label { display: flex; gap: 8px; align-items: center; font-size: 13.5px; cursor: pointer; }
+  .pop .n { margin-left: auto; color: var(--text-3); font-size: 12px; }
+
+  .rt-table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-1); table-layout: fixed; }
+  .rt-table th { text-align: left; font-size: 12.5px; font-weight: 700; color: var(--text); padding: 12px 14px;
+    border-bottom: 1px solid var(--border-strong); background: var(--bg); }
+  .rt-table td { padding: 12px 14px; border-top: 1px solid var(--border); vertical-align: top; }
+  .uw-row { cursor: pointer; }
+  .uw-row:hover { background: color-mix(in srgb, var(--brand) 4%, transparent); }
+  .uw-row.due { background: color-mix(in srgb, #B0143C 6%, transparent); }
+  .rt-td-title { font-size: 14px; font-weight: 600; color: var(--brand); display: block; }
+  .rt-td-desc { display: block; font-size: 12.5px; color: var(--text-2); margin-top: 2px; }
+  .rt-td-why { display: block; margin-top: 3px; font-size: 11.5px; font-style: italic; color: var(--text-3); }
+  .uw-score { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; font-size: 12px; font-weight: 700;
+    border-radius: 6px; padding: 2px 6px; color: var(--brand-deep); background: var(--brand-soft); }
+  .uw-score.strong { color: #fff; background: var(--brand); }
+  .uw-sub { display: block; font-size: 12px; color: var(--text-3); margin-top: 2px; }
+  .uw-comp-n.low { color: var(--ok); font-weight: 600; }
+  .uw-comp-n.high { color: var(--red); font-weight: 600; }
+  .none { color: var(--text-3); }
+  .stage-select { appearance: none; -webkit-appearance: none; width: 100%; max-width: 170px; border: 1px solid var(--border-strong); border-radius: 8px;
+    padding: 6px 28px 6px 10px; font-size: 13px; font-weight: 600; cursor: pointer; background-repeat: no-repeat; background-position: right 9px center;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23475467' fill='none' stroke-width='1.5'/%3E%3C/svg%3E"); }
+  .uw-stagechip, .uw-duechip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+  .uw-stagechip.closed { background: var(--bg); color: var(--text-2); }
+  .uw-duechip.over { background: var(--red-soft); color: var(--red-deep); }
+  .uw-duechip.soon { background: var(--amber-soft); color: var(--amber-deep); }
+  .uw-due-inline { display: block; margin-top: 5px; }
+  .uw-flag { display: inline-block; margin-left: 7px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 600; vertical-align: middle; }
+  .uw-flag.gone { background: var(--bg); color: var(--text-2); }
+  .uw-flag.bar { background: var(--red-soft); color: var(--red-deep); }
+  .uw-flag.soft { background: var(--amber-soft); color: var(--amber-deep); }
+  .uw-excluded { font-size: 12.5px; color: var(--text-3); margin: 10px 0 0; }
+  .empty { color: var(--text-2); padding: 28px 0; text-align: center; }
+
+  .board { display: grid; grid-template-columns: repeat(4, minmax(230px, 1fr)); gap: 14px; align-items: start; overflow-x: auto; }
+  .col { background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-1); min-height: 120px; }
+  .col.drop { outline: 2px dashed var(--brand); outline-offset: -4px; }
+  .col-head { display: flex; justify-content: space-between; gap: 8px; padding: 11px 13px; border-top: 3px solid var(--border); border-radius: 12px 12px 0 0; border-bottom: 1px solid var(--border); }
+  .col-title { font-weight: 700; font-size: 13.5px; }
+  .col-hint { font-size: 11.5px; color: var(--text-3); }
+  .col-count { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 8px; background: var(--bg); height: fit-content; }
+  .col-body { list-style: none; margin: 0; padding: 8px; display: grid; gap: 8px; }
+  .card { border: 1px solid var(--border); border-radius: 9px; padding: 9px 10px; background: var(--bg); cursor: pointer; }
+  .card:hover { border-color: var(--brand); }
+  .card.due { background: color-mix(in srgb, #B0143C 6%, var(--bg)); }
+  .card-top { display: flex; gap: 7px; align-items: baseline; }
+  .card-title { font-size: 13px; font-weight: 600; line-height: 1.3; }
+  .card-meta { margin-top: 3px; font-size: 11.5px; color: var(--text-3); }
+  .col-empty { text-align: center; padding: 14px 0; font-size: 12px; color: var(--text-3); }
+  .closed-box { margin-top: 14px; }
+  .closed-box summary { cursor: pointer; font-weight: 600; color: var(--text-2); padding: 6px 2px; }
+
+  .uw-modal { border: 1px solid var(--border); border-radius: 14px; padding: 24px 26px; max-width: 640px; width: calc(100vw - 32px);
+    background: var(--card); color: var(--text); box-shadow: 0 24px 60px rgb(13 31 26 / .18); }
+  .uw-modal::backdrop { background: rgb(13 31 26 / .38); }
+  .uw-modal-close { position: absolute; top: 12px; right: 12px; border: 0; background: transparent; font-size: 15px; color: var(--text-3); padding: 6px; }
+  .uw-detail-head { display: flex; align-items: flex-start; gap: 10px; margin: 0 26px 6px 0; }
+  .uw-detail-head h3 { margin: 0; font-size: 18px; line-height: 1.3; }
+  .uw-detail-meta { margin: 0 0 10px; font-size: 12.5px; color: var(--text-2); }
+  .uw-due-badge { display: inline-block; background: var(--red-soft); color: var(--red-deep); font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+  .uw-modal h4, .panel h4 { margin: 16px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-2); }
+  .uw-modal p { margin: 0 0 6px; font-size: 14px; line-height: 1.55; }
+  .uw-lage { margin: 4px 0 0; display: flex; flex-direction: column; gap: 4px; }
+  .uw-lage div { display: flex; gap: 10px; font-size: 13.5px; }
+  .uw-lage dt { color: var(--text-2); min-width: 132px; flex: none; }
+  .uw-lage dd { margin: 0; }
+  .uw-nodata { color: var(--text-3); font-size: 13px; }
+  .uw-hist { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+  .uw-hist li { display: flex; gap: 10px; font-size: 13px; }
+  .uw-hist-when { color: var(--text-2); min-width: 90px; }
+  .uw-actions { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .reason { display: none; width: 100%; gap: 6px; }
   .reason.open { display: flex; }
-  .reason input { flex: 1; font: inherit; font-size: 13px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
-  .board { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 14px; overflow-x: auto; }
-  .col h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
-  .mini { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; cursor: pointer; }
-  .mini b { display: block; font-size: 14px; margin-bottom: 4px; }
-  .mini small { color: var(--muted); }
-  .due { color: var(--red); font-weight: 600; }
-  h2.section { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 26px 0 10px; }
-  aside { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%); background: var(--panel); border-left: 1px solid var(--line); box-shadow: -8px 0 32px rgba(0,0,0,.08); transform: translateX(100%); transition: transform .25s ease; z-index: 10; overflow-y: auto; padding: 22px 24px 60px; }
-  aside.open { transform: none; }
-  aside h2 { margin: 10px 0 8px; font-size: 24px; line-height: 1.2; letter-spacing: -.015em; }
-  aside .close { float: right; }
-  dl { display: grid; grid-template-columns: 140px 1fr; gap: 8px 12px; font-size: 15px; margin: 18px 0; }
-  dt { color: var(--muted); }
-  dd { margin: 0; }
-  .posting { white-space: pre-wrap; font-size: 14px; background: var(--bg); border-radius: 10px; padding: 14px; max-height: 360px; overflow-y: auto; }
-  .run { position: fixed; left: 20px; bottom: 20px; width: min(520px, calc(100% - 40px)); max-height: 46vh; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,.14); display: none; flex-direction: column; z-index: 20; }
+  .reason input { flex: 1; font-size: 13px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border-strong); }
+
+  /* The full lead view: details left, conversation middle, next step and files right. */
+  .lead-head { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; flex-wrap: wrap; }
+  .lead-head h2 { margin: 0; font-size: 19px; }
+  .lead { display: grid; grid-template-columns: minmax(270px, 1fr) minmax(360px, 1.55fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-1); padding: 16px 18px; min-width: 0; }
+  .panel > h3 { margin: 0 0 10px; font-size: 16px; }
+  .panel + .panel { margin-top: 14px; }
+  .fields { display: grid; gap: 10px; margin: 0; }
+  .fields div { display: grid; gap: 1px; }
+  .fields dt { font-size: 12.5px; color: var(--text-3); }
+  .fields dd { margin: 0; font-size: 14px; }
+  .posting { white-space: pre-wrap; font-size: 13px; color: var(--text-2); max-height: 320px; overflow-y: auto; background: var(--bg); border-radius: 8px; padding: 10px 12px; margin-top: 6px; }
+  .convo { display: flex; flex-direction: column; min-height: 560px; padding: 0; }
+  .convo-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); padding: 0 14px; }
+  .convo-tabs button { border: 0; border-radius: 0; background: transparent; color: var(--text-2); padding: 14px 10px 11px; border-bottom: 3px solid transparent; font-size: 14px; }
+  .convo-tabs button[aria-pressed="true"] { color: var(--brand); border-bottom-color: var(--brand); }
+  .convo-body { flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; max-height: 620px; }
+  .day { align-self: center; font-size: 12px; color: var(--text-2); background: var(--bg); border-radius: 999px; padding: 3px 12px; margin: 6px 0; }
+  .msg { max-width: 82%; padding: 10px 13px; border-radius: 12px; font-size: 14px; white-space: pre-wrap; background: var(--bg); align-self: flex-start; }
+  .msg.me { background: var(--brand-soft); align-self: flex-end; }
+  .msg-meta { display: block; font-size: 11.5px; color: var(--text-3); margin-top: 4px; }
+  .tl { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+  .tl li { display: grid; grid-template-columns: 16px 1fr; gap: 10px; padding: 0 0 14px; position: relative; }
+  .tl li::before { content: ""; position: absolute; left: 7px; top: 14px; bottom: 0; width: 1px; background: var(--border); }
+  .tl li:last-child::before { display: none; }
+  .tl-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--brand); margin-top: 5px; margin-left: 2px; }
+  .tl-dot.note { background: var(--amber-deep); }
+  .tl-dot.file { background: var(--ok); }
+  .tl-when { font-size: 12px; color: var(--text-3); }
+  .composer { border-top: 1px solid var(--border); padding: 12px 14px; display: grid; gap: 8px; }
+  .composer-row { display: flex; gap: 8px; }
+  .composer input { flex: 1; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border-strong); font-size: 14px; }
+  .composer-note { font-size: 12px; color: var(--text-3); }
+  .next-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .next-row input[type="date"] { padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border-strong); }
+  .video { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: var(--bg); max-width: 100%; }
+  .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .video-form { display: flex; gap: 6px; margin-top: 8px; }
+  .video-form input { flex: 1; min-width: 0; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border-strong); font-size: 13px; }
+  .preview { position: relative; width: 100%; height: 190px; overflow: hidden; border-radius: 10px; border: 1px solid var(--border); background: #fff; }
+  .preview iframe { position: absolute; top: 0; left: 0; width: 400%; height: 400%; border: 0; transform: scale(.25); transform-origin: 0 0; pointer-events: none; }
+  .doc { white-space: pre-wrap; font-size: 12.5px; background: var(--bg); border-radius: 8px; padding: 10px 12px; max-height: 220px; overflow-y: auto; margin: 6px 0; }
+  .file-row { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 7px 0; border-top: 1px solid var(--border); font-size: 13.5px; }
+  .file-row:first-of-type { border-top: 0; }
+
+  .tiles { display: flex; flex-wrap: wrap; margin: 0 0 20px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--card); }
+  .tile { flex: 1 1 190px; padding: 14px 18px; display: flex; flex-direction: column; gap: 1px; border-left: 1px solid var(--border); }
+  .tile:first-child { border-left: 0; }
+  .tile-lbl, .tile-hint { font-size: 12px; color: var(--text-2); }
+  .tile-val { font-size: 24px; font-weight: 700; line-height: 1.25; color: var(--brand-deep); }
+  .tile-val.empty { font-size: 20px; font-weight: 400; color: var(--text-3); }
+  .funnel { display: grid; gap: 7px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; }
+  .funnel-row { display: grid; grid-template-columns: 90px 1fr 36px 200px; gap: 10px; align-items: center; font-size: 13px; }
+  .track { height: 10px; border-radius: 999px; background: var(--bg); overflow: hidden; }
+  .track span { display: block; height: 100%; background: var(--brand); border-radius: 999px; }
+  .funnel-pct, .note-sm { font-size: 12px; color: var(--text-2); }
+  .days { display: flex; gap: 6px; align-items: flex-end; height: 70px; max-width: 520px; }
+  .daybar { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 4px; }
+  .daybar span:first-child { width: 100%; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--brand) 45%, transparent); }
+  .daybar.hit span:first-child { background: var(--brand); }
+  .daybar em { font-style: normal; font-size: 10.5px; color: var(--text-2); }
+  .me-stats { display: flex; flex-wrap: wrap; gap: 8px 30px; }
+  .me-val { font-size: 18px; font-weight: 600; display: block; }
+  .me-lbl { font-size: 12px; color: var(--text-2); }
+  .section-title { font-size: 15px; margin: 22px 0 10px; }
+
+  .run { position: fixed; left: 20px; bottom: 20px; width: min(520px, calc(100% - 40px)); max-height: 46vh; background: var(--card);
+    border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 32px rgba(11,37,64,.14); display: none; flex-direction: column; z-index: 40; }
   .run.open { display: flex; }
-  .run header { position: static; display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: none; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 14px; }
-  .run .log { overflow-y: auto; padding: 12px 14px; font-size: 13px; display: grid; gap: 6px; }
-  .log .tool { color: var(--muted); font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
-  .log .done { color: var(--accent); font-weight: 600; }
-  .log .error { color: var(--red); white-space: pre-wrap; }
-  .tracker { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 18px; box-shadow: var(--shadow); }
-  .tracker-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
-  .tracker .big { font-size: 32px; font-weight: 700; letter-spacing: -.03em; }
-  .tracker .of, .tracker-meta { color: var(--muted); font-size: 15px; }
-  .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin: 14px 0 10px; }
-  .day { position: relative; height: 54px; background: var(--grey-soft); border-radius: 8px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
-  .day .fill { position: absolute; inset: 0; background: var(--amber); opacity: .55; transform-origin: bottom; }
-  .day.hit .fill { background: var(--accent); opacity: .8; }
-  .day.future { background: transparent; border: 1px dashed var(--line); }
-  .day small { position: relative; font-size: 12px; color: var(--muted); padding-bottom: 4px; }
-  .next { margin: 4px 0 0; font-size: 15px; }
-  .next a { color: var(--ink); font-weight: 600; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 4px; }
-  .tile .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-  .tile .val { font-size: 32px; font-weight: 700; letter-spacing: -.03em; }
-  .tile .val.empty { color: var(--line); }
-  .tile .hint { font-size: 12px; color: var(--muted); }
-  .funnel { display: grid; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
-  .frow { display: grid; grid-template-columns: 90px 1fr 40px minmax(120px, auto); align-items: center; gap: 12px; font-size: 15px; }
-  .frow small { color: var(--muted); font-size: 12px; }
-  .track { height: 12px; background: var(--grey-soft); border-radius: 99px; overflow: hidden; }
-  .track .bar { display: block; height: 100%; width: 100%; background: var(--accent); border-radius: 99px; transform-origin: left; }
-  .toast { position: fixed; right: 20px; bottom: 20px; background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; z-index: 30; }
+  .run-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px; }
+  .run-log { overflow-y: auto; padding: 12px 14px; font-size: 12.5px; display: grid; gap: 6px; }
+  .run-log .tool { color: var(--text-3); font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; }
+  .run-log .done { color: var(--ok); font-weight: 600; }
+  .run-log .error { color: var(--red); white-space: pre-wrap; }
+  .toast { position: fixed; right: 20px; bottom: 20px; background: var(--text); color: #fff; padding: 9px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; z-index: 50; pointer-events: none; }
   .toast.show { opacity: 1; }
-  @media (max-width: 720px) { .card { grid-template-columns: 1fr; } .score { width: 44px; height: 44px; font-size: 16px; } dl { grid-template-columns: 1fr; } }
+  @media (max-width: 1100px) { .lead { grid-template-columns: 1fr 1fr; } .lead > :nth-child(2) { grid-column: 1 / -1; order: -1; } }
+  @media (max-width: 860px) {
+    .top-inner, .wrap { padding-left: 16px; padding-right: 16px; }
+    .lead { grid-template-columns: 1fr; }
+    .rt-table, .rt-table thead, .rt-table tbody, .rt-table tr, .rt-table td { display: block; }
+    .rt-table colgroup, .rt-table thead { display: none; }
+    .rt-table tr { border-top: 1px solid var(--border); padding: 10px 14px; }
+    .rt-table td { border-top: 0; padding: 2px 0; }
+    .funnel-row { grid-template-columns: 80px 1fr 30px; }
+    .funnel-pct { display: none; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <div class="bar">
-    <h1>Upwork Cockpit <span id="stamp"></span></h1>
-    <div class="target"><span id="targetText"></span><div class="meter"><i id="meter"></i></div></div>
+<header class="top">
+  <div class="top-inner">
+    <span class="brand">Upwork Cockpit</span>
+    <nav class="tabs" aria-label="Sections"><a href="#" data-tab="jobs">Jobs</a><a href="#numbers" data-tab="numbers">Numbers</a></nav>
     <div class="spacer"></div>
+    <span class="stamp" id="stamp"></span>
     <button class="primary" id="findJobs">Find jobs</button>
   </div>
-  <nav class="tabs" id="tabs"></nav>
 </header>
-<main id="main"><p class="empty">Loading.</p></main>
-<aside id="drawer" aria-label="Job details"></aside>
+<main class="wrap" id="main"><p class="empty">Loading.</p></main>
+<dialog class="uw-modal" id="modal" aria-label="Job details">
+  <button type="button" class="uw-modal-close" data-close aria-label="Close">✕</button>
+  <div id="modalBody"></div>
+</dialog>
 <section class="run" id="run" aria-live="polite">
-  <header><span id="runTitle">Run</span><button id="runClose">Close</button></header>
-  <div class="log" id="runLog"></div>
+  <div class="run-head"><span id="runTitle">Run</span><button id="runClose">Close</button></div>
+  <div class="run-log" id="runLog"></div>
 </section>
 <div class="toast" id="toast" role="status"></div>
 <script>
 const TOKEN = '__COCKPIT_TOKEN__';
-const TABS = [
-  ['inbox', 'Inbox', j => j.status === 'new'],
-  ['pipeline', 'Pipeline', j => ['applied', 'replied', 'offer'].includes(j.status)],
-  ['today', 'Today', () => false],
-  ['insights', 'Insights', null],
-  ['closed', 'Closed', j => ['won', 'lost', 'skipped'].includes(j.status)],
+const STAGES = [
+  {key: 'new', label: 'Not applied', hint: 'found and scored, nothing sent', mix: 22},
+  {key: 'applied', label: 'Applied', hint: 'sent, waiting for the client', mix: 48},
+  {key: 'replied', label: 'In conversation', hint: 'the client wrote back', mix: 74},
+  {key: 'offer', label: 'Offer', hint: 'an offer is on the table', mix: 100},
 ];
-let state = null, tab = new URLSearchParams(location.search).get('tab') || localStorageGet('tab') || 'inbox';
+const CLOSED = ['won', 'lost', 'skipped'];
+const LABEL = {new: 'Not applied', applied: 'Applied', replied: 'In conversation', offer: 'Offer', won: 'Won', lost: 'Lost', skipped: 'Skipped'};
+const OPEN_STATUSES = STAGES.map(s => s.key);
+const today = new Date().toISOString().slice(0, 10);
 
-function localStorageGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
-function localStorageSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const api = (path, body) => fetch(path, {
-  method: body ? 'POST' : 'GET',
-  headers: {'X-Cockpit-Token': TOKEN, 'Content-Type': 'application/json'},
-  body: body ? JSON.stringify(body) : undefined,
-}).then(async r => ({ok: r.ok, data: await r.json().catch(() => ({}))}));
+let state = null, current = null, query = '', convoTab = 'conversation';
+let layout = read('layout', 'list');
+let filters = read('filters', {statuses: OPEN_STATUSES, due: false, strong: false});
 
-function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2600); }
-function ago(iso) {
-  if (!iso) return '';
-  const h = (Date.now() - new Date(iso)) / 36e5;
-  return h < 1 ? `${Math.max(1, Math.round(h * 60))} min ago` : h < 48 ? `${Math.round(h)} h ago` : `${Math.round(h / 24)} days ago`;
+function read(k, fallback) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
+function keep(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked: the page still works */ } }
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const $ = id => document.getElementById(id);
+const api = (path, body) => fetch(path, {method: body ? 'POST' : 'GET', headers: {'X-Cockpit-Token': TOKEN, 'Content-Type': 'application/json'},
+  body: body ? JSON.stringify(body) : undefined}).then(async r => ({ok: r.ok, data: await r.json().catch(() => ({}))}));
+function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2800); }
+function ago(iso) { if (!iso) return '–'; const h = (Date.now() - new Date(iso)) / 36e5; return h < 1 ? '<1h ago' : h < 24 ? `${Math.floor(h)}h ago` : `${Math.floor(h / 24)}d ago`; }
+function day(iso) { return iso ? new Date(iso).toLocaleDateString('en-GB', {weekday: 'long', day: 'numeric', month: 'long'}) : ''; }
+function stamp(iso) { return iso ? new Date(iso).toLocaleString('en-GB', {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'}) : ''; }
+function money(n) { n = Number(n); if (!n) return ''; return n >= 1000 ? '$' + Math.round(n / 1000) + 'K' : '$' + Math.round(n); }
+const isDue = j => !!j.next_follow_up && j.next_follow_up <= today && !CLOSED.includes(j.status);
+const scoreHtml = j => `<span class="uw-score${(j.score || 0) >= 70 ? ' strong' : ''}">${esc(j.score ?? '–')}</span>`;
+
+// ---- the cells of the original Upwork OS list ------------------------------------
+function clientText(j) {
+  const c = j.client || {}, bits = [];
+  if (c.rating) bits.push(`${c.rating}★`);
+  if (c.hires != null && c.posted_jobs != null) bits.push(`${c.hires}/${c.posted_jobs} hires`);
+  else if (c.hires != null) bits.push(`${c.hires} hires`);
+  else if (c.posted_jobs != null) bits.push(`${c.posted_jobs} jobs posted`);
+  return bits.join(' · ');
 }
-function money(n) { return n ? '$' + Math.round(n).toLocaleString('en-US') : ''; }
-function scoreClass(s) { return s >= 75 ? 'hi' : s >= 60 ? 'mid' : ''; }
+function budgetText(j) {
+  const b = String(j.budget || '').trim();
+  if (!b || /no rate|not provided/i.test(b)) return j.job_type === 'hourly' ? 'Hourly, no rate' : '–';
+  if (/[$]/.test(b)) return b;
+  return j.job_type === 'hourly' ? `$${b.replace(/\/hr$/, '')}/hr` : `$${b}`;
+}
+function flags(j) {
+  const d = j.details || {}, me = state.me || {}, out = [];
+  if (d.total_hired) out.push('<span class="uw-flag gone">taken</span>');
+  if (d.min_jss && me.jss != null && d.min_jss > me.jss) out.push('<span class="uw-flag bar">below the bar</span>');
+  if (String(j.engagement || d.engagement_type || '').toUpperCase().includes('FULL_TIME') || /30\+ hrs/.test(j.engagement || '')) out.push('<span class="uw-flag soft">full time</span>');
+  if (j.trap) out.push(`<span class="uw-flag soft">${esc(j.trap)}</span>`);
+  return out.join('');
+}
+function compCell(j) {
+  const n = j.proposals, d = j.details || {};
+  if (n == null || n === '') return '<span class="none">–</span>';
+  const num = typeof n === 'number' ? n : null;
+  const cls = num == null ? '' : num <= 5 ? ' low' : num >= 30 ? ' high' : '';
+  const lbl = num === 0 ? 'none yet' : num != null ? `${num} bids` : `${esc(n)} bids`;
+  return `<span class="uw-comp-n${cls}">${lbl}</span>` + (d.invites_sent ? `<span class="uw-sub">${d.invites_sent} invited</span>` : '');
+}
+function stageMix(status) { const s = STAGES.find(x => x.key === status); return s ? s.mix : 0; }
+function stageSelect(j) {
+  const mix = stageMix(j.status);
+  const style = mix ? `background-color:color-mix(in srgb, var(--brand) ${Math.round(mix * .45)}%, var(--card));color:color-mix(in srgb, var(--brand) 55%, var(--text))` : 'background-color:var(--bg);color:var(--text-2)';
+  return `<select class="stage-select" data-stage-for="${esc(j.id)}" aria-label="Stage" style="${style}">${
+    Object.entries(LABEL).map(([k, l]) => `<option value="${k}"${k === j.status ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+}
+function stageChip(j) {
+  const mix = stageMix(j.status);
+  if (!mix) return `<span class="uw-stagechip closed">${esc(LABEL[j.status] || j.status)}</span>`;
+  return `<span class="uw-stagechip" style="background:color-mix(in srgb, var(--brand) ${mix}%, var(--card));color:color-mix(in srgb, var(--brand) 55%, var(--text))">${LABEL[j.status]}</span>`;
+}
+function dueChip(j) {
+  if (!j.next_follow_up || CLOSED.includes(j.status)) return '';
+  const days = Math.round((new Date(j.next_follow_up) - new Date(today)) / 864e5);
+  const txt = days < 0 ? `${-days}d overdue` : days === 0 ? 'due today' : `in ${days} days`;
+  return `<span class="uw-due-inline"><span class="uw-duechip ${days <= 0 ? 'over' : 'soon'}">${txt}</span></span>`;
+}
+
+// ---- routing: the list, the numbers, or one lead in full -------------------------
+function route() {
+  const h = location.hash;
+  const m = h.match(/^#job\/(\d+)$/);
+  document.querySelectorAll('.tabs a').forEach(a => a.setAttribute('aria-current', (a.dataset.tab === 'numbers') === (h === '#numbers') && !m ? 'page' : 'false'));
+  if (m) return openLead(m[1]);
+  current = null;
+  $('main').innerHTML = h === '#numbers' ? numbersPage() : jobsPage();
+}
 
 async function load() {
   const r = await api('/api/state');
-  if (!r.ok) { document.getElementById('main').innerHTML = '<p class="empty">The cockpit lost its connection. Reload the page.</p>'; return; }
-  state = r.data; render();
+  if (!r.ok) { $('main').innerHTML = '<p class="empty">The cockpit lost its connection. Reload the page.</p>'; return; }
+  state = r.data;
+  $('stamp').textContent = 'updated ' + new Date(state.generated_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  $('findJobs').disabled = !state.commands['find-jobs'];
+  route();
 }
 
-function render() {
-  const t = state.today;
-  document.getElementById('stamp').textContent = '· updated ' + new Date(state.generated_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-  const target = t.target || 0;
-  document.getElementById('targetText').textContent = target ? `${t.applied} of ${target} applications today` : `${t.applied} applications today`;
-  document.getElementById('meter').style.transform = `scaleX(${target ? Math.min(1, t.applied / target) : 0})`;
-  const find = document.getElementById('findJobs');
-  find.disabled = !state.commands['find-jobs'];
-  document.getElementById('tabs').innerHTML = TABS.map(([id, label, f]) => {
-    const n = id === 'today' ? t.follow_ups_due.length : f ? state.jobs.filter(f).length : null;
-    return `<button class="${id === tab ? 'on' : ''}" data-tab="${id}">${label}${n === null ? '' : ` <span class="count">${n}</span>`}</button>`;
-  }).join('');
-  const main = document.getElementById('main');
-  if (tab === 'pipeline') main.innerHTML = board();
-  else if (tab === 'today') main.innerHTML = trackerView() + today();
-  else if (tab === 'insights') main.innerHTML = insightsView();
-  else {
-    const f = TABS.find(x => x[0] === tab)[2];
-    const jobs = state.jobs.filter(f).sort((a, b) => (b.score || 0) - (a.score || 0));
-    main.innerHTML = (tab === 'inbox' ? trackerView() : '') + (jobs.length ? `<div class="list">${jobs.map(card).join('')}</div>`
-      : `<p class="empty">${tab === 'inbox' ? 'No new jobs. Press Find jobs, or run /find-jobs.' : 'Nothing here yet.'}</p>`);
-  }
-}
-
-function trackerView() {
+// ---- the jobs page ----------------------------------------------------------------
+function todayLine() {
   const tr = state.tracker;
   if (!tr.goal) return '';
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const bars = tr.week.map((d, i) => {
-    const pct = Math.min(100, Math.round(100 * d.count / tr.goal));
-    const cls = d.future ? 'future' : d.count >= tr.goal ? 'hit' : d.count ? '' : 'none';
-    return `<span class="day ${cls}" title="${esc(d.day)}: ${d.count}"><span class="fill" style="transform:scaleY(${d.future || !d.count ? 0 : Math.max(pct, 6) / 100})"></span><small>${days[i]}</small></span>`;
+  return `<div class="today"><span class="today-lbl">Applications today</span><span class="today-n"><b>${tr.done}</b> <span>/ ${tr.goal}</span></span>
+    <span class="today-meta">${tr.streak}-day streak · ${tr.week_done} this week</span></div>
+    <div class="today-bar"><span style="width:${Math.min(100, 100 * tr.done / tr.goal)}%"></span></div>`;
+}
+
+function passes(j) {
+  if (!filters.statuses.includes(j.status)) return false;
+  if (filters.due && !isDue(j)) return false;
+  if (filters.strong && (j.score || 0) < 70) return false;
+  if (!query) return true;
+  const hay = [j.title, j.summary, j.rationale, j.notes, j.trap, (j.client || {}).country].join(' ').toLowerCase();
+  return query.toLowerCase().split(/\s+/).every(w => hay.includes(w));
+}
+const byUrgency = (a, b) => (isDue(b) - isDue(a)) || (b.score || 0) - (a.score || 0);
+
+function filterPop() {
+  const count = s => state.jobs.filter(j => j.status === s).length;
+  const changed = JSON.stringify(filters) !== JSON.stringify({statuses: OPEN_STATUSES, due: false, strong: false});
+  return `<details class="filters${changed ? ' on' : ''}" id="filters"><summary>Filters${changed ? ' · on' : ''}</summary><div class="pop">
+    <h5>Stage</h5>${Object.entries(LABEL).map(([k, l]) => `<label><input type="checkbox" data-filter-status="${k}"${filters.statuses.includes(k) ? ' checked' : ''}> ${l}<span class="n">${count(k)}</span></label>`).join('')}
+    <h5>Only</h5><label><input type="checkbox" data-filter-flag="due"${filters.due ? ' checked' : ''}> Follow-up due</label>
+    <label><input type="checkbox" data-filter-flag="strong"${filters.strong ? ' checked' : ''}> Score 70 and up</label>
+    <button data-filter-reset style="margin-top:6px">Reset to open jobs</button></div></details>`;
+}
+
+function jobsPage() {
+  return todayLine() + `<div class="toolbar">
+      <div class="seg" role="group" aria-label="Layout"><button data-layout="list" aria-pressed="${layout === 'list'}">List</button><button data-layout="board" aria-pressed="${layout === 'board'}">Board</button></div>
+      <input type="search" class="search" id="search" placeholder="Search jobs, clients, notes" aria-label="Search jobs" value="${esc(query)}">
+      <span class="count" id="count"></span>${filterPop()}</div><div id="results">${results()}</div>`;
+}
+
+function results() {
+  const jobs = state.jobs.filter(passes).sort(byUrgency);
+  queueMicrotask(() => { const c = $('count'); if (c) c.textContent = `${jobs.length} of ${state.jobs.length} jobs`; });
+  const s = state.insights.skipped;
+  const excluded = s.total && !filters.statuses.includes('skipped') ? `<p class="uw-excluded">${s.total} skipped and hidden: ${[s.bar && `${s.bar} asked for more than your numbers`, s.filled && `${s.filled} already filled`, s.not_fit && `${s.not_fit} not a fit`].filter(Boolean).join(' · ') || 'switch on Skipped under Filters'}.</p>` : '';
+  if (layout === 'board') return board(jobs) + excluded;
+  if (!jobs.length) return `<p class="empty">${query ? 'Nothing matches that search.' : 'No jobs under these filters. Press Find jobs, or change the filters.'}</p>` + excluded;
+  const rows = jobs.map(j => `<tr class="uw-row${isDue(j) ? ' due' : ''}" data-open="${esc(j.id)}" tabindex="0">
+      <td>${scoreHtml(j)}</td>
+      <td><span class="rt-td-title">${esc(j.title)}${flags(j)}</span><span class="rt-td-desc">${esc((j.summary || j.rationale || '').split('\n\n')[0])}</span>
+        ${j.summary && j.rationale ? `<span class="rt-td-why">${esc(j.rationale)}</span>` : ''}</td>
+      <td>${esc(clientText(j)) || '<span class="none">–</span>'}</td>
+      <td>${compCell(j)}</td>
+      <td>${esc(budgetText(j))}${(j.details || {}).connects_cost != null ? `<span class="uw-sub">${j.details.connects_cost} connects</span>` : ''}</td>
+      <td>${esc(ago(j.posted_date))}</td>
+      <td>${stageSelect(j)}${dueChip(j)}</td></tr>`).join('');
+  return `<table class="rt-table"><colgroup><col style="width:6%"><col style="width:36%"><col style="width:12%"><col style="width:10%"><col style="width:13%"><col style="width:8%"><col style="width:15%"></colgroup>
+    <thead><tr><th>Score</th><th>Job</th><th>Client</th><th>Competition</th><th>Budget</th><th>Posted</th><th>Stage</th></tr></thead><tbody>${rows}</tbody></table>` + excluded;
+}
+
+function board(jobs) {
+  const card = j => `<li class="card${isDue(j) ? ' due' : ''}" draggable="true" data-drag="${esc(j.id)}" data-open="${esc(j.id)}" tabindex="0">
+    <div class="card-top">${scoreHtml(j)}<span class="card-title">${esc(j.title)}</span></div>
+    <div class="card-meta">${esc([clientText(j), budgetText(j), ago(j.posted_date)].filter(Boolean).join(' · '))}</div>${dueChip(j)}</li>`;
+  const cols = STAGES.map(s => {
+    const list = jobs.filter(j => j.status === s.key);
+    return `<section class="col" data-drop="${s.key}"><div class="col-head" style="border-top-color:color-mix(in srgb, var(--brand) ${s.mix}%, var(--card))">
+      <div><div class="col-title">${s.label}</div><div class="col-hint">${s.hint}</div></div><span class="col-count">${list.length}</span></div>
+      <ul class="col-body">${list.map(card).join('') || '<li class="col-empty">Drop a job here</li>'}</ul></section>`;
   }).join('');
-  const next = state.jobs.filter(j => j.status === 'new').sort((a, b) => (b.score || 0) - (a.score || 0))[0];
-  const left = Math.max(tr.goal - tr.done, 0);
-  return `<section class="tracker">
-    <div class="tracker-head">
-      <div><span class="big">${tr.done}</span><span class="of"> of ${tr.goal} applications today</span></div>
-      <div class="tracker-meta">${tr.streak ? `${tr.streak}-day streak` : 'No streak yet'} · ${tr.week_done} this week</div>
-    </div>
-    <div class="week">${bars}</div>
-    <p class="next">${left && next ? `Next up: <a href="#" data-open="${esc(next.id)}">${esc(next.title)}</a> · score ${esc(next.score)} · ${left} to go today`
-      : left ? 'No open jobs left. Press Find jobs.' : 'Target met for today.'}</p>
-  </section>`;
+  const closed = jobs.filter(j => CLOSED.includes(j.status));
+  return `<div class="board">${cols}</div>` + (closed.length ? `<details class="closed-box"><summary>Closed · ${closed.length}</summary><ul class="col-body">${closed.map(card).join('')}</ul></details>` : '');
 }
 
-function insightsView() {
-  const ins = state.insights, top = ins.funnel[0].count || 1;
-  const tile = (label, value, hint) => `<div class="tile"><span class="lbl">${label}</span><span class="val ${value == null ? 'empty' : ''}">${value == null ? '–' : esc(value)}</span><span class="hint">${esc(hint)}</span></div>`;
-  let prev = null;
-  const rows = ins.funnel.map(f => {
-    const w = f.count ? Math.max(3, Math.round(100 * f.count / top)) : 0;
-    const of = prev && f.count ? ` · ${Math.round(100 * f.count / prev)}% of the step before` : '';
-    prev = f.count;
-    return `<div class="frow"><span>${esc(f.stage)}</span><span class="track"><span class="bar" style="transform:scaleX(${w / 100})"></span></span><b>${f.count}</b><small>${f.count ? Math.round(100 * f.count / top) + '%' : ''}${of}</small></div>`;
-  }).join('');
-  const s = ins.skipped;
-  const skipped = s.total ? `<p class="meta">${s.total} jobs skipped: ${[s.bar && `${s.bar} asked for more than your numbers`, s.filled && `${s.filled} already filled`, s.not_fit && `${s.not_fit} not a fit`].filter(Boolean).join(' · ') || 'for other reasons'}.</p>` : '';
-  return `${trackerView()}<div class="tiles">
-      ${tile('Reply rate', ins.reply_rate == null ? null : ins.reply_rate + '%', ins.reply_rate_hint)}
-      ${tile('Time to reply', ins.reply_days == null ? null : ins.reply_days + ' days', ins.reply_days_hint)}
-      ${tile('Applications per week', ins.per_week, 'average of the last four weeks')}
-    </div>
-    <h2 class="section">Funnel</h2><div class="funnel">${rows}</div>
-    <p class="meta">A real cohort: every job counts at the highest stage it ever reached, so a lost job still shows it got a reply first.</p>${skipped}`;
+// ---- the pop-up card, as in the original Upwork OS -------------------------------
+function situation(j) {
+  const d = j.details || {}, me = state.me || {};
+  if (!d.fetched_at) return `<h4>Where this application stands</h4><p class="uw-nodata">Not fetched yet. /find-jobs pulls this for the best five, /pitch-page and /apply for the job you pick.</p>`;
+  const rows = [];
+  if (d.connects_cost != null) rows.push(['Costs', `${d.connects_cost} connects`]);
+  if (d.bid_avg != null) rows.push(['Competing bids', j.job_type === 'hourly' ? `$${d.bid_avg}/hr average, $${d.bid_min ?? '?'}–${d.bid_max ?? '?'} range` : `$${d.bid_avg} average bid, $${d.bid_min ?? '?'}–${d.bid_max ?? '?'} range`]);
+  if (j.proposals != null) rows.push(['Proposals so far', String(j.proposals)]);
+  const live = [d.total_hired && 'someone already hired', d.offers && 'an offer is out', d.interviewing && `${d.interviewing} interviewing`, d.invites_sent && `${d.invites_sent} invitations sent`].filter(Boolean);
+  rows.push(['Client status', live.join(' · ') || 'open, nobody hired yet']);
+  const bar = [d.min_jss && `JSS ≥ ${d.min_jss}%`, d.min_earnings && !/any/i.test(d.min_earnings) && `${d.min_earnings}+ earned`].filter(Boolean);
+  if (bar.length) rows.push(['Minimum bar', bar.join(' · ')]);
+  if (me.jss != null) {
+    const fails = d.min_jss && d.min_jss > me.jss ? [`JSS ${d.min_jss}% required, you have ${me.jss}%`] : [];
+    rows.push(['Fit', fails.length ? `You fall short: ${fails.join(' · ')}` : 'You clear the bar']);
+  }
+  const shape = [j.engagement || d.engagement_type, d.experience_level && String(d.experience_level).toLowerCase()].filter(Boolean);
+  if (shape.length) rows.push(['Engagement', shape.join(' · ')]);
+  const where = [d.client_city, (j.client || {}).country, d.client_timezone && d.client_timezone.split('/').pop().replace(/_/g, ' ')].filter(Boolean);
+  if (where.length) rows.push(['Client is in', [...new Set(where)].join(' · ')]);
+  const rec = d.client_record || {};
+  if (rec.spend_total) rows.push(['Client record', `${money(rec.spend_total)} spent · ${rec.jobs_with_hires ?? '?'} jobs hired · ★${rec.feedback_score ?? '?'} from ${rec.feedback_count ?? '?'} reviews`]);
+  return `<h4>Where this application stands</h4><dl class="uw-lage">${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`;
 }
 
-function meta(j) {
-  const c = j.client || {}, d = j.details || {};
-  return [
-    c.rating ? `★ ${c.rating}` : 'unrated client',
-    c.spent ? `${money(c.spent)} spent` : '',
-    c.country || '',
-    j.budget || '',
-    j.proposals != null ? `${j.proposals} proposals` : '',
-    d.connects_cost ? `${d.connects_cost} Connects` : '',
-    ago(j.posted_date),
-  ].filter(Boolean).map(esc).map(s => `<span>${s}</span>`).join('');
+function actions(j, full) {
+  const id = esc(j.id);
+  const run = (cmd, label) => `<button data-run="${cmd}" data-job="${id}" ${state.commands[cmd] ? '' : `disabled title="Arrives with /${cmd}"`}>${label}</button>`;
+  const move = (status, label, follow) => `<button data-move="${status}" data-job="${id}"${follow ? ` data-follow="${follow}"` : ''}>${label}</button>`;
+  const open = j.url ? `<a class="btn" href="${esc(j.url)}" target="_blank" rel="noopener">Open on Upwork</a>` : '';
+  let out = '';
+  if (j.status === 'new') out = run('pitch-page', 'Generate pitch page') + run('apply', 'Draft application') + open + move('applied', 'I applied →', '+3d') + move('replied', 'Got a reply →')
+    + `<button data-skip="${id}">Not a fit</button><span class="reason" id="reason-${id}"><input placeholder="Why not? One line, it teaches the next search" aria-label="Reason"><button data-confirm-skip="${id}">Skip it</button></span>`;
+  else if (j.status === 'applied') out = move('replied', 'Got a reply →') + move('lost', 'Declined') + open;
+  else if (j.status === 'replied') out = move('offer', 'Offer sent →', '+3d') + move('lost', 'Declined') + open;
+  else if (j.status === 'offer') out = move('won', 'Won') + move('lost', 'Declined') + open;
+  else out = move('new', 'Reopen') + open;
+  if (isDue(j)) out += move(j.status, 'Followed up, next in 3 days', '+3d');
+  if (!full) out += `<a class="btn" href="#job/${id}" data-full style="margin-left:auto">Open full view →</a>`;
+  return out;
 }
 
-function card(j) {
-  const cmds = state.commands;
-  const arts = (j.artifacts || []).map(a => `<a class="chip art" href="/jobs/${esc(j.id)}/${esc(a)}" target="_blank" rel="noopener">${esc(a)}</a>`).join('');
-  const label = v => v.startsWith('recommended') ? 'Upwork picks for you' : v.startsWith('title-') ? 'search: ' + v.slice(6).replace(/-\d+$/, '') : v;
-  const via = [...new Set((j.found_via || []).map(label))].map(v => `<span class="chip">${esc(v)}</span>`).join('');
-  const trap = j.trap ? `<span class="chip warn">${esc(j.trap)}</span>` : '';
-  const why = j.status === 'skipped' || j.status === 'lost' ? (j.notes || j.rationale) : j.rationale;
-  return `<article class="card" data-id="${esc(j.id)}">
-    <div class="score ${scoreClass(j.score)}" title="fit ${j.niche_fit ?? '?'} · trust ${j.client_trust ?? '?'} · deal ${j.deal_quality ?? '?'} · recency ${j.recency ?? '?'}">${esc(j.score ?? '?')}</div>
-    <div>
-      <p class="title" data-open="${esc(j.id)}">${esc(j.title)}</p>
-      <div class="meta">${meta(j)}</div>
-      ${why ? `<p class="why">${esc(why)}</p>` : ''}
-      <div class="chips">${trap}${arts}${via}</div>
-      ${j.status === 'new' ? `<div class="actions">
-        ${j.url ? `<a class="btn" href="${esc(j.url)}" target="_blank" rel="noopener">Open on Upwork</a>` : ''}
-        <button data-run="pitch-page" data-job="${esc(j.id)}" ${cmds['pitch-page'] ? '' : 'disabled title="Arrives with /pitch-page"'}>Pitch page</button>
-        <button data-run="apply" data-job="${esc(j.id)}" ${cmds['apply'] ? '' : 'disabled title="Arrives with /apply"'}>Draft application</button>
-        <button data-skip="${esc(j.id)}">Not a fit</button>
-      </div>
-      <div class="reason" id="reason-${esc(j.id)}"><input placeholder="Why not? One line, it teaches the next search" aria-label="Reason"><button data-confirm-skip="${esc(j.id)}">Skip it</button></div>` : ''}
-    </div>
-  </article>`;
-}
-
-function board() {
-  const cols = [['applied', 'Applied'], ['replied', 'In conversation'], ['offer', 'Offer'], ['won', 'Won']];
-  const today = new Date().toISOString().slice(0, 10);
-  return `<div class="board">${cols.map(([s, label]) => {
-    const jobs = state.jobs.filter(j => j.status === s);
-    return `<div class="col"><h3>${label} · ${jobs.length}</h3>${jobs.map(j => `<div class="mini" data-open="${esc(j.id)}">
-      <b>${esc(j.title)}</b><small>${j.next_follow_up ? `<span class="${j.next_follow_up <= today ? 'due' : ''}">follow up ${esc(j.next_follow_up)}</span>` : esc(ago(j.status_updated_at))}</small></div>`).join('') || '<p class="empty">None</p>'}</div>`;
-  }).join('')}</div>`;
-}
-
-function today() {
-  const due = state.jobs.filter(j => state.today.follow_ups_due.includes(j.id));
-  const best = state.jobs.filter(j => j.status === 'new').sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 5);
-  return `<h2 class="section">Follow-ups due · ${due.length}</h2>${due.length ? `<div class="list">${due.map(card).join('')}</div>` : '<p class="empty">Nobody is waiting on you.</p>'}
-    <h2 class="section">Best new jobs</h2>${best.length ? `<div class="list">${best.map(card).join('')}</div>` : '<p class="empty">No new jobs.</p>'}`;
-}
-
-async function openJob(id) {
+async function openCard(id) {
   const r = await api('/api/job/' + id);
   if (!r.ok) return toast('Could not load that job.');
-  const j = r.data, d = j.details || {}, c = j.client || {};
-  const history = (j.history || []).map(h => `${esc(h.status)} · ${esc(new Date(h.at).toLocaleString())}`).join('<br>');
-  const moves = state.statuses.map(s => `<option value="${s}" ${s === j.status ? 'selected' : ''}>${s}</option>`).join('');
-  document.getElementById('drawer').innerHTML = `
-    <button class="close" id="drawerClose">Close</button>
-    <div class="score ${scoreClass(j.score)}">${esc(j.score ?? '?')}</div>
-    <h2>${esc(j.title)}</h2>
-    <div class="meta">${meta(j)}</div>
-    <div class="actions">
-      ${j.url ? `<a class="btn" href="${esc(j.url)}" target="_blank" rel="noopener">Open on Upwork</a>` : ''}
-      <label>Status <select id="moveTo">${moves}</select></label>
-      <button id="moveBtn" data-id="${esc(j.id)}">Save</button>
-    </div>
-    <dl>
-      <dt>Why this score</dt><dd>${esc(j.rationale || '')}</dd>
-      <dt>What they want</dt><dd>${esc(j.summary || '')}</dd>
-      <dt>Score parts</dt><dd>fit ${j.niche_fit ?? '?'} of 40 · client ${j.client_trust ?? '?'} of 30 · deal ${j.deal_quality ?? '?'} of 20 · fresh ${j.recency ?? '?'} of 10</dd>
-      <dt>Client</dt><dd>${esc([c.rating ? '★ ' + c.rating : 'unrated', c.reviews ? c.reviews + ' reviews' : '', c.spent ? money(c.spent) + ' spent' : '', c.country].filter(Boolean).join(' · '))}</dd>
-      ${d.connects_cost ? `<dt>To apply</dt><dd>${esc(d.connects_cost)} Connects · ${esc(d.invites_sent ?? 0)} invites · ${esc(d.interviewing ?? 0)} interviewing · bids around ${esc(d.bid_avg ?? '?')}</dd>` : ''}
-      ${j.next_follow_up ? `<dt>Follow up</dt><dd>${esc(j.next_follow_up)}</dd>` : ''}
-      ${j.notes ? `<dt>Notes</dt><dd>${esc(j.notes)}</dd>` : ''}
-      <dt>History</dt><dd>${history || 'none'}</dd>
-    </dl>
-    ${(j.artifacts || []).length ? '' : ''}
-    ${d.description ? `<h3>The posting</h3><div class="posting">${esc(d.description)}</div>` : '<p class="meta">The full posting is fetched when a job is opened by /find-jobs or before applying, and deleted after a day.</p>'}`;
-  document.getElementById('drawer').classList.add('open');
+  const j = r.data;
+  const hist = (j.history || []).map(h => `<li><span class="uw-hist-when">${esc(String(h.at).slice(0, 10))}</span><span>${esc(LABEL[h.status] || h.status)}</span></li>`).join('');
+  const meta = [clientText(j), budgetText(j), ago(j.posted_date), LABEL[j.status]].filter(Boolean);
+  $('modalBody').innerHTML = `
+    <div class="uw-detail-head">${scoreHtml(j)}<h3>${j.url ? `<a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a>` : esc(j.title)}</h3></div>
+    <p class="uw-detail-meta">${esc(meta.join(' · '))}</p>${isDue(j) ? `<span class="uw-due-badge">Follow-up due (${esc(j.next_follow_up)})</span>` : ''}
+    <h4>Why this job</h4><p>${esc(j.rationale || '')}</p>
+    ${j.summary ? `<h4>Description</h4>${j.summary.split('\n\n').map(p => `<p>${esc(p)}</p>`).join('')}` : ''}
+    ${situation(j)}
+    ${hist ? `<h4>History</h4><ul class="uw-hist">${hist}</ul>` : ''}
+    <div class="uw-actions">${actions(j, false)}</div>`;
+  if (!$('modal').open) $('modal').showModal();
 }
 
+// ---- the full lead view ------------------------------------------------------------
+function embedUrl(url) {
+  let m = url.match(/loom\.com\/share\/([\w-]+)/);
+  if (m) return `https://www.loom.com/embed/${m[1]}`;
+  m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{6,})/);
+  return m ? `https://www.youtube-nocookie.com/embed/${m[1]}` : null;
+}
+
+function timeline(j) {
+  const items = [];
+  if (j.found_at) items.push({at: j.found_at, kind: 'status', text: 'Found by /find-jobs'});
+  (j.history || []).forEach((h, i) => { if (i > 0 || h.status !== 'new') items.push({at: h.at, kind: 'status', text: `Moved to ${LABEL[h.status] || h.status}`}); });
+  (j.log || []).forEach(l => items.push({at: l.at, kind: 'note', text: l.text}));
+  (j.files || []).forEach(f => items.push({at: f.at, kind: 'file', text: `${f.name} made`}));
+  items.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  return `<ul class="tl">${items.map(i => `<li><span class="tl-dot ${i.kind}"></span><div>${esc(i.text)}<div class="tl-when">${esc(stamp(i.at))}</div></div></li>`).join('')}</ul>`;
+}
+
+function conversation(j) {
+  const msgs = (j.thread && j.thread.messages) || [];
+  if (!msgs.length) return `<p class="empty">No conversation saved for this job yet.<br>${state.commands.inbox ? 'Run /inbox to pull the thread.' : '/inbox pulls client threads into this window once it is built.'}</p>`;
+  let last = '';
+  return msgs.map(m => {
+    const d = m.at ? day(m.at) : '';
+    const sep = d && d !== last ? `<span class="day">${esc(d)}</span>` : '';
+    last = d || last;
+    return sep + `<div class="msg${m.from === 'me' ? ' me' : ''}">${esc(m.text)}<span class="msg-meta">${esc([m.name, m.at && new Date(m.at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})].filter(Boolean).join(' · '))}</span></div>`;
+  }).join('');
+}
+
+async function openLead(id) {
+  if ($('modal').open) $('modal').close();
+  const r = await api('/api/job/' + id);
+  if (!r.ok) { $('main').innerHTML = '<p class="empty">That job is not in the pipeline. <a href="#">Back to all jobs</a></p>'; return; }
+  const j = current = r.data, d = j.details || {}, c = j.client || {}, files = (j.files || []).map(f => f.name);
+  const field = (k, v) => v || v === 0 ? `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>` : '';
+  const emb = j.video && embedUrl(j.video);
+  const docs = ['application.md', 'loom-script.md'].filter(f => files.includes(f));
+  const others = files.filter(f => f !== 'pitch.html' && !docs.includes(f));
+  $('main').innerHTML = `
+    <div class="lead-head"><a class="btn" href="#">← All jobs</a>${scoreHtml(j)}<h2>${esc(j.title)}</h2>${stageSelect(j)}${dueChip(j)}</div>
+    <div class="lead">
+      <div>
+        <section class="panel"><h3>Job details</h3><dl class="fields">
+          ${field('Budget', budgetText(j))}${field('Posted', j.posted_date ? `${day(j.posted_date)} (${ago(j.posted_date)})` : '')}
+          ${field('Engagement', [j.engagement || d.engagement_type, d.experience_level && String(d.experience_level).toLowerCase()].filter(Boolean).join(' · '))}
+          ${field('Skills', (j.skills || []).join(', '))}${field('Found via', (j.found_via || []).join(', '))}</dl>
+          ${flags(j) ? `<p style="margin:10px 0 0">${flags(j)}</p>` : ''}
+          <h4>Why this job</h4><p class="note-sm" style="font-size:13.5px;color:var(--text)">${esc(j.rationale || '')}</p>
+          <p class="note-sm">fit ${j.niche_fit ?? '?'} of 40 · client ${j.client_trust ?? '?'} of 30 · deal ${j.deal_quality ?? '?'} of 20 · fresh ${j.recency ?? '?'} of 10</p>
+          ${j.summary ? `<h4>What they want</h4><p style="font-size:13.5px;margin:0">${esc(j.summary)}</p>` : ''}
+          ${d.description ? `<details><summary style="cursor:pointer;margin-top:12px;font-weight:600;color:var(--brand)">The full posting</summary><div class="posting">${esc(d.description)}</div></details>` : ''}
+        </section>
+        <section class="panel"><h3>Client</h3><dl class="fields">
+          ${field('Rating', c.rating ? `${c.rating}★ from ${c.reviews ?? '?'} reviews` : '')}${field('Hires', c.hires != null ? `${c.hires}${c.posted_jobs != null ? ` of ${c.posted_jobs} jobs posted` : ''}` : c.posted_jobs != null ? `${c.posted_jobs} jobs posted` : '')}
+          ${field('Spent', c.spent ? money(c.spent) : '')}${field('Payment', c.verified ? 'verified' : c.verified === false ? 'not verified' : '')}
+          ${field('Location', [d.client_city, c.country].filter(Boolean).join(', '))}${field('Time zone', d.client_timezone)}</dl>
+          ${situation(j)}</section>
+      </div>
+      <section class="panel convo">
+        <div class="convo-tabs"><button data-convo="conversation" aria-pressed="${convoTab === 'conversation'}">Conversation</button><button data-convo="timeline" aria-pressed="${convoTab === 'timeline'}">Timeline</button></div>
+        <div class="convo-body" id="convoBody">${convoTab === 'timeline' ? timeline(j) : conversation(j)}</div>
+        <div class="composer">
+          <div class="composer-row"><input id="noteText" placeholder="Add a note to the timeline: a call, a promise, what they said" aria-label="Note"><button data-note="${esc(j.id)}">Add note</button></div>
+          <div class="composer-row"><button data-run="reply" data-job="${esc(j.id)}" ${state.commands.reply ? '' : 'disabled title="Arrives with /reply"'}>Draft a reply</button>
+            <span class="composer-note">Nothing is sent from here. /reply drafts the answer, you approve it in Claude before it goes out on Upwork.</span></div>
+        </div>
+      </section>
+      <div>
+        <section class="panel"><h3>Next step</h3><div class="uw-actions" style="margin-top:0">${actions(j, true)}</div>
+          <div class="next-row"><label for="followDate" class="note-sm">Follow up on</label><input type="date" id="followDate" value="${esc(j.next_follow_up || '')}"><button data-follow-save="${esc(j.id)}">Save</button></div></section>
+        <section class="panel"><h3>Video</h3>${emb ? `<div class="video"><iframe src="${esc(emb)}" allowfullscreen title="Video for this job"></iframe></div>` : '<p class="note-sm" style="margin:0">Record your Loom over the pitch page, then paste the share link here.</p>'}
+          <div class="video-form"><input id="videoUrl" placeholder="https://www.loom.com/share/…" value="${esc(j.video || '')}" aria-label="Video link"><button data-video="${esc(j.id)}">Save</button>${j.video ? `<button data-video-clear="${esc(j.id)}" title="Remove the link">✕</button>` : ''}</div></section>
+        <section class="panel"><h3>Pitch page</h3>${files.includes('pitch.html') ? `<div class="preview"><iframe src="/jobs/${esc(j.id)}/pitch.html" title="Pitch page preview" loading="lazy"></iframe></div>
+          <div class="uw-actions" style="margin-top:10px"><a class="btn" href="/jobs/${esc(j.id)}/pitch.html" target="_blank" rel="noopener">Open pitch page</a></div>`
+          : `<p class="note-sm" style="margin:0 0 8px">No pitch page yet.</p><button data-run="pitch-page" data-job="${esc(j.id)}" ${state.commands['pitch-page'] ? '' : 'disabled'}>Generate pitch page</button>`}</section>
+        ${docs.map(f => `<section class="panel"><h3>${f === 'application.md' ? 'Application' : 'Loom script'}</h3><div class="doc" data-doc="${esc(f)}">Loading.</div>
+          <div class="uw-actions" style="margin-top:6px"><button data-copy="${esc(f)}">Copy text</button><a class="btn" href="/jobs/${esc(j.id)}/${esc(f)}" target="_blank" rel="noopener">Open</a></div></section>`).join('')}
+        ${others.length ? `<section class="panel"><h3>Other files</h3>${others.map(f => `<div class="file-row"><span>${esc(f)}</span><a href="/jobs/${esc(j.id)}/${esc(f)}" target="_blank" rel="noopener">Open</a></div>`).join('')}</section>` : ''}
+      </div>
+    </div>`;
+  document.querySelectorAll('[data-doc]').forEach(async el => {
+    const res = await fetch(`/jobs/${j.id}/${el.dataset.doc}`);
+    el.textContent = res.ok ? await res.text() : 'Could not read the file.';
+  });
+  window.scrollTo(0, 0);
+}
+
+// ---- the numbers page ----------------------------------------------------------------
+function numbersPage() {
+  const ins = state.insights, tr = state.tracker, m = state.me || {}, top = ins.funnel[0].count || 1;
+  const tile = (l, v, h) => `<div class="tile"><span class="tile-lbl">${l}</span><span class="tile-val${v == null ? ' empty' : ''}">${v == null ? '–' : esc(v)}</span><span class="tile-hint">${esc(h)}</span></div>`;
+  let prev = null;
+  const rows = ins.funnel.map(f => {
+    const of = prev && f.count ? ` · ${Math.round(100 * f.count / prev)}% of the step before` : '';
+    prev = f.count;
+    return `<div class="funnel-row"><span>${f.stage}</span><span class="track"><span style="width:${f.count ? Math.max(3, 100 * f.count / top) : 0}%"></span></span><b>${f.count}</b><span class="funnel-pct">${f.count ? Math.round(100 * f.count / top) + '%' : ''}${of}</span></div>`;
+  }).join('');
+  const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const week = tr.goal ? `<h3 class="section-title">This week</h3><div class="days">${tr.week.map((d, i) => `<div class="daybar${d.count >= tr.goal ? ' hit' : ''}" title="${esc(d.day)}: ${d.count}"><span style="height:${d.future ? 0 : Math.max(3, Math.min(100, 100 * d.count / tr.goal))}%"></span><em>${names[i]}</em></div>`).join('')}</div>` : '';
+  const stats = [[m.jss != null ? m.jss + '%' : null, 'Job Success'], [m.earned, 'earned'], [m.jobs, 'jobs done'], [m.reviews, 'reviews'], [m.rate, 'your rate']].filter(([v]) => v != null && v !== '');
+  return `<div class="tiles">${tile('Reply rate', ins.reply_rate == null ? null : ins.reply_rate + '%', ins.reply_rate_hint)}
+    ${tile('Time to reply', ins.reply_days == null ? null : ins.reply_days + ' days', ins.reply_days_hint)}
+    ${tile('Applications per week', ins.per_week, 'average of the last four weeks')}</div>
+    <div class="funnel">${rows}<p class="note-sm" style="margin:6px 0 0">Every job counts at the highest stage it ever reached, so a lost job still shows it got a reply first.</p></div>
+    ${week}${stats.length ? `<h3 class="section-title">Where you stand</h3><div class="me-stats">${stats.map(([v, l]) => `<div><span class="me-val">${esc(v)}</span><span class="me-lbl">${l}</span></div>`).join('')}</div>` : ''}`;
+}
+
+// ---- doing things ----------------------------------------------------------------------
 function runCommand(command, job) {
   api('/api/run', {command, job}).then(r => {
     if (!r.ok) return toast(r.data.error || 'Could not start it.');
-    const panel = document.getElementById('run'), log = document.getElementById('runLog');
-    document.getElementById('runTitle').textContent = '/' + command + (job ? ' ' + job : '');
-    log.innerHTML = ''; panel.classList.add('open');
+    const log = $('runLog');
+    $('runTitle').textContent = '/' + command + (job ? ' ' + job : '');
+    log.innerHTML = ''; $('run').classList.add('open');
     const src = new EventSource('/api/run/' + r.data.run);
     src.onmessage = e => {
       const ev = JSON.parse(e.data), p = document.createElement('div');
@@ -326,32 +605,79 @@ function runCommand(command, job) {
   });
 }
 
-document.addEventListener('click', async e => {
-  const el = e.target.closest('button, [data-open], [data-tab]');
+async function post(path, body) {
+  const r = await api(path, body);
+  toast(r.ok ? r.data.message : (r.data.error || r.data.message || 'That did not work.'));
+  const wasOpen = $('modal').open;
+  await load();
+  if (wasOpen && r.ok) openCard(body.id);
+  return r.ok;
+}
+const move = (id, status, follow, note) => post('/api/status', Object.assign({id, status}, follow ? {follow_up: follow} : {}, note ? {note} : {}));
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-close], [data-layout], [data-filter-reset], [data-run], [data-move], [data-skip], [data-confirm-skip], [data-convo], [data-note], [data-video], [data-video-clear], [data-follow-save], [data-copy], [data-full], #findJobs, #runClose, [data-open]');
   if (!el) return;
-  if (el.dataset.tab) { tab = el.dataset.tab; localStorageSet('tab', tab); return render(); }
-  if (el.dataset.open) return openJob(el.dataset.open);
-  if (el.id === 'drawerClose') return document.getElementById('drawer').classList.remove('open');
-  if (el.id === 'runClose') return document.getElementById('run').classList.remove('open');
+  if (el.matches('[data-close]')) return $('modal').close();
+  if (el.matches('[data-full]')) { $('modal').close(); return; }
+  if (el.dataset.layout) { layout = el.dataset.layout; keep('layout', layout); return route(); }
+  if (el.matches('[data-filter-reset]')) { filters = {statuses: OPEN_STATUSES, due: false, strong: false}; keep('filters', filters); route(); $('filters').open = true; return; }
   if (el.id === 'findJobs') return runCommand('find-jobs');
-  if (el.dataset.run) return runCommand(el.dataset.run, el.dataset.job);
-  if (el.dataset.skip) { const box = document.getElementById('reason-' + el.dataset.skip); box.classList.add('open'); return box.querySelector('input').focus(); }
+  if (el.id === 'runClose') return $('run').classList.remove('open');
+  if (el.dataset.run) { $('modal').close(); return runCommand(el.dataset.run, el.dataset.job); }
+  if (el.dataset.move) return move(el.dataset.job, el.dataset.move, el.dataset.follow);
+  if (el.dataset.skip) { const box = $('reason-' + el.dataset.skip); box.classList.add('open'); return box.querySelector('input').focus(); }
   if (el.dataset.confirmSkip) {
     const note = document.querySelector(`#reason-${el.dataset.confirmSkip} input`).value.trim();
-    const r = await api('/api/status', {id: el.dataset.confirmSkip, status: 'skipped', note: note ? 'not a fit: ' + note : 'not a fit'});
-    toast(r.ok ? 'Skipped. The next search learns from it.' : (r.data.error || r.data.message)); return load();
+    return move(el.dataset.confirmSkip, 'skipped', null, note ? 'not a fit: ' + note : 'not a fit');
   }
-  if (el.id === 'moveBtn') {
-    const status = document.getElementById('moveTo').value;
-    const body = {id: el.dataset.id, status};
-    if (status === 'applied' || status === 'offer') body.follow_up = '+3d';
-    const r = await api('/api/status', body);
-    toast(r.ok ? r.data.message : (r.data.error || r.data.message));
-    document.getElementById('drawer').classList.remove('open'); return load();
-  }
+  if (el.dataset.convo) { convoTab = el.dataset.convo; document.querySelectorAll('[data-convo]').forEach(b => b.setAttribute('aria-pressed', b === el)); $('convoBody').innerHTML = convoTab === 'timeline' ? timeline(current) : conversation(current); return; }
+  if (el.dataset.note) { const t = $('noteText').value.trim(); if (!t) return $('noteText').focus(); return post('/api/note', {id: el.dataset.note, text: t}); }
+  if (el.dataset.video) { const u = $('videoUrl').value.trim(); if (!u) return $('videoUrl').focus(); return post('/api/video', {id: el.dataset.video, url: u}); }
+  if (el.dataset.videoClear) return post('/api/video', {id: el.dataset.videoClear, url: '-'});
+  if (el.dataset.followSave) { const v = $('followDate').value; if (!v) return toast('Pick a date first.'); return move(el.dataset.followSave, current.status, v); }
+  if (el.dataset.copy) { const doc = document.querySelector(`[data-doc="${el.dataset.copy}"]`); navigator.clipboard.writeText(doc.textContent).then(() => toast('Copied.'), () => toast('Copy was blocked, select the text instead.')); return; }
+  if (el.dataset.open && !e.target.closest('a, button, select, input')) { e.preventDefault(); return openCard(el.dataset.open); }
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('drawer').classList.remove('open'); });
-load(); setInterval(load, 15000);
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.stageFor) {
+    const status = t.value;
+    return move(t.dataset.stageFor, status, status === 'applied' ? '+3d' : null, status === 'skipped' ? 'not a fit' : null);
+  }
+  if (t.dataset.filterStatus) {
+    const s = t.dataset.filterStatus;
+    filters.statuses = t.checked ? [...new Set([...filters.statuses, s])] : filters.statuses.filter(x => x !== s);
+  } else if (t.dataset.filterFlag) filters[t.dataset.filterFlag] = t.checked;
+  else return;
+  keep('filters', filters);
+  $('results').innerHTML = results();
+  $('filters').classList.toggle('on', JSON.stringify(filters) !== JSON.stringify({statuses: OPEN_STATUSES, due: false, strong: false}));
+});
+document.addEventListener('input', e => { if (e.target.id === 'search') { query = e.target.value.trim(); $('results').innerHTML = results(); } });
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.open) { e.preventDefault(); openCard(e.target.dataset.open); }
+  if (e.key === 'Enter' && e.target.id === 'noteText') document.querySelector('[data-note]').click();
+});
+document.addEventListener('click', e => { const f = $('filters'); if (f && f.open && !f.contains(e.target)) f.open = false; });
+// Board: drag a card onto another stage.
+document.addEventListener('dragstart', e => { const c = e.target.closest && e.target.closest('[data-drag]'); if (c) e.dataTransfer.setData('text/plain', c.dataset.drag); });
+document.addEventListener('dragover', e => { const col = e.target.closest && e.target.closest('[data-drop]'); if (col) { e.preventDefault(); col.classList.add('drop'); } });
+document.addEventListener('dragleave', e => { const col = e.target.closest && e.target.closest('[data-drop]'); if (col && !col.contains(e.relatedTarget)) col.classList.remove('drop'); });
+document.addEventListener('drop', e => {
+  const col = e.target.closest && e.target.closest('[data-drop]');
+  if (!col) return;
+  e.preventDefault(); col.classList.remove('drop');
+  const id = e.dataTransfer.getData('text/plain'), job = state.jobs.find(j => j.id === id);
+  if (job && job.status !== col.dataset.drop) move(id, col.dataset.drop, col.dataset.drop === 'applied' ? '+3d' : null);
+});
+$('modal').addEventListener('click', e => { if (e.target.id === 'modal') e.target.close(); });
+window.addEventListener('hashchange', route);
+load();
+setInterval(() => {
+  const busy = $('modal').open || current || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || $('filters')?.open;
+  if (!busy) load();
+}, 15000);
 </script>
 </body>
 </html>

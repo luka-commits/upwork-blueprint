@@ -27,7 +27,8 @@ class PipelineTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.jobs = pathlib.Path(self.tmp.name) / 'jobs.json'
-        self.env = dict(os.environ, BLUEPRINT_JOBS=str(self.jobs))
+        self.jobdir = pathlib.Path(self.tmp.name) / 'jobfiles'
+        self.env = dict(os.environ, BLUEPRINT_JOBS=str(self.jobs), BLUEPRINT_JOBDIR=str(self.jobdir))
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -103,13 +104,35 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(self.run_cli('set', 'J1', 'notified').returncode, 1)
         self.assertEqual(self.run_cli('get', 'NOPE').returncode, 1)
 
+    def test_notes_land_on_the_timeline(self):
+        self.add({'id': 'J1'})
+        self.run_cli('note', 'J1', '  Call   booked for Tuesday ')
+        self.assertEqual(self.data()[0]['log'][0]['text'], 'Call booked for Tuesday')
+        self.assertEqual(self.run_cli('note', 'J1', '   ').returncode, 1)
+
+    def test_video_takes_only_loom_or_youtube(self):
+        self.add({'id': 'J1'})
+        self.assertEqual(self.run_cli('video', 'J1', 'https://evil.example/x').returncode, 1)
+        self.assertEqual(self.run_cli('video', 'J1', 'https://www.loom.com/share/abc123').returncode, 0)
+        self.assertEqual(self.data()[0]['video'], 'https://www.loom.com/share/abc123')
+        self.run_cli('video', 'J1', '-')
+        self.assertNotIn('video', self.data()[0])
+
     def test_prune_removes_upwork_content_keeps_own_work(self):
         old = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=30)).isoformat()
         self.add({'id': 'OLD', 'found_at': old, 'description': 'client text', 'budget': 500,
                   'details': {'connects_cost': 16}, 'score': 77, 'rationale': 'good fit'})
         self.add({'id': 'FRESH', 'description': 'fresh text'})
+        for name, age in (('OLD', 30), ('FRESH', 1)):
+            thread = self.jobdir / name / 'thread.json'
+            thread.parent.mkdir(parents=True)
+            thread.write_text('{"messages": []}', encoding='utf-8')
+            stamp = (datetime.datetime.now() - datetime.timedelta(hours=age)).timestamp()
+            os.utime(thread, (stamp, stamp))
         r = self.run_cli('prune')
-        self.assertIn('1 jobs pruned, 3 cached fields removed', r.stdout)
+        self.assertIn('1 jobs pruned, 3 cached fields removed, 1 saved threads deleted', r.stdout)
+        self.assertFalse((self.jobdir / 'OLD' / 'thread.json').exists())
+        self.assertTrue((self.jobdir / 'FRESH' / 'thread.json').exists())
         by_id = {j['id']: j for j in self.data()}
         self.assertNotIn('description', by_id['OLD'])
         self.assertNotIn('details', by_id['OLD'])

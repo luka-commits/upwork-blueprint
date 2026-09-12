@@ -13,6 +13,8 @@ Usage:
     python3 code/pipeline.py add --file <records.json>|- [--dry-run]
     python3 code/pipeline.py detail <job_id> --file <details.json>|-
     python3 code/pipeline.py set <job_id> <status> [--follow-up +3d|YYYY-MM-DD] [--note "..."]
+    python3 code/pipeline.py note <job_id> "what happened"
+    python3 code/pipeline.py video <job_id> <loom or youtube link>|-
     python3 code/pipeline.py get <job_id>
     python3 code/pipeline.py list [--status new] [--limit 25]
     python3 code/pipeline.py summary
@@ -43,10 +45,19 @@ KEEP = 500
 # the member's own work and stay.
 CACHED_FIELDS = ('description', 'client', 'budget', 'job_type', 'posted_date', 'details')
 
+# The video you recorded for a job. Only links a client can open on Upwork.
+VIDEO_LINKS = ('https://www.loom.com/share/', 'https://loom.com/share/',
+               'https://www.youtube.com/watch?v=', 'https://youtu.be/')
+
 
 def jobs_path():
     """Where the pipeline lives. BLUEPRINT_JOBS points tests at a throwaway file."""
     return pathlib.Path(os.environ.get('BLUEPRINT_JOBS') or ROOT / 'data' / 'jobs.json')
+
+
+def jobs_dir():
+    """Where each job's files live. A client thread saved there is Upwork content too."""
+    return pathlib.Path(os.environ.get('BLUEPRINT_JOBDIR') or ROOT / 'jobs')
 
 
 def abort(msg):
@@ -228,6 +239,36 @@ def cmd_set(args):
     print(f'{job["id"]} -> {args.status}{follow}')
 
 
+def cmd_note(args):
+    """A line on the job's timeline: a call, a promise, what the client said on the phone."""
+    text = ' '.join(args.text.split())
+    if not text:
+        abort('a note needs text.')
+    jobs = load()
+    job = find(jobs, args.job_id)
+    job.setdefault('log', []).append({'at': now_iso(), 'text': text[:1000]})
+    save(jobs)
+    print(f'{args.job_id}: note added.')
+
+
+def cmd_video(args):
+    """Links the video you recorded for this job. "-" removes it."""
+    url = args.url.strip()
+    jobs = load()
+    job = find(jobs, args.job_id)
+    if url == '-':
+        job.pop('video', None)
+        save(jobs)
+        print(f'{args.job_id}: video link removed.')
+        return
+    if not url.startswith(VIDEO_LINKS) or any(c in url for c in ' "<>'):
+        abort(f'expects a Loom share link or a YouTube link, got: {url}')
+    job['video'] = url
+    job.setdefault('log', []).append({'at': now_iso(), 'text': 'Video linked'})
+    save(jobs)
+    print(f'{args.job_id}: video linked.')
+
+
 def cmd_get(args):
     """Exactly one record as JSON. The cheap way to one job."""
     print(json.dumps(find(load(), args.job_id), indent=2, ensure_ascii=False))
@@ -309,13 +350,18 @@ def cmd_prune(args):
             for f in present:
                 j.pop(f, None)
             j['cache_pruned_at'] = now_iso()
+    # A saved client thread is Upwork's content as well, whatever job it belongs to.
+    threads = [t for t in jobs_dir().glob('*/thread.json')
+               if datetime.datetime.fromtimestamp(t.stat().st_mtime, datetime.timezone.utc) < cutoff]
     if args.dry_run:
         print(f'DRY RUN: {hits} of {len(jobs)} jobs older than {args.hours}h, '
-              f'{fields} cached fields would be removed. Nothing changed.')
+              f'{fields} cached fields and {len(threads)} saved threads would be removed. Nothing changed.')
         return
     if hits:
         save(jobs)
-    print(f'{hits} jobs pruned, {fields} cached fields removed.')
+    for t in threads:
+        t.unlink()
+    print(f'{hits} jobs pruned, {fields} cached fields removed, {len(threads)} saved threads deleted.')
 
 
 def build_parser():
@@ -339,6 +385,16 @@ def build_parser():
     p.add_argument('--follow-up')
     p.add_argument('--note')
     p.set_defaults(func=cmd_set)
+
+    p = sub.add_parser('note', help='Add a line to a job\'s timeline.')
+    p.add_argument('job_id')
+    p.add_argument('text')
+    p.set_defaults(func=cmd_note)
+
+    p = sub.add_parser('video', help='Link the Loom or YouTube video you made for a job.')
+    p.add_argument('job_id')
+    p.add_argument('url')
+    p.set_defaults(func=cmd_video)
 
     p = sub.add_parser('get', help='One record as JSON.')
     p.add_argument('job_id')

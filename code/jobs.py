@@ -289,7 +289,14 @@ def cmd_detail(args):
     activity = find_key(raw, 'jobActivity') or {}
     bids = find_key(raw, 'applicationsBidStats') or {}
     quals = find_key(raw, 'preferred_qualifications') or {}
+    terms = find_key(raw, 'contractTerms') or {}
+    company = find_key(raw, 'clientCompanyPublic') or {}
+    timezone = find_key(company, 'timezone')
     details = {
+        'experience_level': find_key(terms, 'experienceLevel'),
+        'engagement_type': find_key(terms, 'engagementType'),
+        'client_city': find_key(company, 'city'),
+        'client_timezone': timezone if isinstance(timezone, str) else None,
         'connects_cost': find_key(raw, 'connects_cost'),
         'can_apply': find_key(raw, 'can_apply'),
         'total_hired': activity.get('totalHired'),

@@ -25,6 +25,12 @@ class CockpitTest(unittest.TestCase):
             {'id': '222222', 'title': 'Old one', 'status': 'applied', 'score': 60, 'next_follow_up': '2000-01-01',
              'history': []}]), encoding='utf-8')
         os.environ['BLUEPRINT_JOBS'] = str(cls.jobs)
+        cls.jobdir = pathlib.Path(cls.tmp.name) / 'jobfiles'
+        (cls.jobdir / '111111').mkdir(parents=True)
+        (cls.jobdir / '111111' / 'pitch.html').write_text('<h1>pitch</h1>', encoding='utf-8')
+        (cls.jobdir / '111111' / 'thread.json').write_text(
+            json.dumps({'messages': [{'from': 'client', 'text': 'Hi'}]}), encoding='utf-8')
+        os.environ['BLUEPRINT_JOBDIR'] = str(cls.jobdir)
         sys.path.insert(0, str(CODE))
         import cockpit
         cls.cockpit = cockpit
@@ -36,6 +42,7 @@ class CockpitTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.server.shutdown()
         os.environ.pop('BLUEPRINT_JOBS', None)
+        os.environ.pop('BLUEPRINT_JOBDIR', None)
         cls.tmp.cleanup()
 
     def request(self, method, path, body=None, token=True, host='127.0.0.1'):
@@ -75,6 +82,22 @@ class CockpitTest(unittest.TestCase):
         record = next(j for j in json.loads(self.jobs.read_text(encoding='utf-8')) if j['id'] == '111111')
         self.assertEqual(record['status'], 'skipped')
         self.assertIn('too small', record['notes'])
+
+    def test_full_view_carries_files_and_thread(self):
+        status, data = self.request('GET', '/api/job/111111')
+        self.assertEqual(status, 200)
+        job = json.loads(data)
+        self.assertEqual([f['name'] for f in job['files']], ['pitch.html'])
+        self.assertEqual(job['thread']['messages'][0]['text'], 'Hi')
+
+    def test_note_and_video_go_through_the_pipeline(self):
+        self.assertEqual(self.request('POST', '/api/note', {'id': '222222', 'text': 'Call on Tuesday'})[0], 200)
+        self.assertEqual(self.request('POST', '/api/video', {'id': '222222', 'url': 'https://evil.example'})[0], 400)
+        self.assertEqual(self.request('POST', '/api/video', {'id': '222222',
+                                                             'url': 'https://www.loom.com/share/abc'})[0], 200)
+        record = next(j for j in json.loads(self.jobs.read_text(encoding='utf-8')) if j['id'] == '222222')
+        self.assertEqual(record['log'][0]['text'], 'Call on Tuesday')
+        self.assertEqual(record['video'], 'https://www.loom.com/share/abc')
 
     def test_unknown_or_unbuilt_command_is_refused(self):
         self.assertEqual(self.request('POST', '/api/run', {'command': 'rm-rf'})[0], 400)

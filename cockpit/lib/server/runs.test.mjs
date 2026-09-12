@@ -148,6 +148,14 @@ test('a model success cannot hide a nonzero process exit', async () => {
   assert.equal(RUNS.get(id).events.filter(e => e.kind === 'done').length, 1);
 });
 
+test('a sender cannot claim success without a confirmed message receipt', async () => {
+  const child = spawn(process.execPath, ['-e', 'process.stdout.write(JSON.stringify({type:"result",result:"COMPLETE",is_error:false})+"\\n")'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const id = track('send-reply', '999999', child);
+  await new Promise(resolve => child.on('close', resolve));
+  assert.ok(RUNS.get(id).error);
+  assert.match(RUNS.get(id).events.at(-1).text, /not confirmed/);
+});
+
 test('one corrupt history entry does not hide healthy runs', () => {
   const dir = path.join(process.env.BLUEPRINT_DATA, 'runs');
   fs.mkdirSync(dir, { recursive: true });

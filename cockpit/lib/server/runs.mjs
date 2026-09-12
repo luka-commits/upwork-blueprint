@@ -204,8 +204,17 @@ export function track(name, job, child) {
     if (run.done) return;
     if (!run.stopped) {
       if (code && stderr.trim()) run.events.push({ kind: 'error', text: stderr.trim() });
-      const failed = code !== 0 || !!result?.error;
-      run.events.push({ kind: 'done', text: code !== 0 ? `Run failed with exit code ${code}. ${result?.text || stderr.trim()}` : result?.text || 'Finished.', error: failed });
+      let sendConfirmed = name !== 'send-reply';
+      if (!sendConfirmed) {
+        try {
+          const receipt = JSON.parse(fs.readFileSync(path.join(JOBS_DIR, job, 'outbox.json'), 'utf-8'));
+          sendConfirmed = !!receipt.confirmed_at && !!receipt.confirmed_message_id;
+        } catch { /* Missing evidence is not a confirmed send. */ }
+      }
+      const failed = code !== 0 || !!result?.error || !sendConfirmed;
+      const report = !sendConfirmed ? 'Send was not confirmed. Check Upwork before trying again.'
+        : code !== 0 ? `Run failed with exit code ${code}. ${result?.text || stderr.trim()}` : result?.text || 'Finished.';
+      run.events.push({ kind: 'done', text: report, error: failed });
     }
     const last = [...run.events].reverse().find(e => e.kind === 'done');
     run.error = !!last?.error;

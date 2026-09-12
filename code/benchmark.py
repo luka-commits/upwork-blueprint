@@ -24,6 +24,7 @@ import profile_checks as pc  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RAW = ROOT / 'data' / 'benchmark'
+TARGETS_FILE = ROOT / 'data' / 'targets.json'
 BADGES = {'top rated plus': 3, 'top rated': 2, 'rising talent': 1}
 # band: land inside the range. min: at least the low end, more is fine.
 # The hourly rate is never a target: a web-search sample skews toward cheaper
@@ -138,6 +139,11 @@ def cmd_measure(args):
     result = {'measured_at': datetime.date.today().isoformat(), 'profiles': top,
               'targets': targets, 'all_three_do': shared, 'rates': rates,
               'you': you}
+    # The targets outlive the raw profiles (pruned after a day): /profile gates its
+    # draft against this file. Only our own numbers go in, never their text.
+    TARGETS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    TARGETS_FILE.write_text(json.dumps({'measured_at': result['measured_at'], 'targets': targets},
+                                       indent=2), encoding='utf-8')
     if args.json:
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return 0

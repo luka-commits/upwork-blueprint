@@ -30,7 +30,7 @@ STOP = {'expert', 'specialist', 'and', 'the', 'for', 'with', 'developer', 'consu
 # count of something. Tool names like n8n or A2P and bare years are not results;
 # counting any digit made every automation profile pass the number checks.
 RESULT_NUMBER = re.compile(
-    r'\$\s?\d|\d\s?%|\d\+|\b\d+(\.\d+)?x\b|\b\d{1,3}(,\d{3})+\b|'
+    r'\$\s?\d[\d.,]*\s?[KkMm]?\+?|\b\d[\d.,]*\s?%|\b\d[\d.,]*\+|\b\d+(\.\d+)?x\b|\b\d{1,3}(,\d{3})+\b|'
     r'\b\d+\s?(?:[a-z-]+\s)?(hours?|hrs|clients?|leads?|projects?|jobs?|patients?|customers?|stores?|'
     r'funnels?|sales|signups?|bookings?|calls?|days?|weeks?|months?|minutes?|times|'
     r'stars?|reviews?)\b', re.I)
@@ -84,12 +84,21 @@ def title_terms(title):
     return terms
 
 
+# What members call a tool, and the name Upwork's skill list uses for it.
+ALIASES = {'ghl': 'highlevel'}
+
+
 def term_in_skills(term, skills):
-    """A title term counts as covered when any of its words starts a skill's words."""
+    """A title term counts as covered when a word of it and a skill contain each other.
+
+    Both directions, because Upwork's names are often shorter than what people
+    write: the skill is "HighLevel", the title says "GoHighLevel".
+    """
     squashed = [squash(s) for s in skills]
     for word in re.split(r'\s+', term):
-        key = squash(word)[:6]
-        if len(key) >= 3 and any(key in s for s in squashed):
+        full = ALIASES.get(squash(word), squash(word))
+        key = full[:6]
+        if len(key) >= 3 and any(key in s or (len(s) >= 4 and s in full) for s in squashed):
             return True
     return False
 

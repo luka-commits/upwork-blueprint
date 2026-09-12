@@ -10,6 +10,7 @@
 /jobs/
 /audit-report.md
 /benchmark.md
+/profile.md
 
 # Credentials, never
 .env

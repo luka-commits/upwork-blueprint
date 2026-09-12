@@ -92,6 +92,8 @@ Link only what the member needs to open, as relative links like [audit-report.md
 - `context/proof.md` - every result, review and number you can back up
 - `audit-report.md` - where your profile stands, worst problem first. Written by `/audit`
 - `benchmark.md` - the three strongest profiles in your profession, measured, and your targets. Written by `/benchmark`
+- `profile.md` - your optimal profile, ready to paste, with the questions only you can answer. Written by `/profile`
+- `data/targets.json` - the benchmark targets, kept after the raw profiles are deleted
 - `data/jobs.json` - the job pipeline. Machine file, read and written only by `code/pipeline.py`
 - `data/profile.json`, `data/benchmark/` - raw connector responses the commands measure; candidate profiles are deleted after a day
 - `jobs/` - what the commands make for one job: pitch page, application draft
@@ -102,6 +104,7 @@ Link only what the member needs to open, as relative links like [audit-report.md
 - `code/pipeline.py` - the pipeline: add, detail, set, get, list, summary, prune
 - `code/profile_checks.py` - the mechanical profile checks, shared by `/audit` and `/profile`
 - `code/benchmark.py` - ranks candidates, turns three profiles into targets, gates benchmark.md
+- `code/profile_draft.py` - the gate for profile.md: audit checks, targets, Upwork's limits, every number proven
 - `references/profile-formula.md` - what top-earning profiles share, the measuring stick
 - `code/check_repo.py` - the release gate. Run it before publishing a change to this repo
 - `references/upwork-rules.md` - what Upwork allows, with numbers and sources

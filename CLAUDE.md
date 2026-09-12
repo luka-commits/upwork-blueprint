@@ -25,7 +25,7 @@ Python: the commands call `python3`. On Windows, if that is not found, use `pyth
 9. `/proposal` - the offer you send after a sales call
 10. `/won` - a won job becomes a project
 
-The cockpit (the local job inbox with buttons) arrives with step 4.
+`/cockpit` opens the local job inbox, pipeline and follow-ups, with buttons that run these commands.
 
 **Commands arrive stage by stage.** A step without a file in `.claude/commands/` is not built yet. Say that plainly and never improvise the command from its name.
 
@@ -96,17 +96,8 @@ Link only what the member needs to open, as relative links like [audit-report.md
 - `data/targets.json` - the benchmark targets, kept after the raw profiles are deleted
 - `data/jobs.json` - the job pipeline. Machine file, read and written only by `code/pipeline.py`
 - `data/profile.json`, `data/benchmark/` - raw connector responses the commands measure; candidate profiles are deleted after a day
-- `jobs/` - what the commands make for one job: pitch page, application draft
+- `jobs/<id>/` - what the commands make for one job, with fixed names the cockpit shows: `pitch.html`, `loom-script.md`, `application.md`, `call-prep.html`, `call-review.html`, `one-pager.pdf`
+- `context/tool-knowledge/` - what you learned about a tool's mechanics, one file per tool, so no job pays for the same research twice
+- `context/videos.json` - optional: your own YouTube videos for pitch pages
 
-**The machinery (shipped, updated by `git pull`)**
-- `.claude/commands/` - one file per step of the path
-- `code/workspace.py` - copies the starters into place
-- `code/pipeline.py` - the pipeline: add, detail, set, get, list, summary, prune
-- `code/profile_checks.py` - the mechanical profile checks, shared by `/audit` and `/profile`
-- `code/benchmark.py` - ranks candidates, turns three profiles into targets, gates benchmark.md
-- `code/profile_draft.py` - the gate for profile.md: audit checks, targets, Upwork's limits, every number proven
-- `references/profile-formula.md` - what top-earning profiles share, the measuring stick
-- `code/check_repo.py` - the release gate. Run it before publishing a change to this repo
-- `references/upwork-rules.md` - what Upwork allows, with numbers and sources
-- `references/upwork-mcp.md` - what the connector can and cannot do, measured
-- `starters/` - the empty versions of your files
+**The machinery (shipped, updated by `git pull`):** commands in `.claude/commands/`, their scripts in `code/` (each script's first lines say what it does), specs in `references/`, the empty versions of your files in `starters/`. Two to know by name: `code/pipeline.py`, the one writer of the pipeline, and `code/check_repo.py`, the release gate to run before publishing a change to this repo.

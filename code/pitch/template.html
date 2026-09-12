@@ -1,0 +1,1170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{{JOB_TITLE}}: how I'd build this</title>
+<style>
+  /* ------------------------------------------------------------------
+     THEME LAYER. Everything below reads from these tokens only, so an
+     industry-specific theme is a ~6-variable override on :root (or on a
+     [data-theme="..."] block), never a rewrite.
+     ------------------------------------------------------------------ */
+  :root {
+    --bg: #f3efe6;
+    --bg-band: #ece5d7;
+    --card: #fbf9f4;
+    --ink: #1c1712;
+    --ink-raised: #29221b;
+    --text: #262019;
+    --text-2: #5c5347;
+    --text-3: #6f6656;      /* 4.5:1 on --bg */
+    --accent: #c1663e;
+    --accent-deep: #a24f2e;
+    --accent-on-ink: #e08a5c;  /* same hue lifted for --ink (6.7:1) */
+    --on-ink: #f3efe6;
+    --on-ink-2: #b8ad9c;    /* 8:1 on --ink */
+    --on-accent: #ffffff;
+    --border: #e2d9c8;
+    --border-soft: #eae3d3;
+    --border-ink: rgba(243,239,230,.14);
+    /* Diagram tokens live here too, so a themed page themes its diagram. */
+    --dg-tint: #f3e4db;         /* accent at 14% over --card */
+    --dg-tint-stroke: #d8b69f;  /* accent at 30% over --border */
+    --dg-edge: #898276;
+    --dg-note: #f7edd8;         /* warm paper, reads as a pinned note */
+    --dg-note-stroke: #dcc79a;
+
+    --measure: 720px;
+    --measure-wide: 880px;
+    --ease: cubic-bezier(.16,1,.3,1);
+    --tilt: 11deg;          /* driven by scroll, see the device script */
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .serif { font-family: Georgia, "Iowan Old Style", "Times New Roman", ui-serif, serif; }
+  img { max-width: 100%; }
+
+  /* Anchors must clear the sticky rail, otherwise a jump parks the heading
+     underneath it. */
+  .band { padding: clamp(56px, 8vw, 96px) 20px; scroll-margin-top: 64px; }
+  .band-plain { background: var(--bg); }
+  .band-warm { background: var(--bg-band); }
+  .band-ink { background: var(--ink); color: var(--on-ink); }
+  /* Der Abschluss ist die eine Stelle, an der jemand handelt. Er hatte bisher
+     dieselbe Anmutung wie der Scope-Block darueber und ging darin unter. Das
+     Dither-Feld aus dem Hero holt ihn zurueck und schliesst die Seite optisch
+     dort, wo sie angefangen hat. */
+  /* Deutlich hoeher als die anderen Baender. Zwei Gruende: der Abschluss ist die
+     eine Stelle, an der jemand handelt, und er braucht Raum ueber und unter dem
+     Text, damit das Punktfeld ueberhaupt sichtbar werden kann, ohne hinter der
+     Schrift zu stehen. Bei normaler Bandhoehe fuellt der Text die Sektion und
+     die Maske hat nichts zu maskieren. */
+  .band-next { position: relative; overflow: hidden;
+    padding-top: clamp(110px, 13vw, 170px); padding-bottom: clamp(110px, 13vw, 170px); }
+  /* Deutlich kraeftiger als im Hero. Dort liegt das Feld unter einer Headline und
+     darf nur andeuten; hier IST es die Sektion, und bei .55 war davon kaum etwas
+     zu sehen (Befund 15.08.2026).
+     Damit es trotzdem nie hinter der Schrift steht, wird die Mitte
+     ausmaskiert statt abgedunkelt: die Punkte stehen kraeftig am Rand und
+     verschwinden dort, wo Text liegt. Abdunkeln haette beides halb gemacht --
+     Feld schwaecher UND Text vor Punkten. */
+  /* Die Hoehe ist an den oberen Innenabstand gebunden, nicht an einen Prozentwert:
+     so endet das Feld exakt dort, wo der Text beginnt, und zwar bei jeder
+     Bildschirmbreite. Ein Prozentwert hat bei zwei Anlaeufen jedes Mal in die
+     Schrift gereicht. */
+  /* Dasselbe Feld in der Mitte der Seite, aber am unteren Rand und gespiegelt:
+     das Motiv taucht dreimal auf (Hero, Scope, Abschluss) und traegt die Seite
+     durch, statt nur ihre Enden zu markieren. */
+  .band-dotted { position: relative; overflow: hidden;
+    padding-bottom: clamp(120px, 14vw, 180px); }
+  .band-dotted > .inner { position: relative; z-index: 1; }
+  .band-dotted .dither-plan { position: absolute; left: 0; right: 0; top: auto;
+    bottom: 0; width: 100%; height: calc(clamp(120px, 14vw, 180px) + 8px);
+    display: block; opacity: .85; pointer-events: none; transform: scaleY(-1);
+    -webkit-mask-image: linear-gradient(to top, #000 62%, transparent 100%);
+    mask-image: linear-gradient(to top, #000 62%, transparent 100%); }
+
+  /* Spezifischer als `.dither`, das weiter unten im Stylesheet steht und sonst
+     mit inset:0 und height:100% gewinnt -- daran sind drei Anlaeufe
+     gescheitert, bevor die Kaskade als Ursache gefunden war. */
+  .band-next .dither-next { position: absolute; left: 0; right: 0; top: 0; bottom: auto; width: 100%;
+    height: calc(clamp(110px, 13vw, 170px) + 12px);
+    display: block; opacity: 1; pointer-events: none;
+    -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 62%, transparent 100%); }
+  .band-next .inner.next { position: relative; }
+  .band-next > .inner { position: relative; z-index: 1; }
+  .band-tight { padding-top: clamp(26px, 4vw, 40px); }
+  .band-tight-b { padding-bottom: clamp(26px, 4vw, 40px); }
+  .inner { max-width: var(--measure); margin: 0 auto; }
+  .inner-wide { max-width: var(--measure-wide); margin: 0 auto; }
+
+  /* line-height belongs on a display heading, not inherited from body copy.
+     Every title happened to fit one line, so the loose default only surfaced
+     the first time one wrapped and stood there with a body-sized gap. */
+  .section-title { font-size: clamp(25px, 3.4vw, 32px); font-weight: 400; margin: 0 0 8px;
+    line-height: 1.18; letter-spacing: -.015em; text-wrap: balance; }
+  .section-lede { font-size: 15.5px; color: var(--text-3); margin: 0 0 34px; max-width: 52ch; text-wrap: pretty; }
+  .center { text-align: center; }
+  .center .section-lede { margin-left: auto; margin-right: auto; }
+
+  /* ---------------- Sticky section nav ----------------
+     The segments name the page's own sections and jump to them; the fill
+     follows the reader's position. An earlier version labelled these with the
+     video's chapters while filling on page scroll, so the bar claimed progress
+     through a video nobody had started. Whatever the rail measures is what it
+     has to be labelled with. */
+  .navbar { position: sticky; top: 0; z-index: 50; background: rgba(243,239,230,.86);
+    backdrop-filter: saturate(1.6) blur(12px); -webkit-backdrop-filter: saturate(1.6) blur(12px);
+    border-bottom: 1px solid transparent; transition: border-color .2s var(--ease); }
+  .navbar[data-stuck="true"] { border-bottom-color: var(--border); }
+  .navbar-inner { max-width: var(--measure-wide); margin: 0 auto; padding: 12px 20px 13px;
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; }
+  .navseg { position: relative; padding: 11px 0 0; text-decoration: none; display: block; }
+  .navseg::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    border-radius: 999px; background: var(--accent); opacity: .22;
+    transition: opacity .25s var(--ease); }
+  .navseg span { font-size: 12.5px; color: var(--text-3); line-height: 1.35; display: block;
+    transition: color .25s var(--ease); }
+  .navseg[data-on="true"]::before { opacity: 1; }
+  .navseg[data-on="true"] span { color: var(--text); font-weight: 600; }
+  @media (max-width: 640px) { .navseg span { font-size: 10.5px; } .navbar-inner { gap: 6px; } }
+  @media (max-width: 420px) { .navseg span { display: none; } .navseg { padding-top: 8px; } }
+
+  /* ---------------- Hero: one headline over the dither field ----------------
+     Ported from automatable.co, source image and all: an 8x8 Bayer ordered
+     dither over the luminance of a real ink plume, drawn as dots whose radius
+     steps with the level. The source matters more than the algorithm here. A
+     procedural field was tried first and read as an even texture, because a
+     smooth field has no internal structure for the raster to resolve. The
+     drawing brings swirls, filaments and hundreds of separate droplets, which
+     is what turns the raster into masses with gaps rather than grain. */
+  /* The field runs behind the headline AND the player, so it reads as the
+     ground of the whole opening rather than a band that stops. Two mask
+     layers, intersected: a linear fade so it dissolves into the page instead
+     of ending on an edge, and an ellipse that clears the headline so the type
+     sits on paper rather than in the raster. */
+  .hero-wrap { position: relative; overflow: hidden; background: var(--bg); }
+  .dither { position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    pointer-events: none;
+    -webkit-mask-image:
+      radial-gradient(56% 26% at 50% 20%, transparent 0%, transparent 38%, #000 100%),
+      linear-gradient(180deg, #000 0%, #000 42%, transparent 66%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      radial-gradient(56% 26% at 50% 20%, transparent 0%, transparent 38%, #000 100%),
+      linear-gradient(180deg, #000 0%, #000 42%, transparent 66%);
+    mask-composite: intersect; }
+  .hero-wrap > .band { background: transparent; position: relative; z-index: 1; }
+  .hero { position: relative; z-index: 1; text-align: center;
+    padding: clamp(70px, 10vw, 116px) 20px clamp(4px, 1vw, 10px); }
+  .hero h1 { font-size: clamp(35px, 6.6vw, 60px); line-height: 1.08; margin: 0 auto;
+    font-weight: 400; letter-spacing: -.024em; max-width: 16ch; text-wrap: balance; }
+  .hero-cta { display: inline-flex; align-items: center; gap: 10px; margin: 26px 0 0;
+    font-size: 16px; font-weight: 600; color: var(--accent); }
+  .hero-cta::before { content: "▶"; display: grid; place-items: center; width: 26px; height: 26px;
+    border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 9px;
+    padding-left: 2px; flex: none; }
+
+  /* ---------------- The Loom, in a device ----------------
+     Modelled on a real tablet frame: a real bezel, a deep
+     layered shadow, and a rotateX that eases back to flat as it scrolls
+     into view, so the screen appears to lift toward the reader. */
+  .device-stage { perspective: 1200px; margin: clamp(14px, 2.4vw, 26px) 0 0; }
+  .device { position: relative; width: 100%; aspect-ratio: 16/9; margin: 0 auto;
+    border: 3px solid #6c6c6c; border-radius: 26px; padding: 5px; background: #222;
+    overflow: hidden; transform-origin: center center;
+    transform: rotateX(var(--tilt)) scale(1.01); will-change: transform;
+    box-shadow: 0 9px 20px rgba(0,0,0,.29), 0 37px 37px rgba(0,0,0,.26),
+                0 84px 50px rgba(0,0,0,.15), 0 149px 60px rgba(0,0,0,.04); }
+  .device-screen { position: relative; width: 100%; height: 100%; border-radius: 20px;
+    overflow: hidden; background: #18181b; display: block; text-decoration: none; }
+  .device-screen .glow { position: absolute; inset: 0;
+    background: radial-gradient(120% 90% at 50% 0%, rgba(193,102,62,.20), transparent 62%); }
+  .device-screen .face { position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; gap: 16px; color: var(--on-ink); font-weight: 600; font-size: 16px; }
+  .device-screen .play { display: grid; place-items: center; width: 64px; height: 64px;
+    border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 18px;
+    line-height: 1; flex: none; box-shadow: 0 0 0 0 rgba(193,102,62,.5);
+    transition: transform .2s var(--ease), background .2s var(--ease), box-shadow .3s var(--ease); }
+  .device-badge { position: absolute; right: 14px; bottom: 14px; z-index: 2;
+    background: rgba(0,0,0,.5); color: var(--on-ink); font-size: 11.5px; font-weight: 600;
+    padding: 6px 12px; border-radius: 999px; }
+
+  /* ---------------- Fit points ---------------- */
+  .fit-list { list-style: none; margin: clamp(34px, 5vw, 52px) 0 0; padding: 0;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .fit-list li { background: var(--card); border: 1px solid var(--border-soft); border-radius: 14px;
+    padding: 24px 22px 26px; font-size: 15.5px; color: var(--text); line-height: 1.55;
+    display: flex; flex-direction: column; gap: 14px; text-wrap: pretty;
+    transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s var(--ease); }
+  .fit-list .icon { width: 34px; height: 34px; flex: none; }
+  .fit-list .icon circle { fill: var(--accent); }
+
+  /* Die Zahl traegt den Beweis, also wird sie auch so gesetzt. Vorher stand sie
+     als Fliesstext mitten im Satz und war damit nicht schneller zu erfassen als
+     der Rest -- drei Absaetze ungleicher Laenge, ausgefranste Karten. Jetzt:
+     Zahl gross und serif wie die Hero-Headline, Label darunter, eine Zeile
+     Kontext. Gleiche Struktur je Karte, also auch gleiche Anmutung. */
+  .fit-list li { gap: 0; justify-content: flex-start; }
+  .fit-num { font-family: Georgia, "Iowan Old Style", ui-serif, serif;
+    font-size: clamp(38px, 4.6vw, 52px); line-height: 1; color: var(--accent);
+    letter-spacing: -.02em; }
+  .fit-label { margin-top: 10px; font-size: 15px; font-weight: 600; color: var(--text);
+    line-height: 1.35; }
+  .fit-ctx { margin-top: 8px; font-size: 13.5px; color: var(--text-2); line-height: 1.5; }
+  @media (max-width: 680px) { .fit-list { grid-template-columns: 1fr; gap: 12px; }
+    .fit-list li { flex-direction: row; align-items: flex-start; gap: 14px; padding: 20px; }
+    .fit-list .icon { width: 28px; height: 28px; } }
+
+  /* ---------------- CV ---------------- */
+  .cv { border: 1px solid var(--border); border-radius: 16px; background: var(--card); padding: 2px 24px; }
+  .cv summary { cursor: pointer; padding: 19px 0; font-weight: 600; font-size: 15px; color: var(--text);
+    list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .cv summary::-webkit-details-marker { display: none; }
+  .cv summary::after { content: "+"; font-size: 22px; color: var(--accent); font-weight: 400; flex: none;
+    transition: transform .35s var(--ease); }
+  .cv[open] summary::after { transform: rotate(45deg); }
+  .cv-body { padding: 6px 0 26px; border-top: 1px solid var(--border-soft); }
+  .cv-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 22px;
+    margin: 24px 0 30px; }
+  .cv-stats strong { display: block; font-family: Georgia, serif; font-size: clamp(24px, 3.4vw, 30px);
+    font-weight: 400; color: var(--accent); line-height: 1.1; margin: 0 0 5px; }
+  .cv-stats span { font-size: 12.5px; color: var(--text-3); line-height: 1.35; display: block; }
+  .cv-sub { font-size: 13px; font-weight: 600; color: var(--text); margin: 0 0 12px; }
+  .cv-traits { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 28px; }
+  .cv-traits span { font-size: 12.5px; color: var(--text-2); background: var(--bg);
+    border: 1px solid var(--border); padding: 6px 13px; border-radius: 999px; }
+  .cv-clients { font-size: 14px; color: var(--text-2); line-height: 1.7; margin: 0 0 28px; text-wrap: pretty; }
+  .cv-list { list-style: none; margin: 0 0 18px; padding: 0; font-size: 14px; color: var(--text-2); line-height: 1.85; }
+  .cv-list strong { color: var(--text); font-weight: 600; }
+  .cv-lang { font-size: 13px; color: var(--text-3); margin: 0; }
+
+  /* ---------------- The diagram, as a live canvas ----------------
+     Drawn as SVG from a node list at runtime rather than embedded as an
+     exported image. The reasons are practical, not aesthetic: vector stays
+     legible at any size (the exported PNG was unreadable on a phone), the
+     nodes inherit the theme tokens so a re-themed page re-themes its diagram,
+     it costs a few KB instead of ~270, and a live node list can be panned,
+     zoomed and edited, which a flat image can never be. */
+  /* The big-picture version, ahead of the precise one: a plain-language
+     illustration a reader parses in one glance, no reading required, before
+     they reach the exact technical diagram below it. No card, no border --
+     it should sit on the page like it belongs there, not like an attached
+     image. Optional: the section just loses this block when no illustration
+     was generated for the job. */
+  /* Der Eyecatcher direkt unter der Headline: er entscheidet in den ersten
+     Sekunden, ob ueberhaupt weitergelesen wird. Ohne Rahmen und ohne Karte --
+     das Bild bringt seinen eigenen cremefarbenen Grund mit und soll in die
+     Seite laufen, nicht als angeheftetes Foto danebenstehen. */
+  .hero-art { max-width: 1000px; margin: clamp(18px, 3vw, 34px) auto 0; padding: 0 20px; }
+  .hero-art img { display: block; width: 100%; height: auto; border-radius: 14px; }
+
+  .artifact { margin: 0; border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
+    background: var(--card); box-shadow: 0 28px 56px -34px rgba(28,23,18,.5); }
+  .artifact-bar { display: flex; align-items: center; gap: 12px; padding: 12px 14px 12px 18px;
+    border-bottom: 1px solid var(--border-soft); background: var(--bg); }
+  .artifact-tag { font-size: 11.5px; font-weight: 700; color: var(--on-accent); background: var(--accent);
+    padding: 4px 10px; border-radius: 6px; flex: none; }
+  .artifact-name { font-size: 13px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; min-width: 0; flex: 1; }
+
+  .dg-tools { display: flex; gap: 6px; flex: none; }
+  .dg-btn { font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text-2);
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 5px 10px; cursor: pointer; line-height: 1.2; min-width: 30px;
+    transition: background .15s var(--ease), color .15s var(--ease), border-color .15s var(--ease); }
+  .dg-btn:active { transform: scale(.96); }
+  .dg-btn-accent { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .dg-btn-ghost { background: transparent; }
+
+  .dg-stage { position: relative; height: clamp(400px, 52vh, 530px); overflow: hidden;
+    background: var(--card); touch-action: none; cursor: grab; }
+  .dg-stage[data-drag="true"] { cursor: grabbing; }
+  .dg-stage svg { display: block; width: 100%; height: 100%; }
+  .dg-stage:focus { outline: none; }
+  .dg-node { cursor: grab; }
+  .dg-edge-hit { cursor: pointer; }
+  /* Handles stay out of the way until the node is under the pointer, so the
+     resting diagram reads as a diagram and not as a wiring panel. */
+  .dg-handle { opacity: 0; transition: opacity .15s var(--ease); cursor: crosshair; }
+  .dg-node:hover .dg-handle { opacity: 1; }
+  .dg-mini { position: absolute; right: 12px; bottom: 12px; width: 132px; height: 84px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden; pointer-events: none; }
+  .dg-mini svg { width: 100%; height: 100%; }
+  @media (max-width: 560px) { .dg-mini { display: none; } }
+
+  /* Without JS the container keeps the same information as an ordered list,
+     so the section is never empty rather than merely non-interactive. */
+  .dg-fallback { margin: 0; padding: 22px 26px; display: grid; gap: 12px;
+    counter-reset: dgf; list-style: none; }
+  .dg-fallback li { position: relative; padding-left: 34px; font-size: 14.5px; color: var(--text-2); }
+  .dg-fallback li::before { counter-increment: dgf; content: counter(dgf);
+    position: absolute; left: 0; top: -1px; width: 23px; height: 23px; border-radius: 999px;
+    display: grid; place-items: center; font-size: 12px; font-weight: 700;
+    background: var(--accent); color: var(--on-accent); }
+
+  .dg-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 11px 14px 12px 18px; border-top: 1px solid var(--border-soft); background: var(--bg); }
+  .dg-hint { font-size: 12.5px; color: var(--text-3); flex: 1; min-width: 180px; }
+
+  /* Das Board ist das Kernstueck der Seite und bekommt deshalb echte Breite,
+     statt in der 720px-Lesespalte zu stecken. Fliesstext bleibt schmal --
+     eine 1140px breite Zeile liest sich schlecht, ein 1140px breiter Plan
+     dagegen deutlich besser. */
+  /* Der Beweis-Streifen: was wirklich gebaut wurde, anklickbar. Bewusst
+     kraeftiger als ein Textlink -- er ist der Unterschied zwischen "so wuerde
+     ich es bauen" und "hier ist es". */
+  .live-artifacts { max-width: 1140px; margin: 18px auto 0; padding: 16px 20px 18px;
+    background: color-mix(in srgb, var(--accent) 9%, var(--card));
+    border: 1px solid var(--dg-tint-stroke); border-radius: 14px; }
+  .live-lede { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .live-artifacts ul { list-style: none; margin: 0; padding: 0;
+    display: flex; flex-wrap: wrap; gap: 10px; }
+  .live-artifacts a { display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 15px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 999px; font-size: 13.5px; font-weight: 600; color: var(--text);
+    text-decoration: none; transition: transform .18s var(--ease), border-color .18s; }
+  .live-artifacts a:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .live-artifacts .arrow { color: var(--accent); }
+
+  .inner-board { max-width: 1140px; }
+  .center-measure { max-width: var(--measure); margin-left: auto; margin-right: auto; }
+  .dg-legend { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center;
+    padding: 10px 18px; border-top: 1px solid var(--border-soft); background: var(--card); }
+  .dg-key { display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; color: var(--text-2); }
+  .dg-key .sw { width: 15px; height: 11px; border-radius: 3px; flex: none;
+    border: 1.3px solid var(--dg-tint-stroke); }
+  .sw-mine { background: var(--dg-tint); }
+  .sw-yours { background: var(--card); }
+  .sw-num { width: 15px; height: 15px; border-radius: 50%; border: 0;
+    background: var(--accent); color: #fff; font-size: 10px; font-weight: 700;
+    font-style: normal; display: flex; align-items: center; justify-content: center; }
+
+  /* Editing overlay: a real input positioned over the node, rather than a
+     browser dialog, which would block the page. */
+  .dg-edit { position: absolute; z-index: 5; font: inherit; font-size: 13px; text-align: center;
+    color: var(--text); background: var(--card); border: 2px solid var(--accent);
+    border-radius: 8px; padding: 6px 8px; outline: none; }
+
+  /* Fullscreen: the real API where allowed, plus a fixed-position fallback,
+     because requestFullscreen is blocked inside some embedded viewers. */
+  .artifact.dg-full { position: fixed; inset: 0; z-index: 100; border-radius: 0; margin: 0;
+    display: flex; flex-direction: column; }
+  .artifact.dg-full .dg-stage { flex: 1; height: auto; }
+  .artifact:fullscreen { display: flex; flex-direction: column; background: var(--card); }
+  .artifact:fullscreen .dg-stage { flex: 1; height: auto; }
+
+  .dg-banner { display: flex; align-items: center; gap: 10px; padding: 10px 18px;
+    background: color-mix(in srgb, var(--accent) 12%, var(--card));
+    border-bottom: 1px solid var(--border-soft); font-size: 13px; color: var(--text-2); }
+
+  .proof-link { display: flex; align-items: center; gap: 15px; margin: 20px 0 0; padding: 16px 20px;
+    background: var(--card); border: 1px solid var(--border-soft); border-radius: 14px;
+    text-decoration: none; color: inherit;
+    transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s var(--ease); }
+  .proof-link:active { transform: scale(.995); }
+  .proof-mark { width: 26px; height: 26px; flex: none; color: var(--accent); }
+  .proof-copy { flex: 1; min-width: 0; }
+  .proof-copy strong { display: block; font-size: 14.5px; font-weight: 600; color: var(--text); margin: 0 0 2px; }
+  .proof-copy span { font-size: 13px; color: var(--text-3); }
+  .proof-link .arrow { color: var(--accent); font-size: 17px; flex: none; transition: transform .25s var(--ease); }
+
+  /* ---------------- YouTube proof ---------------- */
+  .yt-head { display: flex; align-items: center; gap: 14px; margin: 0 0 8px; }
+  .yt-mark { width: 42px; height: 30px; flex: none; }
+  .yt-head h2 { margin: 0; }
+  .yt-note { font-size: 13.5px; color: var(--text-3); margin: 0 0 30px; }
+  .yt-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  @media (max-width: 720px) { .yt-grid { grid-template-columns: 1fr; gap: 14px; } }
+  .yt-card { display: block; text-decoration: none; color: inherit;
+    transition: transform .2s var(--ease); }
+  /* display:block matters: as an inline <span> the aspect-ratio box does not
+     contribute its real height to the grid row, and the caption below it
+     overlaps whatever follows the grid. */
+  .yt-thumb { display: block; position: relative; border-radius: 12px; overflow: hidden;
+    background: var(--ink); aspect-ratio: 16/9; box-shadow: 0 14px 28px -18px rgba(28,23,18,.55); }
+  .yt-thumb img { width: 100%; height: 100%; object-fit: cover; display: block;
+    transition: transform .4s var(--ease); }
+  .yt-thumb .pin { position: absolute; inset: 0; display: grid; place-items: center; }
+  .yt-thumb .pin svg { width: 46px; height: 33px; filter: drop-shadow(0 4px 10px rgba(0,0,0,.45));
+    opacity: .92; transition: transform .35s var(--ease); }
+  .yt-card p { font-size: 14px; color: var(--text); line-height: 1.45; margin: 12px 0 0; text-wrap: pretty; }
+  .yt-more { display: inline-flex; align-items: center; gap: 9px; margin: 28px 0 0; font-size: 14.5px;
+    font-weight: 600; color: var(--accent); text-decoration: none; }
+  .yt-more .arrow { transition: transform .3s var(--ease); }
+
+  /* ---------------- The plan (ink band) ---------------- */
+  .band-ink .section-title { color: var(--on-ink); }
+  .band-ink .section-lede { color: var(--on-ink-2); }
+  .plan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 680px) { .plan-grid { grid-template-columns: 1fr; } }
+  .plan-item { background: var(--ink-raised); border: 1px solid var(--border-ink); border-radius: 16px;
+    padding: 26px 26px 28px; position: relative; overflow: hidden;
+    transition: border-color .22s var(--ease), transform .22s var(--ease); }
+  .plan-item::after { content: ""; position: absolute; top: 0; left: 26px; width: 44px; height: 2px;
+    background: var(--accent-on-ink); transform-origin: left center; }
+  .plan-glyph { width: 40px; height: 40px; display: block; margin: 0 0 18px; color: var(--accent-on-ink); }
+  .plan-label { font-size: 15.5px; font-weight: 600; color: var(--on-ink); margin: 0 0 12px; }
+  .plan-body { font-size: 14.5px; color: var(--on-ink-2); line-height: 1.68; margin: 0; text-wrap: pretty; }
+
+  /* Meilensteine als Zeitleiste statt als Absatz. Vier Schritte in einem Block
+     liest niemand auseinander; nummeriert und mit Zeitraum davor schon. */
+  .milestones { list-style: none; margin: 0; padding: 0;
+    display: flex; flex-direction: column; gap: 16px; }
+  .milestones li { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px;
+    align-items: baseline; position: relative; padding-left: 2px; }
+  .ms-num { grid-row: span 2; font-family: Georgia, ui-serif, serif; font-size: 21px;
+    line-height: 1; color: var(--accent-on-ink); opacity: .85; }
+  .ms-when { font-size: 12px; font-weight: 600; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--accent-on-ink); }
+  .ms-what { font-size: 14.5px; color: var(--on-ink-2); line-height: 1.6; text-wrap: pretty; }
+
+  /* Der erste Satz des Budgets ist das Versprechen und stand mitten im Absatz. */
+  .plan-lead { font-size: 15.5px; color: var(--on-ink); line-height: 1.5;
+    margin: 0 0 10px; text-wrap: pretty; }
+
+  /* Der Abschluss atmet jetzt: der Knopf ist die Handlung, nicht eine Zeile
+     zwischen zwei anderen. */
+  .band-next .inner.next > * + * { margin-top: 0; }
+  .band-next .inner.next p { max-width: 46ch; margin-left: auto; margin-right: auto; }
+  .band-next .btn { margin-top: clamp(26px, 3.4vw, 40px); }
+  .band-next .note { margin-top: 18px; }
+  .scope-list { list-style: none; margin: 0; padding: 0; }
+  .scope-list li { font-size: 14.5px; color: var(--on-ink-2); line-height: 1.6; margin: 0 0 10px;
+    padding-left: 20px; position: relative; }
+  .scope-list li:last-child { margin-bottom: 0; }
+  .scope-list li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 7px; height: 7px;
+    border-radius: 999px; border: 1.5px solid var(--accent-on-ink); }
+
+  /* ---------------- Report showcase ---------------- */
+  .showcase { display: grid; grid-template-columns: 290px 1fr; gap: 64px; align-items: center; }
+  @media (max-width: 760px) { .showcase { grid-template-columns: 1fr; gap: 44px; justify-items: center; text-align: center; } }
+  .cover-stage { position: relative; perspective: 1400px; padding: 10px 0; }
+  .cover-book { position: relative; transform-style: preserve-3d;
+    transform: rotateY(-15deg) rotateX(3deg) rotateZ(-1.5deg);
+    transition: transform .7s var(--ease), filter .7s var(--ease);
+    filter: drop-shadow(0 30px 44px rgba(28,23,18,.34)); }
+  .cover-face { display: block; width: 100%; border-radius: 3px 7px 7px 3px; position: relative; z-index: 3; }
+  .cover-book::before { content: ""; position: absolute; z-index: 4; top: 0; bottom: 0; left: 0; width: 15px;
+    border-radius: 3px 0 0 3px;
+    background: linear-gradient(90deg, rgba(0,0,0,.42) 0%, rgba(0,0,0,.12) 55%, rgba(255,255,255,.10) 100%); }
+  .cover-book::after { content: ""; position: absolute; z-index: 1; top: 5px; bottom: 5px; right: -7px; width: 9px;
+    border-radius: 0 3px 3px 0;
+    background: repeating-linear-gradient(180deg, #fbf9f4 0 2px, #ded5c4 2px 3px); }
+  .cover-sheet { position: absolute; z-index: 0; background: var(--card); border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(28,23,18,.14); }
+  .cover-sheet.s1 { inset: 12px -14px -10px 16px; }
+  .cover-sheet.s2 { inset: 24px -22px -18px 30px; opacity: .6; }
+  .showcase-copy .section-title { margin-bottom: 14px; }
+  .showcase-copy p { font-size: 16px; color: var(--text-2); margin: 0 0 22px; line-height: 1.62;
+    max-width: 42ch; text-wrap: pretty; }
+  .showcase-copy .note { font-size: 13px; color: var(--text-3); margin: 16px 0 0; max-width: 38ch; }
+
+  /* What is actually inside the report. The section used to promise "see what
+     we can do" and show a cover, which asks the reader to take the value on
+     faith; naming the three things it contains is what turns a picture of a
+     document into an offer. */
+  .report-list { list-style: none; margin: 0 0 26px; padding: 0; display: grid; gap: 10px;
+    max-width: 42ch; }
+  .report-list li { position: relative; padding-left: 26px; font-size: 14.5px;
+    color: var(--text-2); line-height: 1.5; text-wrap: pretty; }
+  .report-list li::before { content: ""; position: absolute; left: 0; top: .42em; width: 13px; height: 13px;
+    border-radius: 999px; border: 2px solid var(--accent); }
+  .report-list li::after { content: ""; position: absolute; left: 4.5px; top: .74em; width: 4px; height: 4px;
+    border-radius: 999px; background: var(--accent); }
+  @media (max-width: 760px) { .report-list { margin-left: auto; margin-right: auto; text-align: left; } }
+
+  .cover-flag { position: absolute; z-index: 6; top: -6px; left: -10px;
+    background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700;
+    padding: 5px 11px; border-radius: 6px; letter-spacing: .01em;
+    box-shadow: 0 6px 14px -8px rgba(28,23,18,.6); }
+  @media (max-width: 760px) { .showcase-copy p, .showcase-copy .note { margin-left: auto; margin-right: auto; } }
+
+  .btn { display: inline-flex; align-items: center; gap: 10px; background: var(--accent);
+    color: var(--on-accent); text-decoration: none; font-weight: 600; padding: 16px 34px;
+    border-radius: 999px; font-size: 15.5px; border: none;
+    /* Shadow takes the page's own dark tone, not the accent hue: a saturated
+       accent-coloured shadow reads as a glow rather than as elevation. */
+    box-shadow: 0 10px 22px -12px rgba(28,23,18,.55);
+    transition: background .2s var(--ease), transform .3s var(--ease), box-shadow .3s var(--ease); }
+  .btn-on-ink { box-shadow: 0 12px 26px -14px rgba(0,0,0,.7); }
+  .btn .arrow { transition: transform .25s var(--ease); }
+  /* A pressed button has to answer immediately, so the press state is not
+     gated behind the hover query and is faster than the hover itself. */
+  .btn:active { transform: scale(.97); transition-duration: .1s; }
+
+  /* ---------------- Testimonials ---------------- */
+  .testimonials { column-count: 2; column-gap: 18px; }
+  @media (max-width: 640px) { .testimonials { column-count: 1; } }
+  .testimonial { break-inside: avoid; background: var(--card); border: 1px solid var(--border-soft);
+    border-radius: 14px; padding: 22px 24px; margin: 0 0 18px;
+    transition: transform .2s var(--ease), box-shadow .2s var(--ease); }
+  .testimonial .quote { margin: 0 0 15px; font-size: 14.5px; line-height: 1.62; color: var(--text); text-wrap: pretty; }
+  .testimonial .meta { display: flex; align-items: baseline; gap: 9px; font-size: 12.5px; color: var(--text-3); margin: 0; }
+  .testimonial .stars { color: var(--accent); flex: none; letter-spacing: .5px; }
+  .testimonial .job { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .testimonials-empty { text-align: center; font-size: 14.5px; color: var(--text-3); margin: 0; }
+
+  /* ---------------- Next step ---------------- */
+  .next { text-align: center; }
+  .next .section-title { color: var(--on-ink); }
+  .next p { font-size: 16.5px; color: var(--on-ink-2); line-height: 1.62; max-width: 46ch;
+    margin: 0 auto 32px; text-wrap: pretty; }
+  .next-note { font-size: 13px; color: var(--on-ink-2); opacity: .8; margin: 30px 0 0; }
+
+  /* ---------------- Footer ---------------- */
+  .foot { text-align: center; color: var(--text-3); font-size: 13px; padding: 44px 20px 70px; }
+  .foot p { margin: 0 0 12px; }
+  .foot-links a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--border);
+    padding-bottom: 2px; transition: color .2s var(--ease), border-color .2s var(--ease); }
+  .foot-links .dot { margin: 0 9px; opacity: .45; }
+
+
+  /* Hover only where a real pointer exists. On touch, :hover fires on tap
+     and sticks, leaving a card raised until the user taps elsewhere. */
+  @media (hover: hover) and (pointer: fine) {
+  .device-screen:hover .play { transform: scale(1.09); background: var(--accent-deep);
+    box-shadow: 0 0 0 16px rgba(193,102,62,.10); }
+  .fit-list li:hover { transform: translateY(-3px); border-color: var(--border);
+    box-shadow: 0 18px 34px -24px rgba(28,23,18,.45); }
+  .yt-card:hover { transform: translateY(-4px); }
+  .yt-card:hover .yt-thumb img { transform: scale(1.05); }
+  .yt-card:hover .yt-thumb .pin svg { transform: scale(1.12); }
+  .yt-more:hover .arrow { transform: translateX(4px); }
+  .proof-link:hover { transform: translateY(-2px); border-color: var(--border);
+    box-shadow: 0 16px 30px -24px rgba(28,23,18,.45); }
+  .proof-link:hover .arrow { transform: translateX(4px); }
+  .plan-item:hover { border-color: rgba(224,138,92,.4); transform: translateY(-3px); }
+
+  /* Bild oben im Kasten, Text darunter. Die Bilder sind fuer diesen dunklen
+     Grund gemacht (dunkler Bildhintergrund, warmes Licht als Motiv) -- ein
+     cremefarbenes Bild wuerde hier als heller Klotz reinknallen und den einen
+     dunklen Moment der Seite zerstoeren. Ohne Bild bleibt das SVG-Glyph. */
+  .plan-img { margin: -22px -22px 16px; border-radius: 15px 15px 0 0; overflow: hidden; }
+  /* 16:9, because that is the shape the illustrations are generated in. A fixed
+     132px strip meant cover kept a middle band and threw the rest away: the
+     lamp-lit desk lost its desk, the agreement lost its page. */
+  .plan-img img { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto;
+                  object-fit: cover; }
+  .plan-item:has(.plan-img) .plan-glyph { display: none; }
+  .cover-book:hover { transform: rotateY(-6deg) rotateX(1deg) rotateZ(0deg) translateY(-6px);
+    filter: drop-shadow(0 40px 56px rgba(28,23,18,.40)); }
+  .testimonial:hover { transform: translateY(-3px); box-shadow: 0 16px 32px -22px rgba(28,23,18,.45); }
+  .foot-links a:hover { color: var(--accent); border-color: var(--accent); }
+  .btn:hover { background: var(--accent-deep); transform: translateY(-2px);
+    box-shadow: 0 16px 28px -12px rgba(28,23,18,.6); }
+  .btn-on-ink:hover { box-shadow: 0 18px 32px -14px rgba(0,0,0,.75); }
+  .btn:hover .arrow { transform: translateX(4px); }
+  .cv summary:hover { color: var(--accent); }
+  .topbar-cta:hover { background: var(--accent-deep); }
+  .topbar-cta:hover .arrow { transform: translateX(3px); }
+  }
+
+  /* Press states are never gated behind the hover query: a tap has to be
+     answered on touch too, and faster than the hover it replaces. */
+  .yt-card:active, .device-screen:active { transform: scale(.985); transition-duration: .1s; }
+  .cv summary:active { transform: scale(.99); }
+
+  /* ------------------------------------------------------------------
+     MOTION. Opt-in at runtime: JS adds .anim, so a no-JS or headless
+     render ships the fully visible page rather than a blank one.
+     ------------------------------------------------------------------ */
+  .anim [data-rise] { opacity: 0; transform: translateY(16px);
+    transition: opacity .8s var(--ease), transform .8s var(--ease); }
+  .anim [data-rise].in { opacity: 1; transform: none; }
+  .anim [data-rise][data-d="1"] { transition-delay: .07s; }
+  .anim [data-rise][data-d="2"] { transition-delay: .14s; }
+  .anim [data-rise][data-d="3"] { transition-delay: .21s; }
+
+  .anim [data-settle] { opacity: 0; transform: scale(.975);
+    transition: opacity .9s var(--ease), transform .9s var(--ease); }
+  .anim [data-settle].in { opacity: 1; transform: none; }
+
+  .anim .fit-list li, .anim .yt-grid .yt-card { opacity: 0; transform: translateY(18px);
+    transition: opacity .7s var(--ease), transform .7s var(--ease); }
+  .anim .fit-list.in li, .anim .yt-grid.in .yt-card { opacity: 1; transform: none; }
+  .anim .fit-list.in li:nth-child(2), .anim .yt-grid.in .yt-card:nth-child(2) { transition-delay: .09s; }
+  .anim .fit-list.in li:nth-child(3), .anim .yt-grid.in .yt-card:nth-child(3) { transition-delay: .18s; }
+
+  .anim .plan-item { opacity: 0; transform: translateY(14px);
+    transition: opacity .7s var(--ease), transform .7s var(--ease), border-color .4s var(--ease); }
+  .anim .plan-item.in { opacity: 1; transform: none; }
+  .anim .plan-item::after { transform: scaleX(0); transition: transform .8s var(--ease) .25s; }
+  .anim .plan-item.in::after { transform: scaleX(1); }
+  .anim .plan-item:nth-child(2) { transition-delay: .08s; }
+  .anim .plan-item:nth-child(3) { transition-delay: .16s; }
+  .anim .plan-item:nth-child(4) { transition-delay: .24s; }
+
+  .anim [data-cover] .cover-book { opacity: 0; transform: rotateY(-34deg) rotateX(6deg) translateY(14px); }
+  .anim [data-cover].in .cover-book { opacity: 1; transform: rotateY(-15deg) rotateX(3deg) rotateZ(-1.5deg); }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    :root { --tilt: 0deg; }
+    .anim [data-rise], .anim [data-settle], .anim [data-cover] .cover-book,
+    .anim .fit-list li, .anim .yt-grid .yt-card, .anim .plan-item, .anim .plan-item::after {
+      opacity: 1 !important; transform: none !important; transition: opacity .01s linear !important; }
+    .anim [data-cover].in .cover-book { transform: rotateY(-15deg) rotateX(3deg) rotateZ(-1.5deg) !important; }
+    .device { transform: none !important; transition: none !important; }
+    .cover-book, .btn, .testimonial, .fit-list li, .plan-item, .yt-card, .device-screen .play { transition: none !important; }
+    .cover-book:hover, .btn:hover, .testimonial:hover, .fit-list li:hover, .plan-item:hover, .yt-card:hover { transform: none; }
+  }
+  /* A page without a walkthrough video yet shows no empty player. */
+  .no-video .device-stage { display: none; }
+</style>
+</head>
+<body class="{{BODY_CLASS}}">
+
+  <header class="navbar">
+    <nav class="navbar-inner" aria-label="Sections">
+      <a class="navseg" href="#walkthrough"><span>Walkthrough</span></a>
+      <a class="navseg" href="#build"><span>What I'd build</span></a>
+      <a class="navseg" href="#plan"><span>How it works</span></a>
+      <a class="navseg" href="#proof"><span>Proof</span></a>
+      <a class="navseg" href="#next"><span>Next step</span></a>
+    </nav>
+  </header>
+
+  <div class="hero-wrap">
+    <canvas class="dither" id="dither" data-src="{{DITHER_SRC}}" aria-hidden="true"></canvas>
+    <section class="hero">
+      <h1 class="serif">{{HOOK}}</h1>
+      {{HERO_ART}}
+    </section>
+
+    <section class="band band-tight band-tight-b" id="walkthrough">
+    <div class="inner">
+      <div class="device-stage" data-settle>
+        <div class="device" id="device">
+          <a class="device-screen" href="{{LOOM_URL}}" target="_blank" rel="noopener">
+            <span class="glow"></span>
+            <span class="face">
+              <span class="play" aria-hidden="true">▶</span>
+              <span>Watch the {{VIDEO_LENGTH}} walkthrough</span>
+            </span>
+          </a>
+          <span class="device-badge">Loom</span>
+        </div>
+      </div>
+
+      <ul class="fit-list">
+        {{FIT_POINTS}}
+      </ul>
+    </div>
+    </section>
+  </div>
+
+  <section class="band band-plain band-tight band-tight-b">
+    <div class="inner">
+      {{CV_BLOCK}}
+    </div>
+  </section>
+
+  <section class="band band-plain" id="build">
+    <div class="inner inner-board">
+      <div class="center center-measure">
+        <h2 class="serif section-title" data-rise>What I'd build</h2>
+        <p class="section-lede" data-rise data-d="1">Drawn from your posting, not a template. This is the first milestone, with the shape already in place for what comes after.</p>
+      </div>
+
+      <figure class="artifact" id="dg" data-settle>
+        <div class="artifact-bar">
+          <span class="artifact-tag">Proposed build</span>
+          <span class="artifact-name">{{JOB_TITLE}}</span>
+          <span class="dg-tools">
+            <button class="dg-btn" data-dg="undo" title="Undo (⌘Z)" aria-label="Undo">&#8630;</button>
+            <button class="dg-btn" data-dg="redo" title="Redo (⇧⌘Z)" aria-label="Redo">&#8631;</button>
+            <button class="dg-btn" data-dg="play" title="Watch a lead run through it">&#9654; Run</button>
+            <button class="dg-btn" data-dg="tidy" title="Tidy up the layout">Tidy</button>
+            <button class="dg-btn" data-dg="out" title="Zoom out" aria-label="Zoom out">&minus;</button>
+            <button class="dg-btn" data-dg="in" title="Zoom in" aria-label="Zoom in">+</button>
+            <button class="dg-btn" data-dg="fit" title="Fit to view">Fit</button>
+            <button class="dg-btn" data-dg="full" title="Fullscreen" aria-label="Fullscreen">&#10530;</button>
+          </span>
+        </div>
+        <div class="dg-stage" id="dg-stage" tabindex="0">
+          <ol class="dg-fallback">
+            {{DIAGRAM_FALLBACK}}
+          </ol>
+          <div class="dg-mini" id="dg-mini" aria-hidden="true"></div>
+        </div>
+        <!-- The color coding was answering "what am I actually paying for"
+             silently: filled = I build it, plain = you already run it. Nothing
+             on the page said so, which made it decoration instead of an
+             argument. -->
+        <div class="dg-legend">
+          <span class="dg-key"><i class="sw sw-mine"></i>I build this for you</span>
+          <span class="dg-key"><i class="sw sw-yours"></i>You already have this</span>
+          <span class="dg-key"><i class="sw sw-num">1</i>Notes explain each step</span>
+        </div>
+        <div class="dg-foot">
+          <span class="dg-hint" id="dg-hint">Drag to move, pull a dot to connect, double-click to rename.</span>
+          <button class="dg-btn dg-btn-ghost" data-dg="add">+ Step</button>
+          <button class="dg-btn dg-btn-ghost" data-dg="del" title="Delete selection (⌫)">Delete</button>
+          <button class="dg-btn dg-btn-ghost" data-dg="png" title="Download as PNG">PNG</button>
+          <button class="dg-btn dg-btn-ghost" data-dg="reset" hidden>Reset</button>
+          <button class="dg-btn dg-btn-accent" data-dg="share" hidden>Copy your version</button>
+        </div>
+      </figure>
+
+      {{LIVE_ARTIFACTS}}
+
+      {{PROOF_LINK}}
+
+      <script type="application/json" id="dg-data">{{DIAGRAM_DATA}}</script>
+      <script>{{DIAGRAM_JS}}</script>
+    </div>
+  </section>
+
+  <!-- videos:start -->
+  <section class="band band-plain band-tight">
+    <div class="inner">
+      <div class="yt-head" data-rise>
+        <svg class="yt-mark" viewBox="0 0 28 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path fill="#FF0000" d="M27.4 3.1A3.51 3.51 0 0 0 24.9.6C22.7 0 14 0 14 0S5.3 0 3.1.6A3.51 3.51 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.51 3.51 0 0 0 2.5 2.5C5.3 20 14 20 14 20s8.7 0 10.9-.6a3.51 3.51 0 0 0 2.5-2.5C28 14.7 28 10 28 10s0-4.7-.6-6.9z"/>
+          <path fill="#ffffff" d="M11.2 14.29 18.5 10l-7.3-4.29z"/>
+        </svg>
+        <h2 class="serif section-title">I build these in public</h2>
+      </div>
+      <p class="yt-note" data-rise data-d="1">{{VIDEOS_NOTE}}</p>
+
+      <div class="yt-grid">
+        {{VIDEOS_BLOCK}}
+      </div>
+
+      <a class="yt-more" href="{{CHANNEL_URL}}" target="_blank" rel="noopener" data-rise>
+        See the whole channel <span class="arrow" aria-hidden="true">→</span>
+      </a>
+    </div>
+  </section>
+  <!-- videos:end -->
+
+  <section class="band band-ink band-dotted" id="plan">
+    <canvas class="dither dither-plan" data-src="{{DITHER_SRC_NEXT}}" data-on-ink aria-hidden="true"></canvas>
+    <div class="inner-wide">
+      <div class="center">
+        <h2 class="serif section-title" data-rise>How this would work</h2>
+        <p class="section-lede" data-rise data-d="1">The tools, the time, the cost, and exactly what I'd need from you. All of it open to discussion before anything starts.</p>
+      </div>
+      <div class="plan-grid">
+
+        <div class="plan-item">
+          <svg class="plan-glyph" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M24.8 7.4a8 8 0 0 0-10.4 10.4L7 25.2 14.8 33l7.4-7.4A8 8 0 0 0 32.6 15.2l-4.9 4.9-3.8-3.8 4.9-4.9a8 8 0 0 0-4-4z"
+              stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M12.4 27.6l2.6 2.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          {{PLAN_IMG_TOOLS}}
+          <p class="plan-label">Tools</p>
+          <ul class="scope-list">
+            {{TOOLS}}
+          </ul>
+        </div>
+
+        <div class="plan-item">
+          <svg class="plan-glyph" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="20" cy="21.5" r="12.5" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M20 14v7.5l5 3.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M15.5 5.5h9M20 5.5V9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          {{PLAN_IMG_TIMELINE}}
+          <p class="plan-label">Timeline</p>
+          {{TIMELINE_BLOCK}}
+        </div>
+
+        <div class="plan-item">
+          <svg class="plan-glyph" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M19.2 6.5H9.8A3.3 3.3 0 0 0 6.5 9.8v9.4c0 .9.35 1.7.97 2.33l11.6 11.6a3.3 3.3 0 0 0 4.66 0l9.4-9.4a3.3 3.3 0 0 0 0-4.66L21.53 7.47a3.3 3.3 0 0 0-2.33-.97z"
+              stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <circle cx="14" cy="14" r="2.2" fill="currentColor"/>
+          </svg>
+          {{PLAN_IMG_BUDGET}}
+          <p class="plan-label">Budget</p>
+          {{BUDGET_BLOCK}}
+        </div>
+
+        <div class="plan-item">
+          <svg class="plan-glyph" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <rect x="8" y="6" width="24" height="28" rx="3" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M13.5 15.2l2.4 2.4 4.3-4.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M13.5 25.4l2.4 2.4 4.3-4.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M23.5 15h4M23.5 25.2h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          {{PLAN_IMG_KICKOFF}}
+          <p class="plan-label">To get started, I'd need</p>
+          <ul class="scope-list">
+            {{KICKOFF_ITEMS}}
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- showcase:start -->
+  <section class="band band-warm" id="proof">
+    <div class="inner-wide">
+      <div class="showcase">
+        <div class="cover-stage" data-cover>
+          <span class="cover-flag">Real example</span>
+          <div class="cover-book">
+            <span class="cover-sheet s2"></span>
+            <span class="cover-sheet s1"></span>
+            <img class="cover-face" src="{{REPORT_COVER_SRC}}" alt="Cover of a performance report built for another client">
+          </div>
+        </div>
+        <div class="showcase-copy">
+          <h2 class="serif section-title" data-rise>{{SHOWCASE_TITLE}}</h2>
+          <p data-rise data-d="1">{{LEAD_MAGNET_TEASER}}</p>
+          <ul class="report-list" data-rise data-d="2">
+            {{SHOWCASE_POINTS}}
+          </ul>
+          <a class="btn" href="{{LEAD_MAGNET_URL}}" target="_blank" rel="noopener" data-rise data-d="3">
+            {{LEAD_MAGNET_CTA}} <span class="arrow" aria-hidden="true">→</span>
+          </a>
+          <p class="note" data-rise data-d="3">Free, and yours to keep whether or not we work together.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- showcase:end -->
+
+  <section class="band band-plain">
+    <div class="inner">
+      <div class="center">
+        <h2 class="serif section-title" data-rise>What my Upwork clients say</h2>
+        <p class="section-lede" data-rise data-d="1">Every one of these is a real review on my Upwork profile.</p>
+      </div>
+      {{TESTIMONIALS_BLOCK}}
+    </div>
+  </section>
+
+  <section class="band band-ink band-next" id="next">
+    <canvas class="dither dither-next" data-src="{{DITHER_SRC_NEXT}}" data-on-ink aria-hidden="true"></canvas>
+    <div class="inner next">
+      <h2 class="serif section-title" data-rise>The next step</h2>
+      <p data-rise data-d="1">{{NEXT_STEP}}</p>
+      <a class="btn btn-on-ink" href="{{PROFILE_URL}}" target="_blank" rel="noopener" data-rise data-d="2">
+        Message me on Upwork <span class="arrow" aria-hidden="true">→</span>
+      </a>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>Put together for this specific project.</p>
+    <div class="foot-links">
+      {{FOOTER_LINKS}}
+    </div>
+  </footer>
+
+<script>
+(function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if ('IntersectionObserver' in window) {
+    document.body.classList.add('anim');
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: .12 });
+    document.querySelectorAll('[data-rise], [data-settle], [data-cover], .plan-item, .fit-list, .yt-grid')
+      .forEach(function (el) { io.observe(el); });
+    requestAnimationFrame(function () {
+      document.querySelectorAll('.hero [data-rise]').forEach(function (el) { el.classList.add('in'); });
+    });
+  }
+
+  /* ---- Hero dither field ------------------------------------------------
+     Ported from the automatable.co hero. The expensive work happens once per
+     resize: the field is evaluated into a small buffer at one cell per output
+     dot, auto-levelled and floored. Per frame only reading, thresholding and
+     drawing remain. Colours are read from the theme tokens, so a themed page
+     dithers in its own palette without touching this code. */
+  function ditherField(cv) {
+    if (!cv || !cv.getContext) return;
+    var ctx = cv.getContext('2d');
+    if (!ctx) return;
+    // Auf dunklem Grund zieht dieselbe Palette ins Schwarze und verschwindet.
+    // data-on-ink dreht die beiden Endpunkte auf die Ink-Tokens.
+    var onInk = cv.hasAttribute('data-on-ink');
+
+    // 8x8 Bayer, built recursively from the 4x4.
+    var BAYER = (function () {
+      var m4 = [0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5], q = [0,2,3,1], o = new Float32Array(64);
+      for (var y = 0; y < 8; y++) for (var x = 0; x < 8; x++)
+        o[y*8+x] = 4*m4[(y%4)*4+(x%4)] + q[(y<4?0:2)+(x<4?0:1)];
+      return o;
+    })();
+
+    /* Jono's constants, kept as they are on the live site: the values were
+       tuned against this exact drawing, so changing them is retuning, not
+       porting. FIT 3.2 is the important one, it zooms deep into the plume.
+       Pulled back you see the whole cloud and mostly the empty paper around
+       it; only close in do the wisps become connected masses with real gaps. */
+    var CELL = 8, CELL_NARROW = 6, DOT = 0.58, LEVELS = 6, SPACING = 0.42,
+        FLOOR = 0.07, MARGIN = 16, STEPS = 16, DRIFT = 6, TAU = Math.PI * 2,
+        CONTRAST = 46, BRIGHTNESS = -4, CX = 0.46, CY = 0.44,
+        FADE_FROM = 0.72, FADE_TO = 1.65, SOURCE_MIX = 0.12,
+        PAPER = '#efe7d6';   // the drawing's own paper tone, see below
+    // FIT 3.2 zoomt tief in die Tuschewolke -- richtig fuer den Hero, wo nur die
+    // Textur zaehlt. Im Abschluss soll die Form dagegen ERKENNBAR sein, also die
+    // ganze Zeichnung zeigen (Befund 15.08.2026: "im Footer viel zu
+    // undeutlich"). Dazu mehr Kontrast, weil ein Punktfeld auf Dunkel weniger
+    // Spielraum hat als auf Papier.
+    var FIT = onInk ? 1.05 : 3.2;
+    if (onInk) { CONTRAST = 62; BRIGHTNESS = 6; }
+
+    function tokenRGB(name, fallback) {
+      var c = getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+      var m = c.replace('#','');
+      if (m.length === 3) m = m[0]+m[0]+m[1]+m[1]+m[2]+m[2];
+      return [parseInt(m.slice(0,2),16), parseInt(m.slice(2,4),16), parseInt(m.slice(4,6),16)];
+    }
+
+    var buf = null, raf = 0, palette = [], buckets = [];
+    var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var pointer = { x: 0, y: 0, tx: 0, ty: 0, active: false };
+
+    var levels = null;   // auto-levels are fixed after the first build
+
+    function build(img) {
+      var r = cv.getBoundingClientRect();
+      var w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      var cell = w < 640 ? CELL_NARROW : CELL;
+      var cols = Math.ceil(w / cell) + 1, rows = Math.ceil(h / cell) + 1;
+      var bw = cols + 2*MARGIN, bh = rows + 2*MARGIN;
+
+      /* The image goes into a buffer of one cell per output dot, so the whole
+         downsample happens once here instead of per frame. */
+      var off = document.createElement('canvas');
+      off.width = bw; off.height = bh;
+      var octx = off.getContext('2d', { willReadFrequently: true });
+      if (!octx) return;
+
+      /* Paper first. Anything outside the drawing would otherwise be
+         transparent, so luma 0, and after the inversion below that becomes the
+         densest point of the entire field. */
+      octx.fillStyle = PAPER;
+      octx.fillRect(0, 0, bw, bh);
+
+      var s = Math.min(bw / img.width, bh / img.height) * FIT;
+      var dw = img.width * s, dh = img.height * s;
+      octx.drawImage(img, CX*bw - dw/2, CY*bh - dh/2, dw, dh);
+      var data = octx.getImageData(0, 0, bw, bh).data;
+
+      var n = bw * bh, lum = new Float32Array(n), hist = new Uint32Array(256), i, y;
+      for (i = 0; i < n; i++) {
+        y = 0.2126*data[i*4] + 0.7152*data[i*4+1] + 0.0722*data[i*4+2];  // Rec.709
+        lum[i] = y; hist[y | 0]++;
+      }
+
+      /* Levels are measured once and then nailed down. Recomputed per resize
+         the dot density visibly pulses, and a background that breathes steals
+         exactly the attention the headline is owed. */
+      if (!levels) {
+        var at = function (p) {
+          var target = n * p, acc = 0;
+          for (var v2 = 0; v2 < 256; v2++) { acc += hist[v2]; if (acc >= target) return v2; }
+          return 255;
+        };
+        levels = { lo: at(0.02), hi: at(0.98) };
+      }
+      var span = Math.max(1, levels.hi - levels.lo);
+      var cf = (259 * (CONTRAST + 255)) / (255 * (259 - CONTRAST));
+      var ccx = CX*bw, ccy = CY*bh, cr = dw / 2, v, k, dx, dy, rr;
+
+      for (i = 0; i < n; i++) {
+        v = (lum[i] - levels.lo) / span;
+        v = v < 0 ? 0 : v > 1 ? 1 : v;
+        v = (cf * (v*255 + BRIGHTNESS - 128) + 128) / 255;
+        v = v < 0 ? 0 : v > 1 ? 1 : v;
+        /* The drawing is dark ink on light paper, so it has to be inverted for
+           the dots to land on the ink rather than on the empty ground. */
+        v = 1 - v;
+
+        dx = ((i % bw) - ccx) / cr;
+        dy = (((i / bw) | 0) - ccy) / cr;
+        rr = Math.sqrt(dx*dx + dy*dy);
+        k = (FADE_TO - rr) / (FADE_TO - FADE_FROM);
+        k = k < 0 ? 0 : k > 1 ? 1 : k;
+        v *= k * k * (3 - 2*k);   // smoothstep, otherwise the ring is visible
+        lum[i] = v < FLOOR ? 0 : v;
+      }
+
+      /* Colour per tone step: interpolate between the page's own muted tone and
+         its accent, then mix a little of the source pixel back in. That last
+         part is what keeps the dense cells reading as ink rather than as flat
+         brand colour. Averaging per step means a few dozen fillStyle changes
+         per frame instead of one per dot. */
+      // Auf Ink faengt die Palette bei einem sichtbaren Braun an, nicht bei
+      // Fast-Schwarz -- sonst existieren die duennen Bereiche optisch nicht.
+      var low = onInk ? tokenRGB('--text-2', '#5c5347') : tokenRGB('--border', '#e2d9c8');
+      var high = onInk ? tokenRGB('--accent-on-ink', '#e08a5c') : tokenRGB('--accent-deep', '#a24f2e');
+      var acc = new Float64Array(STEPS * 4), b;
+      for (i = 0; i < n; i++) {
+        b = Math.min(STEPS - 1, (lum[i] * STEPS) | 0);
+        acc[b*4] += data[i*4]; acc[b*4+1] += data[i*4+1];
+        acc[b*4+2] += data[i*4+2]; acc[b*4+3]++;
+      }
+      palette = []; buckets = [];
+      for (b = 0; b < STEPS; b++) {
+        var c = acc[b*4+3] || 1, f = b / (STEPS - 1);
+        var mix = function (j) {
+          var brand = low[j] + (high[j] - low[j]) * f;
+          return Math.round(brand + (acc[b*4+j] / c - brand) * SOURCE_MIX);
+        };
+        palette.push('rgb(' + mix(0) + ',' + mix(1) + ',' + mix(2) + ')');
+        buckets.push([]);
+      }
+
+      buf = { lum: lum, bw: bw, bh: bh, cols: cols, rows: rows, cell: cell, w: w, h: h };
+    }
+
+    function draw(t) {
+      if (!buf) return;
+      var lum = buf.lum, bw = buf.bw, bh = buf.bh, cell = buf.cell;
+      var maxR = (cell * (1 - SPACING) / 2) * DOT;
+      var pr = buf.w * 0.55, i, b, arr;
+
+      pointer.x += (pointer.tx - pointer.x) * .08;
+      pointer.y += (pointer.ty - pointer.y) * .08;
+
+      var driftX = reduceMotion ? 0 : Math.sin(t * 0.00021) * DRIFT;
+      var driftY = reduceMotion ? 0 : Math.cos(t * 0.00016) * DRIFT * 0.6;
+
+      for (i = 0; i < buckets.length; i++) buckets[i].length = 0;
+
+      for (var cy = 0; cy < buf.rows; cy++) {
+        var y = cy * cell + cell / 2;
+        for (var cx = 0; cx < buf.cols; cx++) {
+          var x = cx * cell + cell / 2, ox = driftX, oy = driftY;
+          if (pointer.active) {
+            var dx = x - pointer.x, dy = y - pointer.y, d = Math.sqrt(dx*dx + dy*dy);
+            if (d < pr) {
+              var k = 1 - d / pr, f = k * k * (3 - 2*k);
+              ox += (dx / (d + 1)) * f * 5; oy -= f * 3;
+            }
+          }
+          var sx = (cx + MARGIN + ox + .5) | 0, sy = (cy + MARGIN + oy + .5) | 0;
+          if (sx < 0 || sy < 0 || sx >= bw || sy >= bh) continue;
+          var v = lum[sy*bw + sx];
+          if (v <= 0) continue;
+          var th = (BAYER[(cy & 7)*8 + (cx & 7)] + .5) / 64;
+          var lvl = Math.min(LEVELS - 1, Math.floor(v * (LEVELS - 1) + th));
+          if (lvl <= 0) continue;
+          buckets[Math.min(STEPS - 1, (v * STEPS) | 0)].push(x, y, maxR * lvl / (LEVELS - 1));
+        }
+      }
+
+      ctx.clearRect(0, 0, buf.w, buf.h);
+      for (b = 0; b < buckets.length; b++) {
+        arr = buckets[b];
+        if (!arr.length) continue;
+        ctx.fillStyle = palette[b];
+        ctx.beginPath();
+        for (i = 0; i < arr.length; i += 3) {
+          ctx.moveTo(arr[i] + arr[i+2], arr[i+1]);
+          ctx.arc(arr[i], arr[i+1], arr[i+2], 0, TAU);
+        }
+        ctx.fill();
+      }
+    }
+
+    function loop(t) { draw(t); raf = requestAnimationFrame(loop); }
+
+    var src = cv.getAttribute('data-src');
+    if (!src) return;
+    var img = new Image();
+    img.onload = function () {
+      build(img);
+      if (reduceMotion) { draw(0); return; }   // still frame instead of animation
+      raf = requestAnimationFrame(loop);
+      window.addEventListener('pointermove', function (e) {
+        var r = cv.getBoundingClientRect();
+        if (!pointer.active) { pointer.x = e.clientX - r.left; pointer.y = e.clientY - r.top; }
+        pointer.active = true; pointer.tx = e.clientX - r.left; pointer.ty = e.clientY - r.top;
+      }, { passive: true });
+      window.addEventListener('pointerleave', function () { pointer.active = false; });
+
+      var rt = 0;
+      window.addEventListener('resize', function () {
+        clearTimeout(rt);
+        rt = setTimeout(function () { build(img); if (reduceMotion) draw(0); }, 150);
+      });
+    };
+    img.src = src;
+
+    // Das Hero-Feld blendet beim Scrollen aus, statt dem Leser zu folgen. Das
+    // Feld im Abschluss dagegen soll da sein, wenn man dort ankommt.
+    if (!onInk) {
+      window.addEventListener('scroll', function () {
+        var f = 1 - window.scrollY / (window.innerHeight * 0.55);
+        cv.style.opacity = String(Math.max(0, Math.min(1, f)));
+      }, { passive: true });
+    }
+  }
+
+  document.querySelectorAll('canvas.dither').forEach(ditherField);
+
+  /* The rail earns its border once it sits on content, and marks the sections
+     the reader has actually reached. Measured against the real section tops,
+     not against a percentage of page height: a percentage would light up
+     segments while the matching section is still far below the fold. */
+  var bar = document.querySelector('.navbar');
+  if (bar) {
+    var segs = [].slice.call(bar.querySelectorAll('.navseg'));
+    var sections = segs.map(function (a) {
+      return document.querySelector(a.getAttribute('href'));
+    });
+    var onBar = function () {
+      bar.dataset.stuck = window.scrollY > 8 ? 'true' : 'false';
+      var line = window.scrollY + bar.offsetHeight + window.innerHeight * 0.25;
+      for (var i = 0; i < segs.length; i++) {
+        var el = sections[i];
+        segs[i].dataset.on = (el && (el.offsetTop <= line)) ? 'true' : 'false';
+      }
+    };
+    window.addEventListener('scroll', onBar, { passive: true });
+    window.addEventListener('resize', onBar, { passive: true });
+    onBar();
+  }
+
+  // The device tilts back at rest and eases flat as it scrolls into view,
+  // so the screen appears to lift toward the reader.
+  var device = document.getElementById('device');
+  if (!device || reduce) return;
+  var MAX = 11, ticking = false;
+  function frame() {
+    ticking = false;
+    var r = device.getBoundingClientRect();
+    var vh = window.innerHeight || 1;
+    // 0 when the device top is at the viewport bottom, 1 once it is centred
+    var p = 1 - Math.min(Math.max(r.top / (vh * 0.72), 0), 1);
+    document.documentElement.style.setProperty('--tilt', (MAX * (1 - p)).toFixed(2) + 'deg');
+  }
+  function onScroll() { if (!ticking) { ticking = true; requestAnimationFrame(frame); } }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll, { passive: true });
+  frame();
+})();
+</script>
+</body>
+</html>

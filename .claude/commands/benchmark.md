@@ -1,11 +1,14 @@
 ---
-description: Finds the three strongest Upwork profiles in your profession, measures them, and turns them into targets for your own profile.
+description: Finds three strong visible Upwork profiles in your profession, measures them, and turns the comparison into targets for your own profile.
 argument-hint: "[profession, if it differs from your profile title]"
 ---
 
 # /benchmark
 
-What the best profiles in your profession actually do, measured, so `/profile` writes to a target instead of a taste. Same move as a blog that first reads the three pages ranking for its keyword: the average gets you level, the gaps all three leave open get you past.
+What three strong visible profiles in the member's profession do, measured, so
+`/profile` writes to a comparison rather than taste. This is a candidate sample,
+not a ranking of all freelancers or proof that their profile format caused
+their earnings.
 
 Read first: [references/profile-formula.md](../../references/profile-formula.md) and the profile sections of [references/upwork-mcp.md](../../references/upwork-mcp.md).
 
@@ -40,7 +43,10 @@ The script sets the targets. Never adjust a number by hand.
 Read the three overviews and titles yourself and find:
 
 - **What all three do that the member does not.** Opening, proof order, structure, the ask at the end, how the title is built. Name the pattern, not the person.
-- **What none of the three does.** The gap nobody in this profession fills: a specific niche, hard numbers, a guarantee, a clear process. This is where the member gets past them, not level with them.
+- **What none of the three does.** The gap nobody in this profession fills: a
+  specific niche, relevant verified proof, a clear process or a sharper scope
+  boundary. This is where the member can stand apart without inventing a claim
+  or guarantee.
 - **What looks strong but is claimed, not shown.** A profile that calls itself "Top Rated Plus" in its overview while its badge says Top Rated is a warning, not a model.
 
 ## Step 6 · Write benchmark.md

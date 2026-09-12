@@ -1,14 +1,26 @@
 # The formula behind profiles that win
 
-What `/audit` measures against and `/profile` writes to. Extracted 14 August 2026 from two sources that agree with each other: **three real top-earning profiles** pulled through the connector (between $295,000 and $1,090,000 earned, two of them Top Rated Plus), and **a proven Upwork bio formula** from a coach whose clients earn seven figures on the platform.
+What `/audit` measures against and `/profile` writes to. Extracted 14 August
+2026 from a small sample: **three high-earning profiles** pulled through the
+connector (between $295,000 and $1,090,000 earned, two of them Top Rated Plus),
+and one practitioner's Upwork bio formula.
 
-Where they agree, treat it as the default. Where a single profile does something unusual, it is an option, not a rule. **This is practitioner evidence, not Upwork's documentation.** Say so when you recommend it.
+Where they agree, treat the pattern as a starting hypothesis to test against the
+member's profession and later conversion data. A three-profile sample does not
+prove that the pattern caused their earnings. Where one profile does something
+unusual, it is an option, not a rule. **This is practitioner evidence, not
+Upwork's documentation.** Say so when you recommend it.
 
 ## What all three do
 
-**1. The title is keywords separated by pipes, never a sentence.** Three or four blocks, each one a thing a client would actually type into search. No "helping businesses grow", no job title alone. The pattern survives across three completely different niches.
+**1. The sampled titles use keywords separated by pipes.** Start with three or
+four blocks that a client would type into search, then let `/benchmark` test the
+pattern in the member's profession. Avoid vague benefits such as "helping
+businesses grow" when a concrete service or tool fits.
 
-**2. The first line states an outcome or a hard number. Never "I am a...".** Everything past roughly 250 characters hides behind "more", so this line decides whether the rest gets read.
+**2. The first line states an outcome or, when verified, a hard number.** Avoid
+opening as a CV. Everything past roughly 250 characters may hide behind "more",
+so the opening carries the decision.
 
 - Outcome first: "I help businesses increase revenue by improving customer acquisition, conversion rates, and retention."
 - Ownership plus proof: "When you hire me I take responsibility for the profitability of your ADS and FUNNELS. $10M+ in sales generated."
@@ -39,9 +51,13 @@ Where they agree, treat it as the default. Where a single profile does something
 - **Pricing tiers spelled out.** Only one does it. It fits someone who serves small businesses through enterprise and clutters a narrower profile.
 - **A week-by-week "how I work".** Strong for large engagements, overkill for small ones.
 
-## What the formula bans, and the profiles confirm
+## Generic patterns to remove
 
-None of the three contains "I would love to", "I'm excited", "passionate", "results-driven", "rockstar" or "ninja". None opens by restating a job. None closes on a big-picture line like "AI is the future of business". Any of these in a draft is a defect, not taste.
+None of the three contains "I would love to", "I'm excited", "passionate",
+"results-driven", "rockstar" or "ninja". None opens by restating a job or closes
+on a broad claim such as "AI is the future of business". In this Blueprint those
+phrases are removed because they spend attention without helping the client
+decide, not because the small sample proves a universal conversion rule.
 
 ## Applying it
 

@@ -26,7 +26,7 @@ Here is my walkthrough of the plan: https://www.loom.com/share/example
 I work in milestones, so you approve each phase before the next one.
 
 Send me your store URL here on Upwork and I'll point out the first fix.
-""" + ' '.join(['word'] * 240)
+"""
 
 PROOF = '30% more revenue from email within 90 days · 212 stores'
 
@@ -43,7 +43,7 @@ class ApplicationCheckTest(unittest.TestCase):
         text = ' '.join(fails)
         self.assertIn('generic phrasing', text)
         self.assertIn('em-dash', text)
-        self.assertIn('job title', text)
+        self.assertNotIn('job title', text)
 
     def test_unproven_past_result_fails(self):
         fails, *_ = ac.check(GOOD, 'Shopify Email Expert', PROOF.replace('212 stores', ''))
@@ -54,6 +54,23 @@ class ApplicationCheckTest(unittest.TestCase):
         _, _, _, words, has_screening = ac.check(text)
         self.assertTrue(has_screening)
         self.assertLess(words, 400)
+
+    def test_short_specific_letter_needs_no_numeric_bullet_quota(self):
+        text = 'Your checkout needs to assign the right membership after payment. I would first trace that handoff in a test account. Walkthrough: https://www.loom.com/share/demo'
+        self.assertEqual(ac.check(text)[0], [])
+
+    def test_fake_video_host_is_rejected(self):
+        for fake in ('https://loom.com.attacker.test/share/a', 'loom.com', 'https://loom.com/share/'):
+            self.assertTrue(any('link' in f for f in ac.check(GOOD.replace('https://www.loom.com/share/example', fake), proof_text=PROOF)[0]))
+
+    def test_screening_proof_and_empty_proof_are_checked(self):
+        text = GOOD + '\n\n## Screening answers\n\n### Similar work?\nI delivered 999 projects.'
+        self.assertTrue(any('999' in f for f in ac.check(text, proof_text=PROOF)[0]))
+        self.assertTrue(any('212' in f for f in ac.check(GOOD)[0]))
+
+    def test_client_screening_question_is_not_authored_copy(self):
+        text = GOOD + '\n\n## Screening answers\n\n### What makes you passionate about this?\nI enjoy making a checkout understandable.'
+        self.assertEqual(ac.check(text, proof_text=PROOF)[0], [])
 
 
 if __name__ == '__main__':

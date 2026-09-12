@@ -5,7 +5,7 @@ description: Uses the official Upwork connector inside this Blueprint for search
 
 # Upwork MCP
 
-Choose and execute the smallest safe connector route for the requested Upwork
+Choose and execute the smallest in-scope connector route for the requested Upwork
 operation. This skill is project-local and depends only on files in this repo.
 
 ## Before the first call
@@ -43,9 +43,13 @@ are never confirmed by this Blueprint: the member reviews the prepared fields
 and submits the proposal on Upwork themselves.
 
 Messages use only the cockpit's dedicated `send-reply` run. The server freezes
-the approved text in `jobs/<id>/outbox.json`; the run sends it once, reads the
-same room once and accepts only an exact returned text match. No other workflow
-calls `send_message`.
+the approved text, approval time and known message ids in
+`jobs/<id>/outbox.json`. The runtime guard binds the tool call to that approval,
+injects the frozen text and permits one attempt. Confirmation requires the exact
+text on a freelancer message with a new id and a timestamp at or after approval.
+If the send or confirmation is uncertain, leave the outbox unresolved, run
+`/inbox` or have the member inspect Upwork and reconcile the evidence. Never
+retry blindly. No other workflow calls `send_message`.
 
 Write pipeline state only through `python3 code/pipeline.py`. After the operation,
 run `python3 code/pipeline.py prune` and report the exact Upwork call count.

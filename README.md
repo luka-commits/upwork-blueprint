@@ -17,17 +17,23 @@ There is no setup step. Each command walks you through exactly what it needs, th
 | Step | Command | What it does |
 |------|---------|--------------|
 | 1 | `/audit` | Scores your Upwork profile and lists what to fix first |
-| 2 | `/benchmark` | Finds the three best-earning profiles in your profession and measures what they do |
+| 2 | `/benchmark` | Measures three strong visible profiles in your profession and what they do |
 | 3 | `/profile` | Writes your optimal profile, ready to paste into Upwork |
 | 4 | `/find-jobs` | Finds and scores the jobs worth your Connects, straight into your cockpit |
-| 5 | `/pitch-page` | A one-page pitch site for one job, the thing that makes a client stop scrolling |
+| 5 | `/pitch-page`, `/loom-review` | A one-page pitch site and Loom, followed by a recording quality check |
 | 6 | `/apply` | After the Pitch page and Loom video: cover letter, answers and bid, ready for you to submit on Upwork |
 | 7 | `/inbox`, `/reply`, `/follow-up` | Client messages, reply drafts and the morning follow-up queue |
-| 8 | `/status` | Where everything stands, plus your post for the community sprint |
-| 9 | `/proposal` | The offer you send after the sales call |
-| 10 | `/won` | A won job becomes a project |
+| 8 | `/call-prep`, `/call-review` | Prepares the sales decision and records what the call actually agreed |
+| 9 | `/proposal` | Builds a scoped offer from approved commercial terms for you to send |
+| 10 | `/won` | Turns a started Upwork contract into a checked client project |
+| 11 | `/delivery` | Builds verified updates, handover and an earned review request |
 
-Any time: `/cockpit` opens your jobs, clients and tasks in the browser, and `/sync` brings them up to date with Upwork (replies, offers, contracts).
+Any time: `/status` shows the local funnel and next move, `/cockpit` opens jobs,
+clients and tasks in the browser, and `/sync` brings them up to date with Upwork
+(replies, offers, contracts).
+
+The table is the product path. A stage is available only when its file exists in
+`.claude/commands/`; unfinished stages are not silently improvised.
 
 ## Requirements
 
@@ -38,6 +44,11 @@ Any time: `/cockpit` opens your jobs, clients and tasks in the browser, and `/sy
 
 ## What this will never do
 
-It never submits a proposal, never buys Connects, and never runs on its own in the background. It prepares the application and opens the Upwork job; you review the fields and click Submit there. Replies still need your approval of the exact text. The details are in [references/upwork-rules.md](references/upwork-rules.md).
+It never submits a proposal, never buys Connects, and never runs on its own in
+the background. It prepares the application and opens the Upwork job; you review
+the fields and click Submit there. Replies still need your approval of the exact
+text. The sender freezes that text for one attempt; if confirmation is unclear,
+it blocks another send until you check the Upwork conversation. The details are
+in [references/upwork-rules.md](references/upwork-rules.md).
 
 Stuck? Post in the community. The Help board answers same-day.

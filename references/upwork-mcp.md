@@ -8,7 +8,9 @@ Everything under "Measured" was called against a real account and produced the r
 
 ## The short version
 
-**Reading gives you a lot. Writing gives you almost nothing.** That pattern is behind nearly every disappointment with this API. Before planning any automation, check whether the writing half exists at all.
+**Reading is broadly measured. Writing is narrow and must be checked at run
+time.** Some writes appear only in the connector's tool description and have
+not been exercised. A documented action is not a measured capability.
 
 ## Measured 14 August 2026: reading a profile
 
@@ -38,12 +40,14 @@ Everything under "Measured" was called against a real account and produced the r
 - **Boost bids live only in that preview,** never in `find_jobs get`. The `boost` block: `available` (false means do not offer it, `reason` says why), `current_top_bids` (the real competing bids, highest first, empty when nobody boosted; `current_top_bids_available` false means unknown, not zero), `recommended_connects` (the smallest bid that secures a top slot), `max_boost_connects` (balance minus the application's own price), `note` (how many paid slots this job has), `recommendation` (`skip` when boosting makes no sense). A boost is a bid, charged only if you land in the paid slots or the client engages before the auction closes. It cannot be edited or withdrawn once submitted.
 - **Only one pending preview per action type.** A new `create` replaces the last unconfirmed one.
 - **Mandatory before `create`:** `list_freelancer_proposals` action `invitations` (an invited job takes `accept_invitation` instead) and action `list` (an existing proposal makes `create` fail).
-- **Before submitting, always ask** about attachments and which portfolio projects or certificates to highlight.
+- **Before the manual submission, resolve** whether the member wants attachments
+  or highlighted portfolio projects or certificates. Ask only when the job and
+  saved member context do not already settle it.
 - **Keeping up with Upwork (read only, tool descriptions 12 September 2026):** `list_freelancer_proposals` action `list` takes a `status` (`Accepted` means submitted, `Offered`, `Hired`, `Declined`, `Withdrawn`), 10 per page; action `get_room` gives the thread of one proposal once the client wrote. `get_messages` action `list_rooms` carries `awaiting_reply_from` (you or them) per room, `list_messages` reads newest first. `list_offers` action `list_mine` shows offers as `awaiting_your_acceptance` or `contract_started`; `list_contracts` action `search` with `contract_statuses`. `/sync` uses exactly these.
 - **Measured 12 September 2026, the `status` filter on `list` does not filter.** `Accepted`, `Offered`, `Pending` and `Activated` came back empty with "no submitted proposals yet". `Hired`, `Declined` and `Withdrawn` each returned the same mixed list (submitted, hired and declined proposals together, totals 44 to 56). So `/sync` takes each proposal's own `status` field and never trusts the filter it asked for, and an empty list proves nothing.
 - **A freelancer cannot message a client first on a proposal.** No room exists until the client writes. A "follow-up" on an application therefore means re-checking it, not messaging.
 
-## Measured 12 September 2026: finding other freelancers
+## Tool description read 12 September 2026: finding other freelancers
 
 `get_tool_help` for `find_freelancers` returns a full tool description, so the server knows it, even though it does not appear in a freelancer account's default tool list. **Whether a freelancer account may call it is untested.** Its actions:
 
@@ -62,11 +66,15 @@ More results come from **paging**: repeat the identical filters with `cursor` se
 
 **Filters that exist:** `title` (job title only, words ANDed), `query` (whole posting, semantic), `skills`, `category`, `proposals_max` and `proposals_min`, `client_hires_min` and `max`, `budget_min` and `max` (fixed price), `rate_min` and `rate_max` (hourly), `experience_level`, `workload`, `timezone`, `location`, `previous_clients_only`, `job_type`. A client's `preferred_qualifications` are **not** in search results, only in `get`.
 
-**Measured 12 September 2026, and it changes three things from August:**
+**Observed 12 September 2026:** two measured search changes and one new action
+from the tool description:
 
 - **Every result now carries `url`,** a working job link. The old workaround (a search page with the job title) is gone.
 - **`title` filters on the job title only,** words ANDed. Cleaner than `query`, which matches the whole posting semantically. It cannot be combined with `query` or `sort` relevance.
-- **`smart_search`** reads Upwork's own recommendation feeds for your profile. `mode` `most_recent` is the only search with a real date filter (`days_posted`, `from_date`, `to_date`); `best_match` ranks by fit and ignores dates. Its results carry `connect_price` and `applied` but a proposals tier instead of a count.
+- **Documented, untested: `smart_search`** reads Upwork's recommendation feeds
+  for the profile. The description says `mode` `most_recent` accepts
+  `days_posted`, `from_date` and `to_date`; `best_match` ranks by fit and ignores
+  dates. It also describes `connect_price`, `applied` and a proposals tier.
 - Search results carry `proposal_count`, `applied`, `featured` and the client's `total_posted_jobs`, but no hire count; the hire record comes only from `get` (`client_record`).
 
 ### What `find_jobs get` adds beyond search
@@ -84,18 +92,50 @@ Two cautions. **These come only from `get`, one call per job.** Pulling them for
 
 ## Measured since 14 August 2026, reading only
 
-`get_freelancer_dashboard` action `check` (one call returns contracts, Connects, invitations, unread rooms, offers and Upwork's own match feed), `list_freelancer_proposals` (every proposal with its creation time and job id, the basis for a daily count), `get_messages` (rooms and full threads, **but no author field on any message**, so only `numUnread` reliably says "the client wrote"), `list_contracts`, `get_account`, `set_tool_permission` action `get`.
+`get_freelancer_dashboard` action `check` (one call returns contracts, Connects,
+invitations, unread rooms, offers and Upwork's own match feed),
+`list_freelancer_proposals` (proposal records with creation time and job id),
+`get_messages`, `list_contracts`, `get_account`, `set_tool_permission` action
+`get`. A 14 August message response had no author field, while the 12 September
+reply confirmation exposed enough sender information to match the sent text.
+Treat message authorship as response-shape dependent and do not infer it from
+message order.
 
 ## Measured 12 September 2026: sending a reply
 
 - **`send_message` action `send` sends immediately.** There is no preview and no second confirmation tool. It needs the account `org_uid`, an existing `room_id` and the exact message text.
 - **A room is the gate.** A proposal has no room until the client writes, so a freelancer still cannot message first. The cockpit hides Send when `thread.json` has no `room_id`.
-- **The safe cockpit path uses three calls:** `list_accounts` once for `org_uid`, `send_message` once, then `get_messages` action `list_messages` once for the same room. The first real run returned the new freelancer message immediately and its text matched the server-written outbox character for character.
-- **Confirmation is mechanical.** `code/threads.py confirm` refuses to update `thread.json` unless the refreshed room contains a freelancer message exactly equal to `jobs/<id>/outbox.json`. The browser then marks that draft sent and confirmed.
+- **The guarded cockpit path uses three calls:** `list_accounts` once for
+  `org_uid`, `send_message` once, then `get_messages` action `list_messages` once
+  for the same room. The first measured run returned the new freelancer message
+  immediately and its text matched the server-written outbox character for
+  character.
+- **Confirmation is mechanical.** Before sending, the outbox records the exact
+  approved text, approval time and known message ids. `code/threads.py confirm`
+  accepts only a freelancer message with that exact text, a new id and a
+  timestamp at or after approval. A same-text historical message proves
+  nothing.
+- **The sender is bound to that approval before the tool call.** The local
+  runtime hashes the frozen outbox. Its PreToolUse guard rejects a changed
+  approval, wrong room, wrong action, attachments or unknown fields, then
+  replaces the model-provided message argument with the frozen server text. An
+  exclusive attempt receipt permits that approval to reach `send_message` only
+  once. During this run the guard also rejects writes outside the fixed
+  confirmation file and shell commands outside the exact confirmation,
+  follow-up and prune helpers. These properties are fixture-tested locally;
+  the live connector response schema has not yet been acceptance-tested with
+  the guard.
+- **Uncertainty stops the write path.** An error or missing confirmation leaves
+  the outbox unresolved, which blocks another send. Use `/inbox` or check the
+  Upwork conversation to establish what landed. Never retry `send_message`
+  merely because the local confirmation failed.
 
 ## Present but untested
 
-- **`manage_proposals`:** creating and submitting a proposal. Never exercised, so nobody knows yet whether the draft-then-confirm pattern holds here.
+- **`manage_proposals`:** creating and submitting a proposal. The tool
+  description documents create-then-confirm, but neither action has been
+  exercised. The Blueprint may request a preview, never confirmation, and stops
+  if the returned behavior differs.
 - **`find_jobs` action `smart_search`:** new since the first measurement.
 - Contracts and milestones beyond listing, attachments, `save_job`, `boost_profile`, `get_agency`, `set_tool_mode` (switching it is a write and needs a yes).
 

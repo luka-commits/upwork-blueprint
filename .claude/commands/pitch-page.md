@@ -33,7 +33,9 @@ Write the graph to `data/pitch-graph-<id>.json`:
 
 - `nodes`: `id`, `label` (a few words), `kind` (`source`, `step`, `sink`, `decision`, `datastore`, `service`, `actor`, `note`, `milestone`), `owner` (`you` builds it, `client` already runs it, `thirdparty` outside service), optional `logo` (a file name in `code/pitch/logos/`), optional `note` (two to four plain sentences for a client outside your field; about half the nodes need one).
 - `edges`: `from`, `to`, optional `label`, optional `dashed` for later phases.
-- `groups`: `label` and `nodes`, one per milestone. **Milestone one is something live within two to three days.**
+- `groups`: `label` and `nodes`, one per milestone. Make the first milestone the
+  smallest useful result. Give it a date only when dependencies and the member's
+  availability support that estimate.
 
 ## Step 5 · Assemble
 
@@ -44,7 +46,9 @@ python3 code/pitch/generate.py <id> --hook "..." \
   --timeline "Day 1-2|what ships;;Day 3-5|what ships" --budget "..." --kickoff "..." (repeat)
 ```
 
-- **Timeline in days, estimated against what you actually deliver with Claude Code,** not agency weeks.
+- **Timeline:** an estimate based on explicit scope, dependencies and the
+  member's real availability. Mark unresolved client inputs. Do not turn tool
+  speed into a delivery guarantee.
 - **Budget:** an honest frame, no invented price. When the posting gives none, say what the quote depends on.
 - **Next step** (`--next-step`) points back to Upwork; the default asks them to send their website or current setup there.
 - Optional: `--loom-url` once recorded, `--hero-illustration` (a wide scene of their world with the problem solved, generated, no text in it), `--live-artifact "Label|URL"` for anything actually built, `--proof-link "Label|Detail|URL"` for past work with no contact details on it, `--showcase ...` for a real sample of your work.
@@ -60,9 +64,14 @@ Write `jobs/<id>/loom-script.md`: what you say while scrolling the page, in beat
 - `python3 code/pitch_check.py loom jobs/<id>/loom-script.md`: three to four minutes of words, ending on Upwork.
 - Look at the page: a headless screenshot (Chrome `--headless --screenshot`), then read the image. Never call a page done unseen.
 
-## Step 8 · Online, only if wanted
+## Step 8 · Shareable link, only if wanted
 
-The page works without hosting as the backdrop for your Loom, and the Loom link goes into the application. To link the page itself, deploy only that file: copy it to `data/deploy/<id>/index.html` and run `vercel deploy data/deploy/<id> --yes` (a free Vercel account, asked for the first time it is needed). Never deploy the whole job folder: it holds your drafts.
+The page is local by default and works as the backdrop for the Loom recording.
+The Loom recording is shareable; `localhost`, `127.0.0.1` and local file links
+are not. Put a page link in the application only when the member has chosen a
+host, the exact public `https://` URL is saved in the pipeline and the published
+page passes the contact-details gate. Never publish or deploy as part of this
+command, and never expose the whole job folder because it contains drafts.
 
 ## Step 9 · Report
 

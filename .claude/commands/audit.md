@@ -84,7 +84,13 @@ in client search, so a client filtering for Klaviyo never sees you.
 - **Source** is `Upwork's own rule` or `top-earner pattern`, from the check's source. Judgement findings say which of the two they rest on.
 - After the findings: `## Passed · 7`, one line naming them in plain words. Never list them one by one.
 - Then `## Not measured`: every question skipped in Step 3, and anything else this audit cannot see (how often you appear in search, client-side views).
-- **No finished texts here.** `/profile` reads this report and writes every fix. The only exception: availability, employment, education and languages can be changed through the connector. Offer those here, one at a time, draft first, `confirm_draft` only after an explicit yes.
+- **No finished texts here.** `/profile` reads this report and writes every fix.
+  The connector's tool description documents previewed writes for title,
+  overview, skills, availability, employment, education and languages, but the
+  first three have not been exercised. Offer a documented action only when it
+  is actually available, show its preview and call `confirm_preview` only after
+  an explicit yes for that field. Otherwise send the member to `/profile` for a
+  paste-ready fix.
 
 **Running it again:** read the old report first. A finding that now passes becomes `[x]` with "Fixed <date in words>", it is never deleted. New findings take their place in the ranking.
 

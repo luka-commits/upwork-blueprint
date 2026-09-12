@@ -14,12 +14,20 @@ Short roadmap: read proposals, offers, contracts and client threads (about a min
 
 Use `list_accounts` for the `org_uid` once. Then, all read only:
 
-1. `list_freelancer_proposals` action `list`, once per status `Accepted`, `Offered`, `Hired`, `Declined`, `Withdrawn`, sorted by `MODIFIEDDATETIME` descending, first page only (10 each). "Accepted" means submitted, not that the client said yes.
+1. `list_freelancer_proposals` action `list`, first page, sorted by
+   `MODIFIEDDATETIME` descending. The status filter was measured broken on 12
+   September: requested statuses returned empty or the same mixed list. Use one
+   documented status only if the tool requires it, classify every returned item
+   from its own `status`, and never interpret an empty page as proof that no
+   proposal exists. If the first response is empty and the pipeline has applied
+   jobs, try one other documented status and report the connector uncertainty.
 2. `list_offers` action `list_mine`, first page.
 3. `list_contracts` action `search` with `contract_statuses` `ACTIVE`, first page.
 4. For every job in `python3 code/pipeline.py list --status applied --limit 0` and `--status replied` and `--status offer` that has a proposal from step 1: `list_freelancer_proposals` action `get_room` with its proposal id. No room means the client has not written yet; move on. A room: `get_messages` action `list_messages`, newest 30 messages. Take `awaiting_reply_from` from the room card (`get_messages` action `list_rooms` once, limit 50, covers them all).
 
-Keep it that narrow: one page per list, threads only for jobs already in the pipeline. Reading every room in the account would be the background-polling pattern Upwork suspends for.
+Keep it that narrow: one first page for each proposal attempt, one page for
+offers and contracts, and threads only for jobs already in the pipeline. Reading
+every room in the account is outside this member-started sync's scope.
 
 ## Step 2 · Apply
 

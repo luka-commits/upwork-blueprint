@@ -5,7 +5,12 @@ argument-hint: "[focus: recommended | tracks | recheck]"
 
 # /find-jobs
 
-Early proposals win on Upwork, so this looks at what was posted since your last run, from two directions: Upwork's own recommendations for your profile, and your search tracks. Code counts what can be counted (client, budget, freshness), Claude judges the one thing it cannot: does this job fit you. Runs only when you run it.
+Fresh jobs are useful because the member can decide before spending Connects;
+whether applying earlier improves win rate is a practitioner hypothesis, not a
+measured rule in this repository. This looks at what was posted since the last
+run from two directions: Upwork's recommendations and the member's search
+tracks. Code counts client, budget and freshness signals; Claude judges fit.
+Runs only when the member runs it.
 
 Read first: [references/upwork-rules.md](../../references/upwork-rules.md), the jobs sections of [references/upwork-mcp.md](../../references/upwork-mcp.md), `context/me.md` and `context/proof.md`.
 
@@ -17,10 +22,20 @@ Run `python3 code/workspace.py`, then `list_accounts` (walk through connecting a
 
 Save each response's `jobs` list to `data/search/<name>.json` as `{"jobs": [...]}`, every job with its fields as returned. The file name becomes the job's "found via", which is how weak tracks get noticed later.
 
-1. **Upwork's recommendations:** `find_jobs` action `smart_search`, `mode` `most_recent`, `days_posted` the window in days rounded up, `verified_payment_only` true. This is Upwork's own matching for your profile and the only search with a real date filter. Page with `next_cursor` while `hasMore`, at most 5 pages. Save as `recommended-1.json`, `recommended-2.json` and so on.
+1. **Upwork's recommendations:** when the connector exposes it, use the
+   documented but untested `find_jobs` action `smart_search`, `mode`
+   `most_recent`, `days_posted` the window in days rounded up and
+   `verified_payment_only` true. The tool description calls this Upwork's
+   profile recommendations and gives it a real date filter. Page with
+   `next_cursor` while `hasMore`, at most 5 pages. Save as
+   `recommended-1.json`, `recommended-2.json` and so on. If the action or
+   documented response shape is absent, report that evidence gap and continue
+   with search tracks rather than guessing.
 2. **Your tracks:** the lines under "Job search tracks" in `context/me.md`. None there yet: propose three to six from your title, skills and proof (short tool or role words, 1 to 3 words each), write them into `context/me.md`, and say so in one line. For each track: `find_jobs` action `search`, `title` the track, `sort` `recency`, `verified_payment_only` true. Page with `cursor` while `hasNextPage` and the page's newest job is still inside the window, at most 4 pages. Save as `title-<track>.json`.
 
-**Never narrow the search to gain precision.** No `proposals_max`, no budget floor: a crowded job can still be won with a pitch page, and filters remove jobs before anyone scored them. Widen the search, tighten the score.
+Default to broad tracks and score after retrieval. Do not add a proposal-count
+or budget filter unless `context/me.md` records that boundary as a member choice;
+filters remove jobs before anyone scores them.
 
 ## Step 2 · Count
 
@@ -59,7 +74,7 @@ After reading that full description, add a `brief` object to the same file:
 }
 ```
 
-Use the client's facts, not guesses. Do not mix fit, competition or sales advice into this brief; those have their own places in the cockpit. Then `python3 code/jobs.py detail <id> data/details/<id>.json`. It stores the brief, Connects price, competition, hiring progress and full posting, and skips the job when it is already filled or asks for more Job Success or earnings than you have. Never fetch details for a whole list: that is the request pattern Upwork flags as scraping.
+Use the client's facts, not guesses. Do not mix fit, competition or sales advice into this brief; those have their own places in the cockpit. Then `python3 code/jobs.py detail <id> data/details/<id>.json`. It stores the brief, Connects price, competition, hiring progress and full posting. Only a new job with `can_apply` false is skipped automatically. Hiring progress and unmet preferred Job Success or earnings are advisory: a job may hire several people, and a preference is not an eligibility block. Never fetch details for a whole list: that is the request pattern Upwork flags as scraping.
 
 ## Step 6 · Close
 

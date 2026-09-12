@@ -43,20 +43,20 @@ export function NextStep({ j }: { j: any }) {
   if (j.status === 'new') {
     const cost = d.connects_cost != null ? ` Applying costs ${d.connects_cost} Connects.` : '';
     if (!files.includes('pitch.html')) return <div className="next-step">
-      <p className="say">Start with the pitch page, the application links to it.{cost}</p>
+      <p className="say">Start with the pitch page. The application stays locked until the page and Loom video are ready.{cost}</p>
       {canRun('pitch-page') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button></div> : null}
-      <div className="next-secondary">
-        {canRun('apply') ? <button onClick={() => runCommand('apply', j.id)}>Draft application</button> : null}
-        {skip}
-      </div>
+      <div className="next-secondary">{skip}</div>
+    </div>;
+    if (!j.video) return <div className="next-step">
+      <p className="say">The pitch page is ready. Record the Loom and add its link under Materials before drafting the application.{cost}</p>
+      <div className="next-secondary">{skip}</div>
     </div>;
     if (!files.includes('application.md')) return <div className="next-step">
-      <p className="say">The pitch page is ready. Next, the application.{cost}</p>
-      {canRun('apply') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('apply', j.id)}>Draft application</button></div> : null}
+      <p className="say">The pitch page and Loom video are ready. Draft the application under Materials.{cost}</p>
       <div className="next-secondary">{skip}</div>
     </div>;
     return <div className="next-step">
-      <p className="say">Everything is drafted. Record the Loom, send it on Upwork yourself, then set the stage to Applied.{cost}</p>
+      <p className="say">Everything is ready. Send it on Upwork yourself, then set the stage to Applied.{cost}</p>
       {j.url ? <div className="next-primary"><a className="btn primary" href={j.url} target="_blank" rel="noopener">Open on Upwork to send</a></div> : null}
       <div className="next-secondary">{skip}</div>
     </div>;

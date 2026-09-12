@@ -305,6 +305,10 @@ function Materials({ j, files }: { j: any; files: string[] }) {
   const pitchReady = files.includes('pitch.html');
   const scriptReady = files.includes('loom-script.md');
   const applicationReady = files.includes('application.md');
+  const applicationUnlocked = pitchReady && !!j.video;
+  const applicationBlocker = !pitchReady && !j.video
+    ? 'Finish the Pitch page and add the Loom video link first.'
+    : !pitchReady ? 'Finish the Pitch page first.' : !j.video ? 'Add the Loom video link first.' : '';
   const canRun = (command: string) => !!state?.commands?.[command];
   const copy = (value: string) => navigator.clipboard.writeText(value).then(
     () => toast('Copied.'),
@@ -324,20 +328,23 @@ function Materials({ j, files }: { j: any; files: string[] }) {
       </> : canRun('pitch-page') ? <button onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button> : <p className="material-note">Pitch page generation is unavailable.</p>}
     </MaterialRow>
 
-    <MaterialRow label="Loom script" ready={scriptReady} defaultOpen={pitchReady && applicationReady && !scriptReady}>
+    <MaterialRow label="Loom script" ready={scriptReady} defaultOpen={pitchReady && !scriptReady}>
       {scriptReady
         ? <MaterialDocument id={j.id} file="loom-script.md" />
         : canRun('pitch-page') ? <button onClick={() => runCommand('pitch-page', j.id)}>Generate Loom script</button> : <p className="material-note">The Loom script is made with the pitch page.</p>}
     </MaterialRow>
 
-    <MaterialRow label="Loom video" ready={!!j.video} defaultOpen={pitchReady && applicationReady && scriptReady && !j.video}>
+    <MaterialRow label="Loom video" ready={!!j.video} defaultOpen={pitchReady && scriptReady && !j.video}>
       <VideoEditor j={j} post={post} copy={copy} />
     </MaterialRow>
 
     <MaterialRow label="Application" ready={applicationReady} defaultOpen={pitchReady && !applicationReady}>
       {applicationReady
         ? <MaterialDocument id={j.id} file="application.md" />
-        : canRun('apply') ? <button onClick={() => runCommand('apply', j.id)}>Draft application</button> : <p className="material-note">Application drafting is unavailable.</p>}
+        : canRun('apply') ? <>
+          <button disabled={!applicationUnlocked} title={applicationBlocker || undefined} onClick={() => runCommand('apply', j.id)}>Draft application</button>
+          {applicationBlocker ? <p className="material-note material-blocker">{applicationBlocker}</p> : null}
+        </> : <p className="material-note">Application drafting is unavailable.</p>}
       {j.status === 'new' ? <div className="boost-slot"><span>Top slot</span><BoostBlock d={d} /></div> : null}
     </MaterialRow>
 

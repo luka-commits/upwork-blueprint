@@ -9,7 +9,7 @@ import test from 'node:test';
 // Finished runs are written to data/runs; the tests write to a throwaway folder instead.
 process.env.BLUEPRINT_DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'cockpit-runs-'));
 process.env.BLUEPRINT_JOBDIR = fs.mkdtempSync(path.join(os.tmpdir(), 'cockpit-jobs-'));
-const { RUNNABLE, RUNS, history, parseEvent, prepareApprovedReply, promptFor, stopRun, track } = await import('./runs.mjs');
+const { RUNNABLE, RUNS, applicationPrerequisiteError, history, parseEvent, prepareApprovedReply, promptFor, stopRun, track } = await import('./runs.mjs');
 
 test('only the dedicated reply sender can send and no button can confirm a preview', () => {
   const senders = [];
@@ -37,6 +37,13 @@ test('the morning follow-up review can read but cannot send', () => {
   assert.ok(tools.some(tool => tool.endsWith('__get_messages')));
   assert.ok(!tools.some(tool => tool.endsWith('__send_message')));
   assert.ok(!tools.some(tool => tool.endsWith('__confirm_preview')));
+});
+
+test('application drafting waits for the pitch page and Loom video', () => {
+  assert.match(applicationPrerequisiteError({ files: [] }), /finish the Pitch page.*add the Loom video link/);
+  assert.match(applicationPrerequisiteError({ files: [{ name: 'pitch.html' }] }), /add the Loom video link/);
+  assert.match(applicationPrerequisiteError({ files: [], video: 'https:\/\/www.loom.com\/share\/abc' }), /finish the Pitch page/);
+  assert.equal(applicationPrerequisiteError({ files: [{ name: 'pitch.html' }], video: 'https://www.loom.com/share/abc' }), '');
 });
 
 test('the server freezes exact approved text and requires a room', () => {

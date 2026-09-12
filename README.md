@@ -19,7 +19,7 @@ There is no setup step. Each command walks you through exactly what it needs, th
 | 3 | `/profile` | Writes your optimal profile, ready to paste into Upwork |
 | 4 | `/find-jobs` | Finds and scores the jobs worth your Connects, straight into your cockpit |
 | 5 | `/pitch-page` | A one-page pitch site for one job, the thing that makes a client stop scrolling |
-| 6 | `/apply` | The application: cover letter, screening answers, bid. Nothing is sent without your yes |
+| 6 | `/apply` | After the Pitch page and Loom video: cover letter, screening answers, bid. Nothing is sent without your yes |
 | 7 | `/inbox`, `/reply`, `/follow-up` | Client messages, reply drafts and the morning follow-up queue |
 | 8 | `/status` | Where everything stands, plus your post for the community sprint |
 | 9 | `/proposal` | The offer you send after the sales call |

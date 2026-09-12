@@ -14,9 +14,17 @@ Read first: [references/upwork-rules.md](../../references/upwork-rules.md), the 
 
 `--draft-only` (what the cockpit button runs): stop after Step 5. The preview is made and its facts saved, nothing is confirmed; that run cannot even call `confirm_preview`. The send happens in a session where you read the draft.
 
+## Step 0 · The materials gate
+
+Before any Upwork call, run `python3 code/pipeline.py get <id>`. Continue only
+when `jobs/<id>/pitch.html` exists and the pipeline record contains a non-empty
+`video` link. If either is missing, write nothing, make no preview and stop with
+`DRAFT / HELD`: tell the member to finish the Pitch page or add the Loom video
+link under Materials. Report zero Upwork calls.
+
 ## Step 1 · The job, the posting, the pitch page
 
-`python3 code/pipeline.py get <id>`. The full posting is in `details.description`; missing, fetch it with `find_jobs` action `get` and `python3 code/jobs.py detail`. Read all of it: postings hide a mandatory opening phrase, questions to answer inside the letter, or requirements that decide fit before skill does. If `jobs/<id>/pitch.html` exists, the letter points to the walkthrough built on it.
+Use the pipeline record from Step 0. The full posting is in `details.description`; missing, fetch it with `find_jobs` action `get` and `python3 code/jobs.py detail`. Read all of it: postings hide a mandatory opening phrase, questions to answer inside the letter, or requirements that decide fit before skill does. The letter points to the finished walkthrough and includes its saved Loom link.
 
 ## Step 2 · What is true about you, for this job
 
@@ -28,7 +36,7 @@ List the posting's hard requirements ("built at least 5 sub-accounts for trades"
 
 1. **The job title in the first sentence,** then two or three real proof points.
 2. **"Here's what I'll deliver":** five to seven numbered items, each carrying a number. Past results only from the proof file; forward promises ("live on day 1") are fine and must be kept; the client's own numbers from the posting are the strongest.
-3. **The video line:** a walkthrough of the plan, the Loom link once it exists. The letter never waits for the video.
+3. **The video line:** a walkthrough of the plan with the exact saved Loom link.
 4. **Risk reversal,** usually milestones: they approve each phase before the next.
 5. **"Here's why I'm the right fit":** one short `##` block per major requirement, in their words, two or three lines of proof each.
 6. **One specific ask that keeps the conversation on Upwork,** for example asking for their website, spec or current setup here.

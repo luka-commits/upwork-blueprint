@@ -20,8 +20,8 @@ Python: the commands call `python3`. On Windows, if that is not found, use `pyth
 2. `/benchmark` - finds the three best-earning profiles in your profession and measures them
 3. `/profile` - writes your optimal profile, paste-ready, from your facts and the benchmark
 4. `/find-jobs` - searches, filters and scores jobs against your finished profile
-5. `/pitch-page` - a one-page pitch site for one job
-6. `/apply` - the application itself: cover letter, screening answers, bid. Sent only after your yes
+5. `/pitch-page` - a one-page pitch site and Loom script for one job; record and link the Loom next
+6. `/apply` - unlocked after the Pitch page and Loom video: cover letter, screening answers, bid. Sent only after your yes
 7. `/inbox`, `/reply` and `/follow-up` - client messages, reply drafts and the morning follow-up queue
 8. `/status` - where everything stands, plus a ready post for the community sprint
 9. `/proposal` - the offer you send after a sales call

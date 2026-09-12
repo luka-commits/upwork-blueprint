@@ -1,6 +1,6 @@
 import { body, guard, json } from '@/lib/server/guard.mjs';
-import { ID } from '@/lib/server/root.mjs';
-import { RUNNABLE, available, startRun } from '@/lib/server/runs.mjs';
+import { ID, pyJson } from '@/lib/server/root.mjs';
+import { RUNNABLE, applicationPrerequisiteError, available, startRun } from '@/lib/server/runs.mjs';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -13,6 +13,12 @@ export async function POST(req: Request) {
   if (!available(name)) return json({ error: `/${name} is not built yet` }, 400);
   if (RUNNABLE[name].command === false) return json({ error: 'That run has a dedicated approval endpoint.' }, 400);
   if (RUNNABLE[name].job && !ID.test(job)) return json({ error: 'this command needs a job' }, 400);
+  if (name === 'apply') {
+    const lead = await pyJson('cockpit.py', ['job', job]);
+    if (!lead) return json({ error: 'That job is not in the pipeline.' }, 404);
+    const blocked = applicationPrerequisiteError(lead);
+    if (blocked) return json({ error: blocked }, 409);
+  }
   try {
     return json({ run: startRun(name, RUNNABLE[name].job ? job : null) });
   } catch (err) {

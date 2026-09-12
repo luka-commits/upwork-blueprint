@@ -64,6 +64,17 @@ export function available(name) {
   return !!spec && (spec.command === false || fs.existsSync(path.join(ROOT, '.claude', 'commands', `${name}.md`)));
 }
 
+/** Explain why an application run cannot start before its client materials exist. */
+export function applicationPrerequisiteError(job) {
+  const files = (job?.files || []).map(file => typeof file === 'string' ? file : file?.name);
+  const missing = [];
+  if (!files.includes('pitch.html')) missing.push('finish the Pitch page');
+  if (!String(job?.video || '').trim()) missing.push('add the Loom video link');
+  if (!missing.length) return '';
+  const steps = missing.length === 2 ? `${missing[0]} and ${missing[1]}` : missing[0];
+  return `First ${steps}. Then you can draft the application under Materials.`;
+}
+
 /** Freeze the exact approved text before Claude gets a sending tool. */
 export function prepareApprovedReply(job, text, draft = null, draftSet = null) {
   if (!/^[0-9]{6,25}$/.test(job)) throw new Error('That job id is not valid.');

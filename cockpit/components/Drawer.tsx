@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useCockpit } from '@/lib/context';
-import { DueChip, Score, StageSelect, budgetText, day, money, stamp, wonAt } from '@/lib/model';
-import { BoostBlock, Facts, FilesChecklist, NextStep, TasksBlock } from './JobParts';
+import { DueChip, Flags, Score, StageSelect, ago, budgetText, day, money, stamp, wonAt } from '@/lib/model';
+import { BoostBlock, FilesChecklist, NextStep, TasksBlock } from './JobParts';
 import './drawer.css';
 
 const PIPELINE_FILES = new Set(['pitch.html', 'loom-script.md', 'application.md']);
@@ -110,20 +110,53 @@ function LeadDrawer({ j }: { j: any }) {
   const ready = Number(files.includes('pitch.html')) + Number(files.includes('loom-script.md')) +
     Number(!!j.video) + Number(files.includes('application.md'));
   return <>
+    <LeadOverview j={j} />
     <h4>Next step</h4><NextStep key={`next-${j.id}`} j={j} />
-    <h4>Tasks</h4><TasksBlock key={`tasks-${j.id}`} j={j} />
     <div className="drawer-supporting">
       <DrawerDisclosure label="Materials" summary={`${ready} of 4 ready`}>
         <FilesChecklist j={j} />
         {j.status === 'new' ? <div className="boost-slot"><span>Top slot</span><BoostBlock d={d} /></div> : null}
       </DrawerDisclosure>
-      {hasFacts(j) ? <DrawerDisclosure label="The deal" summary={dealSummary(j)}><Facts j={j} /></DrawerDisclosure> : null}
       {j.niche_fit != null ? <DrawerDisclosure label="Score details" summary={`${j.score ?? scoreTotal(j)} of 100`}>
         <p className="drawer-score-details">Fit {j.niche_fit} of 40 · client {j.client_trust ?? '?'} of 30 · deal {j.deal_quality ?? '?'} of 20 · fresh {j.recency ?? '?'} of 10</p>
       </DrawerDisclosure> : null}
       {d.description ? <DrawerDisclosure label="The full posting" summary="Original Upwork brief"><div className="posting">{d.description}</div></DrawerDisclosure> : null}
     </div>
+    <h4>Tasks</h4><TasksBlock key={`tasks-${j.id}`} j={j} />
   </>;
+}
+
+function LeadOverview({ j }: { j: any }) {
+  const { state } = useCockpit();
+  const d = j.details || {}, c = j.client || {}, record = d.client_record || {};
+  const what = j.summary || firstParagraph(d.description) || 'No job summary is saved yet. Open the original posting before deciding.';
+  const terms = [budgetText(j), j.job_type === 'fixed' ? 'fixed price' : j.job_type === 'hourly' ? 'hourly' : '',
+    j.engagement || d.engagement_type].filter(value => value && value !== '–').join(' · ');
+  const competition = [j.proposals != null ? `${j.proposals} bids` : '', d.interviewing ? `${d.interviewing} interviewing` : '',
+    d.total_hired ? `${d.total_hired} hired` : '', d.invites_sent ? `${d.invites_sent} invited` : ''].filter(Boolean).join(' · ');
+  const client = [c.rating ? `${c.rating}★${c.reviews != null ? ` from ${c.reviews} reviews` : ''}` : '',
+    record.spend_total ? `${money(record.spend_total)} spent` : c.spent ? `${money(c.spent)} spent` : '',
+    c.posted_jobs != null ? `${c.posted_jobs} jobs posted` : '', c.verified === true ? 'payment verified' : c.verified === false ? 'payment not verified' : '',
+    c.country].filter(Boolean).join(' · ');
+  const requirements = [d.min_jss ? `${d.min_jss}% Job Success` : '',
+    d.min_earnings && !/any/i.test(d.min_earnings) ? `${d.min_earnings} earned` : '', d.experience_level].filter(Boolean).join(' · ');
+  const skills = (j.skills || []).slice(0, 6).join(', ');
+  const hasFlags = !!(d.total_hired || (d.min_jss && state?.me?.jss != null && d.min_jss > state.me.jss) ||
+    /FULL_TIME|30\+ hrs/i.test(j.engagement || d.engagement_type || '') || j.trap);
+  return <section className="drawer-overview" aria-label="Job overview">
+    <h4>Job overview</h4>
+    <p className="drawer-need">{what}</p>
+    {j.rationale ? <div className="drawer-fit"><span>Fit check</span><p>{j.rationale}</p></div> : null}
+    {hasFlags ? <div className="drawer-flags"><Flags j={j} /></div> : null}
+    <dl className="drawer-quickfacts">
+      <Field label="Budget" value={terms} />
+      <Field label="Competition" value={competition} />
+      <Field label="Client" value={client} />
+      <Field label="Posted" value={j.posted_date ? `${ago(j.posted_date)} · ${day(j.posted_date)}` : ''} />
+      <Field label="They require" value={requirements} />
+      <Field label="Skills" value={skills} />
+    </dl>
+  </section>;
 }
 
 function ClientDrawer({ j }: { j: any }) {
@@ -202,22 +235,16 @@ function Field({ label, value }: { label: string; value: any }) {
   return value || value === 0 ? <div><dt>{label}</dt><dd>{value}</dd></div> : null;
 }
 
-function hasFacts(j: any) {
-  const d = j.details || {}, c = j.client || {};
-  return d.bid_avg != null || d.fetched_at || d.min_jss || (d.min_earnings && !/any/i.test(d.min_earnings)) ||
-    (d.client_record || {}).spend_total || c.spent || c.country || d.client_timezone;
-}
-
-function dealSummary(j: any) {
-  const d = j.details || {}, c = j.client || {};
-  return [budgetText(j), j.proposals != null ? `${j.proposals} bids` : '', c.country || d.client_timezone]
-    .filter(value => value && value !== '–').join(' · ') || 'Job and client details';
-}
-
 function clientSummary(j: any) {
   const d = j.details || {}, c = j.client || {};
   const name = c.name || c.company || c.company_name || d.client_name || d.client_company || j.client_name;
   return [name, budgetText(j), j.engagement || d.engagement_type].filter(value => value && value !== '–').join(' · ') || 'Project details';
+}
+
+function firstParagraph(value: any) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  return text.length > 360 ? `${text.slice(0, 357).trimEnd()}...` : text;
 }
 
 function scoreTotal(j: any) {

@@ -1,3 +1,77 @@
+.drawer-overview {
+  padding: 15px 0 4px;
+}
+
+.drawer-overview > h4 {
+  margin-top: 0;
+}
+
+.drawer-need {
+  margin: 0;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.drawer-fit {
+  margin-top: 11px;
+  padding-left: 10px;
+  border-left: 2px solid var(--brand);
+}
+
+.drawer-fit > span {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.drawer-fit > p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.48;
+}
+
+.drawer-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.drawer-flags .uw-flag {
+  margin-left: 0;
+}
+
+.drawer-quickfacts {
+  margin: 13px 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.drawer-quickfacts > div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+  line-height: 1.42;
+}
+
+.drawer-quickfacts dt {
+  color: var(--text-3);
+}
+
+.drawer-quickfacts dd {
+  margin: 0;
+  color: var(--text);
+}
+
 .drawer-supporting {
   margin-top: 18px;
 }

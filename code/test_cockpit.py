@@ -112,9 +112,21 @@ class CockpitTest(unittest.TestCase):
             self.assertNotIn('mcp__upwork__upwork__confirm_preview', spec['tools'], name)
             self.assertFalse(any('send_message' in t or 'confirm_draft' in t for t in spec['tools']), name)
 
-    def test_runs_list_is_empty_when_idle(self):
-        status, data = self.request('GET', '/api/runs')
-        self.assertEqual((status, json.loads(data)), (200, []))
+    def test_a_run_can_be_stopped_and_says_so(self):
+        import subprocess
+        import time
+        child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        run_id = self.cockpit.track('find-jobs', None, child)
+        self.assertEqual(self.request('POST', f'/api/run/{run_id}/stop', {})[0], 200)
+        for _ in range(50):
+            if self.cockpit.RUNS[run_id]['done']:
+                break
+            time.sleep(0.1)
+        run = next(r for r in json.loads(self.request('GET', '/api/runs')[1]) if r['id'] == run_id)
+        self.assertTrue(run['done'] and run['stopped'] and run['error'])
+        self.assertIsNotNone(child.poll())
+        self.assertEqual(self.request('POST', f'/api/run/{run_id}/stop', {})[0], 404)
 
     def test_unknown_or_unbuilt_command_is_refused(self):
         self.assertEqual(self.request('POST', '/api/run', {'command': 'rm-rf'})[0], 400)

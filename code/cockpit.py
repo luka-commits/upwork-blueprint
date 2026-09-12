@@ -52,7 +52,15 @@ RUNNABLE = {
                                               'mcp__upwork__upwork__manage_proposals']},
 }
 
+# A button run has no chat to talk into, only the cockpit's status line. This makes
+# Claude say what it is doing and what it found, so that line stays current.
+NARRATE = ('You were started by a button in the cockpit. The member sees only a one-line status panel. '
+           'Before each step write one short plain sentence saying what you are doing now, and after each '
+           'finding one sentence with what you found so far, with counts or names. No markdown in these lines. '
+           'End with one sentence that says what changed and what the member should look at next.')
+
 RUNS = {}
+PROCS = {}
 RUNS_LOCK = threading.Lock()
 
 
@@ -276,29 +284,52 @@ def start_run(name, job_id=None):
         raise RuntimeError('Claude Code is not installed or not on the PATH.')
     prompt = spec['prompt'].format(job=job_id or '').strip()
     args = [binary, '-p', prompt, '--output-format', 'stream-json', '--verbose',
+            '--append-system-prompt', NARRATE,
             '--permission-mode', 'acceptEdits', '--allowedTools', *spec['tools']]
     child = subprocess.Popen(args, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    return track(name, job_id, child)
+
+
+def track(name, job_id, child):
+    """Follows one child process: its events, how it ended, and whether you stopped it."""
     run_id = secrets.token_hex(6)
     run = {'id': run_id, 'command': name, 'job': job_id, 'events': [], 'done': False,
-           'started': time.time()}
+           'started': time.time(), 'ended': None, 'error': False, 'stopped': False}
 
     def pump():
         for line in child.stdout:
             parsed = parse_event(line.strip())
             for ev in parsed if isinstance(parsed, list) else ([parsed] if parsed else []):
                 run['events'].append(ev)
-        err = child.stderr.read().strip()
+        err = (child.stderr.read() if child.stderr else '').strip()
         code = child.wait()
-        if code and err:
-            run['events'].append({'kind': 'error', 'text': err[-2000:]})
-        if not any(e['kind'] == 'done' for e in run['events']):
-            run['events'].append({'kind': 'done', 'text': f'Finished with exit code {code}.', 'error': code != 0})
+        if not run['stopped']:
+            if code and err:
+                run['events'].append({'kind': 'error', 'text': err[-2000:]})
+            if not any(e['kind'] == 'done' for e in run['events']):
+                run['events'].append({'kind': 'done', 'text': f'Finished with exit code {code}.', 'error': code != 0})
+        final = next(e for e in reversed(run['events']) if e['kind'] == 'done')
+        run['error'] = bool(final.get('error'))
+        run['ended'] = time.time()
         run['done'] = True
 
-    threading.Thread(target=pump, daemon=True).start()
     with RUNS_LOCK:
         RUNS[run_id] = run
+        PROCS[run_id] = child
+    threading.Thread(target=pump, daemon=True).start()
     return run_id
+
+
+def stop_run(run_id):
+    """Ends a run you no longer want. What it already saved stays."""
+    run, child = RUNS.get(run_id), PROCS.get(run_id)
+    if not run or run['done'] or not child:
+        return False
+    run['stopped'] = True
+    run['events'].append({'kind': 'done', 'text': 'Stopped by you. Anything it already saved stays.',
+                          'error': True, 'stopped': True})
+    child.terminate()
+    return True
 
 
 def run_pipeline(*args):
@@ -356,8 +387,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json(build_state())
         if path == '/api/runs':
             with RUNS_LOCK:
-                active = [{k: r[k] for k in ('id', 'command', 'job', 'started')} for r in RUNS.values() if not r['done']]
-            return self.send_json(active)
+                runs = [{k: r[k] for k in ('id', 'command', 'job', 'started', 'ended', 'done', 'error', 'stopped')}
+                        for r in RUNS.values()]
+            return self.send_json(runs)
         m = re.match(r'^/api/job/([0-9]+)$', path)
         if m:
             job = job_view(m.group(1))
@@ -429,6 +461,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             args = ['task', job_id, action, value] + (['--due', str(data['due'])] if data.get('due') else [])
             ok, message = run_pipeline(*args)
             return self.send_json({'ok': ok, 'message': message}, 200 if ok else 400)
+        m = re.match(r'^/api/run/([0-9a-f]+)/stop$', path)
+        if m:
+            ok = stop_run(m.group(1))
+            return self.send_json({'ok': ok, 'message': 'Stopped.' if ok else 'That run is not running.'}, 200 if ok else 404)
         if path == '/api/run':
             name = data.get('command')
             if not available(name):

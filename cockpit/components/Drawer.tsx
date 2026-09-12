@@ -132,7 +132,8 @@ function LeadDrawer({ j }: { j: any }) {
     <div className="drawer-supporting">
       <DrawerDisclosure label="Materials" summary={`${ready} of 4 ready`}>
         <FilesChecklist j={j} />
-        {j.status === 'new' ? <div className="boost-slot"><span>Top slot</span><BoostBlock d={d} /></div> : null}
+        {j.status === 'new' && (d.boost_available === false || d.boost_recommended != null || d.boost_top_bids !== undefined)
+          ? <div className="boost-slot"><span>Boost bids</span><BoostBlock d={d} /></div> : null}
       </DrawerDisclosure>
       {j.niche_fit != null ? <DrawerDisclosure label="Score details" summary={`${j.score ?? scoreTotal(j)} of 100`}>
         <p className="drawer-score-details">Fit {j.niche_fit} of 40 · client {j.client_trust ?? '?'} of 30 · deal {j.deal_quality ?? '?'} of 20 · fresh {j.recency ?? '?'} of 10</p>

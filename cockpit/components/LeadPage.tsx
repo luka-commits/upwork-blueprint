@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
+import { Fragment, type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useCockpit } from '@/lib/context';
 import { parseApplication } from '@/lib/application-review.mjs';
-import { leadWorkspace, preparationProgress } from '@/lib/lead-workspace.mjs';
+import { leadWorkspace, nextPreparationMaterial } from '@/lib/lead-workspace.mjs';
 import { BoostBlock, NextStep, TasksBlock } from './JobParts';
 import JobBrief from './JobBrief';
 import {
@@ -135,6 +135,7 @@ function LeadDetails({ j, hasFlags }: { j: any; hasFlags: boolean }) {
     <h2>Job details</h2>
     <dl className="fields key-fields">
       <Field label="Budget" value={budgetText(j)} />
+      <Field label="Application" value={d.connects_cost != null ? `${d.connects_cost} Connects` : ''} />
       <Field label="Posted" value={j.posted_date ? `${day(j.posted_date)} (${ago(j.posted_date)})` : ''} />
       <Field label="Engagement" value={[j.engagement || d.engagement_type, d.experience_level && String(d.experience_level).toLowerCase()].filter(Boolean).join(' · ')} />
     </dl>
@@ -202,6 +203,14 @@ function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, add
   addNote: () => void;
 }) {
   const { state } = useCockpit();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const previousTab = useRef(tab);
+  useLayoutEffect(() => {
+    if (previousTab.current === tab) return;
+    previousTab.current = tab;
+    const animation = revealContent(contentRef.current);
+    return () => animation?.cancel();
+  }, [tab]);
   const files: string[] = j.artifacts || [];
   const selectByKey = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
     let next = index;
@@ -214,12 +223,13 @@ function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, add
     setTab(workspace.tabs[next].key as WorkspaceView);
   };
   return <section className={`panel workspace-panel${tab === 'conversation' ? ' is-conversation' : ''}`} aria-label={workspace.label}>
-    <div className="workspace-tabs" role="tablist" aria-label={workspace.label}>
+    <div className="workspace-tabs" role="tablist" aria-label={workspace.label}
+      style={{ '--tab-count': workspace.tabs.length, '--tab-index': workspace.tabs.findIndex(item => item.key === tab) } as CSSProperties}>
       {workspace.tabs.map((item, index) => <button key={item.key} id={`workspace-tab-${item.key}`} role="tab"
         aria-selected={tab === item.key} aria-controls="workspace-content" tabIndex={tab === item.key ? 0 : -1}
         onClick={() => setTab(item.key as WorkspaceView)} onKeyDown={event => selectByKey(event, index)}>{item.label}</button>)}
     </div>
-    <div id="workspace-content" role="tabpanel" aria-labelledby={`workspace-tab-${tab}`} tabIndex={0}
+    <div ref={contentRef} id="workspace-content" role="tabpanel" aria-labelledby={`workspace-tab-${tab}`} tabIndex={0}
       className={tab === 'conversation' ? 'convo-body' : 'workspace-content'}>
       {tab === 'timeline' ? <><WorkspaceHeading title="Timeline" hint="Decisions, notes and work saved for this lead." /><Timeline j={j} /></> : null}
       <div className="workspace-conversation" hidden={tab !== 'conversation'}>
@@ -233,8 +243,7 @@ function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, add
       </div> : null}
       <div hidden={tab !== 'work'}>
       {workspace.mode === 'prepare' ? <>
-        <WorkspaceHeading title="Prepare your application" hint="Build the pitch, record your walkthrough, then review the application." />
-        <PreparationProgress j={j} />
+        <WorkspaceHeading title="Your application" />
         <Materials j={j} files={files} />
       </> : null}
       {workspace.mode === 'waiting' ? <ApplicationStatus j={j} open={setTab} /> : null}
@@ -253,7 +262,7 @@ function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, add
       <div className="composer-row">
         <input
           ref={noteRef}
-          placeholder="Add a note: a call, a promise, what they said"
+          placeholder="Add a private note"
           aria-label="Note"
           value={note}
           onChange={e => setNote(e.target.value)}
@@ -261,25 +270,20 @@ function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, add
         />
         <button onClick={addNote}>Add note</button>
       </div>
-      <div className="composer-note">
-        <span>Notes stay here. Replies go through Upwork only after your approval.</span>
-      </div>
     </div>
   </section>;
 }
 
-function WorkspaceHeading({ title, hint }: { title: string; hint: string }) {
-  return <div className="workspace-heading"><h2>{title}</h2><p>{hint}</p></div>;
+function WorkspaceHeading({ title, hint }: { title: string; hint?: string }) {
+  return <div className="workspace-heading"><h2>{title}</h2>{hint ? <p>{hint}</p> : null}</div>;
 }
 
-function PreparationProgress({ j }: { j: any }) {
-  const progress = preparationProgress(j.artifacts, validVideoUrl(j.video));
-  return <div className="preparation-progress" aria-label={`${progress.ready} of ${progress.total} application materials ready`}>
-    {progress.items.map(item => <span key={item.key} className={item.ready ? 'ready' : ''}>
-      <span className="preparation-marker" aria-hidden="true">{item.ready ? '✓' : ''}</span>
-      {item.label}<span className="sr-only">{item.ready ? ' ready' : ' missing'}</span>
-    </span>)}
-  </div>;
+function revealContent(element: HTMLElement | null) {
+  if (!element || document.documentElement.dataset.input !== 'pointer'
+    || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  element.getAnimations().forEach(animation => animation.cancel());
+  return element.animate([{ opacity: .55, transform: 'translateY(2px)' }, { opacity: 1, transform: 'translateY(0)' }],
+    { duration: 160, easing: 'cubic-bezier(.23, 1, .32, 1)' });
 }
 
 function ApplicationStatus({ j, open }: { j: any; open: (view: WorkspaceView) => void }) {
@@ -423,9 +427,10 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
   const applicationReady = files.includes('application.md');
   const videoReady = validVideoUrl(j.video);
   const applicationUnlocked = pitchReady && videoReady;
+  const nextMaterial = j.status === 'new' ? nextPreparationMaterial(files, videoReady) : null;
   const applicationBlocker = !pitchReady && !videoReady
-    ? 'Finish the Pitch page and add the Loom video link first.'
-    : !pitchReady ? 'Finish the Pitch page first.' : !videoReady ? 'Add a valid Loom or YouTube video link first.' : '';
+    ? 'Add the pitch page and video first.'
+    : !pitchReady ? 'Add the pitch page first.' : !videoReady ? 'Add a Loom or YouTube video first.' : '';
   const canRun = (command: string) => !!state?.commands?.[command];
   const copy = (value: string) => navigator.clipboard.writeText(value).then(
     () => toast('Copied.'),
@@ -436,7 +441,7 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
   const otherFiles = files.filter(file => !['pitch.html', 'loom-script.md', 'application.md', ...journeyFiles, ...deliveryFiles].includes(file));
 
   return <div className="materials">
-    <MaterialRow label="Pitch page" ready={pitchReady} defaultOpen={!pitchReady}>
+    <MaterialRow label="Pitch page" ready={pitchReady} defaultOpen={nextMaterial === 'pitch'}>
       {pitchReady ? <>
         <div className="preview"><iframe src={`/files/${j.id}/pitch.html`} title="Pitch page preview" loading="lazy" /></div>
         <div className="material-actions">
@@ -446,13 +451,13 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
       </> : canRun('pitch-page') ? <button onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button> : <p className="material-note">Pitch page generation is unavailable.</p>}
     </MaterialRow>
 
-    <MaterialRow label="Loom script" ready={scriptReady} defaultOpen={pitchReady && !scriptReady}>
+    <MaterialRow label="Loom script" ready={scriptReady} defaultOpen={nextMaterial === 'script'}>
       {scriptReady
         ? <MaterialDocument id={j.id} file="loom-script.md" />
         : canRun('pitch-page') ? <button onClick={() => runCommand('pitch-page', j.id)}>Generate Loom script</button> : <p className="material-note">The Loom script is made with the pitch page.</p>}
     </MaterialRow>
 
-    <MaterialRow label="Loom video" ready={videoReady} defaultOpen={pitchReady && scriptReady && !videoReady}>
+    <MaterialRow label="Loom video" ready={videoReady} defaultOpen={nextMaterial === 'video'}>
       <VideoEditor j={j} post={post} copy={copy} />
     </MaterialRow>
 
@@ -461,14 +466,15 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
         : <CommandHandoff command="loom-review" job={j} trailing="<transcript path>" label="Copy Loom review command" hint="Paste it into Claude Code and replace the placeholder with the Loom transcript path." />}
     </MaterialRow> : null}
 
-    <MaterialRow label="Application" ready={applicationReady} defaultOpen={pitchReady && !applicationReady}>
+    <MaterialRow label="Application" ready={applicationReady} defaultOpen={nextMaterial === 'application'} status={!applicationReady && !applicationUnlocked ? 'Locked' : undefined}>
       {applicationReady
         ? <ApplicationReview j={j} />
         : canRun('apply') ? <>
           <button disabled={!applicationUnlocked} title={applicationBlocker || undefined} onClick={() => runCommand('apply', j.id)}>Draft application</button>
           {applicationBlocker ? <p className="material-note material-blocker">{applicationBlocker}</p> : null}
         </> : <p className="material-note">Application drafting is unavailable.</p>}
-      {j.status === 'new' ? <div className="boost-slot"><span>Top slot</span><BoostBlock d={d} /></div> : null}
+      {j.status === 'new' && (d.boost_available === false || d.boost_recommended != null || d.boost_top_bids !== undefined)
+        ? <div className="boost-slot"><span>Boost bids</span><BoostBlock d={d} /></div> : null}
     </MaterialRow>
 
     {includeSales && (j.status === 'replied' || j.status === 'offer' || ['call-prep.md', 'call-review.md', 'proposal.md'].some(file => files.includes(file))) ? <>
@@ -547,12 +553,17 @@ function CommandHandoff({ command, job, label, hint, trailing = '' }: { command:
   return <div className="command-handoff"><p>{hint}</p><button onClick={copy}>{label}</button></div>;
 }
 
-function MaterialRow({ label, ready, defaultOpen, children }: { label: string; ready: boolean; defaultOpen?: boolean; children: ReactNode }) {
-  return <details className="material-row" open={defaultOpen || undefined}>
+function MaterialRow({ label, ready, defaultOpen, status, children }: { label: string; ready: boolean; defaultOpen?: boolean; status?: string; children: ReactNode }) {
+  const wasOpen = useRef(!!defaultOpen);
+  return <details className="material-row" open={defaultOpen || undefined} onToggle={event => {
+    const opened = event.currentTarget.open;
+    if (opened && !wasOpen.current) revealContent(event.currentTarget.querySelector('.material-body'));
+    wasOpen.current = opened;
+  }}>
     <summary>
       <span className={`material-state${ready ? ' ready' : ''}`} aria-hidden="true">{ready ? '✓' : ''}</span>
       <span className="material-label">{label}</span>
-      <span className="material-status">{ready ? 'Ready' : 'Missing'}</span>
+      <span className={`material-status${ready ? ' sr-only' : ''}`}>{ready ? 'Ready' : status || 'Not ready'}</span>
       <span className="material-chevron" aria-hidden="true">⌄</span>
     </summary>
     <div className="material-body">{children}</div>

@@ -364,8 +364,7 @@ export default function ListPage({ space }: { space: SpaceName }) {
   return <div ref={rootRef}>
     <div className="workspace-head"><h1>Your pipeline</h1>
     {space === 'jobs' && tracker.goal ? <div className="daily-progress">
-      <div className="today"><span className="today-lbl">Applications today</span><span className="today-n"><b>{tracker.done}</b> <span>/ {tracker.goal}</span></span>
-        <span className="today-meta">{tracker.streak}-day streak · {tracker.week_done} this week</span></div>
+      <div className="today"><span className="today-lbl">Applications today</span><span className="today-n"><b>{tracker.done}</b> <span>/ {tracker.goal}</span></span></div>
       <div className="today-bar" role="progressbar" aria-label="Daily application target" aria-valuemin={0} aria-valuemax={tracker.goal} aria-valuenow={Math.min(tracker.goal, tracker.done)}><span style={{ width: `${Math.min(100, 100 * tracker.done / tracker.goal)}%` }} /></div>
     </div> : null}</div>
 
@@ -624,7 +623,7 @@ function Board({ jobs, drawerId, openDrawer, closeDrawer, move, dropStage, setDr
         if (job && job.status !== stage.key) move(id, stage.key, stage.key === 'applied' ? '+3d' : null);
       }}>
       <div className="col-head">
-        <div><div className="col-title">{stage.label}</div><div className="col-hint">{stage.hint}</div></div><span className="col-count">{list.length}</span>
+        <div className="col-title">{stage.label}</div><span className="col-count">{list.length}</span>
       </div><ul className="col-body">{list.length ? list.map(j => {
         const id = String(j.id);
         return <li key={id} className={`card${isDue(j) ? ' due' : ''}${id === drawerId ? ' sel' : ''}`} draggable tabIndex={0}

@@ -8,10 +8,10 @@ import { jobPreview } from './job-brief.mjs';
 export { todayIso } from './dates.mjs';
 
 export const STAGES = [
-  { key: 'new', label: 'Not applied', hint: 'found and scored, nothing sent' },
-  { key: 'applied', label: 'Applied', hint: 'sent, waiting for the client' },
-  { key: 'replied', label: 'In conversation', hint: 'the client wrote back' },
-  { key: 'offer', label: 'Offer', hint: 'an offer is on the table' },
+  { key: 'new', label: 'Not applied' },
+  { key: 'applied', label: 'Applied' },
+  { key: 'replied', label: 'In conversation' },
+  { key: 'offer', label: 'Offer' },
 ];
 export const ORDER = ['new', 'applied', 'replied', 'offer', 'won', 'lost', 'skipped'];
 export const CLOSED = ['won', 'lost', 'skipped'];

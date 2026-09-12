@@ -62,22 +62,21 @@ export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materi
   </details>;
 
   if (j.status === 'new') {
-    const cost = d.connects_cost != null ? ` Applying costs ${d.connects_cost} Connects.` : '';
     if (!files.includes('pitch.html')) return <div className="next-step">
-      <p className="say">Start with the pitch page. The application stays locked until the page and Loom video are ready.{cost}</p>
+      {!canRun('pitch-page') ? <p className="say">Create the pitch page first.</p> : null}
       {canRun('pitch-page') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button></div> : null}
       <div className="next-secondary">{skip}</div>
     </div>;
     if (!validVideoUrl(j.video)) return <div className="next-step">
-      <p className="say">The pitch page is ready. Record the Loom and add its link under {materialsLabel} before drafting the application.{cost}</p>
+      <p className="say">Add your Loom video in {materialsLabel}.</p>
       <div className="next-secondary">{skip}</div>
     </div>;
     if (!files.includes('application.md')) return <div className="next-step">
-      <p className="say">The pitch page and Loom video are ready. Draft the application under {materialsLabel}.{cost}</p>
+      <p className="say">Draft the application in {materialsLabel}.</p>
       <div className="next-secondary">{skip}</div>
     </div>;
     return <div className="next-step">
-      <p className="say">Everything is ready. Review the prepared application, submit it on Upwork, then set the stage to Applied.{cost}</p>
+      <p className="say">After submitting, mark this lead Applied.</p>
       {j.url ? <div className="next-primary"><a className="btn primary" href={j.url} target="_blank" rel="noopener">Review and submit on Upwork</a></div> : null}
       <div className="next-secondary">{skip}</div>
     </div>;

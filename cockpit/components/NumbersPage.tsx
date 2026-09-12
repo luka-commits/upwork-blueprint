@@ -36,13 +36,12 @@ export default function NumbersPage() {
   return <div className="analytics-page">
     <div className="analytics-intro">
       <h1>Analytics</h1>
-      <p className="note-sm">Your saved pipeline, with the limits of the data in view.</p>
     </div>
     <div className="analytics-coverage" aria-label="Data coverage">
+      <strong>Saved leads only</strong>
       <span>{countLabel(state.jobs.length, 'saved lead')}</span>
       <span>{state.sync?.synced_at ? `Last sync ${stamp(state.sync.synced_at)}` : 'Not synced with Upwork yet'}</span>
       {ins.application_dates_unknown ? <span className="coverage-gap">{countLabel(ins.application_dates_unknown, 'application date')} missing or invalid</span> : null}
-      <span>Partial account coverage</span>
     </div>
 
     <div className="tiles">
@@ -50,27 +49,20 @@ export default function NumbersPage() {
     </div>
 
     <div className="analytics-section-heading">
-      <h2>Saved pipeline history</h2>
-      <p className="note-sm">All ages together. New leads have had less time to progress.</p>
+      <h2>Pipeline</h2>
     </div>
     <div className="funnel">
-      {funnel.map((item: any, index: number) => {
-        const conversion = index === 0 ? 'Every saved lead, including skipped'
-          : `${item.count} of ${funnel[0]?.count || 0} saved leads reached this stage`;
-        return <div className="funnel-row" key={item.stage}>
+      {funnel.map((item: any) => <div className="funnel-row" key={item.stage}>
           <span>{displayStage(item.stage)}</span>
-          <span className="track"><span style={{ width: `${item.count ? Math.max(3, 100 * item.count / top) : 0}%` }} /></span>
+          <span className="track" aria-hidden="true"><span style={{ width: `${item.count ? Math.max(3, 100 * item.count / top) : 0}%` }} /></span>
           <b>{item.count}</b>
-          <span className="funnel-pct">{conversion}</span>
-        </div>;
-      })}
-      <p className="note-sm funnel-note">Each lead counts in every stage up to its highest recorded stage. These are pipeline records, not independently verified replies or a timed conversion study. Only jobs saved here are included.</p>
+        </div>)}
     </div>
 
     {tracker.goal ? <>
       <div className="analytics-section-heading">
         <h2>Applications this week</h2>
-        <p className="note-sm">{countLabel(tracker.week_done, 'dated application')} this week · Daily goal {tracker.goal}{tracker.application_dates_unknown ? ` · ${tracker.application_dates_unknown} missing dates excluded` : ''}</p>
+        <span className="section-fact">{tracker.week_done} this week · Goal {tracker.goal}/day</span>
       </div>
       <div className="days">
         {tracker.week.map((item: any, index: number) => (
@@ -88,15 +80,23 @@ export default function NumbersPage() {
     </> : null}
 
     {stats.length ? <>
-      <div className="analytics-section-heading"><h2>Profile standing</h2>
-        <p className="note-sm">Account-wide totals{me.profile_cached_at ? ` · Profile saved ${stamp(me.profile_cached_at)}` : ' · Profile save time unknown'}</p></div>
+      <div className="analytics-section-heading"><h2>Profile</h2><span className="section-fact">Account totals</span></div>
       <div className="me-stats">
         {stats.map(([value, label]) => <div key={label}><span className="me-val">{value}</span><span className="me-lbl">{label}</span></div>)}
       </div>
     </> : null}
+
+    <details className="analytics-notes">
+      <summary>Data notes</summary>
+      <div className="analytics-notes-body">
+        {tiles.map(tile => <div key={tile.label}><strong>{tile.label}</strong><p>{tile.hint}</p></div>)}
+        <div><strong>Pipeline</strong><p>Each lead counts in every stage up to its highest recorded stage. These are pipeline records, not independently verified replies or a timed conversion study. Only jobs saved here are included.</p></div>
+        <div><strong>Profile</strong><p>Account totals come from the saved profile. {me.profile_cached_at ? `Profile saved ${stamp(me.profile_cached_at)}.` : 'Profile save time unknown.'}</p></div>
+      </div>
+    </details>
   </div>;
 }
 
-function Tile({ label, value, hint, empty }: { label: string; value: string | number | null; hint: string; empty: string }) {
-  return <div className="tile"><span className="tile-lbl">{label}</span><span className={`tile-val${value == null ? ' empty' : ''}`}>{value == null ? empty : value}</span><span className="tile-hint">{hint}</span></div>;
+function Tile({ label, value, empty }: { label: string; value: string | number | null; hint: string; empty: string }) {
+  return <div className="tile"><span className="tile-lbl">{label}</span><span className={`tile-val${value == null ? ' empty' : ''}`}>{value == null ? empty : value}</span></div>;
 }

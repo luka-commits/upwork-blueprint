@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useCockpit, type Run, type RunLine } from '@/lib/context';
+import { parseRunResult } from '@/lib/run-result.mjs';
 import RunResult from './RunResult';
 import './commands.css';
 
@@ -184,7 +185,7 @@ export default function CommandsPage() {
 
   const historyRuns = useMemo<DisplayRun[]>(() => history.map(run => ({
     ...run,
-    summary: lastMeaningfulLine(run.result),
+    summary: run.result ? parseRunResult(run.result).headline : '',
   })), [history]);
 
   const jobTitles = useMemo(() => new Map<string, string>((state?.jobs || []).map((job: any) => [job.id, job.title])), [state]);

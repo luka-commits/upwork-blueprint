@@ -66,7 +66,7 @@
 .lead-page .panel {
   min-width: 0;
   padding: 15px 17px;
-  border-radius: 18px;
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow-1);
 }
 
@@ -225,14 +225,33 @@
 }
 
 .workspace-tabs {
-  display: flex;
-  gap: 3px;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(var(--tab-count), minmax(0, 1fr));
   margin: 8px;
   padding: 4px;
   border: 1px solid var(--glass-line);
-  border-radius: 12px;
+  border-radius: 8px;
   background: linear-gradient(135deg, #e6edf8d9, #f0f3f9b3);
   box-shadow: inset 0 1px 3px #435c7d0a;
+}
+
+.workspace-tabs::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / var(--tab-count));
+  border: 1px solid #fff;
+  border-radius: var(--radius-control);
+  background: linear-gradient(180deg, #fff, #ffffffd9);
+  box-shadow: 0 1px 3px #26496e1a, inset 0 1px 0 #fff;
+  transform: translateX(calc(var(--tab-index) * 100%));
+  transition: transform 160ms var(--lead-ease);
+  pointer-events: none;
 }
 
 .workspace-tabs button {
@@ -241,7 +260,7 @@
   min-width: 0;
   padding: 8px 7px;
   border-color: transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--text-2);
   font-size: 12px;
@@ -251,10 +270,9 @@
 
 .workspace-tabs button[aria-selected="true"] {
   color: var(--text);
-  background: linear-gradient(180deg, #fff, #ffffffd9);
-  border-color: #fff;
-  box-shadow: 0 1px 3px #26496e1a, inset 0 1px 0 #fff;
 }
+
+html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
 
 .workspace-content {
   flex: 1;
@@ -266,12 +284,12 @@
 .workspace-conversation[hidden] { display: none; }
 
 .workspace-heading {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .workspace-heading h2 {
   margin: 0 0 7px;
-  font-size: 21px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.25;
   letter-spacing: -.025em;
@@ -283,39 +301,6 @@
   color: var(--text-2);
   font-size: 13px;
   line-height: 1.6;
-}
-
-.preparation-progress {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0 0 22px;
-}
-
-.preparation-progress > span {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-3);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.preparation-marker {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 17px;
-  height: 17px;
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  font-size: 10px;
-}
-
-.preparation-progress .ready .preparation-marker {
-  color: var(--ok);
-  background: var(--ok-soft);
-  border-color: #b7d7d2;
 }
 
 .lead-page .sr-only {
@@ -333,7 +318,7 @@
   margin: 0 0 24px;
   padding: 20px;
   border: 1px solid #d5e5f8;
-  border-radius: 13px;
+  border-radius: var(--radius-panel);
   background: linear-gradient(140deg, #f0f6ff, #f8faff);
 }
 
@@ -427,7 +412,7 @@
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .workspace-tabs { background: var(--surface2); border-color: var(--border-strong); }
-  .workspace-tabs button[aria-selected="true"] { background: var(--card); border-color: var(--border-strong); }
+  .workspace-tabs::before { background: var(--card); border-color: var(--border-strong); }
 }
 
 .lead-page .convo-body {
@@ -837,6 +822,9 @@
   border-top: 1px solid var(--border);
 }
 
+.material-row:first-child { border-top: 0; }
+.material-chevron { grid-column: 4; }
+
 .material-row > summary {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) auto 14px;
@@ -844,12 +832,12 @@
   gap: 8px;
   min-height: 43px;
   padding: 7px 9px;
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   list-style: none;
 }
 
 .material-row[open] > summary {
-  background: var(--hover);
+  background: var(--surface2);
 }
 
 .material-state {
@@ -882,7 +870,7 @@
 }
 
 .material-body {
-  padding: 2px 9px 13px 37px;
+  padding: 12px 9px 18px 37px;
 }
 
 .material-note,
@@ -1268,11 +1256,8 @@
 
 .lead-page button:active,
 .lead-page .btn:active,
-.lead-page summary:active,
 .next-step button:active,
-.next-step summary:active,
-.tasks-block button:active,
-.tasks-block summary:active {
+.tasks-block button:active {
   transform: scale(.98);
 }
 

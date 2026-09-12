@@ -47,3 +47,13 @@ test('the native desktop typography requires no remote font request', () => {
   assert.match(css, /font-family: -apple-system/);
   assert.match(css, /--mono: ui-monospace/);
 });
+
+test('desktop corners use the compact control, panel and floating-surface scale', () => {
+  assert.match(css, /--radius-control: 6px/);
+  assert.match(css, /--radius-panel: 10px/);
+  assert.match(css, /--radius-floating: 12px/);
+  assert.match(css, /\.top-actions button \{ border-radius: var\(--radius-control\)/);
+  const lead = readFileSync(new URL('../../components/lead.css', import.meta.url), 'utf8');
+  assert.match(lead, /\.lead-page \.panel\s*\{[^}]*border-radius: var\(--radius-panel\)/);
+  assert.match(lead, /html\[data-input="keyboard"\] \.workspace-tabs::before \{ transition: none/);
+});

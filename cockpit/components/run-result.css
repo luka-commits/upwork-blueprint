@@ -1,7 +1,7 @@
 .run-result {
   max-width: 860px;
   padding: 12px;
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--bg);
   color: var(--text-2);
   font-size: 12.5px;
@@ -18,7 +18,7 @@
 
 .result-verdict {
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--ok-soft);
   color: var(--ok);
   font-size: 9.5px;
@@ -37,20 +37,26 @@
   color: var(--red-deep);
 }
 
-.result-lead p,
+.result-headline,
 .result-block p,
 .result-block ul,
 .result-findings ul {
   margin: 0;
 }
 
-.result-lead p {
+.result-headline {
   color: var(--text);
   font-weight: 650;
 }
 
+.run-result.complete .result-headline {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .result-findings,
-.result-sections,
 .result-block + .result-block,
 .result-meta {
   margin-top: 10px;
@@ -83,6 +89,28 @@
   margin-top: 3px;
 }
 
+.result-next > .result-block,
+.result-blocker > .result-block {
+  margin-top: 10px;
+}
+
+.result-blocker > .result-block {
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--amber-deep) 28%, var(--border));
+  border-radius: 10px;
+  background: var(--amber-soft);
+  color: var(--text);
+}
+
+.run-result.failed .result-blocker > .result-block {
+  border-color: color-mix(in srgb, var(--red-deep) 28%, var(--border));
+  background: var(--red-soft);
+}
+
+.result-blocker .result-block h4 {
+  color: inherit;
+}
+
 .result-meta {
   display: flex;
   flex-wrap: wrap;
@@ -97,25 +125,55 @@
   color: var(--text-2);
 }
 
-.result-full {
+.result-details {
   margin-top: 10px;
   padding-top: 9px;
   border-top: 1px solid var(--border);
 }
 
-.result-full > summary {
+.result-details > summary {
   width: fit-content;
+  padding: 3px 6px;
+  border-radius: 6px;
   color: var(--text-3);
   font-size: 11.5px;
   font-weight: 650;
+  cursor: pointer;
 }
 
-.result-full pre {
+.result-details > summary:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.result-details-body {
+  margin-top: 8px;
+  padding: 0 10px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.result-original {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+
+.result-original h4 {
+  margin: 0 0 4px;
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.result-original pre {
   max-height: 320px;
   margin: 8px 0 0;
   padding: 10px;
   overflow: auto;
-  border-radius: 7px;
+  border-radius: 10px;
   background: var(--bg);
   color: var(--text-2);
   font: 11.5px/1.55 var(--mono);

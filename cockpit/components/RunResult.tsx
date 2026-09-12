@@ -22,28 +22,36 @@ export default function RunResult({ result, error = false, stopped = false }: {
   const outcome = parseRunResult(result);
   const verdict = stopped ? 'STOPPED' : error ? 'FAILED' : outcome.verdict || 'DONE';
   const cls = stopped ? 'stopped' : error ? 'failed' : outcome.verdict === 'DRAFT / HELD' || outcome.verdict === 'BLOCKED' ? 'held' : 'complete';
+  const needsAttention = cls !== 'complete';
   return <div className={`run-result ${cls}`}>
     <div className="result-lead">
       <span className="result-verdict">{verdict}</span>
-      <p>{outcome.headline}</p>
+      <p className="result-headline">{outcome.headline}</p>
     </div>
-    {outcome.findings.length ? <section className="result-findings">
-      <h4>Key findings</h4>
-      <ul>{outcome.findings.map((finding: string, index: number) => <li key={index}>{finding}</li>)}</ul>
-    </section> : null}
-    <div className="result-sections">
-      <Block label="Created" value={outcome.built} />
-      <Block label="Checked" value={outcome.checked} />
-      <Block label="Next" value={outcome.next} />
-    </div>
-    {outcome.stillNeeded && outcome.stillNeeded !== outcome.next ? <Block label="Still needed" value={outcome.stillNeeded} /> : null}
-    {outcome.quality || outcome.calls ? <div className="result-meta">
-      {outcome.quality ? <span><b>Quality</b> {outcome.quality}</span> : null}
+    {outcome.next && (!needsAttention || outcome.next !== outcome.stillNeeded) ? <div className="result-next"><Block label="Next" value={outcome.next} /></div> : null}
+    {needsAttention && outcome.stillNeeded
+      ? <div className="result-blocker"><Block label="Still needed" value={outcome.stillNeeded} /></div>
+      : null}
+    {outcome.calls ? <div className="result-meta">
       {outcome.calls ? <span><b>Upwork calls</b> {outcome.calls}</span> : null}
     </div> : null}
-    {result ? <details className="result-full">
-      <summary>Full report</summary>
-      <pre>{result}</pre>
-    </details> : null}
+    <details className="result-details">
+      <summary>Details</summary>
+      <div className="result-details-body">
+        {!needsAttention ? <Block label="Full result" value={outcome.headline} /> : null}
+        {outcome.findings.length ? <section className="result-findings">
+          <h4>Key findings</h4>
+          <ul>{outcome.findings.map((finding: string, index: number) => <li key={index}>{finding}</li>)}</ul>
+        </section> : null}
+        <Block label="Created" value={outcome.built} />
+        <Block label="Checked" value={outcome.checked} />
+        <Block label="Still needed" value={outcome.stillNeeded} />
+        <Block label="Quality" value={outcome.quality} />
+        {result ? <section className="result-original">
+          <h4>Original report</h4>
+          <pre>{result}</pre>
+        </section> : null}
+      </div>
+    </details>
   </div>;
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { leadWorkspace, preparationProgress } from '../lead-workspace.mjs';
+import { leadWorkspace, nextPreparationMaterial, preparationProgress } from '../lead-workspace.mjs';
 
 const cases = {
   new: {
@@ -106,4 +106,13 @@ test('preparation progress reaches four only with every file and a valid video',
   assert.equal(full.ready, 4);
   assert.equal(full.total, 4);
   assert.ok(full.items.every(item => item.ready));
+});
+
+test('preparation opens exactly the next prerequisite, never a blocked application', () => {
+  assert.equal(nextPreparationMaterial([], false), 'pitch');
+  assert.equal(nextPreparationMaterial(['pitch.html'], false), 'script');
+  assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md'], false), 'video');
+  assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md', 'application.md'], false), 'video');
+  assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md'], true), 'application');
+  assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md', 'application.md'], true), 'application');
 });

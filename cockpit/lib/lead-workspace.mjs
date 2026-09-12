@@ -83,3 +83,8 @@ export function preparationProgress(files, hasValidVideo) {
   ];
   return { ready: items.filter(item => item.ready).length, total: 4, items };
 }
+
+// A single priority keeps a blocked application from opening alongside its prerequisite.
+export function nextPreparationMaterial(files, hasValidVideo) {
+  return preparationProgress(files, hasValidVideo).items.find(item => !item.ready)?.key || 'application';
+}

@@ -21,13 +21,22 @@ Everything under "Measured" was called against a real account and produced the r
 
 **Measured 12 September 2026:** `get_freelancer_dashboard` and `list_contracts` action `search` carry no Job Success Score either. The dashboard does show Connects spending line by line, which is how a recurring "Paid invitation badge" charge of one Connect every twelve hours became visible.
 
-## Measured 14 August 2026: writing a profile, the limit that matters most
+## Writing a profile: the limit moved
 
-`update_profile` writes **only**: availability, employment records, languages, education, other experience.
+**14 August 2026, measured:** `update_profile` wrote only availability, employment, languages, education and other experience.
 
-**It cannot write: title, overview, skills, hourly rate, portfolio, video.** Exactly the fields that decide whether invitations arrive. So any command that improves a profile **hands over finished text to paste in**, and never promises a change the API cannot carry out.
+**12 September 2026, from Upwork's own tool description (not yet exercised):** `update_profile` now also has `update_title` (70 characters at most), `update_overview` (5,000 characters at most) and `set_skills` (the complete set, 20 at most, names resolved to Upwork's skill list, custom skills rejected). **Still not writable: hourly rate, portfolio, video.** Every write returns a preview first and runs only through `confirm_preview` after an explicit yes. The first real run moves this section to measured.
 
-The tool is two-stage (draft, then `confirm_draft`), which matches the approval pattern the other writing commands use.
+## Profile boosters, from the tool description 12 September 2026
+
+`boost_profile` action `get_status` reads the Availability Badge (the "Available Now" badge, a recurring weekly Connects charge that shows up as "Paid invitation badge" in the Connects history) and any profile boost ad. `toggle_availability_badge` with `enabled: false` switches the badge off; switching it on or starting ads is only possible on upwork.com.
+
+## Proposals, from the tool description 12 September 2026
+
+- `manage_proposals` action `create` prepares a proposal and returns a **preview, not a submission**: Connects price and balance, competing bid stats (Freelancer Plus), the client's screening questions, unmet preferred qualifications, and a boost block with the real competing boost bids. `confirm_preview` with type `proposal` submits it.
+- **Mandatory before `create`:** `list_freelancer_proposals` action `invitations` (an invited job takes `accept_invitation` instead) and action `list` (an existing proposal makes `create` fail).
+- **Before submitting, always ask** about attachments and which portfolio projects or certificates to highlight.
+- **A freelancer cannot message a client first on a proposal.** No room exists until the client writes. A "follow-up" on an application therefore means re-checking it, not messaging.
 
 ## Measured 12 September 2026: finding other freelancers
 

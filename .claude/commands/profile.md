@@ -54,9 +54,11 @@ Then these sections, with these exact headings, because the gate reads them:
 
 Run `python3 code/profile_draft.py check profile.md`. It re-runs the audit's checks on the draft, the benchmark targets, Upwork's limits, and looks up every number in your proof file. Exit 1 means fix and run it again. Never loosen the draft's claims to pass, and never add a number to the proof file to make the gate quiet: the proof file changes only with the member's word or the connector's.
 
-## Step 4 · What the connector can change
+## Step 4 · Put it live, one field at a time
 
-Availability, employment, education and languages can be written through `update_profile`. Offer only what the audit flagged, one change at a time, draft first, `confirm_draft` only after an explicit yes.
+`update_profile` can write the title (`update_title`), the overview (`update_overview`) and the full skill set (`set_skills`, all 20 at once, Upwork's exact names), plus availability, employment, education and languages. Hourly rate, portfolio and video stay manual, with the click path in `profile.md`.
+
+For each field the member approves: create the preview, show exactly what will replace what, and call `confirm_preview` only after an explicit yes for that field. One field, one yes; "approve all" is not a yes for each. Then run `/audit` again: the score comes from the live profile, not from the draft.
 
 ## Step 5 · Report
 

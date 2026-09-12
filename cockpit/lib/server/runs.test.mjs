@@ -9,7 +9,7 @@ import test from 'node:test';
 // Finished runs are written to data/runs; the tests write to a throwaway folder instead.
 process.env.BLUEPRINT_DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'cockpit-runs-'));
 process.env.BLUEPRINT_JOBDIR = fs.mkdtempSync(path.join(os.tmpdir(), 'cockpit-jobs-'));
-const { RUNNABLE, RUNS, history, parseEvent, prepareApprovedReply, stopRun, track } = await import('./runs.mjs');
+const { RUNNABLE, RUNS, history, parseEvent, prepareApprovedReply, promptFor, stopRun, track } = await import('./runs.mjs');
 
 test('only the dedicated reply sender can send and no button can confirm a preview', () => {
   const senders = [];
@@ -22,6 +22,13 @@ test('only the dedicated reply sender can send and no button can confirm a previ
   }
   assert.deepEqual(senders, ['send-reply']);
   assert.equal(RUNNABLE['send-reply'].command, false);
+});
+
+test('every job placeholder in the send prompt is resolved', () => {
+  const prompt = promptFor('send-reply', '123456');
+  assert.ok(!prompt.includes('{job}'));
+  assert.ok(prompt.includes('jobs/123456/outbox.json'));
+  assert.ok(prompt.includes('code/threads.py confirm 123456'));
 });
 
 test('the server freezes exact approved text and requires a room', () => {

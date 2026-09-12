@@ -29,14 +29,16 @@ export const RUNNABLE = {
     command: false,
     job: true,
     prompt: 'Send the approved Upwork reply for job {job}. Read jobs/{job}/outbox.json. '
-      + 'Use the room_id and text from that file. Call send_message action send exactly once with that room_id and the text character for character. '
+      + 'Call list_accounts exactly once to obtain the org_uid. Then use that org_uid plus the room_id and text from the outbox. '
+      + 'Call send_message action send exactly once with that room_id and the text character for character. '
       + 'Do not rewrite, trim, summarize, quote or repeat the message in your output. Then call get_messages action list_messages for the same room, newest 30. '
       + 'Confirm that one returned message from the freelancer has text exactly equal to the outbox text. If it does not, stop and report the failure without changing thread.json. '
       + 'If it does, write the complete get_messages response to jobs/{job}/.thread-confirm.json and run '
       + '`python3 code/threads.py confirm {job} --room <the exact room_id> --awaiting them`. '
-      + 'End with COMPLETE, what was checked, and the Upwork call count. The expected count is 2.',
+      + 'End with COMPLETE, what was checked, and the Upwork call count. The expected count is 3.',
     tools: ['Read', 'Write', 'Bash(python3 code/threads.py*)',
-      'mcp__upwork__upwork__send_message', 'mcp__upwork__upwork__get_messages'],
+      'mcp__upwork__upwork__list_accounts', 'mcp__upwork__upwork__send_message',
+      'mcp__upwork__upwork__get_messages'],
   },
 };
 
@@ -165,11 +167,15 @@ export function history() {
   } catch { return []; }
 }
 
+export function promptFor(name, job) {
+  return RUNNABLE[name].prompt.replaceAll('{job}', job || '').trim();
+}
+
 export function startRun(name, job) {
   const spec = RUNNABLE[name];
   const bin = claudeBinary();
   if (!bin) throw new Error('Claude Code is not installed or not on the PATH.');
-  const prompt = spec.prompt.replace('{job}', job || '').trim();
+  const prompt = promptFor(name, job);
   const args = ['-p', prompt, '--output-format', 'stream-json', '--verbose', '--append-system-prompt', NARRATE,
     '--permission-mode', 'acceptEdits', '--allowedTools', ...spec.tools];
   const child = spawn(bin, args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], shell: bin.endsWith('.cmd') });

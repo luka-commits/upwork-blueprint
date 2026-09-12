@@ -9,7 +9,7 @@ Nothing recorded yet. One block per result: what you did, for whom (or what kind
 
 ## Reviews
 
-Nothing recorded yet. /audit pulls your Upwork reviews in here once the connector is set up.
+Nothing recorded yet. One block per review: the client's words, the job, the rating. /profile collects them with you.
 
 ## Credentials
 

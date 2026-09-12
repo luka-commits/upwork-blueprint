@@ -25,7 +25,7 @@ class ThreadsTest(unittest.TestCase):
     def test_raw_edges_become_a_clean_chat_oldest_first(self):
         raw = {'data': {'roomStories': {'edges': [
             node(4, '2026-01-12T10:00:00Z', 'System event: ended. View this conversation on upwork.com for full context.'),
-            node(3, '2026-01-11T10:00:00Z', 'Yes let&#39;s do it!\n1\\. First step', side='freelancer', me=True, name='Luka K.'),
+            node(3, '2026-01-11T10:00:00Z', 'Yes let&#39;s do it!\n1\\. First step', side='freelancer', me=True, name='Sam K.'),
             node(2, '2026-01-10T10:00:00Z', 'The freelancer accepted your offer. Please check your offers for details.', side='freelancer', me=True),
             node(1, '2026-01-09T10:00:00Z', 'Hi, can we talk?'),
             node(1, '2026-01-09T10:00:00Z', 'Hi, can we talk?'),

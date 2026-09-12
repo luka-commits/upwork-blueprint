@@ -227,13 +227,14 @@ function ReplyDrafts({ j }: { j: any }) {
   const drafts = Array.isArray(j.replies?.drafts)
     ? j.replies.drafts.filter((draft: any) => draft && typeof draft.text === 'string' && draft.text.trim())
     : [];
-  const [texts, setTexts] = useState<string[]>(drafts.map((draft: any) => draft.text));
+  const draftSet = String(j.replies?.generated_at || '');
+  const sentDraft = j.outbox?.confirmed_at && j.outbox?.draft_set === draftSet ? j.outbox.draft : null;
+  const [texts, setTexts] = useState<string[]>(drafts.map((draft: any, index: number) =>
+    sentDraft === index && typeof j.outbox?.text === 'string' ? j.outbox.text : draft.text));
   const drafting = runs.some(run => run.command === 'reply' && run.job === j.id && !run.done);
   const sending = runs.some(run => run.command === 'send-reply' && !run.done);
   const room = j.thread?.room_id;
   const canDraft = !!state?.commands?.reply && !!(j.thread?.messages || []).length;
-  const draftSet = String(j.replies?.generated_at || '');
-  const sentDraft = j.outbox?.confirmed_at && j.outbox?.draft_set === draftSet ? j.outbox.draft : null;
 
   if (!canDraft && !drafts.length) return null;
   return <section className="reply-drafts" aria-label="Draft replies">

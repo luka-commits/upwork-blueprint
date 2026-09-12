@@ -170,7 +170,13 @@ export const COLS: Record<string, Col> = {
 /** The next thing to do on a job: its follow-up or its earliest dated task, whichever comes first. */
 export function nextTodo(j: any): { text: string; due: string | null } | null {
   const items: { text: string; due: string | null }[] = openTasks(j).map(t => ({ text: t.text, due: t.due || null }));
-  if (j.next_follow_up && !ENDED.includes(j.status)) items.push({ text: j.status === 'won' ? 'Check in with the client' : 'Follow up', due: j.next_follow_up });
+  if (j.next_follow_up && !ENDED.includes(j.status)) {
+    const plan = j.follow_up_plan;
+    const lane = typeof plan?.lane === 'string' ? plan.lane.replace('-', ' ') : '';
+    const position = Number.isInteger(plan?.step) && Number.isInteger(plan?.max_steps) ? ` ${plan.step} of ${plan.max_steps}` : '';
+    const text = lane ? `${lane[0].toUpperCase()}${lane.slice(1)} follow-up${position}` : j.status === 'won' ? 'Check in with the client' : 'Follow up';
+    items.push({ text, due: j.next_follow_up });
+  }
   items.sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')));
   return items[0] || null;
 }

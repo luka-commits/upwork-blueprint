@@ -25,7 +25,9 @@ class CockpitTest(unittest.TestCase):
             {'id': '111111', 'title': 'CRM build', 'status': 'new', 'score': 80, 'found_at': '2026-09-12T08:00:00+00:00',
              'details': {'description': 'long posting', 'connects_cost': 16}, 'history': []},
             {'id': '222222', 'title': 'Old one', 'status': 'applied', 'score': 60, 'next_follow_up': '2000-01-01',
-             'history': []}]), encoding='utf-8')
+             'history': []},
+            {'id': '333333', 'title': 'Previous client', 'status': 'won', 'next_follow_up': '2000-01-02',
+             'follow_up_plan': {'lane': 'reactivation', 'step': 1, 'max_steps': 2}, 'history': []}]), encoding='utf-8')
         cls.jobdir = pathlib.Path(cls.tmp.name) / 'jobfiles'
         (cls.jobdir / '111111').mkdir(parents=True)
         (cls.jobdir / '111111' / 'pitch.html').write_text('<h1>pitch</h1>', encoding='utf-8')
@@ -59,7 +61,7 @@ class CockpitTest(unittest.TestCase):
         self.assertTrue(first['has_posting'])
         self.assertNotIn('description', first['details'])
         self.assertEqual(first['artifacts'], ['pitch.html'])
-        self.assertEqual(state['today']['follow_ups_due'], ['222222'])
+        self.assertEqual(state['today']['follow_ups_due'], ['222222', '333333'])
 
     def test_full_view_carries_files_and_thread(self):
         r = self.cli('job', '111111')

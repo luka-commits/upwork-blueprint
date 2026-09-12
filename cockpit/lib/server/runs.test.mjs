@@ -29,6 +29,14 @@ test('every job placeholder in the send prompt is resolved', () => {
   assert.ok(!prompt.includes('{job}'));
   assert.ok(prompt.includes('jobs/123456/outbox.json'));
   assert.ok(prompt.includes('code/threads.py confirm 123456'));
+  assert.ok(prompt.includes('code/pipeline.py follow-up 123456 sent'));
+});
+
+test('the morning follow-up review can read but cannot send', () => {
+  const tools = RUNNABLE['follow-up'].tools;
+  assert.ok(tools.some(tool => tool.endsWith('__get_messages')));
+  assert.ok(!tools.some(tool => tool.endsWith('__send_message')));
+  assert.ok(!tools.some(tool => tool.endsWith('__confirm_preview')));
 });
 
 test('the server freezes exact approved text and requires a room', () => {

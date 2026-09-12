@@ -331,6 +331,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
     : syncMinutes < 1 ? 'synced just now' : syncMinutes < 60 ? `synced ${syncMinutes} min ago`
       : syncMinutes < 1440 ? `synced ${Math.round(syncMinutes / 60)} h ago` : `synced ${Math.round(syncMinutes / 1440)} d ago`;
   const syncing = runs.some(run => run.command === 'sync' && !run.done);
+  const reviewingFollowUps = runs.some(run => run.command === 'follow-up' && !run.done);
 
   return (
     <CockpitContext.Provider value={value}>
@@ -347,6 +348,10 @@ export function CockpitProvider({ token, children }: { token: string; children: 
               title={state?.sync ? `Last sync moved ${state.sync.moved?.length || 0}, added ${state.sync.added?.length || 0}, saved ${state.sync.threads || 0} threads` : undefined}>{syncText}</span>
             {state?.commands?.sync ? <button disabled={syncing} onClick={() => runCommand('sync')}
               title="Read replies, offers, contracts and proposals from Upwork. Sends nothing.">{syncing ? 'Syncing…' : 'Sync'}</button> : null}
+            {state?.commands?.['follow-up'] ? <button disabled={reviewingFollowUps || syncing} onClick={() => runCommand('follow-up')}
+              title="Review dormant conversations, prepare due drafts and schedule next steps. Sends nothing.">
+              {reviewingFollowUps ? 'Reviewing…' : 'Follow-ups'}
+            </button> : null}
             {state?.commands?.['find-jobs'] ? <button className="primary" onClick={() => runCommand('find-jobs')}>Find jobs</button> : null}
           </div>
         </div>

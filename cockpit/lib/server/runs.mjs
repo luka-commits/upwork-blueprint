@@ -19,6 +19,9 @@ export const RUNNABLE = {
   sync: { prompt: '/sync', job: false, tools: [...FILES, 'mcp__upwork__upwork__list_accounts',
     'mcp__upwork__upwork__list_freelancer_proposals', 'mcp__upwork__upwork__get_messages',
     'mcp__upwork__upwork__list_offers', 'mcp__upwork__upwork__list_contracts'] },
+  'follow-up': { prompt: '/follow-up', job: false, tools: [...FILES, 'mcp__upwork__upwork__list_accounts',
+    'mcp__upwork__upwork__list_freelancer_proposals', 'mcp__upwork__upwork__get_messages',
+    'mcp__upwork__upwork__list_offers', 'mcp__upwork__upwork__list_contracts'] },
   'pitch-page': { prompt: '/pitch-page {job}', tools: [...FILES, ...UPWORK_READ, 'WebSearch', 'WebFetch'], job: true },
   // The draft run makes the proposal preview (Connects price, boost bids) and
   // stops. It never gets confirm_preview, so it cannot submit anything.
@@ -35,9 +38,11 @@ export const RUNNABLE = {
       + 'Confirm that one returned message from the freelancer has text exactly equal to the outbox text. If it does not, stop and report the failure without changing thread.json. '
       + 'If it does, write the complete get_messages response to jobs/{job}/.thread-confirm.json and run '
       + '`python3 code/threads.py confirm {job} --room <the exact room_id> --awaiting them`. '
+      + 'Then run `python3 code/pipeline.py follow-up {job} sent` so an active sequence advances or completes. '
       + 'Then run `python3 code/pipeline.py prune`. '
       + 'End with COMPLETE, what was checked, and the Upwork call count. The expected count is 3.',
-    tools: ['Read', 'Write', 'Bash(python3 code/threads.py*)', 'Bash(python3 code/pipeline.py prune)',
+    tools: ['Read', 'Write', 'Bash(python3 code/threads.py*)', 'Bash(python3 code/pipeline.py follow-up*)',
+      'Bash(python3 code/pipeline.py prune)',
       'mcp__upwork__upwork__list_accounts', 'mcp__upwork__upwork__send_message',
       'mcp__upwork__upwork__get_messages'],
   },

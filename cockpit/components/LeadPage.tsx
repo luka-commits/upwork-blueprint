@@ -93,6 +93,7 @@ export default function LeadPage({ id }: { id: string }) {
           <section className="panel checkin-panel">
             <h2>Next check-in</h2>
             <DateChip j={j} label="Next check-in" move={move} />
+            <FollowUpPlan j={j} />
           </section>
           <ClientFiles j={j} />
           {j.video ? <ClientVideo j={j} /> : null}
@@ -101,6 +102,7 @@ export default function LeadPage({ id }: { id: string }) {
             <h2>Next step</h2>
             <NextStep key={`next-${j.id}`} j={j} />
             {!CLOSED.includes(j.status) ? <DateChip j={j} label="Follow up" move={move} /> : null}
+            <FollowUpPlan j={j} />
           </section>
           <section className="panel tasks-panel">
             <h2>Tasks</h2>
@@ -288,6 +290,13 @@ function DateChip({ j, label, move }: { j: any; label: string; move: (id: string
       }}
     /> : null}
   </div>;
+}
+
+function FollowUpPlan({ j }: { j: any }) {
+  const plan = j.follow_up_plan;
+  if (!plan || !Number.isInteger(plan.step) || !Number.isInteger(plan.max_steps)) return null;
+  const lane = String(plan.lane || 'Follow-up').replace('-', ' ');
+  return <p className="say">{lane[0].toUpperCase() + lane.slice(1)} sequence, step {plan.step} of {plan.max_steps}. {plan.reason || ''}</p>;
 }
 
 function Materials({ j, files }: { j: any; files: string[] }) {

@@ -11,6 +11,7 @@ const RUN_LABEL: Record<string, string> = {
   'pitch-page': 'Prepare pitch page',
   apply: 'Draft application',
   reply: 'Draft replies',
+  'follow-up': 'Review follow-ups',
   'send-reply': 'Send reply',
 };
 

@@ -9,7 +9,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
-        <title>Upwork Cockpit</title>
+        <title>Automatable Cockpit</title>
       </head>
       <body>
         <CockpitProvider token={TOKEN}>{children}</CockpitProvider>

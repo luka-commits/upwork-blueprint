@@ -127,7 +127,7 @@ export default function RunsDock() {
               <span className="stamp">{clock((run.t1 || now) - run.t0)}</span>
               {run.done ? <button className="link" onClick={() => dismissRun(run.id)} aria-label="Remove run">✕</button> : null}
             </div>
-            <div className="runitem-status">{outcome?.headline || run.status}</div>
+            {!run.showResult || !run.result ? <div className="runitem-status">{outcome?.headline || run.status}</div> : null}
             {run.made.length ? (
               <div className="runitem-made">
                 {run.made.map((made, index) => made.href ? (
@@ -138,6 +138,7 @@ export default function RunsDock() {
               </div>
             ) : null}
             {run.log.length || !run.done ? <div className="runitem-foot">
+              {run.done && run.command === 'follow-up' ? <button className="link" onClick={() => router.push('/follow-ups')}>Open follow-up review</button> : null}
               {run.done && run.result ? <button className="link" onClick={() => toggleRunResult(run.id)}>
                 {run.showResult ? 'Hide result' : 'View result'}
               </button> : null}

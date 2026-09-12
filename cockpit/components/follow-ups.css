@@ -1,0 +1,64 @@
+.follow-ups-page { max-width: 1320px; margin: 0 auto; padding: 8px 0 24px; }
+.follow-ups-head { display: flex; align-items: center; justify-content: space-between; gap: 32px; margin-bottom: 24px; }
+.follow-ups-head h1 { margin: 0; font-size: 28px; font-weight: 650; letter-spacing: -.04em; line-height: 1.2; }
+.follow-ups-head p { margin: 7px 0 0; color: var(--text-2); font-size: 14px; }
+.follow-ups-action { text-align: right; }
+.follow-ups-action button { border-radius: var(--radius-control); padding: 10px 20px; }
+.follow-ups-action p { font-size: 12px; }
+.follow-ups-layout { display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 24px; align-items: start; }
+.follow-ups-layout .panel + .panel { margin-top: 0; }
+.follow-up-review { padding: 24px 28px 20px; }
+.follow-up-review-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.follow-up-review-head h2, .follow-up-reminders h2 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -.025em; }
+.follow-up-review-head button { white-space: nowrap; font-size: 12px; }
+.follow-up-review-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 18px 0 8px; color: var(--text-3); font-size: 12px; }
+.follow-up-review-caution { color: var(--text-3); font-size: 12px; line-height: 1.5; margin: 0 0 20px; }
+.follow-up-review-intro { padding-bottom: 6px; }
+.follow-up-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
+.follow-up-section > h2 { margin: 0 0 16px; font-size: 16px; letter-spacing: -.02em; }
+.follow-up-disclosure { padding-top: 16px; margin-top: 16px; }
+.follow-up-disclosure > summary { font-size: 14px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+.follow-up-disclosure[open] > summary { margin-bottom: 16px; }
+.follow-up-section.do-today { padding: 20px; margin: 18px -8px 0; border: 1px solid #d8e7f9; border-radius: var(--radius-panel); background: linear-gradient(130deg, #f1f7ff, #f9fbff); }
+.follow-up-section.do-today > h2 { color: var(--brand-deep); }
+.follow-up-prose { overflow-wrap: anywhere; }
+.follow-up-prose h3 { font-size: 15px; line-height: 1.45; font-weight: 650; margin: 20px 0 7px; letter-spacing: -.01em; }
+.follow-up-prose h3:first-child { margin-top: 0; }
+.follow-up-prose p, .follow-up-prose li { font-size: 14px; line-height: 1.65; color: var(--text-2); }
+.follow-up-prose p { margin: 8px 0; }
+.follow-up-prose ul { margin: 8px 0; padding-left: 20px; }
+.follow-up-prose li { padding: 3px 0; }
+.follow-up-prose strong { color: var(--text); font-weight: 600; }
+.follow-up-prose a { text-decoration: underline; text-decoration-color: #005ecb45; text-underline-offset: 3px; }
+.follow-up-source { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--text-3); font-size: 12px; }
+.follow-up-source summary { cursor: pointer; width: fit-content; }
+.follow-up-source pre { max-height: 400px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.65 var(--mono); padding: 14px; border-radius: 10px; background: var(--surface2); }
+.follow-up-notice { background: var(--brand-soft); color: var(--brand-deep); border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.55; }
+.follow-up-notice.warning { background: var(--amber-soft); color: var(--amber-deep); }
+.follow-up-empty { padding: 58px 20px 64px; max-width: 510px; margin: 0 auto; text-align: center; }
+.follow-up-empty-mark { display: inline-grid; place-items: center; width: 48px; height: 48px; margin-bottom: 16px; border-radius: var(--radius-panel); background: linear-gradient(145deg, #f4f9ff, #dfeeff); color: var(--brand); font-size: 26px; box-shadow: inset 0 1px 0 #fff, 0 8px 20px -12px #005ecb50; }
+.follow-up-empty h3 { font-size: 20px; margin: 0 0 10px; letter-spacing: -.025em; }
+.follow-up-empty p { font-size: 14px; line-height: 1.65; color: var(--text-2); margin: 0; }
+.follow-up-empty p.note-sm { font-size: 12px; margin-top: 16px; color: var(--text-3); }
+.follow-up-reminders { padding: 24px 22px; background: linear-gradient(150deg, #ffffffbf, #f8fbffb8); box-shadow: var(--glass-shadow); }
+.follow-up-reminders h2 { font-size: 17px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.follow-up-reminders h2 > span { color: var(--text-3); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.follow-up-reminders-note, .follow-up-reminders-empty { color: var(--text-3); font-size: 12px; line-height: 1.6; margin: 12px 0 20px; }
+.follow-up-reminders-empty { margin: 22px 0 0; padding-top: 18px; border-top: 1px solid var(--border); }
+.follow-up-reminder-group + .follow-up-reminder-group { margin-top: 26px; }
+.follow-up-reminder-group > h3 { margin: 0 0 14px; display: flex; gap: 8px; color: var(--text-2); font-size: 12px; font-weight: 600; }
+.follow-up-reminder-group > h3 span { color: var(--text-3); font-weight: 400; }
+.follow-up-reminder-group ul { list-style: none; padding: 0; margin: 0; }
+.follow-up-reminder-group li + li { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 18px; }
+.follow-up-reminder-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; color: var(--text-3); font-size: 11px; }
+.follow-up-reminder-meta .due { color: var(--amber-deep); }
+.follow-up-reminder-link { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; line-height: 1.5; font-weight: 600; margin: 7px 0 5px; overflow-wrap: anywhere; }
+.follow-up-reminder-link > span { flex-shrink: 0; }
+.follow-up-reminder-group li p { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.follow-up-step { display: block; margin-top: 8px; font-size: 11px; color: var(--text-3); }
+.follow-up-reason { margin-top: 7px; }
+.follow-up-reason > summary { font-size: 11px; color: var(--text-3); cursor: pointer; }
+.follow-up-reason[open] > summary { margin-bottom: 5px; }
+.follow-ups-footer { margin: 20px 0 0; color: var(--text-3); font-size: 12px; line-height: 1.5; }
+@media (prefers-reduced-transparency: reduce) { .follow-up-reminders { background: #f8fbff; } }
+@media (prefers-contrast: more) { .follow-up-reminders { background: #f8fbff; border-color: var(--border-strong); } .follow-up-section.do-today { border-color: var(--border-strong); } }

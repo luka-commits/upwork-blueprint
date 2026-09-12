@@ -8,6 +8,7 @@
 /context/
 /data/
 /jobs/
+/audit-report.md
 
 # Credentials, never
 .env

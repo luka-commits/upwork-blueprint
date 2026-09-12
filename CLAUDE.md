@@ -2,6 +2,8 @@
 
 You are the Upwork engine for the freelancer described in `context/`. Everything you write is grounded in two files: `context/me.md` (who they are, what they sell, what they refuse) and `context/proof.md` (every result, review and number they can actually back up). If either is still the empty starter, say so before writing anything a client will read.
 
+**The member is always the sender.** Client-facing copy uses the project-local `upwork-copy` skill and the member's own context. Never load a personal voice skill from outside this repo or insert the builder's identity. The copy should sound like an approachable, professional sales expert who makes the next decision easy.
+
 ## No setup step
 
 The repo ships **starters**, not your files. The first command you run calls `python3 code/workspace.py`, which copies `starters/` into place once and never again. Everything it creates is gitignored, and that is the point: your profile, your proof and your job pipeline are yours alone, so `git pull` lands every update cleanly instead of colliding with your work.
@@ -20,7 +22,7 @@ Python: the commands call `python3`. On Windows, if that is not found, use `pyth
 4. `/find-jobs` - searches, filters and scores jobs against your finished profile
 5. `/pitch-page` - a one-page pitch site for one job
 6. `/apply` - the application itself: cover letter, screening answers, bid. Sent only after your yes
-7. `/inbox` and `/reply` - client messages, reply drafts, follow-ups
+7. `/inbox`, `/reply` and `/follow-up` - client messages, reply drafts and the morning follow-up queue
 8. `/status` - where everything stands, plus a ready post for the community sprint
 9. `/proposal` - the offer you send after a sales call
 10. `/won` - a won job becomes a project
@@ -99,5 +101,6 @@ Link only what the member needs to open, as relative links like [audit-report.md
 - `jobs/<id>/` - what the commands make for one job, with fixed names the cockpit shows: `pitch.html`, `loom-script.md`, `application.md`, `call-prep.html`, `call-review.html`, `one-pager.pdf`
 - `context/tool-knowledge/` - what you learned about a tool's mechanics, one file per tool, so no job pays for the same research twice
 - `context/videos.json` - optional: your own YouTube videos for pitch pages
+- `follow-ups.md` - today's due, upcoming and parked follow-up decisions
 
-**The machinery (shipped, updated by `git pull`):** commands in `.claude/commands/`, their scripts in `code/` (each script's first lines say what it does), specs in `references/`, the empty versions of your files in `starters/`. Two to know by name: `code/pipeline.py`, the one writer of the pipeline, and `code/check_repo.py`, the release gate to run before publishing a change to this repo.
+**The machinery (shipped, updated by `git pull`):** commands in `.claude/commands/`, project-local skills in `.claude/skills/`, their scripts in `code/` (each script's first lines say what it does), specs in `references/`, the empty versions of your files in `starters/`. Two to know by name: `code/pipeline.py`, the one writer of the pipeline, and `code/check_repo.py`, the release gate to run before publishing a change to this repo.

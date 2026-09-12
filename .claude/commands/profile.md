@@ -5,6 +5,10 @@ argument-hint: "[focus: title | overview | skills | portfolio | video]"
 
 # /profile
 
+Use the project-local `upwork-copy` skill. The member described in
+`context/me.md` is the person this profile sells; never import a personal voice
+or identity from outside this repository.
+
 The fixes the audit found, written out, to the targets the benchmark set. The connector cannot write title, overview, skills, portfolio or video, so this command hands over finished text and the exact place to paste it.
 
 Read first: [references/profile-formula.md](../../references/profile-formula.md), then everything that exists of `audit-report.md`, `benchmark.md`, `data/targets.json`, `data/profile.json`, `context/me.md` and `context/proof.md`.

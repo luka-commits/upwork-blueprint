@@ -18,6 +18,12 @@ Last verified: not yet. Next: run /profile, it fills this in with you.
 
 **Job Success Score:** not answered yet
 
+## How you sound
+
+**Default:** a sales expert who is approachable and professional. Make the next
+decision easy, use concrete commitments, and never pressure the client.
+**Personal preferences:** not answered yet
+
 ## Your daily target
 
 **Applications per day:** not answered yet

@@ -5,6 +5,9 @@ argument-hint: "<job id>"
 
 # /pitch-page
 
+Use the project-local `upwork-copy` skill for the page and Loom script. The
+member described in `context/me.md` is the sender.
+
 One page that makes a client stop scrolling: a headline about their job, your walkthrough video, three proofs, their system drawn as a diagram they can drag and edit, the plan in days, and the next step on Upwork. Plus the Loom script you read while you scroll through it.
 
 Read first: [references/upwork-rules.md](../../references/upwork-rules.md) (the section on links before a contract), `context/me.md`, `context/proof.md`.

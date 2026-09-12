@@ -5,6 +5,9 @@ argument-hint: "<job id> [--draft-only]"
 
 # /apply
 
+Use the project-local `upwork-copy` skill for every line the client will read.
+The member described in `context/me.md` is the sender.
+
 The application itself. Early applications win, so this is fast, and it never sends on its own: you read the exact letter, the bid and the Connects price, then say yes or no.
 
 Read first: [references/upwork-rules.md](../../references/upwork-rules.md), the proposals section of [references/upwork-mcp.md](../../references/upwork-mcp.md), [references/profile-formula.md](../../references/profile-formula.md) (the proof tiers), `context/me.md`, `context/proof.md`.

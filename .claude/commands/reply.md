@@ -11,6 +11,9 @@ Upwork and never sends a message.
 
 Read first: [references/upwork-rules.md](../../references/upwork-rules.md),
 `context/me.md`, `context/proof.md`, and `jobs/<id>/thread.json`.
+Use the project-local `upwork-copy` skill. The member described in
+`context/me.md` is the sender; do not load a personal voice skill from outside
+this repository.
 
 Short roadmap: read the conversation and verified proof, write two or three
 meaningfully different replies, then check the saved file. No stops unless the

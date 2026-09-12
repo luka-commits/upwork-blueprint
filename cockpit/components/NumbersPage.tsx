@@ -1,6 +1,8 @@
 'use client';
 
 import { useCockpit } from '@/lib/context';
+import { stamp } from '@/lib/model';
+import { analyticsTiles } from '@/lib/analytics-view.mjs';
 import './analytics.css';
 
 const STAGE_NAMES: Record<string, string> = {
@@ -21,26 +23,12 @@ export default function NumbersPage() {
   const ins = state.insights, tracker = state.tracker, me = state.me || {};
   const funnel = ins.funnel || [];
   const top = funnel[0]?.count || 1;
-  const transitions = funnel.slice(1).map((item: any, index: number) => {
-    const before = funnel[index];
-    return {
-      from: displayStage(before.stage),
-      to: displayStage(item.stage),
-      before: before.count,
-      drop: Math.max(0, before.count - item.count),
-    };
-  }).filter((item: any) => item.before > 0);
-  const largestDrop = transitions.reduce((largest: any, item: any) => item.drop > (largest?.drop ?? -1) ? item : largest, null);
-  const leakSummary = largestDrop?.drop
-    ? `Biggest drop: ${largestDrop.drop} of ${countLabel(largestDrop.before, 'job')} ${largestDrop.drop === 1 ? 'has' : 'have'} not moved from ${largestDrop.from} to ${largestDrop.to}.`
-    : funnel.length ? 'No stage drop yet.' : 'No pipeline data yet. Find jobs to start.';
-  const applied = funnel.find((item: any) => item.stage === 'Applied')?.count || 0;
-  const applicationsNeeded = Math.max(0, 5 - applied);
+  const tiles = analyticsTiles(ins);
   const stats = [
     [me.jss != null ? `${me.jss}%` : null, 'Job Success'],
     [me.rate, 'Hourly rate'],
     [me.earned, 'Total earned'],
-    [me.jobs, 'Jobs completed'],
+    [me.jobs, 'Total jobs'],
     [me.reviews, 'Client reviews'],
   ].filter(([value]) => value != null && value !== '');
   const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -48,35 +36,27 @@ export default function NumbersPage() {
   return <div className="analytics-page">
     <div className="analytics-intro">
       <h1>Analytics</h1>
-      <p className="note-sm">See what converts, where jobs stop, and whether you are applying consistently.</p>
+      <p className="note-sm">Your saved pipeline, with the limits of the data in view.</p>
+    </div>
+    <div className="analytics-coverage" aria-label="Data coverage">
+      <span>{countLabel(state.jobs.length, 'saved lead')}</span>
+      <span>{state.sync?.synced_at ? `Last sync ${stamp(state.sync.synced_at)}` : 'Not synced with Upwork yet'}</span>
+      {ins.application_dates_unknown ? <span className="coverage-gap">{countLabel(ins.application_dates_unknown, 'application date')} missing or invalid</span> : null}
+      <span>Partial account coverage</span>
     </div>
 
     <div className="tiles">
-      <Tile
-        label="Reply rate"
-        value={ins.reply_rate == null ? null : `${ins.reply_rate}%`}
-        hint={ins.reply_rate == null
-          ? `Available after ${countLabel(applicationsNeeded, 'more application')}.`
-          : ins.reply_rate_hint}
-      />
-      <Tile
-        label="Time to reply"
-        value={ins.reply_days == null ? null : countLabel(ins.reply_days, 'day')}
-        hint={ins.reply_days == null ? 'Available after the first client reply.' : ins.reply_days_hint}
-      />
-      <Tile label="Applications per week" value={ins.per_week ?? 0} hint="Average over the last four weeks." />
+      {tiles.map(tile => <Tile key={tile.label} {...tile} />)}
     </div>
 
     <div className="analytics-section-heading">
-      <h2>Pipeline conversion</h2>
-      <p className="note-sm">{leakSummary}</p>
+      <h2>Saved pipeline history</h2>
+      <p className="note-sm">All ages together. New leads have had less time to progress.</p>
     </div>
     <div className="funnel">
       {funnel.map((item: any, index: number) => {
-        const before = index ? funnel[index - 1].count : null;
-        const conversion = before == null
-          ? 'Starting point'
-          : before > 0 ? `${Math.round(100 * item.count / before)}% from previous stage` : 'No previous-stage jobs';
+        const conversion = index === 0 ? 'Every saved lead, including skipped'
+          : `${item.count} of ${funnel[0]?.count || 0} saved leads reached this stage`;
         return <div className="funnel-row" key={item.stage}>
           <span>{displayStage(item.stage)}</span>
           <span className="track"><span style={{ width: `${item.count ? Math.max(3, 100 * item.count / top) : 0}%` }} /></span>
@@ -84,13 +64,13 @@ export default function NumbersPage() {
           <span className="funnel-pct">{conversion}</span>
         </div>;
       })}
-      <p className="note-sm funnel-note">Each job appears at the highest stage it reached, so a lost job still counts in every earlier stage.</p>
+      <p className="note-sm funnel-note">Each lead counts in every stage up to its highest recorded stage. These are pipeline records, not independently verified replies or a timed conversion study. Only jobs saved here are included.</p>
     </div>
 
     {tracker.goal ? <>
       <div className="analytics-section-heading">
         <h2>Applications this week</h2>
-        <p className="note-sm">{countLabel(tracker.week_done, 'application')} this week · Daily goal {tracker.goal}</p>
+        <p className="note-sm">{countLabel(tracker.week_done, 'dated application')} this week · Daily goal {tracker.goal}{tracker.application_dates_unknown ? ` · ${tracker.application_dates_unknown} missing dates excluded` : ''}</p>
       </div>
       <div className="days">
         {tracker.week.map((item: any, index: number) => (
@@ -100,7 +80,7 @@ export default function NumbersPage() {
             aria-label={`${names[index]}: ${item.future ? 'not yet' : countLabel(item.count, 'application')}`}
             key={item.day}
           >
-            <span style={{ height: `${item.future ? 0 : Math.max(3, Math.min(100, 100 * item.count / tracker.goal))}%` }} />
+            <span style={{ height: `${item.future || !item.count ? 0 : Math.max(3, Math.min(100, 100 * item.count / tracker.goal))}%` }} />
             <em>{names[index]} {item.future ? '' : item.count}</em>
           </div>
         ))}
@@ -108,7 +88,8 @@ export default function NumbersPage() {
     </> : null}
 
     {stats.length ? <>
-      <div className="analytics-section-heading"><h2>Profile standing</h2></div>
+      <div className="analytics-section-heading"><h2>Profile standing</h2>
+        <p className="note-sm">Account-wide totals{me.profile_cached_at ? ` · Profile saved ${stamp(me.profile_cached_at)}` : ' · Profile save time unknown'}</p></div>
       <div className="me-stats">
         {stats.map(([value, label]) => <div key={label}><span className="me-val">{value}</span><span className="me-lbl">{label}</span></div>)}
       </div>
@@ -116,6 +97,6 @@ export default function NumbersPage() {
   </div>;
 }
 
-function Tile({ label, value, hint }: { label: string; value: string | number | null; hint: string }) {
-  return <div className="tile"><span className="tile-lbl">{label}</span><span className={`tile-val${value == null ? ' empty' : ''}`}>{value == null ? 'Not enough data' : value}</span><span className="tile-hint">{hint}</span></div>;
+function Tile({ label, value, hint, empty }: { label: string; value: string | number | null; hint: string; empty: string }) {
+  return <div className="tile"><span className="tile-lbl">{label}</span><span className={`tile-val${value == null ? ' empty' : ''}`}>{value == null ? empty : value}</span><span className="tile-hint">{hint}</span></div>;
 }

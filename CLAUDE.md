@@ -25,7 +25,7 @@ Python: the commands call `python3`. On Windows, if that is not found, use `pyth
 9. `/proposal` - the offer you send after a sales call
 10. `/won` - a won job becomes a project
 
-`/cockpit` opens the local job inbox, pipeline and follow-ups, with buttons that run these commands.
+`/cockpit` opens the local job list, clients and tasks, with buttons that run these commands; `/sync` brings it up to date with Upwork.
 
 **Commands arrive stage by stage.** A step without a file in `.claude/commands/` is not built yet. Say that plainly and never improvise the command from its name.
 

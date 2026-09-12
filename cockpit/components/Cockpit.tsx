@@ -1,0 +1,363 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Drawer from '@/components/Drawer';
+import RunsDock from '@/components/RunsDock';
+import { CockpitContext, type CockpitApi, type Made, type Run, type State } from '@/lib/context';
+import { FILE_LABEL, TOOL_WORDS, taskItems, todayIso } from '@/lib/model';
+
+type Snapshot = { jobs: Set<string>; files: Set<string> };
+type RunMeta = { before: Snapshot | null; narrated: boolean; controller: AbortController };
+type StreamEvent = { kind: string; text?: string; detail?: string; error?: boolean; stopped?: boolean };
+
+const STARTING = 'Starting Claude. You can keep working, this runs on its own.';
+const CONNECTION_LOST = 'The cockpit lost its connection. Start it again with /cockpit, then reload.';
+const DOCK_OPEN_EVENT = 'cockpit-dock-open';
+
+function lastLine(text: string) {
+  return (String(text).split('\n').map(line => line.replace(/^[#>*\-\s|]+|[*_`|]+/g, '').trim()).filter(Boolean).pop() || '').slice(0, 160);
+}
+
+function snapshot(state: State | null, job: string | null): Snapshot {
+  const jobs = state?.jobs || [];
+  return {
+    jobs: new Set(jobs.map((item: any) => item.id)),
+    files: new Set((jobs.find((item: any) => item.id === job) || {}).artifacts || []),
+  };
+}
+
+function deliverables(run: Run, before: Snapshot | null, state: State | null): Made[] {
+  if (!before || !state) return [];
+  if (run.command === 'find-jobs') {
+    const fresh = (state.jobs || []).filter((job: any) => !before.jobs.has(job.id))
+      .sort((a: any, b: any) => (b.score || 0) - (a.score || 0));
+    if (!fresh.length) return [{ label: 'No new jobs this time' }];
+    const best = fresh[0];
+    return [{ label: `${fresh.length} new job${fresh.length > 1 ? 's' : ''}, best: ${best.title} (${best.score ?? '?'})`, open: best.id }];
+  }
+  const job = (state.jobs || []).find((item: any) => item.id === run.job) || {};
+  return (job.artifacts || []).filter((file: string) => !before.files.has(file)).map((file: string) => ({
+    label: `${FILE_LABEL[file] || file} ready`,
+    href: `/files/${run.job}/${file}`,
+  }));
+}
+
+function runTitle(run: Pick<Run, 'command' | 'job'>, state: State | null) {
+  const title = run.job ? ((state?.jobs || []).find((job: any) => job.id === run.job) || {}).title || run.job : '';
+  return `/${run.command}${title ? ` · ${title}` : ''}`;
+}
+
+export function CockpitProvider({ token, children }: { token: string; children: ReactNode }) {
+  const pathname = usePathname();
+  const [state, setState] = useState<State | null>(null);
+  const [connectionLost, setConnectionLost] = useState(false);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
+  const [runs, setRuns] = useState<Run[]>([]);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastVisible, setToastVisible] = useState(false);
+  const stateRef = useRef<State | null>(null);
+  const runsRef = useRef(new Map<string, Run>());
+  const runMetaRef = useRef(new Map<string, RunMeta>());
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notificationAskedRef = useRef(false);
+
+  const publishRuns = useCallback(() => setRuns([...runsRef.current.values()]), []);
+
+  const toast = useCallback((message: string) => {
+    setToastMessage(message);
+    setToastVisible(true);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastVisible(false), 2800);
+  }, []);
+
+  const api = useCallback<CockpitApi['api']>(async (path, body) => {
+    try {
+      const response = await fetch(path, {
+        method: body ? 'POST' : 'GET',
+        headers: { 'X-Cockpit-Token': token, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return { ok: response.ok, data: await response.json().catch(() => ({})) };
+    } catch {
+      return { ok: false, data: {} };
+    }
+  }, [token]);
+
+  const load = useCallback(async () => {
+    const result = await api('/api/state');
+    if (!result.ok) {
+      setConnectionLost(true);
+      return;
+    }
+    stateRef.current = result.data;
+    setState(result.data);
+    setConnectionLost(false);
+  }, [api]);
+
+  const post = useCallback<CockpitApi['post']>(async (path, body) => {
+    const result = await api(path, body);
+    toast(result.ok ? result.data.message : (result.data.error || result.data.message || 'That did not work.'));
+    await load();
+    return result.ok;
+  }, [api, load, toast]);
+
+  const move = useCallback<CockpitApi['move']>((id, status, follow, note) => {
+    const body: Record<string, string> = { id, status };
+    if (follow != null) body.follow_up = follow;
+    if (note != null) body.note = note;
+    return post('/api/status', body);
+  }, [post]);
+
+  const openDrawer = useCallback((id: string) => setDrawerId(id), []);
+  const closeDrawer = useCallback(() => setDrawerId(null), []);
+
+  const notify = useCallback((title: string, body: string) => {
+    toast(`${title}: ${body}`);
+    try {
+      if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+        new Notification(title, { body });
+      }
+    } catch {
+      // The run still finishes when notifications are unavailable.
+    }
+  }, [toast]);
+
+  const attachRun = useCallback((id: string, command: string, job: string | null, started?: number, replay = false) => {
+    if (runsRef.current.has(id)) return;
+    const controller = new AbortController();
+    const run: Run = {
+      id,
+      command,
+      job,
+      t0: started ? started * 1000 : Date.now(),
+      status: STARTING,
+      log: [],
+      done: false,
+      replay,
+      made: [],
+    };
+    runsRef.current.set(id, run);
+    runMetaRef.current.set(id, { before: replay ? null : snapshot(stateRef.current, job), narrated: false, controller });
+    publishRuns();
+
+    const update = (change: (current: Run) => Run) => {
+      const current = runsRef.current.get(id);
+      if (!current) return null;
+      const next = change(current);
+      runsRef.current.set(id, next);
+      publishRuns();
+      return next;
+    };
+
+    const onEvent = async (event: StreamEvent) => {
+      const meta = runMetaRef.current.get(id);
+      if (!meta) return;
+      if (event.kind === 'status') {
+        update(current => current.log.length ? current : { ...current, status: 'Thinking about the plan.' });
+      } else if (event.kind === 'tool') {
+        const name = event.text || '';
+        const word = TOOL_WORDS[name] || name.replace(/^mcp__upwork__upwork__/, 'Upwork: ');
+        const text = `→ ${word}${event.detail ? ` · ${event.detail.slice(0, 90)}` : ''}`;
+        update(current => ({
+          ...current,
+          status: meta.narrated ? current.status : `${word}.`,
+          log: [...current.log, { kind: 'tool', text }],
+        }));
+      } else if (event.kind === 'text') {
+        const text = event.text || '';
+        const line = lastLine(text);
+        if (line) meta.narrated = true;
+        update(current => ({
+          ...current,
+          status: line || current.status,
+          log: [...current.log, { kind: 'text', text }],
+        }));
+      } else if (event.kind === 'error') {
+        update(current => ({ ...current, log: [...current.log, { kind: 'error', text: event.text || '' }] }));
+      } else if (event.kind === 'done') {
+        const finished = update(current => ({
+          ...current,
+          done: true,
+          error: !!event.error,
+          stopped: !!event.stopped,
+          t1: current.t1 || Date.now(),
+          status: event.stopped ? 'Stopped by you. Anything it already saved stays.'
+            : event.error ? 'Broke off with an error. Show all steps says why.'
+              : lastLine(event.text || '') || 'Finished.',
+          log: [...current.log, { kind: event.error ? 'error' : 'done', text: event.text || '' }],
+        }));
+        if (!finished || finished.replay) return;
+        await load();
+        const made = finished.error ? [] : deliverables(finished, meta.before, stateRef.current);
+        const completed = update(current => ({ ...current, made }));
+        if (completed && !completed.stopped) {
+          const title = completed.error ? `${runTitle(completed, stateRef.current)} broke off` : `${runTitle(completed, stateRef.current)} is done`;
+          const body = completed.error ? 'Open the runs panel for why.' : (made.map(item => item.label).join(', ') || completed.status);
+          notify(title, body);
+        }
+      }
+    };
+
+    void (async () => {
+      try {
+        const response = await fetch(`/api/run/${id}`, {
+          headers: { 'X-Cockpit-Token': token },
+          signal: controller.signal,
+        });
+        if (!response.ok || !response.body) return;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          buffer += decoder.decode(value, { stream: !done });
+          let boundary = buffer.indexOf('\n\n');
+          while (boundary !== -1) {
+            const frame = buffer.slice(0, boundary);
+            buffer = buffer.slice(boundary + 2);
+            const data = frame.startsWith('data: ') ? frame.slice(6) : '';
+            if (data) {
+              try { await onEvent(JSON.parse(data)); } catch { /* Ignore one malformed stream frame. */ }
+            }
+            boundary = buffer.indexOf('\n\n');
+          }
+          if (done) break;
+        }
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) return;
+      }
+    })();
+  }, [load, notify, publishRuns, token]);
+
+  const runCommand = useCallback<CockpitApi['runCommand']>((command, job = null) => {
+    if (!notificationAskedRef.current) {
+      notificationAskedRef.current = true;
+      try {
+        if ('Notification' in window && Notification.permission === 'default') void Notification.requestPermission();
+      } catch {
+        // Notifications are optional.
+      }
+    }
+    try { localStorage.setItem('dock-collapsed', JSON.stringify(false)); } catch { /* Storage is optional. */ }
+    window.dispatchEvent(new Event(DOCK_OPEN_EVENT));
+    void api('/api/run', { command, job }).then(result => {
+      if (!result.ok) return toast(result.data.error || 'Could not start it.');
+      attachRun(result.data.run, command, job);
+    });
+  }, [api, attachRun, toast]);
+
+  const stopRun = useCallback<CockpitApi['stopRun']>((id) => {
+    void api(`/api/run/${id}/stop`, {}).then(result => {
+      if (!result.ok) toast(result.data.message || 'Could not stop it.');
+    });
+  }, [api, toast]);
+
+  const dismissRun = useCallback((id: string) => {
+    runsRef.current.delete(id);
+    runMetaRef.current.get(id)?.controller.abort();
+    runMetaRef.current.delete(id);
+    publishRuns();
+  }, [publishRuns]);
+
+  const toggleRunLog = useCallback((id: string) => {
+    const run = runsRef.current.get(id);
+    if (!run) return;
+    runsRef.current.set(id, { ...run, showLog: !run.showLog });
+    publishRuns();
+  }, [publishRuns]);
+
+  useEffect(() => {
+    let active = true;
+    void load().then(async () => {
+      if (!active) return;
+      const result = await api('/api/runs');
+      if (!active || !result.ok || !Array.isArray(result.data)) return;
+      result.data.forEach((item: any) => attachRun(item.id, item.command, item.job, item.started, item.done));
+    });
+    const poll = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load();
+    }, 15000);
+    return () => {
+      active = false;
+      window.clearInterval(poll);
+    };
+  }, [api, attachRun, load]);
+
+  useEffect(() => {
+    if (pathname.startsWith('/job/')) setDrawerId(null);
+  }, [pathname]);
+
+  useEffect(() => {
+    document.body.classList.toggle('drawer-open', !!drawerId);
+    return () => document.body.classList.remove('drawer-open');
+  }, [drawerId]);
+
+  useEffect(() => () => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    runMetaRef.current.forEach(meta => meta.controller.abort());
+  }, []);
+
+  const value = useMemo<CockpitApi>(() => ({
+    token,
+    state,
+    load,
+    api,
+    post,
+    move,
+    toast,
+    drawerId,
+    openDrawer,
+    closeDrawer,
+    runCommand,
+    runs,
+    stopRun,
+    dismissRun,
+    toggleRunLog,
+  }), [api, closeDrawer, dismissRun, drawerId, load, move, openDrawer, post, runCommand, runs, state, stopRun, toast, token, toggleRunLog]);
+
+  const jobs = state?.jobs || [];
+  const due = state ? taskItems(jobs).filter(item => item.due && item.due <= todayIso()).length : 0;
+  const updated = state?.generated_at ? new Date(state.generated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  // How fresh the list is against Upwork. The poll re-renders often enough to keep the minutes honest.
+  const syncedAt = state?.sync?.synced_at;
+  const syncMinutes = syncedAt ? Math.max(0, Math.round((Date.now() - +new Date(syncedAt)) / 60000)) : null;
+  const syncText = syncMinutes == null ? 'never synced with Upwork'
+    : syncMinutes < 1 ? 'synced just now' : syncMinutes < 60 ? `synced ${syncMinutes} min ago`
+      : syncMinutes < 1440 ? `synced ${Math.round(syncMinutes / 60)} h ago` : `synced ${Math.round(syncMinutes / 1440)} d ago`;
+  const syncing = runs.some(run => run.command === 'sync' && !run.done);
+
+  return (
+    <CockpitContext.Provider value={value}>
+      <header className="top">
+        <div className="top-inner">
+          <span className="brand">Upwork Cockpit</span>
+          <nav className="tabs" aria-label="Sections">
+            <Link href="/" aria-current={pathname === '/' ? 'page' : undefined}>Jobs</Link>
+            <Link href="/clients" aria-current={pathname === '/clients' ? 'page' : undefined}>
+              Clients <span className="count">{jobs.filter((job: any) => job.status === 'won').length}</span>
+            </Link>
+            <Link href="/tasks" aria-current={pathname === '/tasks' ? 'page' : undefined}>
+              Tasks{due ? <span className="badge">{due}</span> : null}
+            </Link>
+            <Link href="/numbers" aria-current={pathname === '/numbers' ? 'page' : undefined}>Numbers</Link>
+          </nav>
+          <div className="spacer" />
+          <span className="stamp">{updated ? `updated ${updated}` : ''}</span>
+          <span className={`stamp sync-stamp${syncMinutes == null || syncMinutes > 1440 ? ' stale' : ''}`}
+            title={state?.sync ? `Last sync moved ${state.sync.moved?.length || 0}, added ${state.sync.added?.length || 0}, saved ${state.sync.threads || 0} threads` : undefined}>{syncText}</span>
+          <button disabled={!state?.commands?.sync || syncing} onClick={() => runCommand('sync')}
+            title="Read replies, offers, contracts and proposals from Upwork. Sends nothing.">{syncing ? 'Syncing…' : 'Sync'}</button>
+          <button className="primary" disabled={!state?.commands?.['find-jobs']} onClick={() => runCommand('find-jobs')}>Find jobs</button>
+        </div>
+      </header>
+      <main className="wrap">
+        {connectionLost ? <p className="empty">{CONNECTION_LOST}</p> : state ? children : <p className="empty">Loading.</p>}
+      </main>
+      <Drawer />
+      <RunsDock />
+      <div className={`toast${toastVisible ? ' show' : ''}`} role="status">{toastMessage}</div>
+    </CockpitContext.Provider>
+  );
+}

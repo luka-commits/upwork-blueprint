@@ -47,6 +47,10 @@ GERMAN = re.compile(
 MEMBER_PATHS = ('context/', 'data/', 'jobs/')
 
 
+# The cockpit app's own source. Its texts reach the member like any command does.
+COCKPIT = ('cockpit/**/*.ts', 'cockpit/**/*.tsx', 'cockpit/**/*.mjs', 'cockpit/**/*.css')
+
+
 def shipped(*globs):
     """Every tracked-or-trackable file matching the globs: what a stranger receives."""
     found = []
@@ -70,7 +74,7 @@ def lines_of(p):
 
 def check_leaks():
     findings = []
-    for p in shipped('**/*.md', '**/*.py', '**/*.html', '**/*.json', '**/*.js'):
+    for p in shipped('**/*.md', '**/*.py', '**/*.html', '**/*.json', '**/*.js', *COCKPIT):
         for i, line in enumerate(lines_of(p), 1):
             for pattern, what in LEAKS:
                 m = re.search(pattern, line)
@@ -81,7 +85,7 @@ def check_leaks():
 
 def check_language():
     findings = []
-    for p in shipped('**/*.md', '**/*.py'):
+    for p in shipped('**/*.md', '**/*.py', *COCKPIT):
         for i, line in enumerate(lines_of(p), 1):
             if GERMAN.search(line):
                 findings.append(f'{p.relative_to(ROOT)}:{i} is German: "{line.strip()[:60]}"')
@@ -91,7 +95,7 @@ def check_language():
 
 def check_em_dashes():
     findings = []
-    for p in shipped('**/*.md', '**/*.py', '**/*.html'):
+    for p in shipped('**/*.md', '**/*.py', '**/*.html', *COCKPIT):
         hits = [i for i, line in enumerate(lines_of(p), 1) if '—' in line]
         if hits:
             more = f' (+{len(hits) - 1} more)' if len(hits) > 1 else ''

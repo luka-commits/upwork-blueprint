@@ -25,11 +25,14 @@ There is no setup step. Each command walks you through exactly what it needs, th
 | 9 | `/proposal` | The offer you send after the sales call |
 | 10 | `/won` | A won job becomes a project |
 
+Any time: `/cockpit` opens your jobs, clients and tasks in the browser, and `/sync` brings them up to date with Upwork (replies, offers, contracts).
+
 ## Requirements
 
 - [Claude Code](https://claude.com/claude-code) installed
 - An Upwork freelancer account
 - The official Upwork connector. `/audit` walks you through connecting it the first time
+- Python 3, and [Node.js](https://nodejs.org) (the LTS version) for the cockpit
 
 ## What this will never do
 

@@ -38,6 +38,7 @@ Everything under "Measured" was called against a real account and produced the r
 - **Only one pending preview per action type.** A new `create` replaces the last unconfirmed one.
 - **Mandatory before `create`:** `list_freelancer_proposals` action `invitations` (an invited job takes `accept_invitation` instead) and action `list` (an existing proposal makes `create` fail).
 - **Before submitting, always ask** about attachments and which portfolio projects or certificates to highlight.
+- **Keeping up with Upwork (read only, tool descriptions 12 September 2026):** `list_freelancer_proposals` action `list` takes a `status` (`Accepted` means submitted, `Offered`, `Hired`, `Declined`, `Withdrawn`), 10 per page; action `get_room` gives the thread of one proposal once the client wrote. `get_messages` action `list_rooms` carries `awaiting_reply_from` (you or them) per room, `list_messages` reads newest first. `list_offers` action `list_mine` shows offers as `awaiting_your_acceptance` or `contract_started`; `list_contracts` action `search` with `contract_statuses`. `/sync` uses exactly these.
 - **A freelancer cannot message a client first on a proposal.** No room exists until the client writes. A "follow-up" on an application therefore means re-checking it, not messaging.
 
 ## Measured 12 September 2026: finding other freelancers

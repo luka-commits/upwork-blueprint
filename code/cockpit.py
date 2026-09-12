@@ -205,7 +205,17 @@ def build_state():
         'tracker': tracker(jobs, goal, day),
         'insights': insights(jobs, day),
         'me': standing(),
+        'sync': last_sync(),
     }
+
+
+def last_sync():
+    """When /sync last brought the pipeline in line with Upwork, and what it found."""
+    f = pathlib.Path(os.environ.get('BLUEPRINT_DATA') or ROOT / 'data') / 'sync.json'
+    try:
+        return json.loads(f.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 # --- starting the app ---------------------------------------------------------------

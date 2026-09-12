@@ -16,6 +16,9 @@ const FILES = ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash(python3 code/*)'];
 
 export const RUNNABLE = {
   'find-jobs': { prompt: '/find-jobs', tools: [...FILES, ...UPWORK_READ, 'WebSearch'], job: false },
+  sync: { prompt: '/sync', job: false, tools: [...FILES, 'mcp__upwork__upwork__list_accounts',
+    'mcp__upwork__upwork__list_freelancer_proposals', 'mcp__upwork__upwork__get_messages',
+    'mcp__upwork__upwork__list_offers', 'mcp__upwork__upwork__list_contracts'] },
   'pitch-page': { prompt: '/pitch-page {job}', tools: [...FILES, ...UPWORK_READ, 'WebSearch', 'WebFetch'], job: true },
   // The draft run makes the proposal preview (Connects price, boost bids) and
   // stops. It never gets confirm_preview, so it cannot submit anything.

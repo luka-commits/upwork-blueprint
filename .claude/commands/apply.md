@@ -17,8 +17,10 @@ Read first: [references/upwork-rules.md](../../references/upwork-rules.md), the 
 ## Step 0 · The materials gate
 
 Before any Upwork call, run `python3 code/pipeline.py get <id>`. Continue only
-when `jobs/<id>/pitch.html` exists and the pipeline record contains a non-empty
-`video` link. If either is missing, write nothing, make no preview and stop with
+when `jobs/<id>/pitch.html` exists and the pipeline record contains a valid HTTPS
+Loom share or YouTube video link, including its video id. A non-empty string or
+a bare video-service homepage is not enough. If either prerequisite is missing
+or invalid, write nothing, make no preview and stop with
 `DRAFT / HELD`: tell the member to finish the Pitch page or add the Loom video
 link under Materials. Report zero Upwork calls.
 

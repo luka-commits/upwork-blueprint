@@ -26,7 +26,13 @@ Read before judging anything: [references/profile-formula.md](../../references/p
 - `get_profile` action `get`: save the response exactly as returned to `data/profile.json`.
 - `get_profile` action `list_highlights`: save it to `data/highlights.json`.
 
-**No title and no overview?** This member starts from scratch. Say so plainly, skip the audit, and route them to `/benchmark` then `/profile`. Verdict COMPLETE: nothing to audit yet.
+**No title and no overview?** This member starts from scratch. Save
+`audit-report.md` with the date, "No profile text to score yet", the missing title
+and overview, and the next action `/benchmark` then `/profile`. Do not invent a
+score or infer missing experience from an empty profile. This from-scratch
+report satisfies `/profile`'s audit prerequisite. Skip the remaining scoring
+steps, prune the cache and give the compact completion report with the actual
+Upwork call count.
 
 ## Step 2 · Measure
 

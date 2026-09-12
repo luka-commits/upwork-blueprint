@@ -57,9 +57,11 @@ export const RUNNABLE = {
 // Claude say what it is doing and what it found, so that line stays current.
 export const NARRATE = 'You were started by a button in the cockpit. The member sees only a one-line status panel. '
   + 'Write every status line and the final report in English, even when source files or the member use another language. '
-  + 'Before each step write one short plain sentence saying what you are doing now, and after each '
-  + 'finding one sentence with what you found so far, with counts or names. No markdown in these lines. '
-  + 'End with one sentence that says what changed and what the member should look at next.';
+  + 'Write one short status line only when the phase changes or a blocker needs attention. '
+  + 'Do not narrate every tool call or repeat findings already saved in an artifact. No markdown in status lines. '
+  + 'The final completion report follows CLAUDE.md: verdict and useful outcome, only relevant fields, '
+  + 'and the exact Upwork call count last. Keep it under 90 words without hiding blockers or uncertainty. '
+  + 'Do not add another recap after that report.';
 
 const holder = globalThis;
 export const RUNS = holder.__cockpitRuns ??= new Map();

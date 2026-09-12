@@ -89,6 +89,9 @@ To clarify an existing member-written summary, use
 ## Step 6 · Close
 
 1. `python3 code/pipeline.py prune`, then `python3 code/jobs.py clean` (deletes this run's raw responses).
-2. Report in the chat, as one block: every job scored 70 or more, with score, title, one line of rationale, Connects price and the link. None over 70: say so plainly, silence is a correct result.
-3. Completion report as CLAUDE.md defines it. Next step: open the cockpit, or `/pitch-page <id>` for the best one.
-4. The Upwork call count, which on a normal run lands between 8 and 25.
+2. Keep the complete scored list in the cockpit. The chat report names the count
+   scoring 70 or more and, if useful, the best lead with one reason. No separate
+   result list or repeated recap. None over 70: say so plainly.
+3. Use the compact completion report from `CLAUDE.md`. Next step: open the cockpit,
+   or `/pitch-page <id>` for the best lead. End with the actual Upwork call count,
+   never an estimated range.

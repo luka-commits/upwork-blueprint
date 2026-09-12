@@ -19,7 +19,10 @@ Read first: [references/profile-formula.md](../../references/profile-formula.md)
 
 **Focus:** $ARGUMENTS. Given a focus, write only that section of `profile.md` and leave the rest as it is.
 
-**No audit yet?** Run it first, it takes minutes and this command needs its findings. **No benchmark?** Write anyway, stamp the top of `profile.md` with "Written without a benchmark, so the lengths are the formula's, not your profession's. Run /benchmark and re-run this.", and say so before writing.
+**No audit yet?** Run it first; this command needs its findings. A from-scratch
+audit report with no profile text to score is enough: continue with the member's
+facts and proof, rather than sending them back to `/audit`.
+**No benchmark?** Write anyway, stamp the top of `profile.md` with "Written without a benchmark, so the lengths are the formula's, not your profession's. Run /benchmark and re-run this.", and say so before writing.
 
 ## Step 1 · Fill your facts, tools first
 

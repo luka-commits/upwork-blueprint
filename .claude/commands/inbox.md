@@ -70,8 +70,10 @@ Run `python3 code/pipeline.py prune` after the refresh.
 - `waiting`: `python3 code/funnel.py inbox --waiting`
 - `all`: `python3 code/funnel.py inbox`
 
-Lead with every client waiting on the member. A saved thread older than 24 hours
-is not evidence and its message text must not be repeated.
+The local inbox output and cockpit retain the full waiting list. In the chat
+report, give the count and the first client needing a reply, not another copy of
+the list. A saved thread older than 24 hours is not evidence and its message text
+must not be repeated.
 
 ## Step 4: Report
 

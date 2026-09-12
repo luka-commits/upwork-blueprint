@@ -85,10 +85,16 @@ Two cautions. **These come only from `get`, one call per job.** Pulling them for
 
 `get_freelancer_dashboard` action `check` (one call returns contracts, Connects, invitations, unread rooms, offers and Upwork's own match feed), `list_freelancer_proposals` (every proposal with its creation time and job id, the basis for a daily count), `get_messages` (rooms and full threads, **but no author field on any message**, so only `numUnread` reliably says "the client wrote"), `list_contracts`, `get_account`, `set_tool_permission` action `get`.
 
+## Measured 12 September 2026: sending a reply
+
+- **`send_message` action `send` sends immediately.** There is no preview and no second confirmation tool. It needs the account `org_uid`, an existing `room_id` and the exact message text.
+- **A room is the gate.** A proposal has no room until the client writes, so a freelancer still cannot message first. The cockpit hides Send when `thread.json` has no `room_id`.
+- **The safe cockpit path uses three calls:** `list_accounts` once for `org_uid`, `send_message` once, then `get_messages` action `list_messages` once for the same room. The first real run returned the new freelancer message immediately and its text matched the server-written outbox character for character.
+- **Confirmation is mechanical.** `code/threads.py confirm` refuses to update `thread.json` unless the refreshed room contains a freelancer message exactly equal to `jobs/<id>/outbox.json`. The browser then marks that draft sent and confirmed.
+
 ## Present but untested
 
 - **`manage_proposals`:** creating and submitting a proposal. Never exercised, so nobody knows yet whether the draft-then-confirm pattern holds here.
-- **`send_message`:** never exercised.
 - **`find_jobs` action `smart_search`:** new since the first measurement.
 - Contracts and milestones beyond listing, attachments, `save_job`, `boost_profile`, `get_agency`, `set_tool_mode` (switching it is a write and needs a yes).
 

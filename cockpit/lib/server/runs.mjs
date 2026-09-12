@@ -35,8 +35,9 @@ export const RUNNABLE = {
       + 'Confirm that one returned message from the freelancer has text exactly equal to the outbox text. If it does not, stop and report the failure without changing thread.json. '
       + 'If it does, write the complete get_messages response to jobs/{job}/.thread-confirm.json and run '
       + '`python3 code/threads.py confirm {job} --room <the exact room_id> --awaiting them`. '
+      + 'Then run `python3 code/pipeline.py prune`. '
       + 'End with COMPLETE, what was checked, and the Upwork call count. The expected count is 3.',
-    tools: ['Read', 'Write', 'Bash(python3 code/threads.py*)',
+    tools: ['Read', 'Write', 'Bash(python3 code/threads.py*)', 'Bash(python3 code/pipeline.py prune)',
       'mcp__upwork__upwork__list_accounts', 'mcp__upwork__upwork__send_message',
       'mcp__upwork__upwork__get_messages'],
   },
@@ -45,6 +46,7 @@ export const RUNNABLE = {
 // A button run has no chat to talk into, only the cockpit's status line. This makes
 // Claude say what it is doing and what it found, so that line stays current.
 export const NARRATE = 'You were started by a button in the cockpit. The member sees only a one-line status panel. '
+  + 'Write every status line and the final report in English. '
   + 'Before each step write one short plain sentence saying what you are doing now, and after each '
   + 'finding one sentence with what you found so far, with counts or names. No markdown in these lines. '
   + 'End with one sentence that says what changed and what the member should look at next.';

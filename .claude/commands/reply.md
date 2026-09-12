@@ -54,9 +54,9 @@ Write `jobs/<id>/replies.json` as UTF-8 JSON with this exact shape:
 
 Write two drafts when the decision is simple and three only when a genuinely
 different angle helps. Labels are one or two plain words. Each `text` is a full
-reply, not notes about one. Re-read the JSON and verify it parses, contains two or
-three non-empty drafts, answers the latest client message, and contains no claim
-that lacks support in the two context files.
+reply, not notes about one. Run `python3 code/replies.py check <id>`, then re-read
+the file and verify each option answers the latest client message and contains no
+claim that lacks support in the two context files.
 
 ## Step 4: Report
 

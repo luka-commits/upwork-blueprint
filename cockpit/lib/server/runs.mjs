@@ -56,7 +56,7 @@ export function available(name) {
 }
 
 /** Freeze the exact approved text before Claude gets a sending tool. */
-export function prepareApprovedReply(job, text) {
+export function prepareApprovedReply(job, text, draft = null, draftSet = null) {
   if (!/^[0-9]{6,25}$/.test(job)) throw new Error('That job id is not valid.');
   if (typeof text !== 'string' || !text.trim()) throw new Error('The reply is empty.');
   if ([...RUNS.values()].some(run => run.command === 'send-reply' && !run.done)) {
@@ -67,7 +67,9 @@ export function prepareApprovedReply(job, text) {
   try { thread = JSON.parse(fs.readFileSync(path.join(folder, 'thread.json'), 'utf-8')); } catch { throw new Error('Sync this conversation before sending.'); }
   const room = String(thread?.room_id || '').trim();
   if (!room) throw new Error('A freelancer cannot message first on a proposal. Wait for the client to reply.');
-  const record = { written_at: new Date().toISOString(), job_id: job, room_id: room, text };
+  const record = { written_at: new Date().toISOString(), job_id: job, room_id: room, text,
+    draft: Number.isInteger(draft) && draft >= 0 ? draft : null,
+    draft_set: typeof draftSet === 'string' ? draftSet : null };
   const target = path.join(folder, 'outbox.json');
   const tmp = path.join(folder, `.outbox-${process.pid}-${crypto.randomBytes(4).toString('hex')}.tmp`);
   fs.writeFileSync(tmp, JSON.stringify(record, null, 2), { encoding: 'utf-8', mode: 0o600 });
@@ -75,8 +77,8 @@ export function prepareApprovedReply(job, text) {
   return record;
 }
 
-export function startApprovedReply(job, text) {
-  prepareApprovedReply(job, text);
+export function startApprovedReply(job, text, draft = null, draftSet = null) {
+  prepareApprovedReply(job, text, draft, draftSet);
   return startRun('send-reply', job);
 }
 

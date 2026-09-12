@@ -199,7 +199,10 @@ function ConversationPanel({ j, tab, setTab, note, setNote, noteRef, addNote }: 
       <button onClick={() => setTab('conversation')} aria-pressed={tab === 'conversation'}>Conversation</button>
       <button onClick={() => setTab('timeline')} aria-pressed={tab === 'timeline'}>Timeline</button>
     </div>
-    <div className="convo-body">{tab === 'timeline' ? <Timeline j={j} /> : <Conversation j={j} inbox={!!state?.commands?.inbox} />}</div>
+    <div className="convo-body">{tab === 'timeline' ? <Timeline j={j} /> : <>
+      <Conversation j={j} inbox={!!state?.commands?.inbox} />
+      <ReplyDrafts key={j.replies?.generated_at || 'no-drafts'} j={j} />
+    </>}</div>
     <div className="composer">
       <div className="composer-row">
         <input
@@ -213,10 +216,52 @@ function ConversationPanel({ j, tab, setTab, note, setNote, noteRef, addNote }: 
         <button onClick={addNote}>Add note</button>
       </div>
       <div className="composer-note">
-        {state?.commands?.reply ? <button className="link" onClick={() => runCommand('reply', j.id)}>Draft a reply</button> : null}
         <span>Notes stay here. Replies go through Upwork only after your approval.</span>
       </div>
     </div>
+  </section>;
+}
+
+function ReplyDrafts({ j }: { j: any }) {
+  const { state, runCommand, sendReply, runs } = useCockpit();
+  const drafts = Array.isArray(j.replies?.drafts)
+    ? j.replies.drafts.filter((draft: any) => draft && typeof draft.text === 'string' && draft.text.trim())
+    : [];
+  const [texts, setTexts] = useState<string[]>(drafts.map((draft: any) => draft.text));
+  const drafting = runs.some(run => run.command === 'reply' && run.job === j.id && !run.done);
+  const sending = runs.some(run => run.command === 'send-reply' && !run.done);
+  const room = j.thread?.room_id;
+  const canDraft = !!state?.commands?.reply && !!(j.thread?.messages || []).length;
+  const draftSet = String(j.replies?.generated_at || '');
+  const sentDraft = j.outbox?.confirmed_at && j.outbox?.draft_set === draftSet ? j.outbox.draft : null;
+
+  if (!canDraft && !drafts.length) return null;
+  return <section className="reply-drafts" aria-label="Draft replies">
+    <div className="reply-drafts-head">
+      <div><h3>Draft replies</h3>{drafts.length ? <span>{drafts.length} options</span> : null}</div>
+      {canDraft ? <button disabled={drafting || sending} onClick={() => runCommand('reply', j.id)}>
+        {drafting ? 'Drafting...' : drafts.length ? 'Draft again' : 'Draft replies'}
+      </button> : null}
+    </div>
+    {drafts.map((draft: any, index: number) => {
+      const sent = sentDraft === index;
+      return <div className="reply-draft" key={`${draft.label || 'Draft'}-${index}`}>
+        <label htmlFor={`reply-${j.id}-${index}`}>{draft.label || `Option ${index + 1}`}</label>
+        <textarea
+          id={`reply-${j.id}-${index}`}
+          value={texts[index] ?? ''}
+          disabled={sent}
+          onChange={event => setTexts(current => current.map((text, i) => i === index ? event.target.value : text))}
+        />
+        <div className="reply-draft-foot">
+          {sent ? <span className="reply-confirmed">Sent and confirmed</span> : room ? <>
+            <span>Sends this exact text to the client's Upwork chat.</span>
+            <button className="primary" disabled={sending || !(texts[index] || '').trim()}
+              onClick={() => sendReply(j.id, texts[index], index, draftSet)}>{sending ? 'Sending...' : 'Send'}</button>
+          </> : <span>You cannot message first on a proposal. Send appears after the client replies and Upwork creates a room.</span>}
+        </div>
+      </div>;
+    })}
   </section>;
 }
 

@@ -10,6 +10,8 @@ const RUN_LABEL: Record<string, string> = {
   sync: 'Sync Upwork',
   'pitch-page': 'Prepare pitch page',
   apply: 'Draft application',
+  reply: 'Draft replies',
+  'send-reply': 'Send reply',
 };
 
 function clock(ms: number) {

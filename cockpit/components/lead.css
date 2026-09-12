@@ -252,6 +252,91 @@
   white-space: nowrap;
 }
 
+.reply-drafts {
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.reply-drafts-head,
+.reply-drafts-head > div,
+.reply-draft-foot {
+  display: flex;
+  align-items: center;
+}
+
+.reply-drafts-head {
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.reply-drafts-head > div {
+  gap: 7px;
+}
+
+.reply-drafts-head h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.reply-drafts-head span,
+.reply-draft-foot {
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.reply-drafts-head button,
+.reply-draft-foot button {
+  min-height: 30px;
+  padding: 4px 9px;
+  font-size: 11.5px;
+}
+
+.reply-draft {
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+}
+
+.reply-draft + .reply-draft {
+  margin-top: 8px;
+}
+
+.reply-draft > label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.reply-draft textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  padding: 9px 10px;
+  font-size: 13px;
+  line-height: 1.48;
+}
+
+.reply-draft-foot {
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 7px;
+}
+
+.reply-draft-foot > span {
+  line-height: 1.4;
+}
+
+.reply-confirmed {
+  color: var(--ok) !important;
+  font-weight: 700;
+}
+
 .next-step .say {
   margin: 0 0 11px;
   color: var(--text-2);
@@ -805,6 +890,10 @@
 
   .composer-note span {
     white-space: normal;
+  }
+
+  .reply-draft-foot {
+    align-items: flex-start;
   }
 
   .tasks-block .task-add {

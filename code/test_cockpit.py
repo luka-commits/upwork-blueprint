@@ -67,6 +67,7 @@ class CockpitTest(unittest.TestCase):
         self.assertEqual([f['name'] for f in job['files']], ['pitch.html'])
         self.assertEqual(job['thread']['messages'][0]['text'], 'Hi')
         self.assertEqual(job['replies']['drafts'][0]['text'], 'Hello')
+        self.assertEqual(job['outbox']['text'], 'Hello')
         self.assertEqual([f['name'] for f in job['files']], ['pitch.html'])
         self.assertEqual(self.cli('job', '999999').returncode, 1)
 

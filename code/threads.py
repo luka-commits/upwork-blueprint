@@ -103,7 +103,23 @@ def cmd_confirm(args):
         print('ABORT: the confirmed room response is missing.', file=sys.stderr)
         return 1
     raw = json.loads(transfer.read_text(encoding='utf-8'))
+    messages = normalize(edges_of(raw))
+    outbox_file = pipeline.jobs_dir() / args.job_id / 'outbox.json'
+    try:
+        outbox = json.loads(outbox_file.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError):
+        print('ABORT: the approved outbox is missing.', file=sys.stderr)
+        return 1
+    if str(outbox.get('room_id') or '') != args.room:
+        print('ABORT: the confirmed room does not match the approved outbox.', file=sys.stderr)
+        return 1
+    if not any(m.get('from') == 'me' and m.get('kind') == 'message' and
+               m.get('text') == outbox.get('text') for m in messages):
+        print('ABORT: the exact approved text was not found in the refreshed room.', file=sys.stderr)
+        return 1
     messages = save(args.job_id, raw, args.room, args.awaiting)
+    outbox['confirmed_at'] = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
+    outbox_file.write_text(json.dumps(outbox, indent=2, ensure_ascii=False), encoding='utf-8')
     transfer.unlink()
     events = sum(1 for m in messages if m['kind'] == 'event')
     print(f'{args.job_id}: {len(messages) - events} messages and {events} events confirmed and saved.')

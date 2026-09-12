@@ -243,6 +243,15 @@ export function CockpitProvider({ token, children }: { token: string; children: 
     });
   }, [api, attachRun, toast]);
 
+  const sendReply = useCallback<CockpitApi['sendReply']>((job, text, draft, draftSet) => {
+    try { localStorage.setItem('dock-collapsed', JSON.stringify(false)); } catch { /* Storage is optional. */ }
+    window.dispatchEvent(new Event(DOCK_OPEN_EVENT));
+    void api('/api/reply/send', { job, text, draft, draft_set: draftSet }).then(result => {
+      if (!result.ok) return toast(result.data.error || 'Could not send it.');
+      attachRun(result.data.run, 'send-reply', job);
+    });
+  }, [api, attachRun, toast]);
+
   const stopRun = useCallback<CockpitApi['stopRun']>((id) => {
     void api(`/api/run/${id}/stop`, {}).then(result => {
       if (!result.ok) toast(result.data.message || 'Could not stop it.');
@@ -306,11 +315,12 @@ export function CockpitProvider({ token, children }: { token: string; children: 
     openDrawer,
     closeDrawer,
     runCommand,
+    sendReply,
     runs,
     stopRun,
     dismissRun,
     toggleRunLog,
-  }), [api, closeDrawer, dismissRun, drawerId, load, move, openDrawer, post, runCommand, runs, state, stopRun, toast, token, toggleRunLog]);
+  }), [api, closeDrawer, dismissRun, drawerId, load, move, openDrawer, post, runCommand, runs, sendReply, state, stopRun, toast, token, toggleRunLog]);
 
   const jobs = state?.jobs || [];
   const due = state ? jobs.filter((job: any) => todoBucket(job) === 'Due now').length : 0;

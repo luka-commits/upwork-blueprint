@@ -31,6 +31,7 @@ export type CockpitApi = {
   openDrawer: (id: string) => void;
   closeDrawer: () => void;
   runCommand: (command: string, job?: string | null) => void;
+  sendReply: (job: string, text: string, draft: number, draftSet: string) => void;
   runs: Run[];                          // oldest first
   stopRun: (id: string) => void;
   dismissRun: (id: string) => void;

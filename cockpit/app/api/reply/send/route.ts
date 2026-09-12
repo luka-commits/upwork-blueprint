@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   if (!ID.test(job)) return json({ error: 'That job is not valid.' }, 400);
   if (typeof text !== 'string' || !text.trim()) return json({ error: 'The reply is empty.' }, 400);
   try {
-    return json({ run: startApprovedReply(job, text) });
+    return json({ run: startApprovedReply(job, text, data?.draft, data?.draft_set) });
   } catch (err) {
     return json({ error: String((err as Error).message || err) }, 400);
   }

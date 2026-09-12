@@ -70,6 +70,7 @@ def job_view(job_id):
         for name in artifacts(job_id)]
     j['thread'] = read_json(folder, 'thread.json')
     j['replies'] = read_json(folder, 'replies.json')
+    j['outbox'] = read_json(folder, 'outbox.json')
     return j
 
 

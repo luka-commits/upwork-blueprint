@@ -58,6 +58,9 @@ class ThreadsTest(unittest.TestCase):
             transfer.write_text(json.dumps({'messages': [
                 {'from': 'me', 'at': '2026-09-12T12:00:00Z', 'text': 'Thanks.'},
             ]}), encoding='utf-8')
+            (folder / 'outbox.json').write_text(json.dumps({
+                'room_id': 'room-7', 'text': 'Thanks.',
+            }), encoding='utf-8')
             old_jobs, old_dir = os.environ.get('BLUEPRINT_JOBS'), os.environ.get('BLUEPRINT_JOBDIR')
             os.environ['BLUEPRINT_JOBS'], os.environ['BLUEPRINT_JOBDIR'] = str(jobs), str(jobdir)
             try:
@@ -76,6 +79,40 @@ class ThreadsTest(unittest.TestCase):
             self.assertEqual(saved['room_id'], 'room-7')
             self.assertEqual(saved['messages'][0]['text'], 'Thanks.')
             self.assertFalse(transfer.exists())
+            outbox = json.loads((folder / 'outbox.json').read_text(encoding='utf-8'))
+            self.assertIn('confirmed_at', outbox)
+
+    def test_confirm_rejects_a_room_without_the_exact_approved_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            jobdir = root / 'jobfiles'
+            folder = jobdir / '123456'
+            folder.mkdir(parents=True)
+            jobs = root / 'jobs.json'
+            jobs.write_text(json.dumps([{'id': '123456'}]), encoding='utf-8')
+            transfer = folder / '.thread-confirm.json'
+            transfer.write_text(json.dumps({'messages': [
+                {'from': 'me', 'at': '2026-09-12T12:00:00Z', 'text': 'Different text.'},
+            ]}), encoding='utf-8')
+            (folder / 'outbox.json').write_text(json.dumps({
+                'room_id': 'room-7', 'text': 'Approved text.',
+            }), encoding='utf-8')
+            old_jobs, old_dir = os.environ.get('BLUEPRINT_JOBS'), os.environ.get('BLUEPRINT_JOBDIR')
+            os.environ['BLUEPRINT_JOBS'], os.environ['BLUEPRINT_JOBDIR'] = str(jobs), str(jobdir)
+            try:
+                args = types.SimpleNamespace(job_id='123456', room='room-7', awaiting='them')
+                self.assertEqual(threads.cmd_confirm(args), 1)
+            finally:
+                if old_jobs is None:
+                    os.environ.pop('BLUEPRINT_JOBS', None)
+                else:
+                    os.environ['BLUEPRINT_JOBS'] = old_jobs
+                if old_dir is None:
+                    os.environ.pop('BLUEPRINT_JOBDIR', None)
+                else:
+                    os.environ['BLUEPRINT_JOBDIR'] = old_dir
+            self.assertFalse((folder / 'thread.json').exists())
+            self.assertTrue(transfer.exists())
 
 
 if __name__ == '__main__':

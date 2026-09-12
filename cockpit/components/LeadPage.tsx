@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
 import { useCockpit } from '@/lib/context';
 import { parseApplication } from '@/lib/application-review.mjs';
+import { leadWorkspace, preparationProgress } from '@/lib/lead-workspace.mjs';
 import { BoostBlock, NextStep, TasksBlock } from './JobParts';
 import JobBrief from './JobBrief';
 import {
@@ -24,11 +25,13 @@ import {
 } from '@/lib/model';
 import './lead.css';
 
+type WorkspaceView = 'work' | 'conversation' | 'timeline' | 'materials';
+
 export default function LeadPage({ id }: { id: string }) {
   const { state, api, post, move, closeDrawer } = useCockpit();
   const [job, setJob] = useState<any>(null);
   const [missing, setMissing] = useState(false);
-  const [tab, setTab] = useState<'conversation' | 'timeline'>('conversation');
+  const [selection, setSelection] = useState<{ workspace: string; view: WorkspaceView } | null>(null);
   const [note, setNote] = useState('');
   const noteRef = useRef<HTMLInputElement>(null);
 
@@ -45,12 +48,18 @@ export default function LeadPage({ id }: { id: string }) {
   }, [api, id, state?.generated_at]);
 
   if (missing) return <p className="empty">That job is not in the pipeline. <Link href="/">Back to all jobs</Link></p>;
-  if (!job) return <p className="empty">Loading.</p>;
+  if (!job || String(job.id) !== id) return <p className="empty">Loading.</p>;
 
   const j = job;
   const isClient = j.status === 'won';
   const d = j.details || {};
-  const files: string[] = j.artifacts || [];
+  const workspace = leadWorkspace(j.status);
+  const workspaceKey = `${j.id}:${workspace.mode}`;
+  const tab: WorkspaceView = selection?.workspace === workspaceKey ? selection.view : workspace.defaultView as WorkspaceView;
+  const setTab = (view: WorkspaceView) => {
+    setSelection({ workspace: workspaceKey, view });
+    document.getElementById(`workspace-tab-${view}`)?.focus({ preventScroll: true });
+  };
   const hasFlags = !!(d.total_hired ||
     (d.min_jss && state?.me?.jss != null && d.min_jss > state.me.jss) ||
     /FULL_TIME|30\+ hrs/i.test(j.engagement || d.engagement_type || '') || j.trap);
@@ -61,7 +70,7 @@ export default function LeadPage({ id }: { id: string }) {
     if (await post('/api/note', { id: j.id, text })) setNote('');
   };
 
-  return <main className={`lead-page ${isClient ? 'client-page' : 'pipeline-page'}`}>
+  return <main className={`lead-page workspace-${workspace.mode} ${isClient ? 'client-page' : 'pipeline-page'}`}>
     <header className="lead-head">
       <Link className="btn lead-back" href={isClient ? '/?view=Clients' : '/'}>← {isClient ? 'Clients' : 'All leads'}</Link>
       <div className="lead-identity">
@@ -85,38 +94,31 @@ export default function LeadPage({ id }: { id: string }) {
           : <LeadDetails j={j} hasFlags={hasFlags} />}
       </aside>
 
-      <ConversationPanel j={j} tab={tab} setTab={setTab} note={note} setNote={setNote} noteRef={noteRef} addNote={addNote} />
+      <WorkspacePanel j={j} workspace={workspace} tab={tab} setTab={setTab} note={note} setNote={setNote} noteRef={noteRef} addNote={addNote} />
 
       <aside className="lead-right">
         {isClient ? <>
-          <section className="panel tasks-panel">
-            <h2>Tasks</h2>
-            <TasksBlock key={`tasks-${j.id}`} j={j} />
+          <section className="panel next-panel">
+            <h2>Next delivery step</h2>
+            <NextStep key={`next-${j.id}`} j={j} materialsLabel="Preparation" salesLabel="Call and proposal" />
           </section>
           <section className="panel checkin-panel">
             <h2>Next check-in</h2>
             <DateChip j={j} label="Next check-in" move={move} />
             <FollowUpPlan j={j} />
           </section>
-          <ClientFiles j={j} />
-          {j.video ? <ClientVideo j={j} /> : null}
         </> : <>
           <section className="panel next-panel">
             <h2>Next step</h2>
-            <NextStep key={`next-${j.id}`} j={j} />
-            {!CLOSED.includes(j.status) ? <DateChip j={j} label="Follow up" move={move} /> : null}
+            <NextStep key={`next-${j.id}`} j={j} materialsLabel="Preparation" salesLabel="Call and proposal"
+              replyOpen={tab === 'conversation'} onReviewReply={() => setTab('conversation')} />
+            {!CLOSED.includes(j.status) ? <DateChip j={j} label={workspace.mode === 'waiting' && !j.thread?.room_id ? 'Check again' : 'Follow up'} move={move} /> : null}
             <FollowUpPlan j={j} />
           </section>
+          {workspace.mode === 'sales' && tab !== 'work' ? <SalesSupport j={j} open={() => setTab('work')} /> : null}
           <section className="panel tasks-panel">
             <h2>Tasks</h2>
             <TasksBlock key={`tasks-${j.id}`} j={j} />
-          </section>
-          <section className="panel materials-panel">
-            <div className="panel-heading">
-              <h2>Materials</h2>
-              <span>{materialCount(j, files)} of 4 ready</span>
-            </div>
-            <Materials j={j} files={files} />
           </section>
         </>}
       </aside>
@@ -189,25 +191,64 @@ function Disclosure({ label, summary, children, open = false }: { label: string;
   </details>;
 }
 
-function ConversationPanel({ j, tab, setTab, note, setNote, noteRef, addNote }: {
+function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, addNote }: {
   j: any;
-  tab: 'conversation' | 'timeline';
-  setTab: (tab: 'conversation' | 'timeline') => void;
+  workspace: ReturnType<typeof leadWorkspace>;
+  tab: WorkspaceView;
+  setTab: (tab: WorkspaceView) => void;
   note: string;
   setNote: (value: string) => void;
   noteRef: React.RefObject<HTMLInputElement | null>;
   addNote: () => void;
 }) {
-  const { state, runCommand } = useCockpit();
-  return <section className="panel convo">
-    <div className="convo-tabs">
-      <button onClick={() => setTab('conversation')} aria-pressed={tab === 'conversation'}>Conversation</button>
-      <button onClick={() => setTab('timeline')} aria-pressed={tab === 'timeline'}>Timeline</button>
+  const { state } = useCockpit();
+  const files: string[] = j.artifacts || [];
+  const selectByKey = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let next = index;
+    if (event.key === 'ArrowRight') next = (index + 1) % workspace.tabs.length;
+    else if (event.key === 'ArrowLeft') next = (index + workspace.tabs.length - 1) % workspace.tabs.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = workspace.tabs.length - 1;
+    else return;
+    event.preventDefault();
+    setTab(workspace.tabs[next].key as WorkspaceView);
+  };
+  return <section className={`panel workspace-panel${tab === 'conversation' ? ' is-conversation' : ''}`} aria-label={workspace.label}>
+    <div className="workspace-tabs" role="tablist" aria-label={workspace.label}>
+      {workspace.tabs.map((item, index) => <button key={item.key} id={`workspace-tab-${item.key}`} role="tab"
+        aria-selected={tab === item.key} aria-controls="workspace-content" tabIndex={tab === item.key ? 0 : -1}
+        onClick={() => setTab(item.key as WorkspaceView)} onKeyDown={event => selectByKey(event, index)}>{item.label}</button>)}
     </div>
-    <div className="convo-body">{tab === 'timeline' ? <Timeline j={j} /> : <>
-      <Conversation j={j} inbox={!!state?.commands?.inbox} />
-      <ReplyDrafts key={j.replies?.generated_at || 'no-drafts'} j={j} />
-    </>}</div>
+    <div id="workspace-content" role="tabpanel" aria-labelledby={`workspace-tab-${tab}`} tabIndex={0}
+      className={tab === 'conversation' ? 'convo-body' : 'workspace-content'}>
+      {tab === 'timeline' ? <><WorkspaceHeading title="Timeline" hint="Decisions, notes and work saved for this lead." /><Timeline j={j} /></> : null}
+      <div className="workspace-conversation" hidden={tab !== 'conversation'}>
+        <Conversation j={j} inbox={!!state?.commands?.inbox} />
+        <ReplyDrafts key={`${j.id}:${j.replies?.generated_at || 'no-drafts'}`} j={j} />
+      </div>
+      {workspace.tabs.some(item => item.key === 'materials') ? <div hidden={tab !== 'materials'}>
+        <WorkspaceHeading title={workspace.mode === 'closed' ? 'Saved materials' : workspace.mode === 'delivery' ? 'Winning materials' : 'Application materials'}
+          hint={workspace.mode === 'delivery' ? 'The pitch, application and sales work that led to this project.' : 'Your pitch, recording and application stay here as the lead moves forward.'} />
+        <Materials j={j} files={files} includeSales={workspace.mode !== 'sales'} />
+      </div> : null}
+      <div hidden={tab !== 'work'}>
+      {workspace.mode === 'prepare' ? <>
+        <WorkspaceHeading title="Prepare your application" hint="Build the pitch, record your walkthrough, then review the application." />
+        <PreparationProgress j={j} />
+        <Materials j={j} files={files} />
+      </> : null}
+      {workspace.mode === 'waiting' ? <ApplicationStatus j={j} open={setTab} /> : null}
+      {workspace.mode === 'sales' ? <>
+        <WorkspaceHeading title="Call and proposal" hint="Go into the call with a plan. Turn the actual conversation into scope and an offer." />
+        <SalesMaterials j={j} files={files} />
+      </> : null}
+      {workspace.mode === 'delivery' ? <>
+        <WorkspaceHeading title="Deliver the project" hint="Keep the next commitment clear, report checked work and finish with a clean handover." />
+        <section className="delivery-tasks"><h3>Tasks</h3><TasksBlock key={`delivery-tasks-${j.id}`} j={j} /></section>
+        <ClientFiles j={j} embedded />
+      </> : null}
+      </div>
+    </div>
     <div className="composer">
       <div className="composer-row">
         <input
@@ -224,6 +265,54 @@ function ConversationPanel({ j, tab, setTab, note, setNote, noteRef, addNote }: 
         <span>Notes stay here. Replies go through Upwork only after your approval.</span>
       </div>
     </div>
+  </section>;
+}
+
+function WorkspaceHeading({ title, hint }: { title: string; hint: string }) {
+  return <div className="workspace-heading"><h2>{title}</h2><p>{hint}</p></div>;
+}
+
+function PreparationProgress({ j }: { j: any }) {
+  const progress = preparationProgress(j.artifacts, validVideoUrl(j.video));
+  return <div className="preparation-progress" aria-label={`${progress.ready} of ${progress.total} application materials ready`}>
+    {progress.items.map(item => <span key={item.key} className={item.ready ? 'ready' : ''}>
+      <span className="preparation-marker" aria-hidden="true">{item.ready ? '✓' : ''}</span>
+      {item.label}<span className="sr-only">{item.ready ? ' ready' : ' missing'}</span>
+    </span>)}
+  </div>;
+}
+
+function ApplicationStatus({ j, open }: { j: any; open: (view: WorkspaceView) => void }) {
+  const hasReply = (j.thread?.messages || []).some((message: any) => message?.from === 'client' && message?.kind !== 'event');
+  const appliedAt = !j.application_date_unknown && (j.applied_at || j.history?.find((event: any) => event.status === 'applied')?.at);
+  const applicationSaved = j.artifacts?.includes('application.md');
+  return <>
+    <WorkspaceHeading title={hasReply ? 'A client reply is saved' : 'Waiting for the client'}
+      hint={hasReply ? 'Open the conversation to see what they need. This lead is still marked Applied.' : 'The preparation is behind you. Check for a reply when your next reminder is due.'} />
+    <div className="application-status-card">
+      <span className="workspace-state-label">Applied</span>
+      <h3>{appliedAt ? day(appliedAt) : 'Submission date not recorded'}</h3>
+      <p>{j.thread?.room_id ? 'A chat room is saved. Read the latest conversation before deciding whether to follow up.'
+        : 'A freelancer cannot message first on a proposal. Send becomes available after the client opens an Upwork conversation.'}</p>
+      {hasReply ? <button onClick={() => open('conversation')}>Read the conversation</button> : null}
+    </div>
+    <div className="saved-application">
+      <div><h3>{applicationSaved ? 'Your saved application draft' : 'No application draft saved here'}</h3>
+        <p>{applicationSaved ? 'Keep the prepared copy as a reference. It may differ from what you finally submitted on Upwork.'
+          : 'Applications sent outside the cockpit may have no local copy. The Applied stage is kept independently.'}</p></div>
+      <button onClick={() => open('materials')}>View materials</button>
+    </div>
+  </>;
+}
+
+function SalesSupport({ j, open }: { j: any; open: () => void }) {
+  const files: string[] = j.artifacts || [];
+  const saved = [['call-prep.md', 'Call prep'], ['call-review.md', 'Call review'], ['proposal.md', 'Proposal']];
+  return <section className="panel sales-support">
+    <h2>Call and proposal</h2>
+    <p>{files.includes('call-prep.md') ? 'Your call notes and commercial work are one click away.' : 'Prepare the call around this job, your proof and the decision you need next.'}</p>
+    <ul>{saved.map(([file, label]) => <li key={file}><span>{label}</span><span className={files.includes(file) ? 'ready' : ''}>{files.includes(file) ? 'Ready' : 'Not prepared'}</span></li>)}</ul>
+    <button onClick={open}>Open sales workspace</button>
   </section>;
 }
 
@@ -262,7 +351,7 @@ function ReplyDrafts({ j }: { j: any }) {
       <small>This only clears the lock. It never sends a message.</small>
     </div> : null}
     <div className="reply-drafts-head">
-      <div><h3>Draft replies</h3>{drafts.length ? <span>{drafts.length} options</span> : null}</div>
+      <div><h3>Draft replies</h3>{drafts.length ? <span>{drafts.length} {drafts.length === 1 ? 'option' : 'options'}</span> : null}</div>
       {canDraft ? <button disabled={drafting || sending} onClick={() => runCommand('reply', j.id)}>
         {drafting ? 'Drafting...' : drafts.length ? 'Draft again' : 'Draft replies'}
       </button> : null}
@@ -326,7 +415,7 @@ function FollowUpPlan({ j }: { j: any }) {
   return <p className="say">{lane[0].toUpperCase() + lane.slice(1)} sequence, step {plan.step} of {plan.max_steps}. {plan.reason || ''}</p>;
 }
 
-function Materials({ j, files }: { j: any; files: string[] }) {
+function Materials({ j, files, includeSales = true }: { j: any; files: string[]; includeSales?: boolean }) {
   const { state, post, runCommand, toast } = useCockpit();
   const d = j.details || {};
   const pitchReady = files.includes('pitch.html');
@@ -343,7 +432,8 @@ function Materials({ j, files }: { j: any; files: string[] }) {
     () => toast('Copy was blocked.'),
   );
   const journeyFiles = ['loom-review.md', 'call-prep.md', 'call-review.md', 'proposal.md'];
-  const otherFiles = files.filter(file => !['pitch.html', 'loom-script.md', 'application.md', ...journeyFiles].includes(file));
+  const deliveryFiles = j.status === 'won' ? ['project.md', 'delivery.md', 'client-handover.md', 'review-request.md'] : [];
+  const otherFiles = files.filter(file => !['pitch.html', 'loom-script.md', 'application.md', ...journeyFiles, ...deliveryFiles].includes(file));
 
   return <div className="materials">
     <MaterialRow label="Pitch page" ready={pitchReady} defaultOpen={!pitchReady}>
@@ -381,25 +471,37 @@ function Materials({ j, files }: { j: any; files: string[] }) {
       {j.status === 'new' ? <div className="boost-slot"><span>Top slot</span><BoostBlock d={d} /></div> : null}
     </MaterialRow>
 
-    {(j.status === 'replied' || j.status === 'offer' || journeyFiles.some(file => files.includes(file))) ? <div className="material-section-label">Conversation to offer</div> : null}
-    {(j.status === 'replied' || j.status === 'offer' || files.includes('call-prep.md')) ? <MaterialRow label="Call prep" ready={files.includes('call-prep.md')}>
-      {files.includes('call-prep.md') ? <MaterialDocument id={j.id} file="call-prep.md" />
-        : canRun('call-prep') ? <button onClick={() => runCommand('call-prep', j.id)}>Prepare for the call</button>
-          : <p className="material-note">Call prep is unavailable.</p>}
-    </MaterialRow> : null}
-    {(files.includes('call-prep.md') || files.includes('call-review.md')) ? <MaterialRow label="Call review" ready={files.includes('call-review.md')}>
-      {files.includes('call-review.md') ? <MaterialDocument id={j.id} file="call-review.md" />
-        : <CommandHandoff command="call-review" job={j} trailing="<transcript path>" label="Copy call review command" hint="Paste it into Claude Code and replace the placeholder with the call transcript path." />}
-    </MaterialRow> : null}
-    {(files.includes('call-review.md') || files.includes('proposal.md')) ? <MaterialRow label="Proposal" ready={files.includes('proposal.md')}>
-      {files.includes('proposal.md') ? <MaterialDocument id={j.id} file="proposal.md" />
-        : <CommandHandoff command="proposal" job={j} label="Copy proposal command" hint="Paste it into Claude Code to settle scope and price." />}
-    </MaterialRow> : null}
+    {includeSales && (j.status === 'replied' || j.status === 'offer' || ['call-prep.md', 'call-review.md', 'proposal.md'].some(file => files.includes(file))) ? <>
+      <div className="material-section-label">Conversation to offer</div>
+      <SalesMaterials j={j} files={files} />
+    </> : null}
 
     {otherFiles.length ? <div className="material-other">
       <span>Other files</span>
       <div>{otherFiles.map(file => <a key={file} href={`/files/${j.id}/${file}`} target="_blank" rel="noopener">{FILE_LABEL[file] || file}</a>)}</div>
     </div> : null}
+  </div>;
+}
+
+function SalesMaterials({ j, files }: { j: any; files: string[] }) {
+  const { state, runCommand } = useCockpit();
+  const prepared = files.includes('call-prep.md'), reviewed = files.includes('call-review.md'), proposed = files.includes('proposal.md');
+  return <div className="materials sales-materials">
+    <MaterialRow label="Call prep" ready={prepared} defaultOpen={!reviewed && !proposed}>
+      {prepared ? <MaterialDocument id={j.id} file="call-prep.md" /> : <>
+        <p className="material-note">A focused agenda, discovery questions, relevant proof and the decision to reach. Use Upwork's meeting tools before a contract starts.</p>
+        {state?.commands?.['call-prep'] ? <button onClick={() => runCommand('call-prep', j.id)}>Prepare for the call</button> : <p className="material-note">Call prep is unavailable.</p>}
+      </>}
+    </MaterialRow>
+    <MaterialRow label="Call review" ready={reviewed} defaultOpen={prepared && !reviewed}>
+      {reviewed ? <MaterialDocument id={j.id} file="call-review.md" />
+        : <CommandHandoff command="call-review" job={j} trailing="<transcript path>" label="Copy call review command" hint="After the call, paste this into Claude Code with the transcript. The review separates agreed scope from unanswered questions." />}
+    </MaterialRow>
+    <MaterialRow label="Proposal" ready={proposed} defaultOpen={reviewed}>
+      {proposed ? <MaterialDocument id={j.id} file="proposal.md" />
+        : reviewed ? <CommandHandoff command="proposal" job={j} label="Copy proposal command" hint="Paste it into Claude Code to settle scope, price and the terms you approve." />
+          : <p className="material-note">Review the call transcript first so the proposal uses agreed scope, not assumptions.</p>}
+    </MaterialRow>
   </div>;
 }
 
@@ -412,7 +514,7 @@ function PitchUrlEditor({ j, post, copy }: {
   const [editing, setEditing] = useState(!j.pitch_url);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => { setUrl(j.pitch_url || ''); setEditing(!j.pitch_url); }, [j.pitch_url]);
-  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+  useEffect(() => { if (editing && j.pitch_url) inputRef.current?.focus(); }, [editing, j.pitch_url]);
   const save = async () => {
     const value = url.trim();
     if (!value) return inputRef.current?.focus();
@@ -589,13 +691,14 @@ function VideoEditor({ j, post, copy }: {
   </>;
 }
 
-function ClientFiles({ j }: { j: any }) {
+function ClientFiles({ j, embedded = false }: { j: any; embedded?: boolean }) {
   const files: any[] = j.files || [];
   const names = new Set(files.map(file => file.name));
   const projectFiles = ['project.md', 'delivery.md', 'client-handover.md', 'review-request.md'];
-  const otherFiles = files.filter(file => !projectFiles.includes(file.name));
-  return <section className="panel files-panel">
-    <div className="panel-heading"><h2>Files</h2><span>{files.length}</span></div>
+  const originalFiles = ['pitch.html', 'loom-script.md', 'loom-review.md', 'application.md', 'call-prep.md', 'call-review.md', 'proposal.md'];
+  const otherFiles = files.filter(file => !projectFiles.includes(file.name) && !originalFiles.includes(file.name));
+  return <section className={embedded ? 'delivery-files' : 'panel files-panel'}>
+    <div className="panel-heading"><h2>Project files</h2><span>{files.filter(file => !originalFiles.includes(file.name)).length} saved</span></div>
     <div className="materials client-materials">
       <MaterialRow label="Project brief" ready={names.has('project.md')} defaultOpen={names.has('project.md')}>
         {names.has('project.md') ? <MaterialDocument id={j.id} file="project.md" />
@@ -621,31 +724,13 @@ function ClientFiles({ j }: { j: any }) {
   </section>;
 }
 
-function ClientVideo({ j }: { j: any }) {
-  const { post, toast } = useCockpit();
-  const emb = embedUrl(j.video);
-  const copy = () => navigator.clipboard.writeText(j.video).then(() => toast('Copied.'), () => toast('Copy was blocked.'));
-  return <section className="panel client-video-panel">
-    <h2>Video</h2>
-    {emb ? <div className="video"><iframe src={emb} allowFullScreen title="Client video" /></div> : null}
-    <div className="material-actions">
-      <button onClick={copy}>Copy link</button>
-      <a className="btn" href={j.video} target="_blank" rel="noopener">Open</a>
-      <details className="action-more">
-        <summary>More</summary>
-        <div className="action-menu"><button className="danger-link" onClick={() => post('/api/video', { id: j.id, url: '-' })}>Remove video link</button></div>
-      </details>
-    </div>
-  </section>;
-}
-
 function Field({ label, value }: { label: string; value: any }) {
   return value || value === 0 ? <div><dt>{label}</dt><dd>{value}</dd></div> : null;
 }
 
 function Timeline({ j }: { j: any }) {
   const items: any[] = [];
-  if (j.found_at) items.push({ at: j.found_at, kind: 'status', text: 'Found by /find-jobs' });
+  if (j.found_at) items.push({ at: j.found_at, kind: 'status', text: 'Lead saved' });
   (j.history || []).forEach((h: any, index: number) => {
     if (index > 0 || h.status !== 'new') items.push({ at: h.at, kind: 'status', text: `Moved to ${LABEL[h.status] || h.status}` });
   });
@@ -696,10 +781,6 @@ function MessageText({ text }: { text: string }) {
     if (/^\*\*[^*]+\*\*$/.test(part)) return <b key={index}>{part.slice(2, -2)}</b>;
     return <Fragment key={index}>{part}</Fragment>;
   })}</>;
-}
-
-function materialCount(j: any, files: string[]) {
-  return Number(files.includes('pitch.html')) + Number(files.includes('loom-script.md')) + Number(validVideoUrl(j.video)) + Number(files.includes('application.md'));
 }
 
 function oneLine(value: string) {

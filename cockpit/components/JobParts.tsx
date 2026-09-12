@@ -15,7 +15,9 @@ import {
 } from '@/lib/model';
 import './lead.css';
 
-export function NextStep({ j }: { j: any }) {
+export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materials', replyOpen = false, onReviewReply }: {
+  j: any; materialsLabel?: string; salesLabel?: string; replyOpen?: boolean; onReviewReply?: () => void;
+}) {
   const { state, move, runCommand, toast } = useCockpit();
   const [reasonOpen, setReasonOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -26,6 +28,10 @@ export function NextStep({ j }: { j: any }) {
   const room = !!thread.room_id;
   const clientMessages = (thread.messages || []).filter((message: any) => message?.kind !== 'event' && message?.from !== 'me');
   const clientWaiting = room && thread.awaiting_reply_from === 'you' && clientMessages.length > 0;
+  const latestClientAt = Math.max(0, ...clientMessages.map((message: any) => Date.parse(message.at) || 0));
+  const hasReplyDrafts = Array.isArray(j.replies?.drafts) && j.replies.drafts.some((draft: any) => typeof draft?.text === 'string' && draft.text.trim())
+    && Date.parse(j.replies.generated_at) >= latestClientAt
+    && !(j.outbox?.confirmed_at && j.outbox.draft_set === j.replies.generated_at);
   const callMentioned = clientMessages.some((message: any) => /\b(call|meeting|meet|zoom|interview|chat)\b/i.test(String(message.text || '')));
   const hasFollowUpPlan = Number.isInteger(j.follow_up_plan?.step) && Number.isInteger(j.follow_up_plan?.max_steps);
   const canRun = (command: string) => !!state?.commands?.[command];
@@ -63,11 +69,11 @@ export function NextStep({ j }: { j: any }) {
       <div className="next-secondary">{skip}</div>
     </div>;
     if (!validVideoUrl(j.video)) return <div className="next-step">
-      <p className="say">The pitch page is ready. Record the Loom and add its link under Materials before drafting the application.{cost}</p>
+      <p className="say">The pitch page is ready. Record the Loom and add its link under {materialsLabel} before drafting the application.{cost}</p>
       <div className="next-secondary">{skip}</div>
     </div>;
     if (!files.includes('application.md')) return <div className="next-step">
-      <p className="say">The pitch page and Loom video are ready. Draft the application under Materials.{cost}</p>
+      <p className="say">The pitch page and Loom video are ready. Draft the application under {materialsLabel}.{cost}</p>
       <div className="next-secondary">{skip}</div>
     </div>;
     return <div className="next-step">
@@ -84,7 +90,7 @@ export function NextStep({ j }: { j: any }) {
     const nextTask = (j.tasks || []).filter((task: any) => !task.done_at)
       .sort((a: any, b: any) => String(a.due || '9999').localeCompare(String(b.due || '9999')))[0];
     if (nextTask) return <div className="next-step"><p className="say">Next: {nextTask.text}{nextTask.due ? ` by ${day(nextTask.due)}` : ''}. Prepare a delivery update only after there is checked work to report.</p></div>;
-    return <div className="next-step"><p className="say">The project is set up, but no delivery task is open. Add the next real commitment below before preparing a client update.</p></div>;
+    return <div className="next-step"><p className="say">The project is set up, but no delivery task is open. Add the next real commitment to Tasks before preparing a client update.</p></div>;
   }
   if (CLOSED.includes(j.status)) return <div className="next-step">
     <p className="say">{LABEL[j.status]}{j.notes ? `: ${j.notes}` : ''}.</p>
@@ -97,8 +103,12 @@ export function NextStep({ j }: { j: any }) {
     {canRun('inbox') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('inbox', j.id)}>Check for a reply</button></div> : null}
   </div>;
   if (j.status === 'replied' && clientWaiting) return <div className="next-step">
-    <p className="say">The client is waiting on you. Read the latest message, then draft a reply from the saved conversation.</p>
-    {canRun('reply') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('reply', j.id)}>Draft a reply</button></div> : null}
+    <p className="say">{hasReplyDrafts ? 'A reply is prepared. Read the latest message, edit the draft and approve the exact text when you are ready.'
+      : 'The client is waiting on you. Read the latest message, then draft a reply from the saved conversation.'}</p>
+    {hasReplyDrafts ? !replyOpen ? <div className="next-primary">{onReviewReply
+      ? <button className="primary" onClick={onReviewReply}>Review reply drafts</button>
+      : <a className="btn primary" href={`/job/${j.id}`}>Review reply drafts</a>}</div> : null
+      : canRun('reply') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('reply', j.id)}>Draft a reply</button></div> : null}
     {canRun('inbox') ? <div className="next-secondary"><button onClick={() => runCommand('inbox', j.id)}>Check latest messages</button></div> : null}
   </div>;
   if (j.status === 'offer') return <div className="next-step">
@@ -136,7 +146,7 @@ export function NextStep({ j }: { j: any }) {
       <div className="next-primary">{interactive('proposal', 'Copy proposal command', 'Proposal command copied. Paste it into Claude Code to finish scope and price.')}</div>
     </div>;
     return <div className="next-step">
-      <p className="say">The proposal is ready. Review it under Materials, then send it in the Upwork conversation yourself.</p>
+      <p className="say">The proposal is ready. Review it under {salesLabel}, then send it in the Upwork conversation yourself.</p>
       {j.url ? <div className="next-primary"><a className="btn primary" href={j.url} target="_blank" rel="noopener">Open conversation on Upwork</a></div> : null}
     </div>;
   }

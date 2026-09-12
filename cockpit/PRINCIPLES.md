@@ -18,4 +18,4 @@ One place where a freelancer runs their Upwork business from first search to fin
 7. **Plain words.** No IDs, no jargon, no raw data. Dates in words, numbers with their unit.
 8. **Honest empty states.** An empty place says why it is empty and gives the one next step.
 9. **Desktop first, keyboard complete.** Every action works by keyboard and the desktop workspace is the release target. Smaller screens stay usable, but phone optimization is not a release gate.
-10. **Leads and clients are different jobs.** A lead screen is about winning (pitch, application, follow-up). A client screen is about delivering (tasks, check-ins, files, conversation).
+10. **The workspace follows the stage.** Not applied opens preparation; Applied opens waiting and reply checks; In conversation and Offer open chat with call/proposal support; Won opens delivery tasks and project files; Lost and Skipped open history. Earlier materials remain accessible without competing with the current job. Changing views must preserve unfinished edits and keep keyboard focus visible.

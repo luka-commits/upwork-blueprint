@@ -40,3 +40,10 @@ test('glass stays on the control layer with bounded blur and accessible fallback
   assert.match(css, /html\[data-input="keyboard"\]/);
   assert.doesNotMatch(css, /transition:\s*all\b/);
 });
+
+test('the native desktop typography requires no remote font request', () => {
+  const layout = readFileSync(new URL('../../app/layout.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(layout, /fonts\.(googleapis|gstatic)\.com/);
+  assert.match(css, /font-family: -apple-system/);
+  assert.match(css, /--mono: ui-monospace/);
+});

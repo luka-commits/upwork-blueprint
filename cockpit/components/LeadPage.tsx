@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { Fragment, type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useCockpit } from '@/lib/context';
-import { parseApplication } from '@/lib/application-review.mjs';
+import { formatApplicationBid, parseApplication } from '@/lib/application-review.mjs';
+import { artifactUrl, artifactVersion, useArtifactText } from '@/lib/artifact-content.mjs';
 import { leadWorkspace, nextPreparationMaterial } from '@/lib/lead-workspace.mjs';
 import { BoostBlock, NextStep, TasksBlock } from './JobParts';
 import JobBrief from './JobBrief';
@@ -439,13 +440,14 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
   const journeyFiles = ['loom-review.md', 'call-prep.md', 'call-review.md', 'proposal.md'];
   const deliveryFiles = j.status === 'won' ? ['project.md', 'delivery.md', 'client-handover.md', 'review-request.md'] : [];
   const otherFiles = files.filter(file => !['pitch.html', 'loom-script.md', 'application.md', ...journeyFiles, ...deliveryFiles].includes(file));
+  const version = (file: string) => artifactVersion(j.files, file);
 
   return <div className="materials">
     <MaterialRow label="Pitch page" ready={pitchReady} defaultOpen={nextMaterial === 'pitch'}>
       {pitchReady ? <>
-        <div className="preview"><iframe src={`/files/${j.id}/pitch.html`} title="Pitch page preview" loading="lazy" /></div>
+        <div className="preview"><iframe src={artifactUrl(j.id, 'pitch.html', version('pitch.html'))} title="Pitch page preview" loading="lazy" /></div>
         <div className="material-actions">
-          <a className="btn" href={`/files/${j.id}/pitch.html`} target="_blank" rel="noopener">Open local preview</a>
+          <a className="btn" href={artifactUrl(j.id, 'pitch.html', version('pitch.html'))} target="_blank" rel="noopener">Open local preview</a>
         </div>
         <PitchUrlEditor j={j} post={post} copy={copy} />
       </> : canRun('pitch-page') ? <button onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button> : <p className="material-note">Pitch page generation is unavailable.</p>}
@@ -453,7 +455,7 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
 
     <MaterialRow label="Loom script" ready={scriptReady} defaultOpen={nextMaterial === 'script'}>
       {scriptReady
-        ? <MaterialDocument id={j.id} file="loom-script.md" />
+        ? <MaterialDocument id={j.id} file="loom-script.md" version={version('loom-script.md')} />
         : canRun('pitch-page') ? <button onClick={() => runCommand('pitch-page', j.id)}>Generate Loom script</button> : <p className="material-note">The Loom script is made with the pitch page.</p>}
     </MaterialRow>
 
@@ -462,7 +464,7 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
     </MaterialRow>
 
     {(videoReady || files.includes('loom-review.md')) ? <MaterialRow label="Loom review" ready={files.includes('loom-review.md')}>
-      {files.includes('loom-review.md') ? <MaterialDocument id={j.id} file="loom-review.md" />
+      {files.includes('loom-review.md') ? <MaterialDocument id={j.id} file="loom-review.md" version={version('loom-review.md')} />
         : <CommandHandoff command="loom-review" job={j} trailing="<transcript path>" label="Copy Loom review command" hint="Paste it into Claude Code and replace the placeholder with the Loom transcript path." />}
     </MaterialRow> : null}
 
@@ -494,17 +496,17 @@ function SalesMaterials({ j, files }: { j: any; files: string[] }) {
   const prepared = files.includes('call-prep.md'), reviewed = files.includes('call-review.md'), proposed = files.includes('proposal.md');
   return <div className="materials sales-materials">
     <MaterialRow label="Call prep" ready={prepared} defaultOpen={!reviewed && !proposed}>
-      {prepared ? <MaterialDocument id={j.id} file="call-prep.md" /> : <>
+      {prepared ? <MaterialDocument id={j.id} file="call-prep.md" version={artifactVersion(j.files, 'call-prep.md')} /> : <>
         <p className="material-note">A focused agenda, discovery questions, relevant proof and the decision to reach. Use Upwork's meeting tools before a contract starts.</p>
         {state?.commands?.['call-prep'] ? <button onClick={() => runCommand('call-prep', j.id)}>Prepare for the call</button> : <p className="material-note">Call prep is unavailable.</p>}
       </>}
     </MaterialRow>
     <MaterialRow label="Call review" ready={reviewed} defaultOpen={prepared && !reviewed}>
-      {reviewed ? <MaterialDocument id={j.id} file="call-review.md" />
+      {reviewed ? <MaterialDocument id={j.id} file="call-review.md" version={artifactVersion(j.files, 'call-review.md')} />
         : <CommandHandoff command="call-review" job={j} trailing="<transcript path>" label="Copy call review command" hint="After the call, paste this into Claude Code with the transcript. The review separates agreed scope from unanswered questions." />}
     </MaterialRow>
     <MaterialRow label="Proposal" ready={proposed} defaultOpen={reviewed}>
-      {proposed ? <MaterialDocument id={j.id} file="proposal.md" />
+      {proposed ? <MaterialDocument id={j.id} file="proposal.md" version={artifactVersion(j.files, 'proposal.md')} />
         : reviewed ? <CommandHandoff command="proposal" job={j} label="Copy proposal command" hint="Paste it into Claude Code to settle scope, price and the terms you approve." />
           : <p className="material-note">Review the call transcript first so the proposal uses agreed scope, not assumptions.</p>}
     </MaterialRow>
@@ -570,62 +572,51 @@ function MaterialRow({ label, ready, defaultOpen, status, children }: { label: s
   </details>;
 }
 
-function MaterialDocument({ id, file }: { id: string; file: string }) {
+function MaterialDocument({ id, file, version }: { id: string; file: string; version: string }) {
   const { toast } = useCockpit();
-  const [text, setText] = useState('Loading.');
   const [expanded, setExpanded] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/files/${id}/${file}`).then(async response => {
-      const value = response.ok ? await response.text() : 'Could not read the file.';
-      if (!cancelled) setText(value);
-    });
-    return () => { cancelled = true; };
-  }, [id, file]);
-  const copy = () => navigator.clipboard.writeText(text).then(
+  const content = useArtifactText(id, file, version);
+  const copy = () => navigator.clipboard.writeText(content.text).then(
     () => toast('Copied.'),
     () => toast('Copy was blocked, select the text instead.'),
   );
+  if (content.status === 'loading') return <p className="material-note">Loading…</p>;
+  if (content.status === 'error') return <div className="material-load-state"><p className="material-note">Could not load this file.</p><button onClick={content.retry}>Retry</button></div>;
+  if (content.status === 'empty') return <p className="material-note">This file is empty.</p>;
   return <>
-    <div className={`material-doc${expanded ? ' expanded' : ''}`}>{text}</div>
+    <div className={`material-doc${expanded ? ' expanded' : ''}`}>{content.text}</div>
     <div className="material-actions">
       <button className="link" onClick={() => setExpanded(current => !current)}>{expanded ? 'Show less' : 'Show all'}</button>
       <button onClick={copy}>Copy</button>
-      <a className="btn" href={`/files/${id}/${file}`} target="_blank" rel="noopener">Open</a>
+      <a className="btn" href={artifactUrl(id, file, version)} target="_blank" rel="noopener">Open</a>
     </div>
   </>;
 }
 
 function ApplicationReview({ j }: { j: any }) {
   const { toast } = useCockpit();
-  const [text, setText] = useState('');
-  const [failed, setFailed] = useState(false);
   const d = j.details || {};
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/files/${j.id}/application.md`).then(async response => {
-      if (cancelled) return;
-      if (!response.ok) { setFailed(true); return; }
-      setText(await response.text());
-    });
-    return () => { cancelled = true; };
-  }, [j.id]);
+  const version = artifactVersion(j.files, 'application.md');
+  const content = useArtifactText(j.id, 'application.md', version);
   const copy = (value: string) => navigator.clipboard.writeText(value).then(
     () => toast('Copied.'),
     () => toast('Copy was blocked, select the text instead.'),
   );
-  const application = parseApplication(text);
+  const application = parseApplication(content.text);
+  const bid = formatApplicationBid(d.bid_amount);
   const facts = [
-    d.bid_amount != null ? ['Your bid', money(d.bid_amount)] : null,
+    bid ? ['Your bid', bid, String(d.bid_amount)] : null,
     d.connects_cost != null ? ['Connects', String(d.connects_cost)] : null,
     d.connects_balance != null ? ['Balance', String(d.connects_balance)] : null,
   ].filter(Boolean) as string[][];
 
-  if (failed) return <p className="material-note">Could not read the application file.</p>;
-  if (!text) return <p className="material-note">Loading application.</p>;
+  if (content.status === 'loading') return <p className="material-note">Loading…</p>;
+  if (content.status === 'error') return <div className="material-load-state"><p className="material-note">Could not load this file.</p><button onClick={content.retry}>Retry</button></div>;
+  if (content.status === 'empty') return <p className="material-note">This file is empty.</p>;
   return <div className="application-review">
-    <p className="application-handoff">Copy the prepared fields into Upwork, review the final cost there, and submit it yourself. The Blueprint never submits proposals.</p>
-    {facts.length ? <dl className="application-facts">{facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : null}
+    <p className="application-handoff">Copy the fields, then review and submit on Upwork.</p>
+    {facts.length ? <dl className="application-facts">{facts.map(([label, value, copyValue]) => <div key={label}><dt>{label}</dt><dd>{value}
+      {copyValue ? <> <button className="link" onClick={() => copy(copyValue)}>Copy bid</button></> : null}</dd></div>)}</dl> : null}
     <ApplicationField label="Cover letter" value={application.coverLetter} onCopy={copy} />
     {application.answers.map((answer: any, index: number) => <ApplicationField
       key={`${answer.question}-${index}`}
@@ -636,7 +627,7 @@ function ApplicationReview({ j }: { j: any }) {
     />)}
     <div className="material-actions application-actions">
       {j.url ? <a className="btn primary" href={j.url} target="_blank" rel="noopener">Review and submit on Upwork</a> : null}
-      <a className="btn" href={`/files/${j.id}/application.md`} target="_blank" rel="noopener">Open text</a>
+      <a className="btn" href={artifactUrl(j.id, 'application.md', version)} target="_blank" rel="noopener">Open text</a>
     </div>
   </div>;
 }
@@ -712,19 +703,19 @@ function ClientFiles({ j, embedded = false }: { j: any; embedded?: boolean }) {
     <div className="panel-heading"><h2>Project files</h2><span>{files.filter(file => !originalFiles.includes(file.name)).length} saved</span></div>
     <div className="materials client-materials">
       <MaterialRow label="Project brief" ready={names.has('project.md')} defaultOpen={names.has('project.md')}>
-        {names.has('project.md') ? <MaterialDocument id={j.id} file="project.md" />
+        {names.has('project.md') ? <MaterialDocument id={j.id} file="project.md" version={artifactVersion(files, 'project.md')} />
           : <CommandHandoff command="won" job={j} label="Copy project setup command" hint="Paste it into Claude Code with the contract details." />}
       </MaterialRow>
       <MaterialRow label="Delivery update" ready={names.has('delivery.md')}>
-        {names.has('delivery.md') ? <MaterialDocument id={j.id} file="delivery.md" /> : null}
+        {names.has('delivery.md') ? <MaterialDocument id={j.id} file="delivery.md" version={artifactVersion(files, 'delivery.md')} /> : null}
         <CommandHandoff command="delivery" job={j} trailing="update" label={names.has('delivery.md') ? 'Copy update command' : 'Copy delivery update command'} hint="Use this after checked work exists. Paste it into Claude Code with the latest client context." />
       </MaterialRow>
       <MaterialRow label="Client handover" ready={names.has('client-handover.md')}>
-        {names.has('client-handover.md') ? <MaterialDocument id={j.id} file="client-handover.md" /> : null}
+        {names.has('client-handover.md') ? <MaterialDocument id={j.id} file="client-handover.md" version={artifactVersion(files, 'client-handover.md')} /> : null}
         <CommandHandoff command="delivery" job={j} trailing="handover" label="Copy handover command" hint="Paste it into Claude Code when the work is ready to hand over or the saved handover needs updating." />
       </MaterialRow>
       <MaterialRow label="Review request" ready={names.has('review-request.md')}>
-        {names.has('review-request.md') ? <MaterialDocument id={j.id} file="review-request.md" /> : null}
+        {names.has('review-request.md') ? <MaterialDocument id={j.id} file="review-request.md" version={artifactVersion(files, 'review-request.md')} /> : null}
         <CommandHandoff command="delivery" job={j} trailing="review" label="Copy review request command" hint="Paste it into Claude Code when the outcome has been delivered and the review request is appropriate." />
       </MaterialRow>
     </div>

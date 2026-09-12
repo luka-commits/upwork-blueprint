@@ -73,11 +73,23 @@ class CockpitTest(unittest.TestCase):
         r = self.cli('job', '111111')
         job = json.loads(r.stdout)
         self.assertEqual([f['name'] for f in job['files']], ['pitch.html'])
+        self.assertRegex(job['files'][0]['version'], r'^\d+-\d+$')
         self.assertEqual(job['thread']['messages'][0]['text'], 'Hi')
         self.assertEqual(job['replies']['drafts'][0]['text'], 'Hello')
         self.assertEqual(job['outbox']['text'], 'Hello')
         self.assertEqual([f['name'] for f in job['files']], ['pitch.html'])
         self.assertEqual(self.cli('job', '999999').returncode, 1)
+
+    def test_full_view_file_version_changes_when_an_artifact_is_revised(self):
+        target = self.jobdir / '111111' / 'pitch.html'
+        before = json.loads(self.cli('job', '111111').stdout)['files'][0]['version']
+        original = target.read_text(encoding='utf-8')
+        try:
+            target.write_text('<h1>revised pitch with new content</h1>', encoding='utf-8')
+            after = json.loads(self.cli('job', '111111').stdout)['files'][0]['version']
+            self.assertNotEqual(before, after)
+        finally:
+            target.write_text(original, encoding='utf-8')
 
     def test_streak_skips_weekends_and_never_breaks_on_today(self):
         friday = dt.date(2026, 9, 11)

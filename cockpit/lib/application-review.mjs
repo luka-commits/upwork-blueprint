@@ -6,6 +6,12 @@ function withoutTitle(value) {
   return clean(value).replace(/^\s*#{1,6}\s*(?:application|cover letter)\s*\n+/i, '').trim();
 }
 
+export function formatApplicationBid(value) {
+  const amount = Number(value);
+  if (value == null || String(value).trim() === '' || !Number.isFinite(amount)) return '';
+  return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+}
+
 export function parseApplication(value) {
   const source = clean(value);
   const screening = /^\s*(?:#{1,6}\s*)?screening answers?\s*:?\s*$/im.exec(source);

@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parseApplication } from '../application-review.mjs';
+import { formatApplicationBid, parseApplication } from '../application-review.mjs';
+
+test('application bids retain cents instead of using rounded budget labels', () => {
+  assert.equal(formatApplicationBid(125.5), '$125.50');
+  assert.equal(formatApplicationBid('59.76'), '$59.76');
+  assert.equal(formatApplicationBid(1200), '$1,200.00');
+  assert.equal(formatApplicationBid(null), '');
+  assert.equal(formatApplicationBid(''), '');
+  assert.equal(formatApplicationBid('unknown'), '');
+});
 
 test('parses a cover letter and exact screening answers', () => {
   const result = parseApplication(`# Cover letter

@@ -65,9 +65,16 @@ def job_view(job_id):
         return None
     j = dict(job)
     folder = JOBS_DIR / job_id
-    j['files'] = [{'name': name, 'at': datetime.datetime.fromtimestamp(
-        (folder / name).stat().st_mtime, datetime.timezone.utc).isoformat(timespec='seconds')}
-        for name in artifacts(job_id)]
+    files = []
+    for name in artifacts(job_id):
+        stat = (folder / name).stat()
+        files.append({
+            'name': name,
+            'at': datetime.datetime.fromtimestamp(
+                stat.st_mtime, datetime.timezone.utc).isoformat(timespec='seconds'),
+            'version': f'{stat.st_mtime_ns}-{stat.st_size}',
+        })
+    j['files'] = files
     j['thread'] = read_json(folder, 'thread.json')
     j['replies'] = read_json(folder, 'replies.json')
     j['outbox'] = read_json(folder, 'outbox.json')
@@ -315,6 +322,25 @@ def port_busy(port):
         return s.connect_ex(('127.0.0.1', port)) == 0
 
 
+def stop_child(child):
+    """Stop only the server process this launch created, without waiting forever."""
+    try:
+        child.terminate()
+    except OSError:
+        return
+    try:
+        child.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        try:
+            child.kill()
+        except OSError:
+            return
+        try:
+            child.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
+
+
 def serve(port, open_browser):
     # An older cockpit still holding the port would answer for us with stale files
     # and a page stuck on "Loading.", so a busy port stops the start instead.
@@ -334,14 +360,23 @@ def serve(port, open_browser):
     env = dict(os.environ, BLUEPRINT_ROOT=str(ROOT))
     child = subprocess.Popen(cmd, cwd=APP, env=env, shell=shell)
     url = f'http://127.0.0.1:{port}/'
+    ready = False
     for _ in range(60):
         try:
-            urllib.request.urlopen(url, timeout=1)
+            response = urllib.request.urlopen(url, timeout=1)
+            response.close()
+            ready = True
             break
         except OSError:
-            if child.poll() is not None:
-                return child.returncode
+            exit_code = child.poll()
+            if exit_code is not None:
+                print(f'Cockpit failed to start: its server exited with code {exit_code}.', file=sys.stderr)
+                return exit_code or 1
             time.sleep(0.5)
+    if not ready:
+        print(f'Cockpit failed to start: {url} did not become ready during startup.', file=sys.stderr)
+        stop_child(child)
+        return 1
     print(f'Cockpit running at {url}  (Ctrl+C stops it)')
     if open_browser:
         webbrowser.open(url)

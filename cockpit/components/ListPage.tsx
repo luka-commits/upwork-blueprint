@@ -598,7 +598,7 @@ function Board({ jobs, drawerId, openDrawer, closeDrawer, move, dropStage, setDr
   const router = useRouter();
   return <div className="board">{STAGES.map(stage => {
     const list = jobs.filter(j => j.status === stage.key);
-    return <section key={stage.key} className={`col${dropStage === stage.key ? ' drop' : ''}`}
+    return <section key={stage.key} className={`col stage-${stage.key}${dropStage === stage.key ? ' drop' : ''}`}
       onDragOver={e => { if (!e.dataTransfer.types.includes('text/col')) { e.preventDefault(); setDropStage(stage.key); } }}
       onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropStage(null); }}
       onDrop={e => {
@@ -607,7 +607,7 @@ function Board({ jobs, drawerId, openDrawer, closeDrawer, move, dropStage, setDr
         const id = e.dataTransfer.getData('text/plain'), job = jobs.find(j => String(j.id) === id);
         if (job && job.status !== stage.key) move(id, stage.key, stage.key === 'applied' ? '+3d' : null);
       }}>
-      <div className="col-head" style={{ borderTopColor: `color-mix(in srgb, var(--brand) ${stage.mix}%, var(--card))` }}>
+      <div className="col-head">
         <div><div className="col-title">{stage.label}</div><div className="col-hint">{stage.hint}</div></div><span className="col-count">{list.length}</span>
       </div><ul className="col-body">{list.length ? list.map(j => {
         const id = String(j.id);
@@ -619,7 +619,8 @@ function Board({ jobs, drawerId, openDrawer, closeDrawer, move, dropStage, setDr
           <div className="card-top"><Score j={j} /><span className="card-title">{j.title}</span></div>
           <div className="card-meta">{[clientText(j), budgetText(j), ago(j.posted_date)].filter(Boolean).join(' · ')}</div><DueChip j={j} />
         </li>;
-      }) : <li className="col-empty">Drop a job here</li>}</ul>
+      }) : <li className="col-empty">{dropStage === stage.key ? 'Drop it here' : stage.key === 'new' ? 'Find jobs to add opportunities.'
+        : stage.key === 'applied' ? 'Submitted jobs appear here.' : stage.key === 'replied' ? 'Client replies appear after Sync.' : 'Offers appear after Sync.'}</li>}</ul>
     </section>;
   })}</div>;
 }

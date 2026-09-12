@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useCockpit } from '@/lib/context';
-import { DueChip, Flags, Score, StageSelect, ago, budgetText, day, money, stamp, wonAt } from '@/lib/model';
+import { DueChip, Flags, Score, StageSelect, ago, budgetText, day, money, stamp, validVideoUrl, wonAt } from '@/lib/model';
 import { BoostBlock, FilesChecklist, NextStep, TasksBlock } from './JobParts';
 import JobBrief from './JobBrief';
 import './drawer.css';
@@ -18,6 +18,7 @@ export default function Drawer() {
   const loadedId = useRef<string | null>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const wasOpenRef = useRef(false);
+  const focusPendingRef = useRef(false);
 
   useEffect(() => {
     document.body.classList.toggle('drawer-open', !!drawerId);
@@ -29,8 +30,11 @@ export default function Drawer() {
     if (opening) {
       if (!wasOpenRef.current && document.activeElement instanceof HTMLElement) {
         returnFocusRef.current = document.activeElement;
+        focusPendingRef.current = true;
       }
-      requestAnimationFrame(() => closeRef.current?.focus());
+      requestAnimationFrame(() => {
+        closeRef.current?.focus();
+      });
     } else if (wasOpenRef.current) {
       const target = returnFocusRef.current;
       requestAnimationFrame(() => { if (target?.isConnected) target.focus(); });
@@ -38,6 +42,14 @@ export default function Drawer() {
     }
     wasOpenRef.current = opening;
   }, [drawerId]);
+
+  useEffect(() => {
+    if (!drawerId || !job || !focusPendingRef.current) return;
+    requestAnimationFrame(() => {
+      closeRef.current?.focus();
+      focusPendingRef.current = false;
+    });
+  }, [drawerId, job]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -109,10 +121,13 @@ function LeadDrawer({ j }: { j: any }) {
   const d = j.details || {};
   const files: string[] = j.artifacts || [];
   const ready = Number(files.includes('pitch.html')) + Number(files.includes('loom-script.md')) +
-    Number(!!j.video) + Number(files.includes('application.md'));
+    Number(validVideoUrl(j.video)) + Number(files.includes('application.md'));
   return <>
+    <section className={`drawer-next stage-${j.status}`}>
+      <h4>Next step</h4>
+      <NextStep key={`next-${j.id}`} j={j} />
+    </section>
     <LeadOverview j={j} />
-    <h4>Next step</h4><NextStep key={`next-${j.id}`} j={j} />
     <div className="drawer-supporting">
       <DrawerDisclosure label="Materials" summary={`${ready} of 4 ready`}>
         <FilesChecklist j={j} />

@@ -8,7 +8,7 @@ function withoutTitle(value) {
 
 export function parseApplication(value) {
   const source = clean(value);
-  const screening = /^\s*#{1,6}\s*screening answers?\s*$/im.exec(source);
+  const screening = /^\s*(?:#{1,6}\s*)?screening answers?\s*:?\s*$/im.exec(source);
   const coverLetter = withoutTitle(screening ? source.slice(0, screening.index) : source);
   const answersSource = screening
     ? source.slice(screening.index + screening[0].length).trim()

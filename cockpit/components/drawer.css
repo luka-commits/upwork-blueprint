@@ -1,5 +1,5 @@
 .drawer-overview {
-  padding: 15px 0 4px;
+  padding: 18px 0 4px;
 }
 
 .drawer-overview > h4 {
@@ -83,4 +83,29 @@
   margin-top: 0;
   padding-top: 0;
   border-top: 0;
+}
+
+.drawer-next {
+  margin: 14px 0 0;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--stage-new);
+  border-radius: 10px;
+  background: var(--stage-new-soft);
+}
+
+.drawer-next.stage-applied { border-left-color: var(--stage-applied); background: var(--stage-applied-soft); }
+.drawer-next.stage-replied { border-left-color: var(--stage-replied); background: var(--stage-replied-soft); }
+.drawer-next.stage-offer { border-left-color: var(--stage-offer); background: var(--stage-offer-soft); }
+.drawer-next.stage-won { border-left-color: var(--stage-won); background: var(--stage-won-soft); }
+.drawer-next.stage-lost { border-left-color: var(--stage-lost); background: var(--stage-lost-soft); }
+.drawer-next.stage-skipped { border-left-color: var(--stage-skipped); background: var(--stage-skipped-soft); }
+
+.drawer-next > h4 {
+  margin: 0 0 6px;
+  color: var(--text);
+}
+
+.drawer-next .say {
+  color: var(--text);
 }

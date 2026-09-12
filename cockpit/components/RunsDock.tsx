@@ -15,6 +15,14 @@ const RUN_LABEL: Record<string, string> = {
   reply: 'Draft replies',
   'follow-up': 'Review follow-ups',
   'send-reply': 'Send reply',
+  inbox: 'Check Upwork inbox',
+  status: 'Review pipeline status',
+  'call-prep': 'Prepare for call',
+  'call-review': 'Review call',
+  'loom-review': 'Review Loom video',
+  proposal: 'Prepare proposal',
+  won: 'Set up won project',
+  delivery: 'Prepare delivery',
 };
 
 function clock(ms: number) {

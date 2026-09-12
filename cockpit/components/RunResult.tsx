@@ -41,5 +41,9 @@ export default function RunResult({ result, error = false, stopped = false }: {
       {outcome.quality ? <span><b>Quality</b> {outcome.quality}</span> : null}
       {outcome.calls ? <span><b>Upwork calls</b> {outcome.calls}</span> : null}
     </div> : null}
+    {result ? <details className="result-full">
+      <summary>Full report</summary>
+      <pre>{result}</pre>
+    </details> : null}
   </div>;
 }

@@ -19,6 +19,7 @@ import {
   embedUrl,
   money,
   stamp,
+  validVideoUrl,
   wonAt,
 } from '@/lib/model';
 import './lead.css';
@@ -227,7 +228,7 @@ function ConversationPanel({ j, tab, setTab, note, setNote, noteRef, addNote }: 
 }
 
 function ReplyDrafts({ j }: { j: any }) {
-  const { state, runCommand, sendReply, runs } = useCockpit();
+  const { state, post, runCommand, sendReply, runs, toast } = useCockpit();
   const drafts = Array.isArray(j.replies?.drafts)
     ? j.replies.drafts.filter((draft: any) => draft && typeof draft.text === 'string' && draft.text.trim())
     : [];
@@ -236,12 +237,30 @@ function ReplyDrafts({ j }: { j: any }) {
   const [texts, setTexts] = useState<string[]>(drafts.map((draft: any, index: number) =>
     sentDraft === index && typeof j.outbox?.text === 'string' ? j.outbox.text : draft.text));
   const drafting = runs.some(run => run.command === 'reply' && run.job === j.id && !run.done);
-  const sending = runs.some(run => run.command === 'send-reply' && !run.done);
+  const sending = runs.some(run => run.command === 'send-reply' && run.job === j.id && !run.done);
   const room = j.thread?.room_id;
   const canDraft = !!state?.commands?.reply && !!(j.thread?.messages || []).length;
+  const uncertain = !!j.outbox && !j.outbox.confirmed_at && !j.outbox.cancelled_at && !sending;
+  const copy = (value: string) => navigator.clipboard.writeText(value).then(
+    () => toast('Reply copied.'),
+    () => toast('Copy was blocked. Select the reply text instead.'),
+  );
 
-  if (!canDraft && !drafts.length) return null;
+  if (!canDraft && !drafts.length && !uncertain) return null;
   return <section className="reply-drafts" aria-label="Draft replies">
+    {uncertain ? <div className="send-uncertain" role="alert">
+      <strong>Send not confirmed</strong>
+      <p>Check this conversation on Upwork before trying again.</p>
+      <div>
+        {j.url ? <a className="btn" href={j.url} target="_blank" rel="noopener">Open Upwork conversation</a> : null}
+        <button onClick={() => {
+          if (window.confirm('Only continue after you checked Upwork and confirmed the message was not sent. Clear the send lock?')) {
+            void post('/api/reply/resolve', { job: j.id, written_at: j.outbox.written_at });
+          }
+        }}>I checked: message was not sent</button>
+      </div>
+      <small>This only clears the lock. It never sends a message.</small>
+    </div> : null}
     <div className="reply-drafts-head">
       <div><h3>Draft replies</h3>{drafts.length ? <span>{drafts.length} options</span> : null}</div>
       {canDraft ? <button disabled={drafting || sending} onClick={() => runCommand('reply', j.id)}>
@@ -261,9 +280,15 @@ function ReplyDrafts({ j }: { j: any }) {
         <div className="reply-draft-foot">
           {sent ? <span className="reply-confirmed">Sent and confirmed</span> : room ? <>
             <span>Sends this exact text to the client's Upwork chat.</span>
-            <button className="primary" disabled={sending || !(texts[index] || '').trim()}
-              onClick={() => sendReply(j.id, texts[index], index, draftSet)}>{sending ? 'Sending...' : 'Send'}</button>
-          </> : <span>You cannot message first on a proposal. Send appears after the client replies and Upwork creates a room.</span>}
+            <div className="reply-draft-actions">
+              <button onClick={() => copy(texts[index] || '')}>Copy</button>
+              <button className="primary" disabled={sending || !(texts[index] || '').trim()}
+                onClick={() => sendReply(j.id, texts[index], index, draftSet)}>{sending ? 'Sending...' : 'Send exact reply'}</button>
+            </div>
+          </> : <>
+            <span>No Upwork chat room yet. Copy this draft if the client contacts you elsewhere on Upwork.</span>
+            <button disabled={!(texts[index] || '').trim()} onClick={() => copy(texts[index] || '')}>Copy reply</button>
+          </>}
         </div>
       </div>;
     })}
@@ -307,26 +332,27 @@ function Materials({ j, files }: { j: any; files: string[] }) {
   const pitchReady = files.includes('pitch.html');
   const scriptReady = files.includes('loom-script.md');
   const applicationReady = files.includes('application.md');
-  const applicationUnlocked = pitchReady && !!j.video;
-  const applicationBlocker = !pitchReady && !j.video
+  const videoReady = validVideoUrl(j.video);
+  const applicationUnlocked = pitchReady && videoReady;
+  const applicationBlocker = !pitchReady && !videoReady
     ? 'Finish the Pitch page and add the Loom video link first.'
-    : !pitchReady ? 'Finish the Pitch page first.' : !j.video ? 'Add the Loom video link first.' : '';
+    : !pitchReady ? 'Finish the Pitch page first.' : !videoReady ? 'Add a valid Loom or YouTube video link first.' : '';
   const canRun = (command: string) => !!state?.commands?.[command];
   const copy = (value: string) => navigator.clipboard.writeText(value).then(
     () => toast('Copied.'),
     () => toast('Copy was blocked.'),
   );
-  const localLink = (name: string) => `${window.location.origin}/files/${j.id}/${name}`;
-  const otherFiles = files.filter(file => !['pitch.html', 'loom-script.md', 'application.md'].includes(file));
+  const journeyFiles = ['loom-review.md', 'call-prep.md', 'call-review.md', 'proposal.md'];
+  const otherFiles = files.filter(file => !['pitch.html', 'loom-script.md', 'application.md', ...journeyFiles].includes(file));
 
   return <div className="materials">
     <MaterialRow label="Pitch page" ready={pitchReady} defaultOpen={!pitchReady}>
       {pitchReady ? <>
         <div className="preview"><iframe src={`/files/${j.id}/pitch.html`} title="Pitch page preview" loading="lazy" /></div>
         <div className="material-actions">
-          <button onClick={() => copy(localLink('pitch.html'))}>Copy link</button>
-          <a className="btn" href={`/files/${j.id}/pitch.html`} target="_blank" rel="noopener">Open</a>
+          <a className="btn" href={`/files/${j.id}/pitch.html`} target="_blank" rel="noopener">Open local preview</a>
         </div>
+        <PitchUrlEditor j={j} post={post} copy={copy} />
       </> : canRun('pitch-page') ? <button onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button> : <p className="material-note">Pitch page generation is unavailable.</p>}
     </MaterialRow>
 
@@ -336,9 +362,14 @@ function Materials({ j, files }: { j: any; files: string[] }) {
         : canRun('pitch-page') ? <button onClick={() => runCommand('pitch-page', j.id)}>Generate Loom script</button> : <p className="material-note">The Loom script is made with the pitch page.</p>}
     </MaterialRow>
 
-    <MaterialRow label="Loom video" ready={!!j.video} defaultOpen={pitchReady && scriptReady && !j.video}>
+    <MaterialRow label="Loom video" ready={videoReady} defaultOpen={pitchReady && scriptReady && !videoReady}>
       <VideoEditor j={j} post={post} copy={copy} />
     </MaterialRow>
+
+    {(videoReady || files.includes('loom-review.md')) ? <MaterialRow label="Loom review" ready={files.includes('loom-review.md')}>
+      {files.includes('loom-review.md') ? <MaterialDocument id={j.id} file="loom-review.md" />
+        : <CommandHandoff command="loom-review" job={j} trailing="<transcript path>" label="Copy Loom review command" hint="Paste it into Claude Code and replace the placeholder with the Loom transcript path." />}
+    </MaterialRow> : null}
 
     <MaterialRow label="Application" ready={applicationReady} defaultOpen={pitchReady && !applicationReady}>
       {applicationReady
@@ -350,11 +381,68 @@ function Materials({ j, files }: { j: any; files: string[] }) {
       {j.status === 'new' ? <div className="boost-slot"><span>Top slot</span><BoostBlock d={d} /></div> : null}
     </MaterialRow>
 
+    {(j.status === 'replied' || j.status === 'offer' || journeyFiles.some(file => files.includes(file))) ? <div className="material-section-label">Conversation to offer</div> : null}
+    {(j.status === 'replied' || j.status === 'offer' || files.includes('call-prep.md')) ? <MaterialRow label="Call prep" ready={files.includes('call-prep.md')}>
+      {files.includes('call-prep.md') ? <MaterialDocument id={j.id} file="call-prep.md" />
+        : canRun('call-prep') ? <button onClick={() => runCommand('call-prep', j.id)}>Prepare for the call</button>
+          : <p className="material-note">Call prep is unavailable.</p>}
+    </MaterialRow> : null}
+    {(files.includes('call-prep.md') || files.includes('call-review.md')) ? <MaterialRow label="Call review" ready={files.includes('call-review.md')}>
+      {files.includes('call-review.md') ? <MaterialDocument id={j.id} file="call-review.md" />
+        : <CommandHandoff command="call-review" job={j} trailing="<transcript path>" label="Copy call review command" hint="Paste it into Claude Code and replace the placeholder with the call transcript path." />}
+    </MaterialRow> : null}
+    {(files.includes('call-review.md') || files.includes('proposal.md')) ? <MaterialRow label="Proposal" ready={files.includes('proposal.md')}>
+      {files.includes('proposal.md') ? <MaterialDocument id={j.id} file="proposal.md" />
+        : <CommandHandoff command="proposal" job={j} label="Copy proposal command" hint="Paste it into Claude Code to settle scope and price." />}
+    </MaterialRow> : null}
+
     {otherFiles.length ? <div className="material-other">
       <span>Other files</span>
       <div>{otherFiles.map(file => <a key={file} href={`/files/${j.id}/${file}`} target="_blank" rel="noopener">{FILE_LABEL[file] || file}</a>)}</div>
     </div> : null}
   </div>;
+}
+
+function PitchUrlEditor({ j, post, copy }: {
+  j: any;
+  post: (path: string, body: object) => Promise<boolean>;
+  copy: (value: string) => void;
+}) {
+  const [url, setUrl] = useState(j.pitch_url || '');
+  const [editing, setEditing] = useState(!j.pitch_url);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { setUrl(j.pitch_url || ''); setEditing(!j.pitch_url); }, [j.pitch_url]);
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+  const save = async () => {
+    const value = url.trim();
+    if (!value) return inputRef.current?.focus();
+    if (await post('/api/pitch', { id: j.id, url: value })) setEditing(false);
+  };
+  return <div className="public-link">
+    <div className="public-link-head">
+      <div><b>Public pitch URL</b><span>The client-ready link. The local preview above stays on this computer.</span></div>
+      {j.pitch_url && !editing ? <span className="public-link-ready">Ready</span> : null}
+    </div>
+    {editing ? <div className="video-input">
+      <input ref={inputRef} type="url" placeholder="https://your-pitch-page.com" value={url} aria-label="Public pitch URL"
+        onChange={event => setUrl(event.target.value)}
+        onKeyDown={event => { if (event.key === 'Enter') void save(); if (event.key === 'Escape' && j.pitch_url) setEditing(false); }} />
+      <button onClick={save}>Save URL</button>
+    </div> : <div className="material-actions">
+      <button className="primary" onClick={() => copy(j.pitch_url)}>Copy public link</button>
+      <a className="btn" href={j.pitch_url} target="_blank" rel="noopener">Open public page</a>
+      <button className="link" onClick={() => setEditing(true)}>Change</button>
+    </div>}
+  </div>;
+}
+
+function CommandHandoff({ command, job, label, hint, trailing = '' }: { command: string; job: any; label: string; hint: string; trailing?: string }) {
+  const { toast } = useCockpit();
+  const copy = () => navigator.clipboard.writeText(`/${command} ${job.id}${trailing ? ` ${trailing}` : ''}`).then(
+    () => toast(`${label.replace(/^Copy /, '')} copied.`),
+    () => toast(`Copy was blocked. Type /${command} in Claude Code instead.`),
+  );
+  return <div className="command-handoff"><p>{hint}</p><button onClick={copy}>{label}</button></div>;
 }
 
 function MaterialRow({ label, ready, defaultOpen, children }: { label: string; ready: boolean; defaultOpen?: boolean; children: ReactNode }) {
@@ -465,7 +553,8 @@ function VideoEditor({ j, post, copy }: {
   const [url, setUrl] = useState(j.video || '');
   const [replacing, setReplacing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const emb = j.video && embedUrl(j.video);
+  const ready = validVideoUrl(j.video);
+  const emb = ready ? embedUrl(j.video) : null;
   useEffect(() => { setUrl(j.video || ''); }, [j.video]);
   useEffect(() => { if (replacing) inputRef.current?.focus(); }, [replacing]);
   const save = async () => {
@@ -473,16 +562,16 @@ function VideoEditor({ j, post, copy }: {
     if (!value) return inputRef.current?.focus();
     if (await post('/api/video', { id: j.id, url: value })) setReplacing(false);
   };
-  if (!j.video || replacing) return <div className="video-input">
+  if (!ready || replacing) return <div className="video-input">
     <input
       ref={inputRef}
       placeholder="Paste the Loom share link"
       value={url}
       onChange={e => setUrl(e.target.value)}
-      onKeyDown={e => { if (e.key === 'Enter') void save(); if (e.key === 'Escape' && j.video) setReplacing(false); }}
+      onKeyDown={e => { if (e.key === 'Enter') void save(); if (e.key === 'Escape' && ready) setReplacing(false); }}
       aria-label="Video link"
     />
-    <button onClick={save}>{j.video ? 'Replace' : 'Save link'}</button>
+    <button onClick={save}>{ready ? 'Replace' : 'Save link'}</button>
   </div>;
   return <>
     {emb ? <div className="video"><iframe src={emb} allowFullScreen title="Video for this job" /></div> : null}
@@ -502,12 +591,33 @@ function VideoEditor({ j, post, copy }: {
 
 function ClientFiles({ j }: { j: any }) {
   const files: any[] = j.files || [];
+  const names = new Set(files.map(file => file.name));
+  const projectFiles = ['project.md', 'delivery.md', 'client-handover.md', 'review-request.md'];
+  const otherFiles = files.filter(file => !projectFiles.includes(file.name));
   return <section className="panel files-panel">
     <div className="panel-heading"><h2>Files</h2><span>{files.length}</span></div>
-    {files.length ? <div className="client-files">{files.map(file => <a className="client-file" key={file.name} href={`/files/${j.id}/${file.name}`} target="_blank" rel="noopener">
+    <div className="materials client-materials">
+      <MaterialRow label="Project brief" ready={names.has('project.md')} defaultOpen={names.has('project.md')}>
+        {names.has('project.md') ? <MaterialDocument id={j.id} file="project.md" />
+          : <CommandHandoff command="won" job={j} label="Copy project setup command" hint="Paste it into Claude Code with the contract details." />}
+      </MaterialRow>
+      <MaterialRow label="Delivery update" ready={names.has('delivery.md')}>
+        {names.has('delivery.md') ? <MaterialDocument id={j.id} file="delivery.md" /> : null}
+        <CommandHandoff command="delivery" job={j} trailing="update" label={names.has('delivery.md') ? 'Copy update command' : 'Copy delivery update command'} hint="Use this after checked work exists. Paste it into Claude Code with the latest client context." />
+      </MaterialRow>
+      <MaterialRow label="Client handover" ready={names.has('client-handover.md')}>
+        {names.has('client-handover.md') ? <MaterialDocument id={j.id} file="client-handover.md" /> : null}
+        <CommandHandoff command="delivery" job={j} trailing="handover" label="Copy handover command" hint="Paste it into Claude Code when the work is ready to hand over or the saved handover needs updating." />
+      </MaterialRow>
+      <MaterialRow label="Review request" ready={names.has('review-request.md')}>
+        {names.has('review-request.md') ? <MaterialDocument id={j.id} file="review-request.md" /> : null}
+        <CommandHandoff command="delivery" job={j} trailing="review" label="Copy review request command" hint="Paste it into Claude Code when the outcome has been delivered and the review request is appropriate." />
+      </MaterialRow>
+    </div>
+    {otherFiles.length ? <div className="client-files other-client-files">{otherFiles.map(file => <a className="client-file" key={file.name} href={`/files/${j.id}/${file.name}`} target="_blank" rel="noopener">
       <span><b>{FILE_LABEL[file.name] || file.name}</b>{FILE_LABEL[file.name] ? <small>{file.name}</small> : null}</span>
       <time>{stamp(file.at)}</time>
-    </a>)}</div> : <p className="quiet-empty">No files in this project yet.</p>}
+    </a>)}</div> : null}
   </section>;
 }
 
@@ -553,8 +663,12 @@ function Timeline({ j }: { j: any }) {
 }
 
 function Conversation({ j, inbox }: { j: any; inbox: boolean }) {
+  const { runCommand } = useCockpit();
   const messages = (j.thread && j.thread.messages) || [];
-  if (!messages.length) return <p className="empty">No conversation saved for this job yet.<br />{inbox ? 'Run /inbox to pull the thread.' : 'Once /inbox is built it pulls the client thread into this window.'}</p>;
+  if (!messages.length) return <div className="conversation-empty"><strong>No conversation saved yet</strong>
+    <p>{inbox ? 'Check Upwork for the first client reply.' : 'Inbox sync is not available yet.'}</p>
+    {inbox ? <button onClick={() => runCommand('inbox', j.id)}>Check for messages</button> : null}
+  </div>;
   let last = '';
   return <>{messages.map((message: any, index: number) => {
     const date = message.at ? day(message.at) : '';
@@ -585,7 +699,7 @@ function MessageText({ text }: { text: string }) {
 }
 
 function materialCount(j: any, files: string[]) {
-  return Number(files.includes('pitch.html')) + Number(files.includes('loom-script.md')) + Number(!!j.video) + Number(files.includes('application.md'));
+  return Number(files.includes('pitch.html')) + Number(files.includes('loom-script.md')) + Number(validVideoUrl(j.video)) + Number(files.includes('application.md'));
 }
 
 function oneLine(value: string) {

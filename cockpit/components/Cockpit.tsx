@@ -99,7 +99,13 @@ export function CockpitProvider({ token, children }: { token: string; children: 
   }, [api, load, toast]);
 
   const move = useCallback<CockpitApi['move']>((id, status, follow, note) => {
-    const body: Record<string, string> = { id, status };
+    const currentStatus = stateRef.current?.jobs?.find((job: any) => job.id === id)?.status;
+    if (status === 'won' && currentStatus !== 'won') {
+      const confirmed = window.confirm('Has the Upwork contract started? Only mark Won after it has.');
+      if (!confirmed) return Promise.resolve(false);
+    }
+    const body: Record<string, string | boolean> = { id, status };
+    if (status === 'won' && currentStatus !== 'won') body.contract_started = true;
     if (follow != null) body.follow_up = follow;
     if (note != null) body.note = note;
     return post('/api/status', body);
@@ -367,7 +373,8 @@ export function CockpitProvider({ token, children }: { token: string; children: 
         </div>
       </header>
       <main className="wrap">
-        {connectionLost ? <p className="empty">{CONNECTION_LOST}</p> : state ? children : <p className="empty">Loading.</p>}
+        {connectionLost ? <div className="empty-state" role="alert"><strong>Connection lost</strong><p>{CONNECTION_LOST}</p><button onClick={() => void load()}>Try again</button></div>
+          : state ? children : <p className="empty" role="status">Loading cockpit.</p>}
       </main>
       <Drawer />
       <RunsDock />

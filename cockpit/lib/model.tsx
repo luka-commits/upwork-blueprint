@@ -3,18 +3,32 @@
 // column the list can show. Ported from the first cockpit page, same rules.
 import React from 'react';
 import { useCockpit } from './context';
+import { calendarDate, todayIso } from './dates.mjs';
+export { todayIso } from './dates.mjs';
 
 export const STAGES = [
-  { key: 'new', label: 'Not applied', hint: 'found and scored, nothing sent', mix: 22 },
-  { key: 'applied', label: 'Applied', hint: 'sent, waiting for the client', mix: 48 },
-  { key: 'replied', label: 'In conversation', hint: 'the client wrote back', mix: 74 },
-  { key: 'offer', label: 'Offer', hint: 'an offer is on the table', mix: 100 },
+  { key: 'new', label: 'Not applied', hint: 'found and scored, nothing sent' },
+  { key: 'applied', label: 'Applied', hint: 'sent, waiting for the client' },
+  { key: 'replied', label: 'In conversation', hint: 'the client wrote back' },
+  { key: 'offer', label: 'Offer', hint: 'an offer is on the table' },
 ];
 export const ORDER = ['new', 'applied', 'replied', 'offer', 'won', 'lost', 'skipped'];
 export const CLOSED = ['won', 'lost', 'skipped'];
 export const LABEL: Record<string, string> = { new: 'Not applied', applied: 'Applied', replied: 'In conversation', offer: 'Offer', won: 'Won', lost: 'Lost', skipped: 'Skipped' };
 export const OPEN_LABELS = STAGES.map(s => s.label);
-export const FILE_LABEL: Record<string, string> = { 'pitch.html': 'Pitch page', 'application.md': 'Application', 'loom-script.md': 'Loom script' };
+export const FILE_LABEL: Record<string, string> = {
+  'pitch.html': 'Pitch page',
+  'application.md': 'Application',
+  'loom-script.md': 'Loom script',
+  'call-prep.md': 'Call prep',
+  'call-review.md': 'Call review',
+  'loom-review.md': 'Loom review',
+  'proposal.md': 'Proposal',
+  'project.md': 'Project brief',
+  'delivery.md': 'Delivery update',
+  'client-handover.md': 'Client handover',
+  'review-request.md': 'Review request',
+};
 export const TOOL_WORDS: Record<string, string> = {
   mcp__upwork__upwork__find_jobs: 'Searching Upwork', mcp__upwork__upwork__get_profile: 'Reading your Upwork profile',
   mcp__upwork__upwork__list_accounts: 'Connecting to Upwork', mcp__upwork__upwork__list_freelancer_proposals: 'Checking your proposals',
@@ -22,10 +36,9 @@ export const TOOL_WORDS: Record<string, string> = {
   Bash: 'Running', Glob: 'Looking through files', Grep: 'Looking through files', WebSearch: 'Searching the web', WebFetch: 'Reading a web page',
 };
 
-export const todayIso = () => new Date().toISOString().slice(0, 10);
 export function ago(iso?: string) { if (!iso) return '–'; const h = (Date.now() - +new Date(iso)) / 36e5; return h < 1 ? '<1h ago' : h < 24 ? `${Math.floor(h)}h ago` : `${Math.floor(h / 24)}d ago`; }
-export function day(iso?: string) { return iso ? new Date(iso).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) : ''; }
-export function short(iso?: string) { return iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''; }
+export function day(iso?: string) { return iso ? calendarDate(iso).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) : ''; }
+export function short(iso?: string) { return iso ? calendarDate(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''; }
 export function stamp(iso?: string) { return iso ? new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''; }
 export function money(n: any) { n = Number(n); if (!n) return ''; return n >= 1000 ? '$' + Math.round(n / 1000) + 'K' : '$' + Math.round(n); }
 export function firstNum(s: any): number | null { const m = String(s ?? '').replace(/,/g, '').match(/\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; }
@@ -56,6 +69,9 @@ export function embedUrl(url: string): string | null {
   m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{6,})/);
   return m ? `https://www.youtube-nocookie.com/embed/${m[1]}` : null;
 }
+export function validVideoUrl(url?: string): boolean {
+  return /^https:\/\/(?:www\.)?(?:loom\.com\/share\/[^\s/?#]+|youtube\.com\/watch\?v=[^\s&#]+|youtu\.be\/[^\s/?#]+)/.test(String(url || '').trim());
+}
 
 export type Filter = { kind: 'multi'; values: string[] } | { kind: 'range'; min: number | null; max: number | null };
 export const filterActive = (f?: Filter) => !!f && (f.kind === 'multi' ? f.values.length > 0 : f.min != null || f.max != null);
@@ -79,8 +95,8 @@ export function Flags({ j }: { j: any }) {
   const { state } = useCockpit();
   const d = j.details || {}, me = state?.me || {};
   return <>
-    {d.total_hired ? <span className="uw-flag gone">taken</span> : null}
-    {d.min_jss && me.jss != null && d.min_jss > me.jss ? <span className="uw-flag bar">below the bar</span> : null}
+    {d.total_hired ? <span className="uw-flag gone">{d.total_hired} hired</span> : null}
+    {d.min_jss && me.jss != null && d.min_jss > me.jss ? <span className="uw-flag bar">below preferred JSS</span> : null}
     {/FULL_TIME|30\+ hrs/i.test(j.engagement || d.engagement_type || '') ? <span className="uw-flag soft">full time</span> : null}
     {j.trap ? <span className="uw-flag soft">{j.trap}</span> : null}
   </>;
@@ -98,7 +114,7 @@ export function Comp({ j }: { j: any }) {
 export function StageSelect({ j }: { j: any }) {
   const { move } = useCockpit();
   return (
-    <select className="stage-select" aria-label="Stage" value={j.status}
+    <select className={`stage-select stage-${j.status}`} aria-label={`Stage for ${j.title || 'job'}`} value={j.status}
       onClick={e => e.stopPropagation()}
       onChange={e => { const s = e.target.value; move(j.id, s, s === 'applied' ? '+3d' : null, s === 'skipped' ? 'not a fit' : null); }}>
       {ORDER.map(k => <option key={k} value={k}>{LABEL[k]}</option>)}
@@ -169,6 +185,7 @@ export const COLS: Record<string, Col> = {
 
 /** The next thing to do on a job: its follow-up or its earliest dated task, whichever comes first. */
 export function nextTodo(j: any): { text: string; due: string | null } | null {
+  if (j.status === 'offer') return { text: 'Review the offer', due: null };
   const items: { text: string; due: string | null }[] = openTasks(j).map(t => ({ text: t.text, due: t.due || null }));
   if (j.next_follow_up && !ENDED.includes(j.status)) {
     const plan = j.follow_up_plan;
@@ -177,6 +194,17 @@ export function nextTodo(j: any): { text: string; due: string | null } | null {
     const text = lane ? `${lane[0].toUpperCase()}${lane.slice(1)} follow-up${position}` : j.status === 'won' ? 'Check in with the client' : 'Follow up';
     items.push({ text, due: j.next_follow_up });
   }
+  const files = new Set(j.artifacts || []);
+  const clientMessages = (j.thread?.messages || []).filter((message: any) => message?.kind !== 'event' && message?.from !== 'me');
+  const clientWaiting = !!j.thread?.room_id && j.thread?.awaiting_reply_from === 'you' && clientMessages.length > 0;
+  const callMentioned = clientMessages.some((message: any) => /\b(call|meeting|meet|zoom|interview|chat)\b/i.test(String(message.text || '')));
+  const stageAction = j.status === 'new'
+    ? !files.has('pitch.html') ? 'Make pitch page' : !validVideoUrl(j.video) ? 'Record Loom' : !files.has('application.md') ? 'Draft application' : 'Submit on Upwork'
+    : j.status === 'applied' ? 'Check for a reply'
+      : j.status === 'replied' ? clientWaiting ? 'Reply to the client' : !files.has('call-prep.md') ? callMentioned ? 'Prepare for the call' : 'Check latest messages' : !files.has('call-review.md') ? 'Review the call' : !files.has('proposal.md') ? 'Draft proposal' : 'Send proposal on Upwork'
+        : j.status === 'won' ? !files.has('project.md') ? 'Set up the project' : 'Add next delivery task'
+            : '';
+  if (stageAction) items.push({ text: stageAction, due: null });
   items.sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')));
   return items[0] || null;
 }
@@ -190,7 +218,7 @@ export function TodoCell({ j }: { j: any }) {
   const late = next.due && next.due <= todayIso();
   return <>{next.text}{next.due ? <span className="uw-sub" style={late ? { color: 'var(--red-deep)', fontWeight: 600 } : undefined}>{next.due === todayIso() ? 'today' : short(next.due)}</span> : null}</>;
 }
-COLS.todo = { label: 'To do', w: 190, asc: true, cell: j => <TodoCell j={j} />, sort: j => nextTodo(j)?.due || '9999', filter: 'multi', value: todoBucket };
+COLS.todo = { label: 'Next action', w: 190, asc: true, cell: j => <TodoCell j={j} />, sort: j => nextTodo(j)?.due || '9999', filter: 'multi', value: todoBucket };
 
 export type View = {
   name: string; layout: 'list' | 'board'; query: string;
@@ -206,7 +234,7 @@ export const SPACES: Record<'jobs', Space> = {
     title: 'Jobs', board: true, base: () => true,
     cols: Object.keys(COLS),
     presets: [
-      view('All open', { filters: { stage: { kind: 'multi', values: OPEN_LABELS } }, cols: ['score', 'job', 'client', 'comp', 'budget', 'posted', 'stage'] }),
+      view('All open', { filters: { stage: { kind: 'multi', values: OPEN_LABELS } }, cols: ['score', 'job', 'client', 'comp', 'budget', 'todo', 'stage'] }),
       view('To do', { filters: { todo: { kind: 'multi', values: ['Due now'] } }, cols: ['score', 'job', 'client', 'todo', 'stage'], sort: { id: 'todo', desc: false } }),
       view('To apply', { filters: { stage: { kind: 'multi', values: ['Not applied'] }, score: { kind: 'range', min: 60, max: null } },
         cols: ['score', 'job', 'client', 'comp', 'budget', 'boost', 'posted'], sort: { id: 'score', desc: true } }),

@@ -692,6 +692,99 @@
   -webkit-line-clamp: unset;
 }
 
+.application-review {
+  display: grid;
+  gap: 11px;
+}
+
+.application-handoff {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.application-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.application-facts div {
+  display: flex;
+  gap: 6px;
+  font-size: 11.5px;
+}
+
+.application-facts dt {
+  color: var(--text-3);
+}
+
+.application-facts dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 650;
+}
+
+.application-field {
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.application-facts + .application-field {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.application-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.application-field-head h4 {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 10px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.application-field-head button {
+  min-height: 27px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.application-question {
+  margin: 5px 0 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.application-copy {
+  max-height: 300px;
+  margin-top: 6px;
+  padding: 9px 10px;
+  overflow-y: auto;
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.application-actions {
+  margin-top: 0;
+}
+
 .lead-page .preview {
   height: 176px;
   border-radius: 8px;

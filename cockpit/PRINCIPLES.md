@@ -1,6 +1,7 @@
 # The cockpit: what it is for and how it is built
 
 Read this before changing anything in `cockpit/`. Every review and every build measures against it.
+The product goal lives in [`../VISION.md`](../VISION.md); this file applies it to the interface.
 
 ## The vision
 

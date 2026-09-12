@@ -56,8 +56,8 @@ export function NextStep({ j }: { j: any }) {
       <div className="next-secondary">{skip}</div>
     </div>;
     return <div className="next-step">
-      <p className="say">Everything is ready. Send it on Upwork yourself, then set the stage to Applied.{cost}</p>
-      {j.url ? <div className="next-primary"><a className="btn primary" href={j.url} target="_blank" rel="noopener">Open on Upwork to send</a></div> : null}
+      <p className="say">Everything is ready. Review the prepared application, submit it on Upwork, then set the stage to Applied.{cost}</p>
+      {j.url ? <div className="next-primary"><a className="btn primary" href={j.url} target="_blank" rel="noopener">Review and submit on Upwork</a></div> : null}
       <div className="next-secondary">{skip}</div>
     </div>;
   }

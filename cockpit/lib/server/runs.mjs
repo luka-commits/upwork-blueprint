@@ -23,9 +23,9 @@ export const RUNNABLE = {
     'mcp__upwork__upwork__list_freelancer_proposals', 'mcp__upwork__upwork__get_messages',
     'mcp__upwork__upwork__list_offers', 'mcp__upwork__upwork__list_contracts'] },
   'pitch-page': { prompt: '/pitch-page {job}', tools: [...FILES, ...UPWORK_READ, 'WebSearch', 'WebFetch'], job: true },
-  // The draft run makes the proposal preview (Connects price, boost bids) and
-  // stops. It never gets confirm_preview, so it cannot submit anything.
-  apply: { prompt: '/apply {job} --draft-only', job: true,
+  // The application run makes the proposal preview (Connects price, boost bids)
+  // and stops. The member submits on Upwork; this run never gets confirm_preview.
+  apply: { prompt: '/apply {job}', job: true,
     tools: [...FILES, ...UPWORK_READ, 'mcp__upwork__upwork__list_freelancer_proposals', 'mcp__upwork__upwork__manage_proposals'] },
   reply: { prompt: '/reply {job}', job: true, tools: [...FILES] },
   'send-reply': {
@@ -51,7 +51,7 @@ export const RUNNABLE = {
 // A button run has no chat to talk into, only the cockpit's status line. This makes
 // Claude say what it is doing and what it found, so that line stays current.
 export const NARRATE = 'You were started by a button in the cockpit. The member sees only a one-line status panel. '
-  + 'Write every status line and the final report in English. '
+  + 'Write every status line and the final report in English, even when source files or the member use another language. '
   + 'Before each step write one short plain sentence saying what you are doing now, and after each '
   + 'finding one sentence with what you found so far, with counts or names. No markdown in these lines. '
   + 'End with one sentence that says what changed and what the member should look at next.';

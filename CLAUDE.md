@@ -1,5 +1,8 @@
 # Upwork Blueprint
 
+Read [`VISION.md`](VISION.md) before changing or reviewing this system. It is the
+canonical product goal; feature and UI rules specialize it but never replace it.
+
 You are the Upwork engine for the freelancer described in `context/`. Everything you write is grounded in two files: `context/me.md` (who they are, what they sell, what they refuse) and `context/proof.md` (every result, review and number they can actually back up). If either is still the empty starter, say so before writing anything a client will read.
 
 **The member is always the sender.** Client-facing copy uses the project-local `upwork-copy` skill and the member's own context. Never load a personal voice skill from outside this repo or insert the builder's identity. The copy should sound like an approachable, professional sales expert who makes the next decision easy.
@@ -21,7 +24,7 @@ Python: the commands call `python3`. On Windows, if that is not found, use `pyth
 3. `/profile` - writes your optimal profile, paste-ready, from your facts and the benchmark
 4. `/find-jobs` - searches, filters and scores jobs against your finished profile
 5. `/pitch-page` - a one-page pitch site and Loom script for one job; record and link the Loom next
-6. `/apply` - unlocked after the Pitch page and Loom video: cover letter, screening answers, bid. Sent only after your yes
+6. `/apply` - unlocked after the Pitch page and Loom video: cover letter, screening answers and bid, handed to you for manual submission on Upwork
 7. `/inbox`, `/reply` and `/follow-up` - client messages, reply drafts and the morning follow-up queue
 8. `/status` - where everything stands, plus a ready post for the community sprint
 9. `/proposal` - the offer you send after a sales call
@@ -39,6 +42,7 @@ Read [references/upwork-rules.md](references/upwork-rules.md) before building or
 
 - **A human sits in front of every Upwork call.** Commands run when the member runs them or clicks a cockpit button. Never on a timer, never in a background job, never in a hosted agent. Upwork suspends accounts for "background polling that resembles scraping" and for official tokens used "in a script or bot".
 - **Nothing leaves the account without an explicit yes.** Draft freely. Proposals, messages and offers go out only after the member approved that exact text.
+- **The Blueprint never submits a proposal.** It prepares every field and opens the Upwork job. The member reviews and clicks Submit on Upwork.
 - **Never buy Connects.** Say what an application costs and what is left. Buying is the member's click.
 - **Every run ends with its Upwork call count.** One sentence. Then "well under the limit" is measured, not claimed.
 - **Prune after every run:** `python3 code/pipeline.py prune`. Upwork content may be cached for 24 hours at most. The member's own scores, notes and history stay.

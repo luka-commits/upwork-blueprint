@@ -1,6 +1,6 @@
 ---
-description: Writes the application for one job (cover letter, screening answers, bid), shows you exactly what goes out and what it costs, and submits only after your yes.
-argument-hint: "<job id> [--draft-only]"
+description: Prepares the full application for one job, including cover letter, screening answers, bid and costs, for manual review and submission on Upwork.
+argument-hint: "<job id>"
 ---
 
 # /apply
@@ -8,11 +8,11 @@ argument-hint: "<job id> [--draft-only]"
 Use the project-local `upwork-copy` skill for every line the client will read.
 The member described in `context/me.md` is the sender.
 
-The application itself. Early applications win, so this is fast, and it never sends on its own: you read the exact letter, the bid and the Connects price, then say yes or no.
+The application itself. Early applications win, so this is fast. The Blueprint
+prepares every field and the connector preview, then stops. The member reviews
+and submits the proposal on Upwork themselves.
 
 Read first: [references/upwork-rules.md](../../references/upwork-rules.md), the proposals section of [references/upwork-mcp.md](../../references/upwork-mcp.md), [references/profile-formula.md](../../references/profile-formula.md) (the proof tiers), `context/me.md`, `context/proof.md`.
-
-`--draft-only` (what the cockpit button runs): stop after Step 5. The preview is made and its facts saved, nothing is confirmed; that run cannot even call `confirm_preview`. The send happens in a session where you read the draft.
 
 ## Step 0 · The materials gate
 
@@ -42,7 +42,22 @@ List the posting's hard requirements ("built at least 5 sub-accounts for trades"
 6. **One specific ask that keeps the conversation on Upwork,** for example asking for their website, spec or current setup here.
 7. A short close.
 
-Screening answers go after a line `Screening answers`, each question in its exact wording, one or two sentences per answer. Save everything to `jobs/<id>/application.md`.
+Save everything to `jobs/<id>/application.md` in this exact shape so the cockpit
+can present each field separately:
+
+```markdown
+# Cover letter
+
+<the complete letter>
+
+# Screening answers
+
+## <the client's exact question>
+
+<one or two sentence answer>
+```
+
+Omit the Screening answers section when the job asks none.
 
 ## Step 4 · The gate
 
@@ -53,18 +68,26 @@ Screening answers go after a line `Screening answers`, each question in its exac
 1. `list_freelancer_proposals` action `invitations`: an invitation for this job means `accept_invitation` instead of `create`.
 2. `list_freelancer_proposals` action `list`: an existing proposal for this job means stop and say so.
 3. `manage_proposals` action `create` with `job_reference`, `cover_letter`, `charged_amount` (the member's rate unless they said otherwise) and the screening `answers`. **This returns a preview and submits nothing.**
-4. Save what the preview knows, so the cockpit shows it next to the job: `python3 code/pipeline.py detail <id> --file -` with one JSON object holding `connects_cost`, `connects_balance`, `boost_available`, `boost_reason`, `boost_top_bids` (the list of `current_top_bids`, highest first, or `null` when `current_top_bids_available` is false), `boost_recommended` (`recommended_connects`), `boost_max` (`max_boost_connects`), `boost_note`, `boost_recommendation` and `screening_questions`. Leave out what the preview did not return; never estimate a bid.
+4. Save what the preview knows, so the cockpit shows it next to the job: `python3 code/pipeline.py detail <id> --file -` with one JSON object holding `bid_amount` (the exact `charged_amount` used), `connects_cost`, `connects_balance`, `boost_available`, `boost_reason`, `boost_top_bids` (the list of `current_top_bids`, highest first, or `null` when `current_top_bids_available` is false), `boost_recommended` (`recommended_connects`), `boost_max` (`max_boost_connects`), `boost_note`, `boost_recommendation` and `screening_questions`. Leave out what the preview did not return; never estimate a bid.
 
-## Step 6 · Show it and ask
+## Step 6 · Prepare the manual handoff
 
-Present, in this order: the letter, the answers, the bid, **the Connects this costs and what is left**, any preferred qualification the member does not meet (advisory, it does not block), and the boost option with the real competing bids and the recommended amount (never offered when the preview says it is unavailable). Ask about attachments and which portfolio projects or certificates to highlight. Then ask for the yes.
+Present, in this order: the letter, the answers, the bid, **the Connects this costs and what is left**, any preferred qualification the member does not meet (advisory, it does not block), and the boost option with the real competing bids and the recommended amount (never offered when the preview says it is unavailable). State that no attachment or boost is selected by the Blueprint.
 
-## Step 7 · On yes, and only on yes
+The cockpit shows these as separate review fields with copy controls. Open the
+job's saved `url` on Upwork. The member clicks Apply, pastes the prepared fields,
+chooses attachments and any boost, reviews Upwork's final cost and clicks Submit.
 
-`confirm_preview` with type `proposal` and the preview id. Then `python3 code/pipeline.py set <id> applied --follow-up +3d`. The follow-up is a re-check, not a message: a freelancer cannot write first on a proposal. Verify with `list_freelancer_proposals` action `list` that it landed.
+Never call the proposal confirmation tool and never mark the job Applied before
+the member says they submitted it. After they confirm the manual submission, run
+`python3 code/pipeline.py set <id> applied --follow-up +3d`. The follow-up is a
+re-check, not a message: a freelancer cannot write first on a proposal.
 
-No yes, or a change requested: revise, run the gate again, create a new preview. Never Connects bought, never a boost the member did not name.
+If the member requests a change, revise, run the gate again and create a new
+preview. Never buy Connects and never select a boost.
 
-## Step 8 · Report
+## Step 7 · Report
 
-Completion report as CLAUDE.md defines it, with today's count against the daily target. Upwork call count.
+Completion report as CLAUDE.md defines it, with today's count against the daily
+target. The next action is manual review and submission on Upwork. Upwork call
+count.

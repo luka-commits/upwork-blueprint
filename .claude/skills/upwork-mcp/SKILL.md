@@ -37,8 +37,10 @@ untested.
 
 ## Gate writes
 
-Every write needs approval for the exact action and content. Profile and proposal
-previews remain unconfirmed until the member explicitly approves that preview.
+Every write needs approval for the exact action and content. Profile previews
+remain unconfirmed until the member explicitly approves them. Proposal previews
+are never confirmed by this Blueprint: the member reviews the prepared fields
+and submits the proposal on Upwork themselves.
 
 Messages use only the cockpit's dedicated `send-reply` run. The server freezes
 the approved text in `jobs/<id>/outbox.json`; the run sends it once, reads the

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
 import { useCockpit } from '@/lib/context';
+import { parseApplication } from '@/lib/application-review.mjs';
 import { BoostBlock, NextStep, TasksBlock } from './JobParts';
 import {
   CLOSED,
@@ -340,7 +341,7 @@ function Materials({ j, files }: { j: any; files: string[] }) {
 
     <MaterialRow label="Application" ready={applicationReady} defaultOpen={pitchReady && !applicationReady}>
       {applicationReady
-        ? <MaterialDocument id={j.id} file="application.md" />
+        ? <ApplicationReview j={j} />
         : canRun('apply') ? <>
           <button disabled={!applicationUnlocked} title={applicationBlocker || undefined} onClick={() => runCommand('apply', j.id)}>Draft application</button>
           {applicationBlocker ? <p className="material-note material-blocker">{applicationBlocker}</p> : null}
@@ -391,6 +392,68 @@ function MaterialDocument({ id, file }: { id: string; file: string }) {
       <a className="btn" href={`/files/${id}/${file}`} target="_blank" rel="noopener">Open</a>
     </div>
   </>;
+}
+
+function ApplicationReview({ j }: { j: any }) {
+  const { toast } = useCockpit();
+  const [text, setText] = useState('');
+  const [failed, setFailed] = useState(false);
+  const d = j.details || {};
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/files/${j.id}/application.md`).then(async response => {
+      if (cancelled) return;
+      if (!response.ok) { setFailed(true); return; }
+      setText(await response.text());
+    });
+    return () => { cancelled = true; };
+  }, [j.id]);
+  const copy = (value: string) => navigator.clipboard.writeText(value).then(
+    () => toast('Copied.'),
+    () => toast('Copy was blocked, select the text instead.'),
+  );
+  const application = parseApplication(text);
+  const facts = [
+    d.bid_amount != null ? ['Your bid', money(d.bid_amount)] : null,
+    d.connects_cost != null ? ['Connects', String(d.connects_cost)] : null,
+    d.connects_balance != null ? ['Balance', String(d.connects_balance)] : null,
+  ].filter(Boolean) as string[][];
+
+  if (failed) return <p className="material-note">Could not read the application file.</p>;
+  if (!text) return <p className="material-note">Loading application.</p>;
+  return <div className="application-review">
+    <p className="application-handoff">Copy the prepared fields into Upwork, review the final cost there, and submit it yourself. The Blueprint never submits proposals.</p>
+    {facts.length ? <dl className="application-facts">{facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : null}
+    <ApplicationField label="Cover letter" value={application.coverLetter} onCopy={copy} />
+    {application.answers.map((answer: any, index: number) => <ApplicationField
+      key={`${answer.question}-${index}`}
+      label={answer.question}
+      value={answer.answer}
+      onCopy={copy}
+      answer
+    />)}
+    <div className="material-actions application-actions">
+      {j.url ? <a className="btn primary" href={j.url} target="_blank" rel="noopener">Review and submit on Upwork</a> : null}
+      <a className="btn" href={`/files/${j.id}/application.md`} target="_blank" rel="noopener">Open text</a>
+    </div>
+  </div>;
+}
+
+function ApplicationField({ label, value, onCopy, answer = false }: {
+  label: string;
+  value: string;
+  onCopy: (value: string) => void;
+  answer?: boolean;
+}) {
+  if (!value) return null;
+  return <section className="application-field">
+    <div className="application-field-head">
+      <h4>{answer ? 'Screening question' : label}</h4>
+      <button onClick={() => onCopy(value)}>Copy {answer ? 'answer' : 'cover letter'}</button>
+    </div>
+    {answer ? <p className="application-question">{label}</p> : null}
+    <div className="application-copy">{value}</div>
+  </section>;
 }
 
 function VideoEditor({ j, post, copy }: {

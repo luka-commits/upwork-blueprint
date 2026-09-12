@@ -22,6 +22,11 @@ class ProjectSkillsTest(unittest.TestCase):
             text = (ROOT / '.claude' / 'commands' / f'{name}.md').read_text(encoding='utf-8')
             self.assertIn('upwork-copy', text, name)
 
+    def test_application_submission_stays_on_upwork(self):
+        text = (ROOT / '.claude' / 'commands' / 'apply.md').read_text(encoding='utf-8')
+        self.assertNotIn('confirm_preview', text)
+        self.assertIn('submits the proposal on Upwork', text)
+
 
 if __name__ == '__main__':
     unittest.main()

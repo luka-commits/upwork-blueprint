@@ -166,6 +166,25 @@ def check_frontmatter():
     return findings
 
 
+def check_vision():
+    findings = []
+    vision = ROOT / 'VISION.md'
+    if not vision.is_file():
+        return ['VISION.md is missing']
+    value = vision.read_text(encoding='utf-8')
+    for phrase in ('complete local Upwork operating system', 'No gimmicks', 'Review contract'):
+        if phrase not in value:
+            findings.append(f'VISION.md is missing "{phrase}"')
+    links = {
+        'CLAUDE.md': 'VISION.md',
+        'cockpit/PRINCIPLES.md': '../VISION.md',
+    }
+    for path, link in links.items():
+        if link not in (ROOT / path).read_text(encoding='utf-8'):
+            findings.append(f'{path} does not link to {link}')
+    return findings
+
+
 CHECKS = [
     ('personal data', check_leaks),
     ('language', check_language),
@@ -174,6 +193,7 @@ CHECKS = [
     ('script subcommands', check_subcommands),
     ('starters gitignored', check_starters_ignored),
     ('command frontmatter', check_frontmatter),
+    ('product vision', check_vision),
 ]
 
 

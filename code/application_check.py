@@ -9,7 +9,7 @@ Counts what can be counted, on the cover letter alone (screening answers after a
     300 to 400 words              a skimmed letter that still says enough
     none of the generic phrases   the tells that mark a letter as a template
     no em-dashes                  the fastest tell of machine writing
-    a video line                  it stays in even before the video exists
+    the saved Loom or YouTube URL the application links to the finished video
     at least 5 list items with a number, 7 is the target
     the job title in the first three sentences, when --job-title is given
     every past result number is in the proof file
@@ -29,7 +29,7 @@ import profile_checks as pc  # noqa: E402
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BANNED = ('i would love to', "i'm excited", 'i am excited', 'what stood out', 'passionate',
           'results-driven', 'i want in', 'rockstar', 'ninja', 'i hope this finds you')
-VIDEO = ('loom.com', '[loom link]', 'walkthrough', 'video')
+VIDEO = ('loom.com', 'youtu.be', 'youtube.com')
 RISK = ("you don't pay", 'you do not pay', 'risk-free', 'risk free', 'full refund', 'only pay',
         'approve each', 'milestones, not', 'milestone')
 ASK = ('send me', 'reply with', 'when works', 'let me know', 'tell me', 'here on upwork')
@@ -66,7 +66,7 @@ def check(text, job_title='', proof_text=''):
     if chr(0x2014) in text:
         fails.append('em-dash present: use a colon, comma or full stop')
     if not any(v in low for v in VIDEO):
-        fails.append('no video line: it stays in even when the video does not exist yet')
+        fails.append('no Loom or YouTube link: include the finished walkthrough URL')
     items = [LIST_MARKER.sub('', l.strip()) for l in letter.splitlines() if LIST_MARKER.match(l.strip())]
     numbered = [i for i in items if re.search(r'\d', i)]
     if len(numbered) < 5:

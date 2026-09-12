@@ -21,7 +21,7 @@ Here's what I'll deliver:
 4. A post-purchase flow with 1 review ask after 10 days
 5. A monthly report on the 5 numbers that matter
 
-I'll record a short video walking through the plan.
+Here is my walkthrough of the plan: https://www.loom.com/share/example
 
 I work in milestones, so you approve each phase before the next one.
 

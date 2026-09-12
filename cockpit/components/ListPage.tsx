@@ -1,14 +1,16 @@
 'use client';
 
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   COLS, GROUPS, Icon, LABEL, ORDER, SPACES, STAGES,
   DueChip, Score, View, Filter, ago, budgetText, clientText,
-  describeFilter, filterActive, isDue, wonAt,
+  describeFilter, filterActive, isDue, todoBucket,
 } from '@/lib/model';
 import { useCockpit } from '@/lib/context';
 
-type SpaceName = 'jobs' | 'clients';
+type SpaceName = 'jobs';
 type SpaceState = { view: View; saved: View[] };
 type SpacesState = Partial<Record<SpaceName, SpaceState>>;
 type Menu = 'views' | 'filters' | 'columns' | null;
@@ -69,6 +71,9 @@ export default function ListPage({ space }: { space: SpaceName }) {
   useEffect(() => {
     let spaces: SpacesState = {};
     try { spaces = JSON.parse(localStorage.getItem('cockpit-spaces') || '{}') || {}; } catch { spaces = {}; }
+    // A link like /?view=Clients opens that ready-made view, for example the way back from a client page.
+    const wanted = SPACES[space].presets.find(p => p.name === new URLSearchParams(window.location.search).get('view'));
+    if (wanted) spaces[space] = { view: clone(wanted), saved: spaces[space]?.saved || [] };
     try {
       const next = S(spaces, space);
       spacesRef.current = spaces;
@@ -182,9 +187,7 @@ export default function ListPage({ space }: { space: SpaceName }) {
   const sorted = (jobs: any[]) => {
     const sort = st.view.sort;
     if (!sort || !COLS[sort.id]) {
-      return jobs.sort(space === 'clients'
-        ? (a, b) => String(wonAt(b) || '').localeCompare(String(wonAt(a) || ''))
-        : byUrgency);
+      return jobs.sort(byUrgency);
     }
     const value = COLS[sort.id].sort;
     const direction = sort.desc ? -1 : 1;
@@ -200,7 +203,8 @@ export default function ListPage({ space }: { space: SpaceName }) {
   const page = Math.min(pageNo, pages - 1);
   const shown = jobs.slice(page * PAGE, (page + 1) * PAGE);
   const shownIds = shown.map((j: any) => String(j.id));
-  const noun = space === 'clients' ? 'client' : 'job';
+  const noun = 'job';
+  const dueNow = (state?.jobs || []).filter((j: any) => todoBucket(j) === 'Due now').length;
   const activeFilters = Object.entries(st.view.filters).filter(([, f]) => filterActive(f));
 
   useEffect(() => {
@@ -363,8 +367,11 @@ export default function ListPage({ space }: { space: SpaceName }) {
         </div> : null}
       </div>
 
+      {dueNow ? <button className="tool due-now" onClick={() => applyView(SPACES[space].presets.find(p => p.name === 'To do')!)}
+        title="Follow-ups and tasks due today or earlier">{dueNow} due now</button> : null}
+
       <label className="search-box"><span className="sr-only" hidden>Search</span><Icon name="search" size={15} />
-        <input type="search" id="search" placeholder={`Search ${space === 'clients' ? 'clients' : 'jobs'}, notes and tasks`} aria-label="Search" value={queryInput}
+        <input type="search" id="search" placeholder="Search jobs, clients, notes and tasks" aria-label="Search" value={queryInput}
           onChange={e => { const raw = e.target.value; setQueryInput(raw); setPageNo(0); update(draft => { draft.view.query = raw.trim(); }); }} />
       </label>
 
@@ -406,7 +413,7 @@ export default function ListPage({ space }: { space: SpaceName }) {
           ? <Table jobs={shown} st={st} drawerId={drawerId} selected={selected} setSelected={setSelected} menu={menu} colFilter={colFilter}
             openFilter={openFilter} toggleSort={toggleSort} rowClick={rowClick} rowKey={rowKey} liveWidth={liveWidth}
             resizeStart={resizeStart} dropCol={dropCol} onDragStart={columnDragStart} onDragOver={columnDragOver} onDrop={columnDrop} onDragEnd={columnDragEnd} />
-          : <p className="empty">{all ? 'Nothing matches this view. Loosen a filter or clear the search.' : space === 'clients' ? 'No clients yet. A job you set to Won shows up here.' : 'No jobs yet. Press Find jobs.'}</p>}
+          : <p className="empty">{all ? 'Nothing matches this view. Loosen a filter or clear the search.' : 'No jobs yet. Press Find jobs.'}</p>}
     </div>
   </div>;
 }
@@ -532,6 +539,7 @@ function Table({ jobs, st, drawerId, selected, setSelected, menu, colFilter, ope
   onDragStart: (e: React.DragEvent, id: string) => void; onDragOver: (e: React.DragEvent, id: string) => void;
   onDrop: (e: React.DragEvent, id: string) => void; onDragEnd: () => void;
 }) {
+  const router = useRouter();
   const ids = jobs.map(j => String(j.id));
   const allOn = ids.length > 0 && ids.every(id => selected.has(id));
   const width = (id: string) => liveWidth?.id === id ? liveWidth.width : st.view.widths[id] || COLS[id].w;
@@ -557,11 +565,14 @@ function Table({ jobs, st, drawerId, selected, setSelected, menu, colFilter, ope
       })}</tr></thead>
     <tbody>{jobs.map(j => {
       const id = String(j.id);
-      return <tr key={id} className={`uw-row${isDue(j) ? ' due' : ''}${id === drawerId ? ' sel' : ''}`} tabIndex={0} onClick={e => rowClick(e, id)} onKeyDown={e => rowKey(e, id)}>
+      // A click opens the side panel, a double click or the arrow opens the full page.
+      return <tr key={id} className={`uw-row${isDue(j) ? ' due' : ''}${id === drawerId ? ' sel' : ''}`} tabIndex={0} onClick={e => rowClick(e, id)} onKeyDown={e => rowKey(e, id)}
+        onDoubleClick={e => { if (!(e.target as Element).closest('a, button, select, input, label, .sel-cell')) router.push(`/job/${id}`); }}>
         <td className="sel-cell"><input type="checkbox" checked={selected.has(id)} onChange={e => setSelected(current => {
           const next = new Set(current); e.target.checked ? next.add(id) : next.delete(id); return next;
         })} aria-label={`Select ${j.title}`} /></td>
-        {st.view.cols.map(colId => <td key={colId} data-column={colId}>{COLS[colId].cell(j)}</td>)}
+        {st.view.cols.map(colId => <td key={colId} data-column={colId}>{COLS[colId].cell(j)}{colId === 'job'
+          ? <Link className="row-open" href={`/job/${id}`} aria-label={`Open ${j.title} on its full page`} title="Open full page" onClick={e => e.stopPropagation()}>↗</Link> : null}</td>)}
       </tr>;
     })}</tbody>
   </table></div></div>;
@@ -572,6 +583,7 @@ function Board({ jobs, drawerId, openDrawer, closeDrawer, move, dropStage, setDr
   move: (id: string, status: string, follow?: string | null, note?: string | null) => Promise<boolean>;
   dropStage: string | null; setDropStage: (s: string | null) => void;
 }) {
+  const router = useRouter();
   return <div className="board">{STAGES.map(stage => {
     const list = jobs.filter(j => j.status === stage.key);
     return <section key={stage.key} className={`col${dropStage === stage.key ? ' drop' : ''}`}
@@ -590,6 +602,7 @@ function Board({ jobs, drawerId, openDrawer, closeDrawer, move, dropStage, setDr
         return <li key={id} className={`card${isDue(j) ? ' due' : ''}${id === drawerId ? ' sel' : ''}`} draggable tabIndex={0}
           onDragStart={e => { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; }}
           onDragEnd={() => setDropStage(null)} onClick={() => drawerId === id ? closeDrawer() : openDrawer(id)}
+          onDoubleClick={() => router.push(`/job/${id}`)}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(id); } }}>
           <div className="card-top"><Score j={j} /><span className="card-title">{j.title}</span></div>
           <div className="card-meta">{[clientText(j), budgetText(j), ago(j.posted_date)].filter(Boolean).join(' · ')}</div><DueChip j={j} />

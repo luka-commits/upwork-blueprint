@@ -12,6 +12,7 @@ import {
   todayIso,
   wonAt,
 } from '@/lib/model';
+import './lead.css';
 
 export function NextStep({ j }: { j: any }) {
   const { state, move, runCommand } = useCockpit();
@@ -22,107 +23,116 @@ export function NextStep({ j }: { j: any }) {
   const files = j.artifacts || [];
   const canRun = (command: string) => !!state?.commands?.[command];
   useEffect(() => { if (reasonOpen) reasonRef.current?.focus(); }, [reasonOpen]);
-  const skip = (
-    <>
-      <button onClick={() => setReasonOpen(true)}>Not a fit</button>
-      <span className={`reason${reasonOpen ? ' open' : ''}`}>
+  const skip = <details className="action-more next-more">
+    <summary>More</summary>
+    <div className="action-menu">
+      {!reasonOpen ? <button onClick={() => setReasonOpen(true)}>Not a fit</button> : <div className="skip-reason">
         <input
           ref={reasonRef}
-          placeholder="Why not? One line teaches the next search"
+          placeholder="Why not?"
           aria-label="Reason"
           value={reason}
           onChange={e => setReason(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') void move(j.id, 'skipped', null, reason.trim() ? `not a fit: ${reason.trim()}` : 'not a fit'); }}
         />
         <button onClick={() => move(j.id, 'skipped', null, reason.trim() ? `not a fit: ${reason.trim()}` : 'not a fit')}>Skip it</button>
-      </span>
-    </>
-  );
+      </div>}
+    </div>
+  </details>;
 
   if (j.status === 'new') {
     const cost = d.connects_cost != null ? ` Applying costs ${d.connects_cost} Connects.` : '';
-    if (!files.includes('pitch.html')) return <>
+    if (!files.includes('pitch.html')) return <div className="next-step">
       <p className="say">Start with the pitch page, the application links to it.{cost}</p>
-      <div className="actions">
-        {canRun('pitch-page') ? <button className="primary" onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button> : null}
+      {canRun('pitch-page') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button></div> : null}
+      <div className="next-secondary">
         {canRun('apply') ? <button onClick={() => runCommand('apply', j.id)}>Draft application</button> : null}
         {skip}
       </div>
-    </>;
-    if (!files.includes('application.md')) return <>
+    </div>;
+    if (!files.includes('application.md')) return <div className="next-step">
       <p className="say">The pitch page is ready. Next, the application.{cost}</p>
-      <div className="actions">
-        {canRun('apply') ? <button className="primary" onClick={() => runCommand('apply', j.id)}>Draft application</button> : null}
-        {skip}
-      </div>
-    </>;
-    return <>
+      {canRun('apply') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('apply', j.id)}>Draft application</button></div> : null}
+      <div className="next-secondary">{skip}</div>
+    </div>;
+    return <div className="next-step">
       <p className="say">Everything is drafted. Record the Loom, send it on Upwork yourself, then set the stage to Applied.{cost}</p>
-      <div className="actions">
-        {j.url ? <a className="btn primary" href={j.url} target="_blank" rel="noopener">Open on Upwork to send</a> : null}
-        {skip}
-      </div>
-    </>;
+      {j.url ? <div className="next-primary"><a className="btn primary" href={j.url} target="_blank" rel="noopener">Open on Upwork to send</a></div> : null}
+      <div className="next-secondary">{skip}</div>
+    </div>;
   }
-  if (j.status === 'won') return <p className="say">Client since {day(wonAt(j))}. Keep what you owe them as tasks below.</p>;
-  if (CLOSED.includes(j.status)) return <>
+  if (j.status === 'won') return <div className="next-step"><p className="say">Client since {day(wonAt(j))}. Keep what you owe them as tasks below.</p></div>;
+  if (CLOSED.includes(j.status)) return <div className="next-step">
     <p className="say">{LABEL[j.status]}{j.notes ? `: ${j.notes}` : ''}.</p>
-    <div className="actions"><button onClick={() => move(j.id, 'new')}>Reopen</button></div>
-  </>;
-  if (isDue(j)) return <>
+    <div className="next-secondary"><details className="action-more next-more"><summary>More</summary>
+      <div className="action-menu"><button onClick={() => move(j.id, 'new')}>Reopen</button></div>
+    </details></div>
+  </div>;
+  if (isDue(j)) return <div className="next-step">
     <p className="say">Follow-up due. Check the proposal or the thread on Upwork and nudge the client there.</p>
-    <div className="actions">
-      <button onClick={() => move(j.id, j.status, '+3d')}>Followed up, next in 3 days</button>
+    <div className="next-primary"><button className="primary" onClick={() => move(j.id, j.status, '+3d')}>Followed up, next in 3 days</button></div>
+    <div className="next-secondary">
       {canRun('reply') ? <button onClick={() => runCommand('reply', j.id)}>Draft a reply</button> : null}
     </div>
-  </>;
-  return <>
+  </div>;
+  return <div className="next-step">
     <p className="say">Waiting on the client{j.next_follow_up ? `. Follow up on ${day(j.next_follow_up)}` : ''}.</p>
-    {canRun('reply') ? <div className="actions"><button onClick={() => runCommand('reply', j.id)}>Draft a reply</button></div> : null}
-  </>;
+    {canRun('reply') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('reply', j.id)}>Draft a reply</button></div> : null}
+  </div>;
 }
 
 export function TasksBlock({ j }: { j: any }) {
   const { post } = useCockpit();
   const [text, setText] = useState('');
   const [due, setDue] = useState('');
+  const [adding, setAdding] = useState(false);
   const textRef = useRef<HTMLInputElement>(null);
-  const tasks = (j.tasks || []).slice().sort((a: any, b: any) =>
-    (Number(!!a.done_at) - Number(!!b.done_at)) || String(a.due || '9999').localeCompare(String(b.due || '9999')));
-  const shown = tasks.filter((t: any) => !t.done_at).concat(tasks.filter((t: any) => t.done_at).slice(0, 3));
+  const tasks = (j.tasks || []).slice();
+  const open = tasks.filter((task: any) => !task.done_at)
+    .sort((a: any, b: any) => String(a.due || '9999').localeCompare(String(b.due || '9999')));
+  const done = tasks.filter((task: any) => !!task.done_at)
+    .sort((a: any, b: any) => String(b.done_at).localeCompare(String(a.done_at)));
+  useEffect(() => { if (adding) textRef.current?.focus(); }, [adding]);
 
   const add = async () => {
     const value = text.trim();
     if (!value) return textRef.current?.focus();
     const ok = await post('/api/task', { id: j.id, action: 'add', text: value, ...(due ? { due } : {}) });
-    if (ok) { setText(''); setDue(''); }
+    if (ok) { setText(''); setDue(''); setAdding(false); }
   };
 
-  return <>
+  const task = (t: any) => <li className={t.done_at ? 'done' : ''} key={t.id}>
+    <input
+      type="checkbox"
+      checked={!!t.done_at}
+      onChange={e => post('/api/task', { id: j.id, action: e.target.checked ? 'done' : 'reopen', task: t.id })}
+      aria-label={t.done_at ? `Reopen ${t.text}` : `Complete ${t.text}`}
+    />
+    <span>{t.text}</span>
+    <time className={`when${!t.done_at && t.due && t.due < todayIso() ? ' over' : ''}`}>{t.due ? short(t.due) : ''}</time>
+  </li>;
+
+  return <div className="tasks-block">
     <ul className="tasks">
-      {shown.length ? shown.map((t: any) => <li className={t.done_at ? 'done' : ''} key={t.id}>
-        <input
-          type="checkbox"
-          checked={!!t.done_at}
-          onChange={e => post('/api/task', { id: j.id, action: e.target.checked ? 'done' : 'reopen', task: t.id })}
-          aria-label="Done"
-        />
-        <span>{t.text}</span>
-        <span className={`when${!t.done_at && t.due && t.due < todayIso() ? ' over' : ''}`}>{t.due ? short(t.due) : ''}</span>
-      </li>) : <li className="note-sm">No tasks yet.</li>}
+      {open.length ? open.map(task) : <li className="tasks-empty">No open tasks.</li>}
     </ul>
-    <div className="task-add">
+    {done.length ? <details className="tasks-done">
+      <summary>Done · {done.length}</summary>
+      <ul className="tasks">{done.map(task)}</ul>
+    </details> : null}
+    {!adding ? <button className="task-add-toggle" onClick={() => setAdding(true)}>+ Add task</button> : <form className="task-add" onSubmit={e => { e.preventDefault(); void add(); }}>
       <input
         ref={textRef}
-        placeholder="Add a task"
+        placeholder="Task"
         aria-label="New task"
         value={text}
         onChange={e => setText(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') add(); }}
+        onKeyDown={e => { if (e.key === 'Escape') setAdding(false); }}
       />
-      <input type="date" aria-label="Due date" value={due} onChange={e => setDue(e.target.value)} />
-      <button onClick={add}>Add</button>
-    </div>
-  </>;
+      <input type="date" aria-label="Due date (optional)" value={due} onChange={e => setDue(e.target.value)} />
+      <button type="submit">Add</button>
+    </form>}
+  </div>;
 }
 
 export function BoostBlock({ d }: { d: any }) {

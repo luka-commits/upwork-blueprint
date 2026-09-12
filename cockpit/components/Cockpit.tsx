@@ -6,7 +6,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import Drawer from '@/components/Drawer';
 import RunsDock from '@/components/RunsDock';
 import { CockpitContext, type CockpitApi, type Made, type Run, type State } from '@/lib/context';
-import { FILE_LABEL, TOOL_WORDS, taskItems, todayIso } from '@/lib/model';
+import { FILE_LABEL, TOOL_WORDS, todoBucket } from '@/lib/model';
 
 type Snapshot = { jobs: Set<string>; files: Set<string> };
 type RunMeta = { before: Snapshot | null; narrated: boolean; controller: AbortController };
@@ -318,7 +318,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
   }), [api, closeDrawer, dismissRun, drawerId, load, move, openDrawer, post, runCommand, runs, state, stopRun, toast, token, toggleRunLog]);
 
   const jobs = state?.jobs || [];
-  const due = state ? taskItems(jobs).filter(item => item.due && item.due <= todayIso()).length : 0;
+  const due = state ? jobs.filter((job: any) => todoBucket(job) === 'Due now').length : 0;
   const updated = state?.generated_at ? new Date(state.generated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   // How fresh the list is against Upwork. The poll re-renders often enough to keep the minutes honest.
   const syncedAt = state?.sync?.synced_at;
@@ -334,14 +334,9 @@ export function CockpitProvider({ token, children }: { token: string; children: 
         <div className="top-inner">
           <span className="brand">Upwork Cockpit</span>
           <nav className="tabs" aria-label="Sections">
-            <Link href="/" aria-current={pathname === '/' ? 'page' : undefined}>Jobs</Link>
-            <Link href="/clients" aria-current={pathname === '/clients' ? 'page' : undefined}>
-              Clients <span className="count">{jobs.filter((job: any) => job.status === 'won').length}</span>
-            </Link>
-            <Link href="/tasks" aria-current={pathname === '/tasks' ? 'page' : undefined}>
-              Tasks{due ? <span className="badge">{due}</span> : null}
-            </Link>
-            <Link href="/numbers" aria-current={pathname === '/numbers' ? 'page' : undefined}>Numbers</Link>
+            <Link href="/" aria-current={pathname === '/' ? 'page' : undefined}>Leads{due ? <span className="badge" title="Due today or earlier">{due}</span> : null}</Link>
+            <Link href="/analytics" aria-current={pathname === '/analytics' ? 'page' : undefined}>Analytics</Link>
+            <Link href="/commands" aria-current={pathname === '/commands' ? 'page' : undefined}>Commands</Link>
           </nav>
           <div className="spacer" />
           <span className="stamp">{updated ? `updated ${updated}` : ''}</span>

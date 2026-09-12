@@ -1,8 +1,14 @@
 // npm test (inside cockpit/): the rules a button run lives by.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
-import { RUNNABLE, RUNS, parseEvent, stopRun, track } from './runs.mjs';
+
+// Finished runs are written to data/runs; the tests write to a throwaway folder instead.
+process.env.BLUEPRINT_DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'cockpit-runs-'));
+const { RUNNABLE, RUNS, history, parseEvent, stopRun, track } = await import('./runs.mjs');
 
 test('no button can submit anything to Upwork', () => {
   for (const [name, spec] of Object.entries(RUNNABLE)) {
@@ -42,4 +48,6 @@ test('a run that ends without a result still ends', async () => {
   const run = RUNS.get(id);
   assert.ok(run.done && run.error);
   assert.match(run.events.at(-1).text, /exit code 3/);
+  const saved = history().find(r => r.id === id);
+  assert.ok(saved && saved.error && /exit code 3/.test(saved.result));
 });

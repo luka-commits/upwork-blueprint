@@ -242,7 +242,19 @@ def npm(*args):
     return [exe, *args], os.name == 'nt'
 
 
+def port_busy(port):
+    import socket
+    with socket.socket() as s:
+        return s.connect_ex(('127.0.0.1', port)) == 0
+
+
 def serve(port, open_browser):
+    # An older cockpit still holding the port would answer for us with stale files
+    # and a page stuck on "Loading.", so a busy port stops the start instead.
+    if port_busy(port):
+        print(f'Port {port} is taken, most likely by a cockpit that is still running. '
+              f'Stop that one (Ctrl+C in its terminal) or start this one with --port {port + 1}.', file=sys.stderr)
+        return 1
     if not (APP / 'node_modules').is_dir():
         print('First start: installing the cockpit (about a minute, only this once).')
         cmd, shell = npm('install', '--no-audit', '--no-fund')

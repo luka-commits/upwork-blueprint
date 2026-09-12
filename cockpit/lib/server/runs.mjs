@@ -92,10 +92,35 @@ export function track(name, job, child) {
     run.error = !!last?.error;
     run.ended = Date.now() / 1000;
     run.done = true;
+    remember(run, last?.text || '');
   };
   child.on('close', code => finish(code ?? 1));
   child.on('error', err => { run.events.push({ kind: 'error', text: String(err.message || err) }); finish(1); });
   return id;
+}
+
+// Finished runs outlive the server, so the Commands page can show what each one did.
+export const RUNS_DIR = path.join(process.env.BLUEPRINT_DATA || path.join(ROOT, 'data'), 'runs');
+const KEEP_RUNS = 50;
+
+function remember(run, result) {
+  try {
+    fs.mkdirSync(RUNS_DIR, { recursive: true });
+    const log = run.events.filter(e => e.kind === 'text' || e.kind === 'tool' || e.kind === 'error').slice(-200)
+      .map(e => ({ kind: e.kind, text: e.kind === 'tool' && e.detail ? `${e.text} · ${e.detail}` : e.text }));
+    fs.writeFileSync(path.join(RUNS_DIR, `${run.id}.json`), JSON.stringify({ ...summary(run), result, log }, null, 1));
+    const files = fs.readdirSync(RUNS_DIR).filter(f => f.endsWith('.json'))
+      .map(f => ({ f, t: fs.statSync(path.join(RUNS_DIR, f)).mtimeMs })).sort((a, b) => b.t - a.t);
+    for (const { f } of files.slice(KEEP_RUNS)) fs.unlinkSync(path.join(RUNS_DIR, f));
+  } catch { /* the run itself is done either way */ }
+}
+
+export function history() {
+  try {
+    return fs.readdirSync(RUNS_DIR).filter(f => f.endsWith('.json'))
+      .map(f => JSON.parse(fs.readFileSync(path.join(RUNS_DIR, f), 'utf-8')))
+      .sort((a, b) => (b.started || 0) - (a.started || 0));
+  } catch { return []; }
 }
 
 export function startRun(name, job) {

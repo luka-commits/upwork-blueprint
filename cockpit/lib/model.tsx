@@ -164,6 +164,25 @@ export const COLS: Record<string, Col> = {
   found: { label: 'Found', w: 100, cell: j => ago(j.found_at), sort: j => j.found_at || '', filter: 'multi', value: j => ageBucket(j.found_at) },
 };
 
+/** The next thing to do on a job: its follow-up or its earliest dated task, whichever comes first. */
+export function nextTodo(j: any): { text: string; due: string | null } | null {
+  const items: { text: string; due: string | null }[] = openTasks(j).map(t => ({ text: t.text, due: t.due || null }));
+  if (j.next_follow_up && !CLOSED.includes(j.status)) items.push({ text: j.status === 'won' ? 'Check in with the client' : 'Follow up', due: j.next_follow_up });
+  items.sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')));
+  return items[0] || null;
+}
+export const todoBucket = (j: any) => {
+  const next = nextTodo(j);
+  return !next ? 'Nothing planned' : next.due && next.due <= todayIso() ? 'Due now' : 'Planned';
+};
+export function TodoCell({ j }: { j: any }) {
+  const next = nextTodo(j);
+  if (!next) return <Dash />;
+  const late = next.due && next.due <= todayIso();
+  return <>{next.text}{next.due ? <span className="uw-sub" style={late ? { color: 'var(--red-deep)', fontWeight: 600 } : undefined}>{next.due === todayIso() ? 'today' : short(next.due)}</span> : null}</>;
+}
+COLS.todo = { label: 'To do', w: 190, asc: true, cell: j => <TodoCell j={j} />, sort: j => nextTodo(j)?.due || '9999', filter: 'multi', value: todoBucket };
+
 export type View = {
   name: string; layout: 'list' | 'board'; query: string;
   filters: Record<string, Filter>; cols: string[]; widths: Record<string, number>;
@@ -172,32 +191,25 @@ export type View = {
 export type Space = { title: string; board: boolean; base: (j: any) => boolean; cols: string[]; presets: View[] };
 
 const view = (name: string, v: Partial<View>): View => ({ name, layout: 'list', query: '', filters: {}, cols: [], widths: {}, sort: null, ...v });
-export const SPACES: Record<'jobs' | 'clients', Space> = {
+// One list for everything: leads, clients and what is due are views of it, not tabs (Luka, 12 September).
+export const SPACES: Record<'jobs', Space> = {
   jobs: {
-    title: 'Jobs', board: true, base: j => j.status !== 'won',
-    cols: Object.keys(COLS).filter(k => k !== 'won'),
+    title: 'Jobs', board: true, base: () => true,
+    cols: Object.keys(COLS),
     presets: [
       view('All open', { filters: { stage: { kind: 'multi', values: OPEN_LABELS } }, cols: ['score', 'job', 'client', 'comp', 'budget', 'posted', 'stage'] }),
+      view('To do', { filters: { todo: { kind: 'multi', values: ['Due now'] } }, cols: ['score', 'job', 'client', 'todo', 'stage'], sort: { id: 'todo', desc: false } }),
       view('To apply', { filters: { stage: { kind: 'multi', values: ['Not applied'] }, score: { kind: 'range', min: 60, max: null } },
         cols: ['score', 'job', 'client', 'comp', 'budget', 'boost', 'posted'], sort: { id: 'score', desc: true } }),
-      view('Follow-ups', { filters: { stage: { kind: 'multi', values: OPEN_LABELS }, followup: { kind: 'multi', values: ['Overdue', 'Today'] } },
-        cols: ['score', 'job', 'client', 'followup', 'tasks', 'stage'], sort: { id: 'followup', desc: false } }),
-      view('In play', { filters: { stage: { kind: 'multi', values: ['Applied', 'In conversation', 'Offer'] } }, cols: ['score', 'job', 'client', 'budget', 'followup', 'tasks', 'stage'] }),
+      view('In play', { filters: { stage: { kind: 'multi', values: ['Applied', 'In conversation', 'Offer'] } }, cols: ['score', 'job', 'client', 'budget', 'todo', 'stage'] }),
+      view('Clients', { filters: { stage: { kind: 'multi', values: ['Won'] } }, cols: ['job', 'client', 'won', 'todo', 'files'], sort: { id: 'won', desc: true } }),
       view('Closed', { filters: { stage: { kind: 'multi', values: ['Lost', 'Skipped'] } }, cols: ['score', 'job', 'client', 'found', 'stage'], sort: { id: 'found', desc: true } }),
-    ],
-  },
-  clients: {
-    title: 'Clients', board: false, base: j => j.status === 'won',
-    cols: Object.keys(COLS).filter(k => !['stage', 'followup', 'boost', 'comp', 'posted'].includes(k)),
-    presets: [
-      view('All clients', { cols: ['job', 'client', 'won', 'tasks', 'files'], sort: { id: 'won', desc: true } }),
-      view('Tasks due', { filters: { tasks: { kind: 'multi', values: ['Task due'] } }, cols: ['job', 'client', 'tasks', 'won'], sort: { id: 'tasks', desc: false } }),
     ],
   },
 };
 
 export const GROUPS = [
-  { title: 'Job', cols: ['score', 'job', 'stage', 'followup', 'tasks', 'files', 'posted', 'found', 'won'] },
+  { title: 'Job', cols: ['score', 'job', 'stage', 'todo', 'followup', 'tasks', 'files', 'posted', 'found', 'won'] },
   { title: 'Client', cols: ['client', 'country', 'spent'] },
   { title: 'Deal', cols: ['budget', 'comp', 'connects', 'boost', 'engagement', 'fit'] },
 ];

@@ -7,6 +7,7 @@ import Drawer from '@/components/Drawer';
 import RunsDock, { runTitle } from '@/components/RunsDock';
 import { CockpitContext, type CockpitApi, type Made, type Run, type State } from '@/lib/context';
 import { FILE_LABEL, TOOL_WORDS, todoBucket } from '@/lib/model';
+import { followRunStream, RECONNECTING_RUN, RUN_TRACKING_LOST } from '@/lib/run-stream.mjs';
 
 type Snapshot = { jobs: Set<string>; files: Set<string> };
 type RunMeta = { before: Snapshot | null; narrated: boolean; controller: AbortController };
@@ -216,35 +217,32 @@ export function CockpitProvider({ token, children }: { token: string; children: 
       }
     };
 
-    void (async () => {
-      try {
-        const response = await fetch(`/api/run/${id}`, {
+    void followRunStream({
+      signal: controller.signal,
+      openStream: signal => fetch(`/api/run/${id}`, {
+        headers: { 'X-Cockpit-Token': token },
+        signal,
+      }),
+      inspectRun: async signal => {
+        const response = await fetch('/api/runs', {
           headers: { 'X-Cockpit-Token': token },
-          signal: controller.signal,
+          signal,
         });
-        if (!response.ok || !response.body) return;
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        while (true) {
-          const { value, done } = await reader.read();
-          buffer += decoder.decode(value, { stream: !done });
-          let boundary = buffer.indexOf('\n\n');
-          while (boundary !== -1) {
-            const frame = buffer.slice(0, boundary);
-            buffer = buffer.slice(boundary + 2);
-            const data = frame.startsWith('data: ') ? frame.slice(6) : '';
-            if (data) {
-              try { await onEvent(JSON.parse(data)); } catch { /* Ignore one malformed stream frame. */ }
-            }
-            boundary = buffer.indexOf('\n\n');
-          }
-          if (done) break;
-        }
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === 'AbortError')) return;
-      }
-    })();
+        if (!response.ok) return null;
+        const items = await response.json().catch(() => null);
+        return Array.isArray(items) ? items.some(item => item?.id === id) : null;
+      },
+      onEvent,
+      onReconnect: () => update(current => current.done ? current : { ...current, status: RECONNECTING_RUN }),
+      onLost: () => update(current => ({
+        ...current,
+        done: true,
+        error: true,
+        t1: current.t1 || Date.now(),
+        status: RUN_TRACKING_LOST,
+        log: [...current.log, { kind: 'error', text: RUN_TRACKING_LOST }],
+      })),
+    });
   }, [load, notify, publishRuns, token]);
 
   const runCommand = useCallback<CockpitApi['runCommand']>((command, job = null) => {

@@ -128,7 +128,9 @@ def cmd_apply(args):
             'fetched_at': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),
             'room_id': t.get('room_id'), 'awaiting_reply_from': t.get('awaiting_reply_from'),
             'messages': thread_io.normalize(t.get('messages') or [])}, indent=2, ensure_ascii=False), encoding='utf-8')
-        if t.get('awaiting_reply_from') == 'you' and job.get('status') not in pipeline.CLOSED:
+        if t.get('awaiting_reply_from') == 'you' and job.get('status') not in ('lost', 'skipped'):
+            if job.get('follow_up_plan'):
+                run_pipeline('follow-up', jid, 'clear', '--reason', 'The client replied; review the new message first.')
             if run_pipeline('set', jid, job['status'], '--follow-up', today):
                 waiting.append(jid)
 

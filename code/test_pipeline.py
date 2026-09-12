@@ -45,6 +45,18 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         return r
 
+    def room(self, job_id='J1'):
+        folder = self.jobdir / job_id
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / 'thread.json').write_text(json.dumps({'room_id': 'room-1', 'messages': []}), encoding='utf-8')
+
+    def confirmed(self, stamp, job_id='J1'):
+        folder = self.jobdir / job_id
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / 'outbox.json').write_text(json.dumps({
+            'job_id': job_id, 'confirmed_at': stamp, 'text': 'Approved text',
+        }), encoding='utf-8')
+
     def test_add_stamps_and_skips_duplicates(self):
         self.add({'id': 'J1', 'title': 'Build a funnel', 'score': 80})
         job = self.data()[0]
@@ -91,6 +103,49 @@ class PipelineTest(unittest.TestCase):
         job = self.data()[0]
         self.assertIsNone(job['next_follow_up'])
         self.assertEqual([h['status'] for h in job['history']], ['new', 'applied', 'lost'])
+
+    def test_follow_up_sequence_advances_on_business_days_and_stops(self):
+        self.add({'id': 'J1'})
+        self.run_cli('set', 'J1', 'replied')
+        self.room()
+        r = self.run_cli('follow-up', 'J1', 'plan', '--lane', 'warm',
+                         '--due', '2026-09-14', '--reason', '  They reviewed the solution  ')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        job = self.data()[0]
+        self.assertEqual(job['follow_up_plan']['step'], 1)
+        self.assertEqual(job['next_follow_up'], '2026-09-14')
+
+        self.confirmed('2026-09-18T12:00:00+00:00')
+        self.run_cli('follow-up', 'J1', 'sent', '--on', '2026-09-18')
+        job = self.data()[0]
+        self.assertEqual(job['follow_up_plan']['step'], 2)
+        self.assertEqual(job['next_follow_up'], '2026-09-25')
+        repeated = self.run_cli('follow-up', 'J1', 'sent', '--on', '2026-09-18')
+        self.assertIn('already recorded', repeated.stdout)
+        self.assertEqual(self.data()[0]['follow_up_plan']['step'], 2)
+        self.confirmed('2026-09-25T12:00:00+00:00')
+        self.run_cli('follow-up', 'J1', 'sent', '--on', '2026-09-25')
+        self.assertEqual(self.data()[0]['next_follow_up'], '2026-10-09')
+        self.confirmed('2026-10-09T12:00:00+00:00')
+        self.run_cli('follow-up', 'J1', 'sent', '--on', '2026-10-09')
+        job = self.data()[0]
+        self.assertIsNone(job['next_follow_up'])
+        self.assertNotIn('follow_up_plan', job)
+        self.assertEqual([item['step'] for item in job['follow_up_history']], [1, 2, 3])
+
+    def test_follow_up_lanes_match_pipeline_stage(self):
+        self.add({'id': 'J1'})
+        self.assertEqual(self.run_cli('follow-up', 'J1', 'plan', '--lane', 'warm',
+                                     '--due', '2026-09-14', '--reason', 'No room').returncode, 1)
+        self.run_cli('set', 'J1', 'won')
+        self.room()
+        self.assertEqual(self.run_cli('follow-up', 'J1', 'plan', '--lane', 'warm',
+                                     '--due', '2026-09-14', '--reason', 'Past client').returncode, 1)
+        self.assertEqual(self.run_cli('follow-up', 'J1', 'plan', '--lane', 'reactivation',
+                                     '--due', '2026-09-14', '--reason', 'Past client').returncode, 0)
+        self.run_cli('follow-up', 'J1', 'clear', '--reason', 'Moved to another channel')
+        self.assertNotIn('follow_up_plan', self.data()[0])
+        self.assertIsNone(self.data()[0]['next_follow_up'])
 
     def test_same_status_twice_adds_no_history(self):
         self.add({'id': 'J1'})

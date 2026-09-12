@@ -13,6 +13,9 @@ Usage:
     python3 code/pipeline.py add --file <records.json>|- [--dry-run]
     python3 code/pipeline.py detail <job_id> --file <details.json>|-
     python3 code/pipeline.py set <job_id> <status> [--follow-up +3d|YYYY-MM-DD] [--note "..."]
+    python3 code/pipeline.py follow-up <job_id> plan --lane <lane> --due <date> --reason "..."
+    python3 code/pipeline.py follow-up <job_id> sent [--on YYYY-MM-DD]
+    python3 code/pipeline.py follow-up <job_id> clear --reason "..."
     python3 code/pipeline.py note <job_id> "what happened"
     python3 code/pipeline.py video <job_id> <loom or youtube link>|-
     python3 code/pipeline.py task <job_id> add "what to do" [--due +2d|YYYY-MM-DD]
@@ -37,6 +40,16 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 STATUSES = ('new', 'applied', 'replied', 'offer', 'won', 'lost', 'skipped')
 ACTIVE = ('applied', 'replied', 'offer')
 CLOSED = ('won', 'lost', 'skipped')
+
+# Gaps after each sent follow-up, in business days. Step one is scheduled by
+# the reviewer from the conversation. Later steps are mechanical so a missed
+# morning cannot silently stretch or compress the sequence.
+FOLLOW_UP_GAPS = {
+    'hot': (1, 3, 7),
+    'warm': (2, 5, 10),
+    'light': (3, 7),
+    'reactivation': (30, 60),
+}
 
 # Untouched jobs beyond this many fall out when new ones arrive, oldest first.
 # Anything a human moved past "new" is live pipeline and never falls out.
@@ -127,6 +140,17 @@ def parse_follow_up(value):
         return datetime.date.fromisoformat(value).isoformat()
     except ValueError:
         abort(f'--follow-up expects +Nd or YYYY-MM-DD, got: {value}')
+
+
+def add_business_days(day, count):
+    """Move forward by weekdays. Upwork conversations do not need holiday calendars."""
+    current = day
+    added = 0
+    while added < count:
+        current += datetime.timedelta(days=1)
+        if current.weekday() < 5:
+            added += 1
+    return current
 
 
 def trim(jobs):
@@ -234,11 +258,104 @@ def cmd_set(args):
         job['next_follow_up'] = parse_follow_up(args.follow_up)
     elif args.status in CLOSED:
         job['next_follow_up'] = None
+        job.pop('follow_up_plan', None)
     if args.note:
         job['notes'] = (job.get('notes', '') + ' ' + args.note).strip()
     save(jobs)
     follow = f' (follow up {job["next_follow_up"]})' if job.get('next_follow_up') else ''
     print(f'{job["id"]} -> {args.status}{follow}')
+
+
+def cmd_follow_up(args):
+    """Plan, advance or stop a context-chosen follow-up sequence."""
+    jobs = load()
+    job = find(jobs, args.job_id)
+
+    if args.action == 'plan':
+        if not args.lane or not args.due:
+            abort('plan needs --lane and --due.')
+        try:
+            thread = json.loads((jobs_dir() / args.job_id / 'thread.json').read_text(encoding='utf-8'))
+        except (OSError, json.JSONDecodeError):
+            abort('sync this conversation before planning a follow-up.')
+        if not str(thread.get('room_id') or '').strip():
+            abort('this conversation has no room; a freelancer cannot message first.')
+        lane = args.lane
+        if lane == 'reactivation' and job.get('status') != 'won':
+            abort('reactivation is only for a previous or current client in won.')
+        if lane != 'reactivation' and job.get('status') not in ('replied', 'offer'):
+            abort('sales follow-ups need a replied or offer lead; applied proposals cannot message first.')
+        due = parse_follow_up(args.due)
+        reason = ' '.join((args.reason or '').split())
+        if not reason:
+            abort('a follow-up plan needs the conversation-based reason.')
+        job['follow_up_plan'] = {
+            'lane': lane,
+            'step': 1,
+            'max_steps': len(FOLLOW_UP_GAPS[lane]),
+            'reason': reason[:500],
+            'reviewed_at': now_iso(),
+        }
+        job['next_follow_up'] = due
+        save(jobs)
+        print(f'{args.job_id}: {lane} follow-up 1 of {len(FOLLOW_UP_GAPS[lane])} due {due}.')
+        return
+
+    if args.action == 'clear':
+        reason = ' '.join((args.reason or '').split())
+        job.pop('follow_up_plan', None)
+        job['next_follow_up'] = None
+        if reason:
+            job.setdefault('follow_up_history', []).append({
+                'action': 'cleared', 'at': now_iso(), 'reason': reason[:500],
+            })
+        save(jobs)
+        print(f'{args.job_id}: follow-up sequence cleared.')
+        return
+
+    plan = job.get('follow_up_plan')
+    if not isinstance(plan, dict):
+        print(f'{args.job_id}: no active follow-up sequence.')
+        return
+    try:
+        outbox = json.loads((jobs_dir() / args.job_id / 'outbox.json').read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError):
+        abort(f'{args.job_id}: no confirmed send exists for this follow-up.')
+    confirmation = str(outbox.get('confirmed_at') or '')
+    if not confirmation or str(outbox.get('job_id') or '') != args.job_id:
+        abort(f'{args.job_id}: no confirmed send exists for this follow-up.')
+    if confirmation < str(plan.get('reviewed_at') or ''):
+        abort(f'{args.job_id}: the confirmed send predates this follow-up plan.')
+    if any(entry.get('confirmation') == confirmation for entry in job.get('follow_up_history') or []):
+        print(f'{args.job_id}: this confirmed follow-up was already recorded.')
+        return
+    lane = plan.get('lane')
+    gaps = FOLLOW_UP_GAPS.get(lane)
+    step = plan.get('step')
+    if not gaps or not isinstance(step, int) or not 1 <= step <= len(gaps):
+        abort(f'{args.job_id}: follow-up plan is invalid; clear it and review the conversation again.')
+    try:
+        sent_day = datetime.date.fromisoformat(args.on) if args.on else datetime.date.today()
+    except ValueError:
+        abort('--on expects YYYY-MM-DD.')
+    stamp = now_iso()
+    job.setdefault('follow_up_history', []).append({
+        'action': 'sent', 'at': stamp, 'on': sent_day.isoformat(), 'lane': lane, 'step': step,
+        'confirmation': confirmation,
+    })
+    if step == len(gaps):
+        job.pop('follow_up_plan', None)
+        job['next_follow_up'] = None
+        message = f'{args.job_id}: {lane} sequence complete after follow-up {step}.'
+    else:
+        next_step = step + 1
+        due = add_business_days(sent_day, gaps[next_step - 1]).isoformat()
+        plan['step'] = next_step
+        plan['reviewed_at'] = stamp
+        job['next_follow_up'] = due
+        message = f'{args.job_id}: follow-up {step} sent; {next_step} of {len(gaps)} due {due}.'
+    save(jobs)
+    print(message)
 
 
 def cmd_note(args):
@@ -415,6 +532,15 @@ def build_parser():
     p.add_argument('--follow-up')
     p.add_argument('--note')
     p.set_defaults(func=cmd_set)
+
+    p = sub.add_parser('follow-up', help='Plan, advance or clear a contextual follow-up sequence.')
+    p.add_argument('job_id')
+    p.add_argument('action', choices=('plan', 'sent', 'clear'))
+    p.add_argument('--lane', choices=tuple(FOLLOW_UP_GAPS))
+    p.add_argument('--due')
+    p.add_argument('--reason')
+    p.add_argument('--on', help='Date a follow-up was sent, for replay and tests.')
+    p.set_defaults(func=cmd_follow_up)
 
     p = sub.add_parser('note', help='Add a line to a job\'s timeline.')
     p.add_argument('job_id')

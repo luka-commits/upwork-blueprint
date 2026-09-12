@@ -28,7 +28,7 @@ The first two contradict each other and both are Upwork's. Assume the stricter o
 
 ## The house rules, stricter than the terms
 
-1. **Writing always needs an explicit yes.** A message, a proposal, an invitation, an offer. Draft freely, send never on your own.
+1. **Writing always needs an explicit yes.** A message, a proposal, an invitation, an offer. Draft freely, send never on your own. The only cockpit exception is the dedicated `send-reply` run: the member edits and clicks Send on one exact draft, the server freezes that text in `jobs/<id>/outbox.json`, and only then does the run receive `send_message`. It sends that file's text once, re-reads the room, and updates `thread.json` through `code/threads.py` only after an exact match. No other cockpit run receives `send_message`, and none receives `confirm_preview`.
 2. **Reading runs on demand.** A command you typed or a cockpit button you clicked. No timer, no background job.
 3. **Every run reports its call count.** One sentence. Then "well under the limit" is measured rather than assumed.
 4. **`python3 code/pipeline.py prune` after each run.** Upwork content older than 24 hours goes. Your own scores, notes and history are yours and stay.

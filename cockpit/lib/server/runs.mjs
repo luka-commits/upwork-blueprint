@@ -1,14 +1,14 @@
 // Buttons that start Claude. A run is the same slash command the member could
 // type, started headless on this computer with only the tools that command needs.
-// No run gets a tool that sends anything to Upwork: a send always happens where
-// the member reads the exact text first.
+// Only send-reply gets a sending tool. Its text comes from the server-written
+// outbox after the member has read and approved it in the cockpit.
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
-import { ROOT } from './root.mjs';
+import { JOBS_DIR, ROOT } from './root.mjs';
 
 const UPWORK_READ = ['mcp__upwork__upwork__list_accounts', 'mcp__upwork__upwork__find_jobs',
   'mcp__upwork__upwork__get_profile'];
@@ -24,6 +24,20 @@ export const RUNNABLE = {
   // stops. It never gets confirm_preview, so it cannot submit anything.
   apply: { prompt: '/apply {job} --draft-only', job: true,
     tools: [...FILES, ...UPWORK_READ, 'mcp__upwork__upwork__list_freelancer_proposals', 'mcp__upwork__upwork__manage_proposals'] },
+  reply: { prompt: '/reply {job}', job: true, tools: [...FILES] },
+  'send-reply': {
+    command: false,
+    job: true,
+    prompt: 'Send the approved Upwork reply for job {job}. Read jobs/{job}/outbox.json. '
+      + 'Use the room_id and text from that file. Call send_message action send exactly once with that room_id and the text character for character. '
+      + 'Do not rewrite, trim, summarize, quote or repeat the message in your output. Then call get_messages action list_messages for the same room, newest 30. '
+      + 'Confirm that one returned message from the freelancer has text exactly equal to the outbox text. If it does not, stop and report the failure without changing thread.json. '
+      + 'If it does, write the complete get_messages response to jobs/{job}/.thread-confirm.json and run '
+      + '`python3 code/threads.py confirm {job} --room <the exact room_id> --awaiting them`. '
+      + 'End with COMPLETE, what was checked, and the Upwork call count. The expected count is 2.',
+    tools: ['Read', 'Write', 'Bash(python3 code/threads.py*)',
+      'mcp__upwork__upwork__send_message', 'mcp__upwork__upwork__get_messages'],
+  },
 };
 
 // A button run has no chat to talk into, only the cockpit's status line. This makes
@@ -37,7 +51,33 @@ const holder = globalThis;
 export const RUNS = holder.__cockpitRuns ??= new Map();
 
 export function available(name) {
-  return Object.hasOwn(RUNNABLE, name) && fs.existsSync(path.join(ROOT, '.claude', 'commands', `${name}.md`));
+  const spec = RUNNABLE[name];
+  return !!spec && (spec.command === false || fs.existsSync(path.join(ROOT, '.claude', 'commands', `${name}.md`)));
+}
+
+/** Freeze the exact approved text before Claude gets a sending tool. */
+export function prepareApprovedReply(job, text) {
+  if (!/^[0-9]{6,25}$/.test(job)) throw new Error('That job id is not valid.');
+  if (typeof text !== 'string' || !text.trim()) throw new Error('The reply is empty.');
+  if ([...RUNS.values()].some(run => run.command === 'send-reply' && !run.done)) {
+    throw new Error('A reply is already being sent. Wait for its confirmation.');
+  }
+  const folder = path.join(JOBS_DIR, job);
+  let thread;
+  try { thread = JSON.parse(fs.readFileSync(path.join(folder, 'thread.json'), 'utf-8')); } catch { throw new Error('Sync this conversation before sending.'); }
+  const room = String(thread?.room_id || '').trim();
+  if (!room) throw new Error('A freelancer cannot message first on a proposal. Wait for the client to reply.');
+  const record = { written_at: new Date().toISOString(), job_id: job, room_id: room, text };
+  const target = path.join(folder, 'outbox.json');
+  const tmp = path.join(folder, `.outbox-${process.pid}-${crypto.randomBytes(4).toString('hex')}.tmp`);
+  fs.writeFileSync(tmp, JSON.stringify(record, null, 2), { encoding: 'utf-8', mode: 0o600 });
+  fs.renameSync(tmp, target);
+  return record;
+}
+
+export function startApprovedReply(job, text) {
+  prepareApprovedReply(job, text);
+  return startRun('send-reply', job);
 }
 
 export function claudeBinary() {

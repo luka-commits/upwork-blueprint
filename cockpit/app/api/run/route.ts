@@ -11,6 +11,7 @@ export async function POST(req: Request) {
   const data = await body(req);
   const name = String(data?.command || ''), job = String(data?.job || '');
   if (!available(name)) return json({ error: `/${name} is not built yet` }, 400);
+  if (RUNNABLE[name].command === false) return json({ error: 'That run has a dedicated approval endpoint.' }, 400);
   if (RUNNABLE[name].job && !ID.test(job)) return json({ error: 'this command needs a job' }, 400);
   try {
     return json({ run: startRun(name, RUNNABLE[name].job ? job : null) });

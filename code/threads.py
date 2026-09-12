@@ -2,6 +2,7 @@
 """Client threads: turns what Upwork's message list returns into the cockpit's chat.
 
     python3 code/threads.py save <job_id> --file <list_messages.json>|-
+    python3 code/threads.py confirm <job_id> --room <room_id> --awaiting them
 
 Upwork hands messages back newest first, each wrapped in a marker for untrusted
 text, with HTML entities, escaped markdown and system events ("System event:
@@ -92,6 +93,23 @@ def cmd_save(args):
     return 0
 
 
+def cmd_confirm(args):
+    """Save the post-send room read and remove its fixed, hidden transfer file."""
+    if not any(j.get('id') == args.job_id for j in pipeline.load()):
+        print(f'ABORT: job "{args.job_id}" is not in the pipeline.', file=sys.stderr)
+        return 1
+    transfer = pipeline.jobs_dir() / args.job_id / '.thread-confirm.json'
+    if not transfer.is_file():
+        print('ABORT: the confirmed room response is missing.', file=sys.stderr)
+        return 1
+    raw = json.loads(transfer.read_text(encoding='utf-8'))
+    messages = save(args.job_id, raw, args.room, args.awaiting)
+    transfer.unlink()
+    events = sum(1 for m in messages if m['kind'] == 'event')
+    print(f'{args.job_id}: {len(messages) - events} messages and {events} events confirmed and saved.')
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='cmd', required=True)
@@ -101,6 +119,11 @@ def main(argv=None):
     p.add_argument('--room', help='The room id, so a reply can find its way back.')
     p.add_argument('--awaiting', choices=('you', 'them'), help="The room card's awaiting_reply_from.")
     p.set_defaults(func=cmd_save)
+    p = sub.add_parser('confirm', help='Save the fixed post-send room response and remove the transfer file.')
+    p.add_argument('job_id')
+    p.add_argument('--room', required=True, help='The room id used for the send.')
+    p.add_argument('--awaiting', choices=('you', 'them'), required=True)
+    p.set_defaults(func=cmd_confirm)
     args = ap.parse_args(argv)
     return args.func(args)
 

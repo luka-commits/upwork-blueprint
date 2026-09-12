@@ -8,14 +8,34 @@ import test from 'node:test';
 
 // Finished runs are written to data/runs; the tests write to a throwaway folder instead.
 process.env.BLUEPRINT_DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'cockpit-runs-'));
-const { RUNNABLE, RUNS, history, parseEvent, stopRun, track } = await import('./runs.mjs');
+process.env.BLUEPRINT_JOBDIR = fs.mkdtempSync(path.join(os.tmpdir(), 'cockpit-jobs-'));
+const { RUNNABLE, RUNS, history, parseEvent, prepareApprovedReply, stopRun, track } = await import('./runs.mjs');
 
-test('no button can submit anything to Upwork', () => {
+test('only the dedicated reply sender can send and no button can confirm a preview', () => {
+  const senders = [];
   for (const [name, spec] of Object.entries(RUNNABLE)) {
     for (const tool of spec.tools) {
-      assert.ok(!/confirm_preview|confirm_draft|send_message|respond_to_offer|submit_milestones/.test(tool), `${name} has ${tool}`);
+      assert.ok(!/confirm_preview/.test(tool), `${name} has ${tool}`);
+      if (/send_message/.test(tool)) senders.push(name);
+      if (name !== 'send-reply') assert.ok(!/confirm_draft|respond_to_offer|submit_milestones/.test(tool), `${name} has ${tool}`);
     }
   }
+  assert.deepEqual(senders, ['send-reply']);
+  assert.equal(RUNNABLE['send-reply'].command, false);
+});
+
+test('the server freezes exact approved text and requires a room', () => {
+  const folder = path.join(process.env.BLUEPRINT_JOBDIR, '123456');
+  fs.mkdirSync(folder);
+  assert.throws(() => prepareApprovedReply('123456', 'Hello'), /Sync this conversation/);
+  fs.writeFileSync(path.join(folder, 'thread.json'), JSON.stringify({ messages: [] }));
+  assert.throws(() => prepareApprovedReply('123456', 'Hello'), /cannot message first/);
+  fs.writeFileSync(path.join(folder, 'thread.json'), JSON.stringify({ room_id: 'room-7', messages: [] }));
+  const exact = '  Thanks.\nI will get back to you.  ';
+  prepareApprovedReply('123456', exact);
+  const outbox = JSON.parse(fs.readFileSync(path.join(folder, 'outbox.json'), 'utf-8'));
+  assert.equal(outbox.room_id, 'room-7');
+  assert.equal(outbox.text, exact);
 });
 
 test('the stream is reduced to text, tools, thinking and the end', () => {

@@ -50,7 +50,10 @@ that pattern, not a blanket compliance guarantee.
    or after approval. If the send or confirmation is uncertain, the unresolved
    outbox blocks another send. Run `/inbox` or inspect the Upwork conversation,
    reconcile what actually landed and never retry blindly. No other cockpit run
-   receives `send_message`, and none receives `confirm_preview`.
+   receives `send_message`, and none receives `confirm_preview`. Application
+   runs use an action-level guard: only the documented `create` preview is
+   permitted through `manage_proposals`. Invitations are handled manually;
+   the guard never broadens permissions for other tools.
 2. **Reading runs on demand.** A command you typed or a cockpit button you clicked. No timer, no background job.
 3. **Every run reports its call count.** One sentence. Then "well under the limit" is measured rather than assumed.
 4. **`python3 code/pipeline.py prune` after each run.** Upwork content older than 24 hours goes. Your own scores, notes and history are yours and stay.

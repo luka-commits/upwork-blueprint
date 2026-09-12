@@ -86,7 +86,7 @@ export function applicationPrerequisiteError(job) {
   if (!/^https:\/\/(?:www\.)?(?:loom\.com\/share\/[^\s/?#]+|youtube\.com\/watch\?v=[^\s&#]+|youtu\.be\/[^\s/?#]+)/.test(String(job?.video || '').trim())) missing.push('add a valid Loom or YouTube video link');
   if (!missing.length) return '';
   const steps = missing.length === 2 ? `${missing[0]} and ${missing[1]}` : missing[0];
-  return `First ${steps}. Then you can draft the application under Materials.`;
+  return `First ${steps}. Then you can draft the application.`;
 }
 
 /** Freeze the exact approved text before Claude gets a sending tool. */
@@ -271,11 +271,20 @@ export function startRun(name, job, approval = null) {
     env.BLUEPRINT_SEND_FOLDER = path.join(JOBS_DIR, job);
     env.BLUEPRINT_SEND_HASH = approvalHash(approval);
     env.BLUEPRINT_SEND_ATTEMPTS = path.join(RUNS_DIR, 'send-attempts');
-    const command = 'node "' + path.join(ROOT, 'cockpit/lib/server/send-guard.mjs') + '"';
-    args.push('--settings', JSON.stringify({ hooks: { PreToolUse: [{ matcher: '.*', hooks: [{ type: 'command', command, timeout: 10 }] }] } }));
   }
+  const settings = hookSettings(name);
+  if (settings) args.push('--settings', JSON.stringify(settings));
   const child = spawn(bin, args, { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], shell: bin.endsWith('.cmd') });
   return track(name, job, child);
+}
+
+/** Narrow action-level permissions when one connector tool mixes reads,
+ * previews and writes behind the same name. */
+export function hookSettings(name) {
+  const file = name === 'send-reply' ? 'send-guard.mjs' : name === 'apply' ? 'apply-guard.mjs' : null;
+  if (!file) return null;
+  const command = 'node "' + path.join(ROOT, 'cockpit/lib/server', file) + '"';
+  return { hooks: { PreToolUse: [{ matcher: '.*', hooks: [{ type: 'command', command, timeout: 10 }] }] } };
 }
 
 /** Auto-approval alone is not an allowlist. Deny outward tools explicitly and

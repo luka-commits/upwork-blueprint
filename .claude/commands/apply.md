@@ -71,9 +71,18 @@ Omit the Screening answers section when the job asks none.
 
 ## Step 5 · The preview, never the send
 
-1. `list_freelancer_proposals` action `invitations`: an invitation for this job means `accept_invitation` instead of `create`.
+1. `list_freelancer_proposals` action `invitations`: an invitation for this job
+   means stop before any proposal-management call. Prepare the fields below, open
+   the invitation on Upwork and let the member review and respond there. Never
+   call `accept_invitation`; its preview or write behavior has not been measured.
 2. `list_freelancer_proposals` action `list`: an existing proposal for this job means stop and say so.
-3. If `manage_proposals` action `create` is available, call it with `job_reference`, `cover_letter`, the member-approved `charged_amount` and the screening `answers`. The tool description says this returns a preview and submits nothing; that behavior is not yet measured. If the action is absent or returns anything other than a preview, stop without another write and use the manual handoff.
+3. When this is not an invitation and no proposal exists, if `manage_proposals`
+   action `create` is available, call it with `job_reference`, `cover_letter`, the
+   member-approved `charged_amount` and the screening `answers`. The tool
+   description says this returns a preview and submits nothing; that behavior is
+   not yet measured. If the action is absent or returns anything other than a
+   preview, stop without another write and use the manual handoff. No other
+   `manage_proposals` action is permitted in this command.
 4. Save what the preview knows, so the cockpit shows it next to the job: `python3 code/pipeline.py detail <id> --file -` with one JSON object holding `bid_amount` (the exact `charged_amount` used), `connects_cost`, `connects_balance`, `boost_available`, `boost_reason`, `boost_top_bids` (the list of `current_top_bids`, highest first, or `null` when `current_top_bids_available` is false), `boost_recommended` (`recommended_connects`), `boost_max` (`max_boost_connects`), `boost_note`, `boost_recommendation` and `screening_questions`. Leave out what the preview did not return; never estimate a bid.
 
 ## Step 6 · Prepare the manual handoff

@@ -39,7 +39,11 @@ not been exercised. A documented action is not a measured capability.
 - **Blueprint boundary:** this repository never calls `confirm_preview` for a proposal. It shows the prepared fields and preview in the cockpit, then the member reviews and submits on Upwork. The connector preview does not populate Upwork's browser form, so the cockpit provides copy controls instead of pretending that handoff is automatic.
 - **Boost bids live only in that preview,** never in `find_jobs get`. The `boost` block: `available` (false means do not offer it, `reason` says why), `current_top_bids` (the real competing bids, highest first, empty when nobody boosted; `current_top_bids_available` false means unknown, not zero), `recommended_connects` (the smallest bid that secures a top slot), `max_boost_connects` (balance minus the application's own price), `note` (how many paid slots this job has), `recommendation` (`skip` when boosting makes no sense). A boost is a bid, charged only if you land in the paid slots or the client engages before the auction closes. It cannot be edited or withdrawn once submitted.
 - **Only one pending preview per action type.** A new `create` replaces the last unconfirmed one.
-- **Mandatory before `create`:** `list_freelancer_proposals` action `invitations` (an invited job takes `accept_invitation` instead) and action `list` (an existing proposal makes `create` fail).
+- **Mandatory before `create`:** `list_freelancer_proposals` action `invitations`
+  and action `list` (an existing proposal makes `create` fail). For an invitation,
+  the tool description names `accept_invitation`, but its preview or write behavior
+  has not been measured. The Blueprint stops before that action and hands the
+  prepared fields to the member for review and response on Upwork.
 - **Before the manual submission, resolve** whether the member wants attachments
   or highlighted portfolio projects or certificates. Ask only when the job and
   saved member context do not already settle it.

@@ -9,7 +9,7 @@ import test from 'node:test';
 // Finished runs are written to data/runs; the tests write to a throwaway folder instead.
 process.env.BLUEPRINT_DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'cockpit-runs-'));
 process.env.BLUEPRINT_JOBDIR = fs.mkdtempSync(path.join(os.tmpdir(), 'cockpit-jobs-'));
-const { RUNNABLE, RUNS, applicationPrerequisiteError, commandAvailability, history, launchArgs, parseEvent, prepareApprovedReply, promptFor, releaseApprovedReply, stopRun, track } = await import('./runs.mjs');
+const { RUNNABLE, RUNS, applicationPrerequisiteError, commandAvailability, history, hookSettings, launchArgs, parseEvent, prepareApprovedReply, promptFor, releaseApprovedReply, stopRun, track } = await import('./runs.mjs');
 
 test('only the dedicated reply sender can send and no button can confirm a preview', () => {
   const senders = [];
@@ -58,6 +58,22 @@ test('application drafting waits for the pitch page and Loom video', () => {
   assert.match(applicationPrerequisiteError({ files: [{ name: 'pitch.html' }] }), /add a valid Loom or YouTube video link/);
   assert.match(applicationPrerequisiteError({ files: [], video: 'https:\/\/www.loom.com\/share\/abc' }), /finish the Pitch page/);
   assert.equal(applicationPrerequisiteError({ files: [{ name: 'pitch.html' }], video: 'https://www.loom.com/share/abc' }), '');
+});
+
+test('application runs install the preview-only action guard', () => {
+  const settings = hookSettings('apply');
+  const hook = settings.hooks.PreToolUse[0];
+  assert.equal(hook.matcher, '.*');
+  assert.match(hook.hooks[0].command, /apply-guard\.mjs"$/);
+  assert.equal(hookSettings('find-jobs'), null);
+});
+
+test('reply sender runs retain their deterministic send guard binding', () => {
+  const settings = hookSettings('send-reply');
+  const hook = settings.hooks.PreToolUse[0];
+  assert.equal(hook.matcher, '.*');
+  assert.match(hook.hooks[0].command, /send-guard\.mjs"$/);
+  assert.doesNotMatch(hook.hooks[0].command, /apply-guard/);
 });
 
 test('the server freezes exact approved text and requires a room', () => {

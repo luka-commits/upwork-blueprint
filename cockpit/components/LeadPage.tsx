@@ -434,11 +434,27 @@ function Conversation({ j, inbox }: { j: any; inbox: boolean }) {
     const date = message.at ? day(message.at) : '';
     const separator = date && date !== last;
     last = date || last;
-    const meta = [message.name, message.at && new Date(message.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })].filter(Boolean).join(' · ');
-    return <Fragment key={`${message.at}-${index}`}>
+    const time = message.at ? new Date(message.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    const meta = [message.from === 'me' ? 'You' : message.name, time].filter(Boolean).join(' · ');
+    return <Fragment key={`${message.id || message.at}-${index}`}>
       {separator ? <span className="day">{date}</span> : null}
-      <div className={`msg${message.from === 'me' ? ' me' : ''}`}>{message.text}<span className="msg-meta">{meta}</span></div>
+      {message.kind === 'event'
+        ? <span className="msg-event">{message.text}{time ? ` · ${time}` : ''}</span>
+        : <div className={`msg${message.from === 'me' ? ' me' : ''}`}><MessageText text={message.text} /><span className="msg-meta">{meta}</span></div>}
     </Fragment>;
+  })}</>;
+}
+
+// Upwork sends links as <https://...> and bold as **text**; show both as a reader expects.
+function MessageText({ text }: { text: string }) {
+  const parts = String(text || '').split(/(<?https?:\/\/[^\s<>]+>?|\*\*[^*]+\*\*)/g);
+  return <>{parts.map((part, index) => {
+    if (/^<?https?:\/\//.test(part)) {
+      const url = part.replace(/^<|>$/g, '');
+      return <a key={index} href={url} target="_blank" rel="noopener noreferrer">{url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 48)}</a>;
+    }
+    if (/^\*\*[^*]+\*\*$/.test(part)) return <b key={index}>{part.slice(2, -2)}</b>;
+    return <Fragment key={index}>{part}</Fragment>;
   })}</>;
 }
 

@@ -30,6 +30,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'code'))
 import pipeline  # noqa: E402  (read-only use: load, jobs_dir)
+import threads as thread_io  # noqa: E402  (cleans raw Upwork messages)
 
 RANK = {'new': 0, 'applied': 1, 'replied': 2, 'offer': 3, 'won': 4}
 # Upwork's proposal words. "Accepted" means submitted, not that the client said yes.
@@ -126,7 +127,7 @@ def cmd_apply(args):
         (folder / 'thread.json').write_text(json.dumps({
             'fetched_at': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),
             'room_id': t.get('room_id'), 'awaiting_reply_from': t.get('awaiting_reply_from'),
-            'messages': t.get('messages') or []}, indent=2, ensure_ascii=False), encoding='utf-8')
+            'messages': thread_io.normalize(t.get('messages') or [])}, indent=2, ensure_ascii=False), encoding='utf-8')
         if t.get('awaiting_reply_from') == 'you' and job.get('status') not in pipeline.CLOSED:
             if run_pipeline('set', jid, job['status'], '--follow-up', today):
                 waiting.append(jid)

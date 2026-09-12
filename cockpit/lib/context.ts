@@ -13,10 +13,11 @@ export type Run = {
   t0: number; t1?: number;              // ms since epoch
   status: string;                       // the one line the dock shows
   log: RunLine[];
+  result?: string;                      // final report, rendered as a result card
   done: boolean; error?: boolean; stopped?: boolean;
   replay: boolean;                      // attached after the fact: no toast, no deliverables
   made: Made[];                         // what it produced, shown once it is done
-  showLog?: boolean;
+  showLog?: boolean; showResult?: boolean;
 };
 
 export type CockpitApi = {
@@ -36,6 +37,7 @@ export type CockpitApi = {
   stopRun: (id: string) => void;
   dismissRun: (id: string) => void;
   toggleRunLog: (id: string) => void;
+  toggleRunResult: (id: string) => void;
 };
 
 export const CockpitContext = createContext<CockpitApi | null>(null);

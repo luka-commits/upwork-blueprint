@@ -178,6 +178,8 @@ export function CockpitProvider({ token, children }: { token: string; children: 
           error: !!event.error,
           stopped: !!event.stopped,
           t1: current.t1 || Date.now(),
+          result: event.text || '',
+          showResult: true,
           status: event.stopped ? 'Stopped by you. Anything it already saved stays.'
             : event.error ? 'Failed. Show steps to see why.'
               : lastLine(event.text || '') || 'Finished.',
@@ -272,6 +274,13 @@ export function CockpitProvider({ token, children }: { token: string; children: 
     publishRuns();
   }, [publishRuns]);
 
+  const toggleRunResult = useCallback((id: string) => {
+    const run = runsRef.current.get(id);
+    if (!run) return;
+    runsRef.current.set(id, { ...run, showResult: !run.showResult });
+    publishRuns();
+  }, [publishRuns]);
+
   useEffect(() => {
     let active = true;
     void load().then(async () => {
@@ -320,7 +329,8 @@ export function CockpitProvider({ token, children }: { token: string; children: 
     stopRun,
     dismissRun,
     toggleRunLog,
-  }), [api, closeDrawer, dismissRun, drawerId, load, move, openDrawer, post, runCommand, runs, sendReply, state, stopRun, toast, token, toggleRunLog]);
+    toggleRunResult,
+  }), [api, closeDrawer, dismissRun, drawerId, load, move, openDrawer, post, runCommand, runs, sendReply, state, stopRun, toast, token, toggleRunLog, toggleRunResult]);
 
   const jobs = state?.jobs || [];
   const due = state ? jobs.filter((job: any) => todoBucket(job) === 'Due now').length : 0;

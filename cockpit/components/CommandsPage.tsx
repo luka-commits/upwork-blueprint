@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useCockpit, type Run, type RunLine } from '@/lib/context';
+import RunResult from './RunResult';
 import './commands.css';
 
 type Command = {
@@ -103,7 +104,7 @@ function RunRow({ run, jobTitle, now }: { run: DisplayRun; jobTitle?: string; no
         <span className="command-run-chevron" aria-hidden="true">›</span>
       </summary>
       <div className="command-run-detail">
-        <div className="command-run-full">{run.result || summary}</div>
+        <RunResult result={run.result || summary} error={run.error} stopped={run.stopped} />
         <details className="command-run-steps">
           <summary>Steps <span>{run.log.length}</span></summary>
           {run.log.length ? (

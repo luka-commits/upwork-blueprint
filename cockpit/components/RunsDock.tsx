@@ -3,6 +3,8 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useCockpit, type Run, type State } from '@/lib/context';
+import { parseRunResult } from '@/lib/run-result.mjs';
+import RunResult from './RunResult';
 
 const DOCK_OPEN_EVENT = 'cockpit-dock-open';
 const RUN_LABEL: Record<string, string> = {
@@ -36,7 +38,7 @@ export function runTitle(run: Pick<Run, 'command' | 'job'>, state: State | null)
 }
 
 export default function RunsDock() {
-  const { state, runs, openDrawer, stopRun, dismissRun, toggleRunLog } = useCockpit();
+  const { state, runs, openDrawer, stopRun, dismissRun, toggleRunLog, toggleRunResult } = useCockpit();
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -106,7 +108,9 @@ export default function RunsDock() {
         <span className="chev" aria-hidden="true">▾</span>
       </button>
       <div className="dock-body">
-        {newest.map(run => (
+        {newest.map(run => {
+          const outcome = run.done && run.result ? parseRunResult(run.result) : null;
+          return (
           <div className={`runitem ${runClass(run)}`} key={run.id}>
             <div className="runitem-head">
               <span className="spin" />
@@ -115,7 +119,7 @@ export default function RunsDock() {
               <span className="stamp">{clock((run.t1 || now) - run.t0)}</span>
               {run.done ? <button className="link" onClick={() => dismissRun(run.id)} aria-label="Remove run">✕</button> : null}
             </div>
-            <div className="runitem-status">{run.status}</div>
+            <div className="runitem-status">{outcome?.headline || run.status}</div>
             {run.made.length ? (
               <div className="runitem-made">
                 {run.made.map((made, index) => made.href ? (
@@ -126,11 +130,15 @@ export default function RunsDock() {
               </div>
             ) : null}
             {run.log.length || !run.done ? <div className="runitem-foot">
+              {run.done && run.result ? <button className="link" onClick={() => toggleRunResult(run.id)}>
+                {run.showResult ? 'Hide result' : 'View result'}
+              </button> : null}
               {run.log.length ? <button className="link" onClick={() => toggleRunLog(run.id)}>
                 {run.showLog ? 'Hide steps' : `Show steps · ${run.log.length}`}
               </button> : null}
               {!run.done ? <button className="link" onClick={() => stopRun(run.id)}>Stop</button> : null}
             </div> : null}
+            {run.showResult && run.result ? <RunResult result={run.result} error={run.error} stopped={run.stopped} /> : null}
             {run.showLog ? (
               <div className="run-log" ref={node => {
                 if (node) logRefs.current.set(run.id, node);
@@ -140,7 +148,7 @@ export default function RunsDock() {
               </div>
             ) : null}
           </div>
-        ))}
+        );})}
       </div>
     </section>
   );

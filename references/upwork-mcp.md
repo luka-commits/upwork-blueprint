@@ -17,7 +17,9 @@ Everything under "Measured" was called against a real account and produced the r
 - **`get_profile` action `list_highlights`:** portfolio projects (id and title) and certificates. Titles only, no contents.
 - **`get_profile` actions `transactions` and `connects_balance`:** present, untested.
 
-**Not in the profile response** (the public profile page is the only source): Job Success Score, client review texts, billed hours, portfolio contents, **intro video** (there is no field for one, which says nothing about whether a video exists).
+**Not in the profile response** (the public profile page is the only source): Job Success Score, client review texts, billed hours, portfolio contents, **intro video** (there is no field for one, which says nothing about whether a video exists). The review **count** is there: `profileAggregates.totalFeedback`.
+
+**Measured 12 September 2026:** `get_freelancer_dashboard` and `list_contracts` action `search` carry no Job Success Score either. The dashboard does show Connects spending line by line, which is how a recurring "Paid invitation badge" charge of one Connect every twelve hours became visible.
 
 ## Measured 14 August 2026: writing a profile, the limit that matters most
 

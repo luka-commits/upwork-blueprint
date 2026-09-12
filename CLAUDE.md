@@ -60,7 +60,7 @@ Read [references/upwork-rules.md](references/upwork-rules.md) before building or
 - **Three lines at the top:** what it is, when it was made, the one next action.
 - **Decision before data.** What to do first, then the full list.
 - **No tables** in markdown a member opens. A `##` block per item with bold field labels, or a plain list.
-- **No raw payloads:** no JSON, YAML, IDs or timestamps in a deliverable. Dates in words: "Friday 12 September".
+- **No raw payloads:** no JSON, YAML, IDs or timestamps in a deliverable. Dates in words: "Saturday 12 September".
 - **No walls.** No block longer than about four lines, no list past ten items without "+ 12 more".
 
 ## Every command opens with a ROADMAP

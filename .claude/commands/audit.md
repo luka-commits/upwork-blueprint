@@ -36,13 +36,12 @@ The script decides pass or fail for the mechanical checks. Never overrule it. If
 
 ## Step 3 · Ask what the connector cannot see, in one message
 
-The connector returns no Job Success Score, no review texts and no intro video. Ask all three at once, with where to look ("open your profile on Upwork, the Job Success badge sits under your name"):
+The review count is measured: `profileAggregates.totalFeedback` in the profile response. Neither the profile, the dashboard nor the contract list returns a Job Success Score or whether an intro video exists, so ask for exactly those two, in one message, with where to look ("open your profile on Upwork, the Job Success badge sits under your name"):
 
 - Your Job Success Score, or "none yet"
 - Do you have an intro video on your profile?
-- How many reviews show on your profile?
 
-Skipped answers go into the report under "Not measured", never estimated.
+Keep it to one message and do not wait on it: write the report with what you have. A skipped answer goes under "Not measured", never estimated, and the next run fills it in.
 
 ## Step 4 · Judge what no script can
 
@@ -63,7 +62,7 @@ The findings report. First three lines, then stop:
 ```
 # Profile audit
 
-Updated Friday 12 September 2026 · 8 of 15 checks passed · the title promises tools your skills never mention
+Updated Saturday 12 September 2026 · 8 of 15 checks passed · the title promises tools your skills never mention
 **Next:** run /benchmark, then /profile writes every fix below.
 ```
 

@@ -32,6 +32,11 @@ function splitOutcome(value) {
   return { outcome: outcome || (decision ? '' : clean(value)), decision };
 }
 
+// A row explains the work. Fit recommendations stay in the drawer and lead page.
+export function jobPreview(job) {
+  return deriveJobBrief(job).outcome || splitOutcome(job?.summary).outcome || 'Open this job to review the available details.';
+}
+
 export function deriveJobBrief(job) {
   const details = job?.details || {};
   const saved = details.brief || {};

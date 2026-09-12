@@ -9,6 +9,8 @@ import {
   describeFilter, filterActive, isDue, todoBucket,
 } from '@/lib/model';
 import { useCockpit } from '@/lib/context';
+import { jobPreview } from '@/lib/job-brief.mjs';
+import { clampColumnWidth, columnWidthForKey, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH } from '@/lib/column-width.mjs';
 
 type SpaceName = 'jobs';
 type SpaceState = { view: View; saved: View[] };
@@ -179,7 +181,7 @@ export default function ListPage({ space }: { space: SpaceName }) {
       }
     }
     if (v.query && except !== '__query') {
-      const hay = [j.title, j.summary, j.rationale, j.notes, j.trap, (j.client || {}).country, ...(j.tasks || []).map((t: any) => t.text)].join(' ').toLowerCase();
+      const hay = [j.title, jobPreview(j), j.summary, j.rationale, j.notes, j.trap, (j.client || {}).country, ...(j.tasks || []).map((t: any) => t.text)].join(' ').toLowerCase();
       if (!v.query.toLowerCase().split(/\s+/).every(word => hay.includes(word))) return false;
     }
     return true;
@@ -288,11 +290,20 @@ export default function ListPage({ space }: { space: SpaceName }) {
     grip.setPointerCapture(event.pointerId);
   };
 
+  const resizeKey = (event: React.KeyboardEvent<HTMLSpanElement>, id: string) => {
+    const current = event.currentTarget.closest('th')?.getBoundingClientRect().width || st.view.widths[id] || COLS[id].w;
+    const next = columnWidthForKey(current, event.key);
+    if (next == null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    update(draft => { draft.view.widths[id] = next; });
+  };
+
   useEffect(() => {
     const pointerMove = (event: PointerEvent) => {
       const r = resizing.current;
       if (!r) return;
-      const width = Math.max(56, Math.min(720, Math.round(r.w + event.clientX - r.x)));
+      const width = clampColumnWidth(r.w + event.clientX - r.x);
       r.now = width;
       setLiveWidth({ id: r.id, width });
     };
@@ -351,11 +362,12 @@ export default function ListPage({ space }: { space: SpaceName }) {
   const tracker = state.tracker || {};
 
   return <div ref={rootRef}>
-    {space === 'jobs' && tracker.goal ? <>
+    <div className="workspace-head"><h1>Your pipeline</h1>
+    {space === 'jobs' && tracker.goal ? <div className="daily-progress">
       <div className="today"><span className="today-lbl">Applications today</span><span className="today-n"><b>{tracker.done}</b> <span>/ {tracker.goal}</span></span>
         <span className="today-meta">{tracker.streak}-day streak · {tracker.week_done} this week</span></div>
-      <div className="today-bar"><span style={{ width: `${Math.min(100, 100 * tracker.done / tracker.goal)}%` }} /></div>
-    </> : null}
+      <div className="today-bar" role="progressbar" aria-label="Daily application target" aria-valuemin={0} aria-valuemax={tracker.goal} aria-valuenow={Math.min(tracker.goal, tracker.done)}><span style={{ width: `${Math.min(100, 100 * tracker.done / tracker.goal)}%` }} /></div>
+    </div> : null}</div>
 
     <div className="toolbar">
       {dueNow ? <button className="tool due-now" onClick={() => applyView(SPACES[space].presets.find(p => p.name === 'To do')!)}
@@ -423,7 +435,7 @@ export default function ListPage({ space }: { space: SpaceName }) {
           ? <Board jobs={jobs} drawerId={drawerId} openDrawer={openDrawer} closeDrawer={closeDrawer} move={move} dropStage={dropStage} setDropStage={setDropStage} />
           : <Table jobs={shown} st={st} drawerId={drawerId} selected={selected} setSelected={setSelected} menu={menu} colFilter={colFilter}
             openFilter={openFilter} toggleSort={toggleSort} rowClick={rowClick} rowKey={rowKey} liveWidth={liveWidth}
-            resizeStart={resizeStart} dropCol={dropCol} onDragStart={columnDragStart} onDragOver={columnDragOver} onDrop={columnDrop} onDragEnd={columnDragEnd} />
+            resizeStart={resizeStart} resizeKey={resizeKey} dropCol={dropCol} onDragStart={columnDragStart} onDragOver={columnDragOver} onDrop={columnDrop} onDragEnd={columnDragEnd} />
         : <p className="empty">{all ? <>Nothing matches this view. <button className="link" onClick={clearFiltersAndSearch}>Clear filters and search</button>.</>
           : state.commands?.['find-jobs'] ? 'No jobs yet. Use Find jobs above to build your lead list.' : 'No jobs yet. Job search is unavailable.'}</p>}
     </div>
@@ -541,12 +553,13 @@ function ColumnsPanel({ space, st, update, dropCol, onDragStart, onDragOver, onD
   </div>;
 }
 
-function Table({ jobs, st, drawerId, selected, setSelected, menu, colFilter, openFilter, toggleSort, rowClick, rowKey, liveWidth, resizeStart,
+function Table({ jobs, st, drawerId, selected, setSelected, menu, colFilter, openFilter, toggleSort, rowClick, rowKey, liveWidth, resizeStart, resizeKey,
   dropCol, onDragStart, onDragOver, onDrop, onDragEnd }: {
   jobs: any[]; st: SpaceState; drawerId: string | null; selected: Set<string>; setSelected: React.Dispatch<React.SetStateAction<Set<string>>>;
   menu: Menu; colFilter: string | null; openFilter: (id: string) => void; toggleSort: (id: string) => void;
   rowClick: (e: React.MouseEvent<HTMLTableRowElement>, id: string) => void; rowKey: (e: React.KeyboardEvent, id: string) => void;
   liveWidth: { id: string; width: number } | null; resizeStart: (e: React.PointerEvent<HTMLSpanElement>, id: string) => void;
+  resizeKey: (e: React.KeyboardEvent<HTMLSpanElement>, id: string) => void;
   dropCol: { id: string; after: boolean } | null;
   onDragStart: (e: React.DragEvent, id: string) => void; onDragOver: (e: React.DragEvent, id: string) => void;
   onDrop: (e: React.DragEvent, id: string) => void; onDragEnd: () => void;
@@ -572,7 +585,10 @@ function Table({ jobs, st, drawerId, selected, setSelected, menu, colFilter, ope
             {col.filter ? <button className={`th-filter${filterActive(st.view.filters[id]) ? ' on' : ''}`} data-open-colfilter={id}
               aria-label={`Filter by ${col.label}`} aria-expanded={menu === 'filters' && colFilter === id} onClick={() => openFilter(id)}>
               <Icon name="filter" size={12} filled={filterActive(st.view.filters[id])} /></button> : null}
-          </div><span className="grip" role="separator" aria-orientation="vertical" aria-label={`Resize ${col.label} column`} onPointerDown={e => resizeStart(e, id)} />
+          </div><span className="grip" role="separator" tabIndex={0} aria-orientation="vertical" aria-label={`Resize ${col.label} column`}
+            aria-valuemin={MIN_COLUMN_WIDTH} aria-valuemax={MAX_COLUMN_WIDTH} aria-valuenow={Math.round(width(id))}
+            aria-valuetext={`${Math.round(width(id))} pixels`} title="Resize with Left and Right arrow keys"
+            onPointerDown={e => resizeStart(e, id)} onKeyDown={e => resizeKey(e, id)} />
         </th>;
       })}</tr></thead>
     <tbody>{jobs.map(j => {
@@ -617,6 +633,7 @@ function Board({ jobs, drawerId, openDrawer, closeDrawer, move, dropStage, setDr
           onDoubleClick={() => router.push(`/job/${id}`)}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drawerId === id ? closeDrawer() : openDrawer(id); } }}>
           <div className="card-top"><Score j={j} /><span className="card-title">{j.title}</span></div>
+          <p className="card-description" title={jobPreview(j)}>{jobPreview(j)}</p>
           <div className="card-meta">{[clientText(j), budgetText(j), ago(j.posted_date)].filter(Boolean).join(' · ')}</div><DueChip j={j} />
         </li>;
       }) : <li className="col-empty">{dropStage === stage.key ? 'Drop it here' : stage.key === 'new' ? 'Find jobs to add opportunities.'

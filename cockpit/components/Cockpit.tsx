@@ -58,6 +58,19 @@ export function CockpitProvider({ token, children }: { token: string; children: 
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notificationAskedRef = useRef(false);
 
+  useEffect(() => {
+    // Pointer feedback stays tactile. Keyboard navigation is immediate.
+    const keyboard = () => { document.documentElement.dataset.input = 'keyboard'; };
+    const pointer = () => { document.documentElement.dataset.input = 'pointer'; };
+    document.addEventListener('keydown', keyboard, true);
+    document.addEventListener('pointerdown', pointer, true);
+    return () => {
+      document.removeEventListener('keydown', keyboard, true);
+      document.removeEventListener('pointerdown', pointer, true);
+      delete document.documentElement.dataset.input;
+    };
+  }, []);
+
   const publishRuns = useCallback(() => setRuns([...runsRef.current.values()]), []);
 
   const toast = useCallback((message: string) => {
@@ -351,11 +364,11 @@ export function CockpitProvider({ token, children }: { token: string; children: 
 
   return (
     <CockpitContext.Provider value={value}>
-      <header className="top">
+      <header className={`top${pathname.startsWith('/job/') ? ' sticky' : ''}`}>
         <div className="top-inner">
-          <span className="brand">Upwork Cockpit</span>
+          <span className="brand"><img src="/icon.svg" width="30" height="30" alt="" />Upwork Cockpit</span>
           <nav className="tabs" aria-label="Sections">
-            <Link href="/" aria-current={pathname === '/' ? 'page' : undefined}>Leads{due ? <span className="badge" title="Due today or earlier">{due}</span> : null}</Link>
+            <Link href="/" aria-current={pathname === '/' ? 'page' : pathname.startsWith('/job/') ? 'location' : undefined}>Leads{due ? <span className="badge" title="Due today or earlier">{due}</span> : null}</Link>
             <Link href="/analytics" aria-current={pathname === '/analytics' ? 'page' : undefined}>Analytics</Link>
             <Link href="/commands" aria-current={pathname === '/commands' ? 'page' : undefined}>Commands</Link>
           </nav>

@@ -37,8 +37,8 @@ exact text with one click.
    distinguish measured facts from assumptions.
 5. **Human control.** The system prepares the work. The member controls what
    leaves the account and submits proposals in Upwork themselves.
-6. **Minimal and professional.** Quiet hierarchy, plain language and the Sqanit
-   visual system. No decoration, novelty or automation for its own sake.
+6. **Minimal and professional.** Quiet hierarchy, plain language and a polished
+   native-feeling desktop interface. No novelty or automation for its own sake.
 7. **Transferable by design.** Every required command, skill, rule and starter
    travels in this repository. Personal machine state never does.
 8. **Efficient connector use.** Read fresh saved state first, make the fewest

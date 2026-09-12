@@ -87,6 +87,7 @@ export default function Drawer() {
     aria-label={job ? undefined : 'Job details'}
     aria-labelledby={titleId}
     aria-hidden={!drawerId}
+    inert={!drawerId}
     aria-busy={!!drawerId && !job}
   >
     {job ? <>

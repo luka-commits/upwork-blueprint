@@ -4,6 +4,7 @@
 import React from 'react';
 import { useCockpit } from './context';
 import { calendarDate, todayIso } from './dates.mjs';
+import { jobPreview } from './job-brief.mjs';
 export { todayIso } from './dates.mjs';
 
 export const STAGES = [
@@ -123,11 +124,10 @@ export function StageSelect({ j }: { j: any }) {
 }
 
 export function JobCell({ j }: { j: any }) {
-  const rationale = j.status === 'new' && j.rationale;
-  const decisionText = (rationale || j.summary || j.rationale || '').split('\n\n')[0];
+  const description = jobPreview(j);
   return <>
     <span className="rt-td-title">{j.title}<Flags j={j} /></span>
-    {decisionText ? <span className={rationale ? 'rt-td-why' : 'rt-td-desc'}>{decisionText}</span> : null}
+    <span className="rt-td-desc" title={description}>{description}</span>
   </>;
 }
 
@@ -160,13 +160,13 @@ export type Col = {
 
 export const COLS: Record<string, Col> = {
   score: { label: 'Score', w: 92, cell: j => <Score j={j} />, sort: j => j.score ?? -1, filter: 'range', value: j => j.score },
-  job: { label: 'Job', w: 420, fixed: true, asc: true, cell: j => <JobCell j={j} />, sort: j => (j.title || '').toLowerCase() },
+  job: { label: 'Job', w: 440, fixed: true, asc: true, cell: j => <JobCell j={j} />, sort: j => (j.title || '').toLowerCase() },
   client: { label: 'Client', w: 150, unit: 'rating', cell: j => clientText(j) || <Dash />, sort: j => (j.client || {}).rating ?? -1, filter: 'range', value: j => (j.client || {}).rating },
   comp: { label: 'Competition', w: 124, cell: j => <Comp j={j} />, sort: j => firstNum(j.proposals) ?? -1, filter: 'multi', value: j => j.proposals == null ? 'Unknown' : `${j.proposals} bids` },
   budget: { label: 'Budget', w: 150, cell: j => <>{budgetText(j)}{(j.details || {}).connects_cost != null ? <span className="uw-sub">{j.details.connects_cost} connects</span> : null}</>,
     sort: j => firstNum(j.budget) ?? -1, filter: 'multi', value: j => j.job_type === 'hourly' ? 'Hourly' : j.job_type === 'fixed' ? 'Fixed price' : 'Unknown' },
   posted: { label: 'Posted', w: 100, cell: j => ago(j.posted_date), sort: j => j.posted_date || '', filter: 'multi', value: j => ageBucket(j.posted_date) },
-  stage: { label: 'Stage', w: 190, asc: true, cell: j => <><StageSelect j={j} /><DueChip j={j} /></>, sort: j => ORDER.indexOf(j.status), filter: 'multi', value: j => LABEL[j.status] || j.status },
+  stage: { label: 'Stage', w: 178, asc: true, cell: j => <><StageSelect j={j} /><DueChip j={j} /></>, sort: j => ORDER.indexOf(j.status), filter: 'multi', value: j => LABEL[j.status] || j.status },
   followup: { label: 'Follow-up', w: 130, asc: true, cell: j => j.next_follow_up && !ENDED.includes(j.status) ? <DueChip j={j} /> : <Dash />, sort: j => j.next_follow_up || '9999', filter: 'multi', value: dueBucket },
   tasks: { label: 'Next task', w: 210, asc: true, cell: j => <TasksCell j={j} />, sort: j => openTasks(j).map(t => t.due || '9999').sort()[0] || '99999',
     filter: 'multi', value: j => openTasks(j).some(t => t.due && t.due <= todayIso()) ? 'Task due' : openTasks(j).length ? 'Open tasks' : 'No open tasks' },

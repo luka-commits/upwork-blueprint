@@ -58,7 +58,9 @@ job to its cockpit page. Keep the list to active or recently parked items.
 
 Use the repository's completion report. Lead with the number due now and name
 the strongest opportunity. Say that every draft still needs the member's Send
-click. End with the exact Upwork call count.
+click. Explain that a confirmed Send automatically advances or completes the
+active sequence. Never tell the member to mark a sent follow-up manually. End
+with the exact Upwork call count.
 
 ## Self-improvement
 

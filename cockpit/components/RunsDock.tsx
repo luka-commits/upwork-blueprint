@@ -11,7 +11,7 @@ const RUN_LABEL: Record<string, string> = {
   'find-jobs': 'Find jobs',
   sync: 'Sync Upwork',
   'pitch-page': 'Prepare pitch page',
-  apply: 'Draft application',
+  apply: 'Prepare application',
   reply: 'Draft replies',
   'lead-magnet': 'Build SEO audit',
   'follow-up': 'Review follow-ups',

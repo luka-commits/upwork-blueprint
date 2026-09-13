@@ -19,7 +19,7 @@ import { DisqualifyButton } from './DisqualifyLead';
 export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materials', replyOpen = false, onReviewReply, preparationActionsOnly = false }: {
   j: any; materialsLabel?: string; salesLabel?: string; replyOpen?: boolean; onReviewReply?: () => void; preparationActionsOnly?: boolean;
 }) {
-  const { state, move, runCommand, toast } = useCockpit();
+  const { state, move, runCommand, runs, toast } = useCockpit();
   const d = j.details || {};
   const files = j.artifacts || [];
   const thread = j.thread || {};
@@ -50,17 +50,20 @@ export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materi
 
   if (j.status === 'new') {
     if (preparationActionsOnly) return <div className="next-step">{skip}</div>;
-    if (!files.includes('pitch.html')) return <div className="next-step">
+    if (!files.includes('pitch.html') || !files.includes('loom-script.md')) return <div className="next-step">
       {!canRun('pitch-page') ? <p className="say">Create the pitch page first.</p> : null}
       {canRun('pitch-page') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button></div> : null}
       <div className="next-secondary">{skip}</div>
     </div>;
     if (!validVideoUrl(j.video)) return <div className="next-step">
-      <p className="say">Add your Loom video in {materialsLabel}.</p>
+      <p className="say">Record the Loom, then save its link in {materialsLabel}.</p>
       <div className="next-secondary">{skip}</div>
     </div>;
+    if (runs.some(run => run.command === 'apply' && run.job === j.id && !run.done)) return <div className="next-step">
+      <p className="say">Reviewing the Loom and preparing the application.</p>
+    </div>;
     if (!files.includes('application.md')) return <div className="next-step">
-      <p className="say">Draft the application in {materialsLabel}.</p>
+      <p className="say">The automatic preparation stopped. Retry it in {materialsLabel}.</p>
       <div className="next-secondary">{skip}</div>
     </div>;
     return <div className="next-step">
@@ -195,7 +198,7 @@ export function TasksBlock({ j }: { j: any }) {
 
 export function BoostBlock({ d }: { d: any }) {
   if (d.boost_available === false) return <div className="boost">Boosting is not open to you on this job{d.boost_reason ? `: ${d.boost_reason}` : ''}.</div>;
-  if (d.boost_recommended == null && d.boost_top_bids === undefined) return <p className="note-sm" style={{ margin: 0 }}>The competing boost bids show up here once Draft application has made the proposal preview.</p>;
+  if (d.boost_recommended == null && d.boost_top_bids === undefined) return <p className="note-sm" style={{ margin: 0 }}>Competing boost bids appear after the application preview is ready.</p>;
   const bids = d.boost_top_bids;
   return <div className="boost">
     {bids == null ? 'The current bids could not be read.' : bids.length ? <>Top bids now: <b>{bids.slice(0, 3).join(' · ')}</b> Connects.</> : 'Nobody has boosted yet.'}
@@ -239,9 +242,7 @@ export function FilesChecklist({ j }: { j: any }) {
     {ok && href ? <a href={href} target="_blank" rel="noopener">{label}</a> : label}
   </li>;
   return <ul className="checklist">
-    {item(files.includes('pitch.html'), 'Pitch page', `/files/${j.id}/pitch.html`)}
-    {item(files.includes('loom-script.md'), 'Loom script', `/files/${j.id}/loom-script.md`)}
-    {item(validVideoUrl(j.video), 'Loom video', validVideoUrl(j.video) ? j.video : '')}
-    {item(files.includes('application.md'), 'Application', `/files/${j.id}/application.md`)}
+    {item(files.includes('pitch.html') && files.includes('loom-script.md'), 'Pitch page and Loom script', `/files/${j.id}/pitch.html`)}
+    {item(validVideoUrl(j.video) && files.includes('application.md'), 'Loom video and application', `/files/${j.id}/application.md`)}
   </ul>;
 }

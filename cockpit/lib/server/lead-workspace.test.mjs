@@ -88,42 +88,40 @@ test('workspace results and preparation inputs are not mutated or shared', () =>
 test('preparation progress starts at zero', () => {
   assert.deepEqual(preparationProgress([], false), {
     ready: 0,
-    total: 4,
+    total: 2,
     items: [
-      { key: 'pitch', label: 'Pitch page', ready: false },
-      { key: 'script', label: 'Loom script', ready: false },
-      { key: 'video', label: 'Loom video', ready: false },
-      { key: 'application', label: 'Application', ready: false },
+      { key: 'pitch', label: 'Pitch page and Loom script', ready: false },
+      { key: 'application', label: 'Loom video and application', ready: false },
     ],
   });
 });
 
 test('preparation progress counts partial work and requires a literal valid-video flag', () => {
   const partial = preparationProgress(['pitch.html', 'loom-script.md'], false);
-  assert.equal(partial.ready, 2);
-  assert.deepEqual(partial.items.map(item => item.ready), [true, true, false, false]);
+  assert.equal(partial.ready, 1);
+  assert.deepEqual(partial.items.map(item => item.ready), [true, false]);
 
   const invalidVideo = preparationProgress(['pitch.html', 'loom-script.md', 'application.md'], 'yes');
-  assert.equal(invalidVideo.ready, 3);
-  assert.equal(invalidVideo.items.find(item => item.key === 'video').ready, false);
+  assert.equal(invalidVideo.ready, 1);
+  assert.equal(invalidVideo.items.find(item => item.key === 'application').ready, false);
 });
 
-test('preparation progress reaches four only with every file and a valid video', () => {
+test('preparation reaches two only when both human steps are complete', () => {
   const full = preparationProgress([
     { name: 'pitch.html' },
     { name: 'loom-script.md' },
     { name: 'application.md' },
   ], true);
-  assert.equal(full.ready, 4);
-  assert.equal(full.total, 4);
+  assert.equal(full.ready, 2);
+  assert.equal(full.total, 2);
   assert.ok(full.items.every(item => item.ready));
 });
 
-test('preparation opens exactly the next prerequisite, never a blocked application', () => {
+test('preparation chooses one of the two human steps', () => {
   assert.equal(nextPreparationMaterial([], false), 'pitch');
-  assert.equal(nextPreparationMaterial(['pitch.html'], false), 'script');
-  assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md'], false), 'video');
-  assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md', 'application.md'], false), 'video');
+  assert.equal(nextPreparationMaterial(['pitch.html'], false), 'pitch');
+  assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md'], false), 'application');
+  assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md', 'application.md'], false), 'application');
   assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md'], true), 'application');
   assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md', 'application.md'], true), 'application');
 });

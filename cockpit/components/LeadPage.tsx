@@ -7,7 +7,8 @@ import { formatApplicationBid, parseApplication } from '@/lib/application-review
 import { revealContent } from '@/lib/surface-motion.mjs';
 import { timelineView } from '@/lib/timeline.mjs';
 import { artifactUrl, artifactVersion, useArtifactText } from '@/lib/artifact-content.mjs';
-import { leadWorkspace, nextPreparationMaterial } from '@/lib/lead-workspace.mjs';
+import { leadWorkspace } from '@/lib/lead-workspace.mjs';
+import { parseLoomReview, parseLoomScript } from '@/lib/loom-artifacts.mjs';
 import { BoostBlock, NextStep, TasksBlock } from './JobParts';
 import JobBrief from './JobBrief';
 import {
@@ -520,14 +521,13 @@ function FollowUpPlan({ j }: { j: any }) {
 }
 
 function Materials({ j, files, includeSales = true }: { j: any; files: string[]; includeSales?: boolean }) {
-  const { state, post, runCommand, toast } = useCockpit();
+  const { state, post, runCommand, runs, toast } = useCockpit();
   const d = j.details || {};
   const pitchReady = files.includes('pitch.html');
   const scriptReady = files.includes('loom-script.md');
   const applicationReady = files.includes('application.md');
   const videoReady = validVideoUrl(j.video);
   const applicationUnlocked = pitchReady && videoReady;
-  const nextMaterial = j.status === 'new' ? nextPreparationMaterial(files, videoReady) : null;
   const applicationBlocker = !pitchReady && !videoReady
     ? 'Add the pitch page and video first.'
     : !pitchReady ? 'Add the pitch page first.' : !videoReady ? 'Add a Loom or YouTube video first.' : '';
@@ -540,38 +540,79 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
   const deliveryFiles = j.status === 'won' ? ['project.md', 'delivery.md', 'client-handover.md', 'review-request.md'] : [];
   const otherFiles = files.filter(file => !['pitch.html', 'loom-script.md', 'application.md', ...journeyFiles, ...deliveryFiles].includes(file));
   const version = (file: string) => artifactVersion(j.files, file);
+  const applicationRunning = runs.some(run => run.command === 'apply' && run.job === j.id && !run.done);
+
+  if (j.status === 'new') return <div className="materials preparation-materials">
+    <MaterialRow label="1. Pitch page and Loom script" ready={pitchReady && scriptReady} defaultOpen={!pitchReady || !scriptReady}>
+      {pitchReady && scriptReady ? <>
+        <div className="preview"><iframe src={artifactUrl(j.id, 'pitch.html', version('pitch.html'))} title="Pitch page preview" loading="lazy" /></div>
+        <div className="material-actions">
+          <a className="btn" href={artifactUrl(j.id, 'pitch.html', version('pitch.html'))} target="_blank" rel="noopener">Open local preview</a>
+        </div>
+        <PitchUrlEditor j={j} post={post} copy={copy} />
+        <div className="preparation-output">
+          <span>Loom script</span>
+          <LoomScriptView id={j.id} version={version('loom-script.md')} />
+        </div>
+      </> : canRun('pitch-page')
+        ? <button className="primary" onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button>
+        : <p className="material-note">Pitch generation is unavailable.</p>}
+    </MaterialRow>
+
+    <MaterialRow label="2. Loom video and application" ready={videoReady && applicationReady} defaultOpen={pitchReady && scriptReady && !applicationReady}
+      status={!pitchReady || !scriptReady ? 'Locked' : applicationRunning ? 'Working' : undefined}>
+      {!pitchReady || !scriptReady ? <p className="material-note material-blocker">Generate the pitch page first.</p> : <>
+        <RecordingLauncher j={j} post={post} />
+        <LoomReviewToggle j={j} post={post} />
+        <VideoEditor j={j} post={post} copy={copy}
+          saveLabel="Save and prepare" onSaved={() => runCommand('apply', j.id)} />
+        {applicationRunning ? <p className="material-note">Reviewing the recording and preparing the application.</p> : null}
+        {videoReady && !applicationReady && !applicationRunning && canRun('apply')
+          ? <button className="primary" onClick={() => runCommand('apply', j.id)}>Review and prepare application</button> : null}
+        {files.includes('loom-review.md') ? <div className="preparation-output">
+          <span>Loom review</span>
+          <LoomReviewView id={j.id} version={version('loom-review.md')} />
+        </div> : null}
+        {applicationReady ? <div className="preparation-output">
+          <span>Application</span>
+          <ApplicationReview j={j} />
+        </div> : null}
+        {(d.boost_available === false || d.boost_recommended != null || d.boost_top_bids !== undefined)
+          ? <div className="boost-slot"><span>Boost bids</span><BoostBlock d={d} /></div> : null}
+      </>}
+    </MaterialRow>
+  </div>;
 
   return <div className="materials">
-    <MaterialRow label="Pitch page" ready={pitchReady} defaultOpen={nextMaterial === 'pitch'}>
+    <MaterialRow label="Pitch page" ready={pitchReady}>
       {pitchReady ? <>
         <div className="preview"><iframe src={artifactUrl(j.id, 'pitch.html', version('pitch.html'))} title="Pitch page preview" loading="lazy" /></div>
         <div className="material-actions">
           <a className="btn" href={artifactUrl(j.id, 'pitch.html', version('pitch.html'))} target="_blank" rel="noopener">Open local preview</a>
         </div>
         <PitchUrlEditor j={j} post={post} copy={copy} />
-      </> : canRun('pitch-page') ? <button className={nextMaterial === 'pitch' ? 'primary' : undefined} onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button> : <p className="material-note">Pitch page generation is unavailable.</p>}
+      </> : canRun('pitch-page') ? <button onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button> : <p className="material-note">Pitch page generation is unavailable.</p>}
     </MaterialRow>
 
-    <MaterialRow label="Loom script" ready={scriptReady} defaultOpen={nextMaterial === 'script'}>
+    <MaterialRow label="Loom script" ready={scriptReady}>
       {scriptReady
-        ? <MaterialDocument id={j.id} file="loom-script.md" version={version('loom-script.md')} />
-        : canRun('pitch-page') ? <button className={nextMaterial === 'script' ? 'primary' : undefined} onClick={() => runCommand('pitch-page', j.id)}>Generate Loom script</button> : <p className="material-note">The Loom script is made with the pitch page.</p>}
+        ? <LoomScriptView id={j.id} version={version('loom-script.md')} />
+        : canRun('pitch-page') ? <button onClick={() => runCommand('pitch-page', j.id)}>Generate Loom script</button> : <p className="material-note">The Loom script is made with the pitch page.</p>}
     </MaterialRow>
 
-    <MaterialRow label="Loom video" ready={videoReady} defaultOpen={nextMaterial === 'video'}>
+    <MaterialRow label="Loom video" ready={videoReady}>
       <VideoEditor j={j} post={post} copy={copy} />
     </MaterialRow>
 
-    {(videoReady || files.includes('loom-review.md')) ? <MaterialRow label="Loom review" ready={files.includes('loom-review.md')}>
-      {files.includes('loom-review.md') ? <MaterialDocument id={j.id} file="loom-review.md" version={version('loom-review.md')} />
-        : <CommandHandoff command="loom-review" job={j} trailing="<transcript path>" label="Copy Loom review command" hint="Paste it into Claude Code and replace the placeholder with the Loom transcript path." />}
+    {files.includes('loom-review.md') ? <MaterialRow label="Loom review" ready>
+      <LoomReviewView id={j.id} version={version('loom-review.md')} />
     </MaterialRow> : null}
 
-    <MaterialRow label="Application" ready={applicationReady} defaultOpen={nextMaterial === 'application'} status={!applicationReady && !applicationUnlocked ? 'Locked' : undefined}>
+    <MaterialRow label="Application" ready={applicationReady} status={!applicationReady && !applicationUnlocked ? 'Locked' : undefined}>
       {applicationReady
         ? <ApplicationReview j={j} />
         : canRun('apply') ? <>
-          <button className={nextMaterial === 'application' ? 'primary' : undefined} disabled={!applicationUnlocked} title={applicationBlocker || undefined} onClick={() => runCommand('apply', j.id)}>Draft application</button>
+          <button disabled={!applicationUnlocked} title={applicationBlocker || undefined} onClick={() => runCommand('apply', j.id)}>Draft application</button>
           {applicationBlocker ? <p className="material-note material-blocker">{applicationBlocker}</p> : null}
         </> : <p className="material-note">Application drafting is unavailable.</p>}
       {j.status === 'new' && (d.boost_available === false || d.boost_recommended != null || d.boost_top_bids !== undefined)
@@ -693,6 +734,110 @@ function MaterialDocument({ id, file, version }: { id: string; file: string; ver
   </>;
 }
 
+function LoomScriptView({ id, version }: { id: string; version: string }) {
+  const { toast } = useCockpit();
+  const content = useArtifactText(id, 'loom-script.md', version);
+  const script = parseLoomScript(content.text);
+  const copy = () => navigator.clipboard.writeText(content.text).then(
+    () => toast('Loom script copied.'),
+    () => toast('Copy was blocked, select the text instead.'),
+  );
+  if (content.status === 'loading') return <p className="material-note">Loading…</p>;
+  if (content.status === 'error') return <div className="material-load-state"><p className="material-note">Could not load this file.</p><button onClick={content.retry}>Retry</button></div>;
+  if (content.status === 'empty') return <p className="material-note">This file is empty.</p>;
+  return <div className="loom-script-view">
+    {script.intro ? <p className="loom-script-intro">{script.intro}</p> : null}
+    {script.beats.length ? <ol className="loom-beats">{script.beats.map((beat: any, index: number) => <li key={`${beat.title}-${index}`}>
+      <span className="loom-beat-number">{index + 1}</span>
+      <div><b>{beat.title}</b>{beat.body ? <p>{beat.body}</p> : null}</div>
+      {beat.duration ? <time>{beat.duration}</time> : null}
+    </li>)}</ol> : <div className="material-doc expanded">{content.text}</div>}
+    <div className="material-actions">
+      <button onClick={copy}>Copy script</button>
+      <a className="btn" href={artifactUrl(id, 'loom-script.md', version)} target="_blank" rel="noopener">Open</a>
+    </div>
+  </div>;
+}
+
+function LoomReviewView({ id, version }: { id: string; version: string }) {
+  const { toast } = useCockpit();
+  const content = useArtifactText(id, 'loom-review.md', version);
+  const review = parseLoomReview(content.text);
+  const copy = () => navigator.clipboard.writeText(content.text).then(
+    () => toast('Loom review copied.'),
+    () => toast('Copy was blocked, select the text instead.'),
+  );
+  if (content.status === 'loading') return <p className="material-note">Loading…</p>;
+  if (content.status === 'error') return <div className="material-load-state"><p className="material-note">Could not load this file.</p><button onClick={content.retry}>Retry</button></div>;
+  if (content.status === 'empty') return <p className="material-note">This file is empty.</p>;
+  return <div className="loom-review-view">
+    <div className="loom-review-summary">
+      <div className="loom-review-score"><strong>{review.score ?? '–'}</strong><span>{review.score == null ? 'No score' : 'out of 100'}</span></div>
+      <div className="loom-review-verdict"><span>Verdict</span><p>{review.sections.find((section: any) => section.label.toLowerCase() === 'verdict')?.body || 'Open the review for details.'}</p></div>
+    </div>
+    <dl className="loom-review-sections">{review.sections.filter((section: any) => section.label.toLowerCase() !== 'verdict').map((section: any) => <div key={section.label}>
+      <dt>{section.label}</dt><dd>{section.body}</dd>
+    </div>)}</dl>
+    <div className="material-actions">
+      <button onClick={copy}>Copy review</button>
+      <a className="btn" href={artifactUrl(id, 'loom-review.md', version)} target="_blank" rel="noopener">Open</a>
+    </div>
+  </div>;
+}
+
+function RecordingLauncher({ j, post }: {
+  j: any;
+  post: (path: string, body: object) => Promise<boolean>;
+}) {
+  const { toast } = useCockpit();
+  const saved = Array.isArray(j.recording_links) ? j.recording_links.filter((link: any) => link?.label && link?.url) : [];
+  const [links, setLinks] = useState(saved);
+  const [label, setLabel] = useState('');
+  const [url, setUrl] = useState('');
+  useEffect(() => { setLinks(Array.isArray(j.recording_links) ? j.recording_links.filter((link: any) => link?.label && link?.url) : []); }, [j.recording_links]);
+  const builtIn = [
+    { label: 'Loom recorder', url: 'https://www.loom.com/screen-recorder' },
+    { label: 'Pitch page', url: j.pitch_url || artifactUrl(j.id, 'pitch.html', artifactVersion(j.files, 'pitch.html')) },
+    ...(j.url ? [{ label: 'Upwork job', url: j.url }] : []),
+  ];
+  const openTabs = () => {
+    [...builtIn, ...links].forEach((link, index) => window.open(link.url, `loom-${j.id}-${index}`, 'noopener,noreferrer'));
+    toast(`Opening ${builtIn.length + links.length} recording tabs.`);
+  };
+  const saveLinks = async (next: any[]) => {
+    if (await post('/api/recording-links', { id: j.id, links: next })) setLinks(next);
+  };
+  const add = async () => {
+    const nextLabel = label.trim(), nextUrl = url.trim();
+    if (!nextLabel || !nextUrl) return;
+    const next = [...links, { label: nextLabel, url: nextUrl }];
+    await saveLinks(next);
+    setLabel('');
+    setUrl('');
+  };
+  return <div className="recording-launcher">
+    <div className="recording-launcher-main">
+      <button className="primary" onClick={openTabs}>Record Loom now</button>
+      <span>Opens Loom, the pitch page and Upwork.</span>
+    </div>
+    <details>
+      <summary>Recording tabs <span>{builtIn.length + links.length}</span></summary>
+      <div className="recording-links">
+        {[...builtIn, ...links].map((link, index) => <div key={`${link.url}-${index}`}>
+          <a href={link.url} target="_blank" rel="noopener">{link.label}</a>
+          {index >= builtIn.length ? <button className="link danger-link" onClick={() => saveLinks(links.filter((_: any, savedIndex: number) => savedIndex !== index - builtIn.length))}>Remove</button> : null}
+        </div>)}
+      </div>
+      <div className="recording-link-form">
+        <input value={label} onChange={event => setLabel(event.target.value)} placeholder="Tool name" aria-label="Recording tool name" />
+        <input type="url" value={url} onChange={event => setUrl(event.target.value)} placeholder="https://..." aria-label="Recording tool URL"
+          onKeyDown={event => { if (event.key === 'Enter') void add(); }} />
+        <button onClick={add} disabled={!label.trim() || !url.trim()}>Add</button>
+      </div>
+    </details>
+  </div>;
+}
+
 function ApplicationReview({ j }: { j: any }) {
   const { toast } = useCockpit();
   const d = j.details || {};
@@ -749,10 +894,24 @@ function ApplicationField({ label, value, onCopy, answer = false }: {
   </section>;
 }
 
-function VideoEditor({ j, post, copy }: {
+function LoomReviewToggle({ j, post }: {
+  j: any;
+  post: (path: string, body: object) => Promise<boolean>;
+}) {
+  const enabled = j.loom_review_enabled !== false;
+  return <button className="loom-review-toggle" role="switch" aria-checked={enabled}
+    onClick={() => post('/api/loom-review', { id: j.id, enabled: !enabled })}>
+    <span><b>Review Loom</b><small>Transcribe and score before drafting</small></span>
+    <i aria-hidden="true"><span /></i>
+  </button>;
+}
+
+function VideoEditor({ j, post, copy, saveLabel = 'Save link', onSaved }: {
   j: any;
   post: (path: string, body: object) => Promise<boolean>;
   copy: (value: string) => void;
+  saveLabel?: string;
+  onSaved?: () => void;
 }) {
   const [url, setUrl] = useState(j.video || '');
   const [replacing, setReplacing] = useState(false);
@@ -764,7 +923,10 @@ function VideoEditor({ j, post, copy }: {
   const save = async () => {
     const value = url.trim();
     if (!value) return inputRef.current?.focus();
-    if (await post('/api/video', { id: j.id, url: value })) setReplacing(false);
+    if (await post('/api/video', { id: j.id, url: value })) {
+      setReplacing(false);
+      onSaved?.();
+    }
   };
   if (!ready || replacing) return <div className="video-input">
     <input
@@ -775,7 +937,7 @@ function VideoEditor({ j, post, copy }: {
       onKeyDown={e => { if (e.key === 'Enter') void save(); if (e.key === 'Escape' && ready) setReplacing(false); }}
       aria-label="Video link"
     />
-    <button onClick={save}>{ready ? 'Replace' : 'Save link'}</button>
+    <button onClick={save}>{ready ? onSaved ? 'Replace and prepare' : 'Replace' : saveLabel}</button>
   </div>;
   return <>
     {emb ? <div className="video"><iframe src={emb} allowFullScreen title="Video for this job" /></div> : null}

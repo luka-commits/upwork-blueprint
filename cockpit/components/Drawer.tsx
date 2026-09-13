@@ -121,15 +121,15 @@ export default function Drawer() {
 function LeadDrawer({ j }: { j: any }) {
   const d = j.details || {};
   const files: string[] = j.artifacts || [];
-  const ready = Number(files.includes('pitch.html')) + Number(files.includes('loom-script.md')) +
-    Number(validVideoUrl(j.video)) + Number(files.includes('application.md'));
+  const ready = Number(files.includes('pitch.html') && files.includes('loom-script.md')) +
+    Number(validVideoUrl(j.video) && files.includes('application.md'));
   return <>
     <section className="drawer-next" aria-label="Next step">
       <NextStep key={`next-${j.id}`} j={j} />
     </section>
     <LeadOverview j={j} />
     <div className="drawer-supporting">
-      <DrawerDisclosure label="Materials" summary={`${ready} of 4 ready`}>
+      <DrawerDisclosure label="Materials" summary={`${ready} of 2 ready`}>
         <FilesChecklist j={j} />
         {j.status === 'new' && (d.boost_available === false || d.boost_recommended != null || d.boost_top_bids !== undefined)
           ? <div className="boost-slot"><span>Boost bids</span><BoostBlock d={d} /></div> : null}

@@ -78,12 +78,10 @@ export function preparationProgress(files, hasValidVideo) {
     .map(file => typeof file === 'string' ? file : file?.name)
     .filter(Boolean));
   const items = [
-    { key: 'pitch', label: 'Pitch page', ready: names.has('pitch.html') },
-    { key: 'script', label: 'Loom script', ready: names.has('loom-script.md') },
-    { key: 'video', label: 'Loom video', ready: hasValidVideo === true },
-    { key: 'application', label: 'Application', ready: names.has('application.md') },
+    { key: 'pitch', label: 'Pitch page and Loom script', ready: names.has('pitch.html') && names.has('loom-script.md') },
+    { key: 'application', label: 'Loom video and application', ready: hasValidVideo === true && names.has('application.md') },
   ];
-  return { ready: items.filter(item => item.ready).length, total: 4, items };
+  return { ready: items.filter(item => item.ready).length, total: 2, items };
 }
 
 // A single priority keeps a blocked application from opening alongside its prerequisite.

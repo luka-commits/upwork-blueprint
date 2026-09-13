@@ -202,7 +202,7 @@ export function nextTodo(j: any): { text: string; due: string | null } | null {
   const clientWaiting = !!j.thread?.room_id && j.thread?.awaiting_reply_from === 'you' && clientMessages.length > 0;
   const callMentioned = clientMessages.some((message: any) => /\b(call|meeting|meet|zoom|interview|chat)\b/i.test(String(message.text || '')));
   const stageAction = j.status === 'new'
-    ? !files.has('pitch.html') ? 'Make pitch page' : !validVideoUrl(j.video) ? 'Record Loom' : !files.has('application.md') ? 'Draft application' : 'Submit on Upwork'
+    ? !files.has('pitch.html') || !files.has('loom-script.md') ? 'Make pitch page' : !validVideoUrl(j.video) ? 'Record Loom' : !files.has('application.md') ? 'Prepare application' : 'Submit on Upwork'
     : j.status === 'applied' ? 'Check for a reply'
       : j.status === 'replied' ? clientWaiting ? 'Reply to the client' : !files.has('call-prep.md') ? callMentioned ? 'Prepare for the call' : 'Check latest messages' : !files.has('call-review.md') ? 'Review the call' : !files.has('proposal.md') ? 'Draft proposal' : 'Send proposal on Upwork'
         : j.status === 'won' ? !files.has('project.md') ? 'Set up the project' : 'Add next delivery task'

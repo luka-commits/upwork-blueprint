@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Fragment, type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, type CSSProperties, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useCockpit } from '@/lib/context';
 import { formatApplicationBid, parseApplication } from '@/lib/application-review.mjs';
 import { revealContent } from '@/lib/surface-motion.mjs';
@@ -115,6 +116,7 @@ export default function LeadPage({ id }: { id: string }) {
       </div>
       <div className="lead-head-actions">
         <StageSelect j={j} />
+        <SetTaskButton job={j} />
         {j.url ? <a className="btn" href={j.url} target="_blank" rel="noopener">Open on Upwork</a> : null}
         {workspace.mode === 'prepare' ? <NextStep key={`next-${j.id}`} j={j} preparationActionsOnly /> : null}
       </div>
@@ -177,7 +179,68 @@ function StageActions({ j, workspace, tab, setTab, move }: {
 }
 
 function TasksPanel({ j }: { j: any }) {
-  return <section className="panel tasks-panel"><h2>Tasks</h2><TasksBlock key={`tasks-${j.id}`} j={j} /></section>;
+  return <section className="panel tasks-panel"><h2>Tasks</h2><TasksBlock key={`tasks-${j.id}`} j={j} allowAdd={false} /></section>;
+}
+
+function SetTaskButton({ job }: { job: any }) {
+  const [opener, setOpener] = useState<HTMLButtonElement | null>(null);
+  return <>
+    <button onClick={event => setOpener(event.currentTarget)}>Set task</button>
+    {opener ? <SetTaskDialog job={job} returnTo={opener} onClose={() => setOpener(null)} /> : null}
+  </>;
+}
+
+function SetTaskDialog({ job, returnTo, onClose }: { job: any; returnTo: HTMLButtonElement; onClose: () => void }) {
+  const { post } = useCockpit();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const textId = useId();
+  const [text, setText] = useState('');
+  const [due, setDue] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const saving = useRef(false);
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => {
+      element?.close();
+      if (returnTo.isConnected) returnTo.focus({ preventScroll: true });
+    };
+  }, [returnTo]);
+  return createPortal(<dialog ref={dialog} className="set-task-dialog" aria-labelledby={titleId}
+    onCancel={event => { event.preventDefault(); if (!saving.current) onClose(); }}
+    onClick={event => { if (event.target === event.currentTarget && !saving.current) onClose(); }}>
+    <form onSubmit={async event => {
+      event.preventDefault();
+      const value = text.trim();
+      if (!value || saving.current) return;
+      saving.current = true;
+      setBusy(true);
+      setError('');
+      try {
+        if (await post('/api/task', { id: job.id, action: 'add', text: value, ...(due ? { due } : {}) })) onClose();
+        else setError('Could not save this task.');
+      } catch {
+        setError('Could not save this task.');
+      } finally {
+        saving.current = false;
+        setBusy(false);
+      }
+    }}>
+      <header><div><span>Next action</span><h2 id={titleId}>Set task</h2></div>
+        <button type="button" aria-label="Close task dialog" disabled={busy} onClick={onClose}>×</button></header>
+      <div className="set-task-fields">
+        <label htmlFor={textId}>Task</label>
+        <input id={textId} autoFocus value={text} disabled={busy} placeholder="What needs to happen?" onChange={event => setText(event.target.value)} />
+        <label htmlFor={`${textId}-due`}>Due date <span>(optional)</span></label>
+        <input id={`${textId}-due`} type="date" value={due} disabled={busy} onChange={event => setDue(event.target.value)} />
+        {error ? <p role="alert">{error}</p> : null}
+      </div>
+      <footer><button type="button" disabled={busy} onClick={onClose}>Cancel</button>
+        <button type="submit" className="primary" disabled={busy || !text.trim()}>{busy ? 'Saving…' : 'Add task'}</button></footer>
+    </form>
+  </dialog>, document.body);
 }
 
 function LeadDetails({ j, hasFlags }: { j: any; hasFlags: boolean }) {
@@ -307,7 +370,7 @@ function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, add
       </> : null}
       {workspace.mode === 'delivery' ? <>
         <WorkspaceHeading title="Deliver the project" hint="Keep the next commitment clear, report checked work and finish with a clean handover." />
-        <section className="delivery-tasks"><h3>Tasks</h3><TasksBlock key={`delivery-tasks-${j.id}`} j={j} /></section>
+        <section className="delivery-tasks"><h3>Tasks</h3><TasksBlock key={`delivery-tasks-${j.id}`} j={j} allowAdd={false} /></section>
         <ClientFiles j={j} embedded />
       </> : null}
       </div>
@@ -738,6 +801,8 @@ function LoomScriptView({ id, version }: { id: string; version: string }) {
   const { toast } = useCockpit();
   const content = useArtifactText(id, 'loom-script.md', version);
   const script = parseLoomScript(content.text);
+  const [open, setOpen] = useState(false);
+  const opener = useRef<HTMLButtonElement>(null);
   const copy = () => navigator.clipboard.writeText(content.text).then(
     () => toast('Loom script copied.'),
     () => toast('Copy was blocked, select the text instead.'),
@@ -745,18 +810,58 @@ function LoomScriptView({ id, version }: { id: string; version: string }) {
   if (content.status === 'loading') return <p className="material-note">Loading…</p>;
   if (content.status === 'error') return <div className="material-load-state"><p className="material-note">Could not load this file.</p><button onClick={content.retry}>Retry</button></div>;
   if (content.status === 'empty') return <p className="material-note">This file is empty.</p>;
-  return <div className="loom-script-view">
-    {script.intro ? <p className="loom-script-intro">{script.intro}</p> : null}
-    {script.beats.length ? <ol className="loom-beats">{script.beats.map((beat: any, index: number) => <li key={`${beat.title}-${index}`}>
-      <span className="loom-beat-number">{index + 1}</span>
-      <div><b>{beat.title}</b>{beat.body ? <p>{beat.body}</p> : null}</div>
-      {beat.duration ? <time>{beat.duration}</time> : null}
-    </li>)}</ol> : <div className="material-doc expanded">{content.text}</div>}
-    <div className="material-actions">
+  return <>
+    <div className="loom-script-handoff">
+      <button ref={opener} className="primary" onClick={() => setOpen(true)}>View script</button>
       <button onClick={copy}>Copy script</button>
-      <a className="btn" href={artifactUrl(id, 'loom-script.md', version)} target="_blank" rel="noopener">Open</a>
+      <a className="btn" href={artifactUrl(id, 'loom-script.md', version)} target="_blank" rel="noopener">Open in new window</a>
     </div>
-  </div>;
+    {open ? <LoomScriptDialog script={script} fallback={content.text} url={artifactUrl(id, 'loom-script.md', version)}
+      returnTo={opener.current} copy={copy} onClose={() => setOpen(false)} /> : null}
+  </>;
+}
+
+function LoomScriptDialog({ script, fallback, url, returnTo, copy, onClose }: {
+  script: ReturnType<typeof parseLoomScript>;
+  fallback: string;
+  url: string;
+  returnTo: HTMLButtonElement | null;
+  copy: () => void;
+  onClose: () => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const returnFocus = useRef(returnTo);
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => {
+      element?.close();
+      if (returnFocus.current?.isConnected) returnFocus.current.focus({ preventScroll: true });
+    };
+  }, []);
+  return createPortal(<dialog ref={dialog} className="loom-script-dialog" aria-labelledby={titleId}
+    onCancel={event => { event.preventDefault(); onClose(); }}
+    onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="loom-script-dialog-card">
+      <header>
+        <div><span>Recording guide</span><h2 id={titleId}>Loom script</h2></div>
+        <button className="loom-script-close" aria-label="Close Loom script" onClick={onClose}>×</button>
+      </header>
+      <div className="loom-script-dialog-body">
+        {script.intro ? <p className="loom-script-intro">{script.intro}</p> : null}
+        {script.beats.length ? <ol className="loom-beats">{script.beats.map((beat: any, index: number) => <li key={`${beat.title}-${index}`}>
+          <span className="loom-beat-number">{index + 1}</span>
+          <div><b>{beat.title}</b>{beat.body ? <p>{beat.body}</p> : null}</div>
+          {beat.duration ? <time>{beat.duration}</time> : null}
+        </li>)}</ol> : <div className="material-doc expanded">{fallback}</div>}
+      </div>
+      <footer>
+        <button onClick={copy}>Copy script</button>
+        <a className="btn" href={url} target="_blank" rel="noopener">Open in new window</a>
+      </footer>
+    </div>
+  </dialog>, document.body);
 }
 
 function LoomReviewView({ id, version }: { id: string; version: string }) {

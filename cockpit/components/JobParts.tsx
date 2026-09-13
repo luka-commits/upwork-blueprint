@@ -142,7 +142,7 @@ export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materi
   </div>;
 }
 
-export function TasksBlock({ j }: { j: any }) {
+export function TasksBlock({ j, allowAdd = true }: { j: any; allowAdd?: boolean }) {
   const { post } = useCockpit();
   const [text, setText] = useState('');
   const [due, setDue] = useState('');
@@ -181,7 +181,7 @@ export function TasksBlock({ j }: { j: any }) {
       <summary>Done · {done.length}</summary>
       <ul className="tasks">{done.map(task)}</ul>
     </details> : null}
-    {!adding ? <button className="task-add-toggle" onClick={() => setAdding(true)}>+ Add task</button> : <form className="task-add" onSubmit={e => { e.preventDefault(); void add(); }}>
+    {allowAdd && (!adding ? <button className="task-add-toggle" onClick={() => setAdding(true)}>+ Add task</button> : <form className="task-add" onSubmit={e => { e.preventDefault(); void add(); }}>
       <input
         ref={textRef}
         placeholder="Task"
@@ -192,7 +192,7 @@ export function TasksBlock({ j }: { j: any }) {
       />
       <input type="date" aria-label="Due date (optional)" value={due} onChange={e => setDue(e.target.value)} />
       <button type="submit">Add</button>
-    </form>}
+    </form>)}
   </div>;
 }
 

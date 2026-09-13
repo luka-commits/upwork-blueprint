@@ -1212,10 +1212,133 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
   font-size: 11.5px;
 }
 
-.loom-script-view,
 .loom-review-view {
   min-width: 0;
 }
+
+.loom-script-handoff {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.loom-script-dialog,
+.set-task-dialog {
+  padding: 0;
+  color: var(--text);
+  border: 0;
+  background: transparent;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity 180ms var(--lead-ease), transform 180ms var(--lead-ease), overlay 180ms allow-discrete, display 180ms allow-discrete;
+}
+
+.loom-script-dialog { width: min(760px, calc(100vw - 80px)); }
+.set-task-dialog { width: min(440px, calc(100vw - 80px)); }
+
+.loom-script-dialog::backdrop,
+.set-task-dialog::backdrop {
+  background: #15263b52;
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+
+@starting-style {
+  .loom-script-dialog[open],
+  .set-task-dialog[open] {
+    opacity: 0;
+    transform: translateY(7px) scale(.98);
+  }
+}
+
+.loom-script-dialog-card,
+.set-task-dialog > form {
+  overflow: hidden;
+  border: 1px solid #ffffffd9;
+  border-radius: var(--radius-panel);
+  background: var(--card);
+  box-shadow: var(--shadow-pop);
+}
+
+.loom-script-dialog-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  max-height: calc(100vh - 80px);
+}
+
+.loom-script-dialog header,
+.set-task-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.loom-script-dialog header span,
+.set-task-dialog header span {
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+
+.loom-script-dialog h2,
+.set-task-dialog h2 {
+  margin: 1px 0 0;
+  font-size: 19px;
+  line-height: 1.2;
+  letter-spacing: -.025em;
+}
+
+.loom-script-close,
+.set-task-dialog header button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-color: transparent;
+  color: var(--text-3);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.loom-script-dialog-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 22px 20px;
+}
+
+.loom-script-dialog footer,
+.set-task-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  padding: 12px 22px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.set-task-fields {
+  display: grid;
+  gap: 6px;
+  padding: 18px 22px 22px;
+}
+
+.set-task-fields label {
+  margin-top: 7px;
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.set-task-fields label:first-child { margin-top: 0; }
+.set-task-fields label span { color: var(--text-3); font-weight: 500; }
+.set-task-fields input { width: 100%; min-height: 36px; }
+.set-task-fields input[type="date"] { width: 154px; }
+.set-task-fields [role="alert"] { margin: 4px 0 0; color: var(--red-deep); font-size: 11.5px; }
 
 .loom-script-intro {
   margin: 0 0 8px;

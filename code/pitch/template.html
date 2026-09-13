@@ -508,25 +508,14 @@
     transition: border-color .22s var(--ease), transform .22s var(--ease); }
   .plan-item::after { content: ""; position: absolute; top: 0; left: 26px; width: 44px; height: 2px;
     background: var(--accent-on-ink); transform-origin: left center; }
-  .plan-glyph { width: 40px; height: 40px; display: block; margin: 0 0 18px; color: var(--accent-on-ink); }
+  .plan-step { display: block; margin: 0 0 22px; font-family: Georgia, ui-serif, serif;
+    font-size: 34px; line-height: 1; color: var(--accent-on-ink); }
   .plan-label { font-size: 15.5px; font-weight: 600; color: var(--on-ink); margin: 0 0 12px; }
-  .plan-body { font-size: 14.5px; color: var(--on-ink-2); line-height: 1.68; margin: 0; text-wrap: pretty; }
-
-  /* Meilensteine als Zeitleiste statt als Absatz. Vier Schritte in einem Block
-     liest niemand auseinander; nummeriert und mit Zeitraum davor schon. */
-  .milestones { list-style: none; margin: 0; padding: 0;
-    display: flex; flex-direction: column; gap: 16px; }
-  .milestones li { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px;
-    align-items: baseline; position: relative; padding-left: 2px; }
-  .ms-num { grid-row: span 2; font-family: Georgia, ui-serif, serif; font-size: 21px;
-    line-height: 1; color: var(--accent-on-ink); opacity: .85; }
-  .ms-when { font-size: 12px; font-weight: 600; letter-spacing: .04em;
-    text-transform: uppercase; color: var(--accent-on-ink); }
-  .ms-what { font-size: 14.5px; color: var(--on-ink-2); line-height: 1.6; text-wrap: pretty; }
-
-  /* Der erste Satz des Budgets ist das Versprechen und stand mitten im Absatz. */
-  .plan-lead { font-size: 15.5px; color: var(--on-ink); line-height: 1.5;
-    margin: 0 0 10px; text-wrap: pretty; }
+  .work-details { display: grid; gap: 16px; margin: 0; }
+  .work-details div { padding-top: 15px; border-top: 1px solid var(--border-ink); }
+  .work-details dt { margin: 0 0 5px; color: var(--accent-on-ink); font-size: 11px;
+    font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .work-details dd { margin: 0; color: var(--on-ink-2); font-size: 14.5px; line-height: 1.6; }
 
   /* Der Abschluss atmet jetzt: der Knopf ist die Handlung, nicht eine Zeile
      zwischen zwei anderen. */
@@ -641,17 +630,6 @@
   .proof-link:hover .arrow { transform: translateX(4px); }
   .plan-item:hover { border-color: rgba(224,138,92,.4); transform: translateY(-3px); }
 
-  /* Bild oben im Kasten, Text darunter. Die Bilder sind fuer diesen dunklen
-     Grund gemacht (dunkler Bildhintergrund, warmes Licht als Motiv) -- ein
-     cremefarbenes Bild wuerde hier als heller Klotz reinknallen und den einen
-     dunklen Moment der Seite zerstoeren. Ohne Bild bleibt das SVG-Glyph. */
-  .plan-img { margin: -22px -22px 16px; border-radius: 15px 15px 0 0; overflow: hidden; }
-  /* 16:9, because that is the shape the illustrations are generated in. A fixed
-     132px strip meant cover kept a middle band and threw the rest away: the
-     lamp-lit desk lost its desk, the agreement lost its page. */
-  .plan-img img { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto;
-                  object-fit: cover; }
-  .plan-item:has(.plan-img) .plan-glyph { display: none; }
   .cover-book:hover { transform: rotateY(-6deg) rotateX(1deg) rotateZ(0deg) translateY(-6px);
     filter: drop-shadow(0 40px 56px rgba(28,23,18,.40)); }
   .testimonial:hover { transform: translateY(-3px); box-shadow: 0 16px 32px -22px rgba(28,23,18,.45); }
@@ -724,8 +702,8 @@
     <nav class="navbar-inner" aria-label="Sections">
       <a class="navseg" href="#walkthrough"><span>Walkthrough</span></a>
       <a class="navseg" href="#build"><span>What I'd build</span></a>
-      <a class="navseg" href="#plan"><span>How it works</span></a>
       <a class="navseg" href="#proof"><span>Proof</span></a>
+      <a class="navseg" href="#plan"><span>Working together</span></a>
       <a class="navseg" href="#next"><span>Next step</span></a>
     </nav>
   </header>
@@ -814,7 +792,7 @@
               <strong id="dg-inspector-title">Choose a step</strong>
               <div class="dg-inspector-details">
                 <div class="dg-detail" id="dg-inspector-note-wrap"><span class="dg-detail-label">What happens</span><p id="dg-inspector-note"></p></div>
-                <div class="dg-detail" id="dg-inspector-why-wrap"><span class="dg-detail-label">Why it matters here</span><p id="dg-inspector-why"></p></div>
+                <div class="dg-detail" id="dg-inspector-why-wrap"><span class="dg-detail-label">Why it helps</span><p id="dg-inspector-why"></p></div>
               </div>
             </div>
             <form class="dg-inspector-form" id="dg-inspector-form" hidden>
@@ -822,7 +800,7 @@
               <label class="dg-field">Phase<select id="dg-edit-phase"></select></label>
               <label class="dg-field" id="dg-edit-phase-name-wrap">Phase name<input id="dg-edit-phase-name" maxlength="60"></label>
               <label class="dg-field">What happens<textarea id="dg-edit-note" maxlength="800"></textarea></label>
-              <label class="dg-field">Why it matters here<textarea id="dg-edit-why" maxlength="400"></textarea></label>
+              <label class="dg-field">Why it helps<textarea id="dg-edit-why" maxlength="400"></textarea></label>
               <span class="dg-form-actions">
                 <button class="dg-btn dg-btn-accent" type="submit">Save step</button>
                 <button class="dg-btn" type="button" data-dg="cancel-step">Cancel</button>
@@ -872,74 +850,12 @@
   </section>
   <!-- videos:end -->
 
-  <section class="band band-ink band-dotted" id="plan">
-    <canvas class="dither dither-plan" data-src="{{DITHER_SRC_NEXT}}" data-on-ink aria-hidden="true"></canvas>
-    <div class="inner-wide">
-      <div class="center">
-        <h2 class="serif section-title" data-rise>How this would work</h2>
-        <p class="section-lede" data-rise data-d="1">The tools, the time, the cost, and exactly what I'd need from you. All of it open to discussion before anything starts.</p>
-      </div>
-      <div class="plan-grid">
-
-        <div class="plan-item">
-          <svg class="plan-glyph" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <path d="M24.8 7.4a8 8 0 0 0-10.4 10.4L7 25.2 14.8 33l7.4-7.4A8 8 0 0 0 32.6 15.2l-4.9 4.9-3.8-3.8 4.9-4.9a8 8 0 0 0-4-4z"
-              stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-            <path d="M12.4 27.6l2.6 2.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-          </svg>
-          {{PLAN_IMG_TOOLS}}
-          <p class="plan-label">Tools</p>
-          <ul class="scope-list">
-            {{TOOLS}}
-          </ul>
-        </div>
-
-        <div class="plan-item">
-          <svg class="plan-glyph" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <circle cx="20" cy="21.5" r="12.5" stroke="currentColor" stroke-width="1.8"/>
-            <path d="M20 14v7.5l5 3.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M15.5 5.5h9M20 5.5V9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-          </svg>
-          {{PLAN_IMG_TIMELINE}}
-          <p class="plan-label">Timeline</p>
-          {{TIMELINE_BLOCK}}
-        </div>
-
-        <div class="plan-item">
-          <svg class="plan-glyph" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <path d="M19.2 6.5H9.8A3.3 3.3 0 0 0 6.5 9.8v9.4c0 .9.35 1.7.97 2.33l11.6 11.6a3.3 3.3 0 0 0 4.66 0l9.4-9.4a3.3 3.3 0 0 0 0-4.66L21.53 7.47a3.3 3.3 0 0 0-2.33-.97z"
-              stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-            <circle cx="14" cy="14" r="2.2" fill="currentColor"/>
-          </svg>
-          {{PLAN_IMG_BUDGET}}
-          <p class="plan-label">Budget</p>
-          {{BUDGET_BLOCK}}
-        </div>
-
-        <div class="plan-item">
-          <svg class="plan-glyph" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <rect x="8" y="6" width="24" height="28" rx="3" stroke="currentColor" stroke-width="1.8"/>
-            <path d="M13.5 15.2l2.4 2.4 4.3-4.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M13.5 25.4l2.4 2.4 4.3-4.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M23.5 15h4M23.5 25.2h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-          </svg>
-          {{PLAN_IMG_KICKOFF}}
-          <p class="plan-label">To get started, I'd need</p>
-          <ul class="scope-list">
-            {{KICKOFF_ITEMS}}
-          </ul>
-        </div>
-
-      </div>
-    </div>
-  </section>
-
   <!-- showcase:start -->
   <section class="band band-warm" id="proof">
     <div class="inner-wide">
       <div class="showcase">
         <div class="cover-stage" data-cover>
-          <span class="cover-flag">Real example</span>
+          <span class="cover-flag">Step 01</span>
           <div class="cover-book">
             <span class="cover-sheet s2"></span>
             <span class="cover-sheet s1"></span>
@@ -955,12 +871,35 @@
           <a class="btn" href="{{LEAD_MAGNET_URL}}" target="_blank" rel="noopener" data-rise data-d="3">
             {{LEAD_MAGNET_CTA}} <span class="arrow" aria-hidden="true">→</span>
           </a>
-          <p class="note" data-rise data-d="3">Free, and yours to keep whether or not we work together.</p>
         </div>
       </div>
     </div>
   </section>
   <!-- showcase:end -->
+
+  <section class="band band-ink band-dotted" id="plan">
+    <canvas class="dither dither-plan" data-src="{{DITHER_SRC_NEXT}}" data-on-ink aria-hidden="true"></canvas>
+    <div class="inner-wide">
+      <div class="center">
+        <h2 class="serif section-title" data-rise>Then we get to work</h2>
+        <p class="section-lede" data-rise data-d="1">One onboarding. One place for updates.</p>
+      </div>
+      <div class="plan-grid">
+        <div class="plan-item">
+          <span class="plan-step">02</span>
+          <p class="plan-label">Onboarding</p>
+          <ul class="scope-list">
+            {{KICKOFF_ITEMS}}
+          </ul>
+        </div>
+        <div class="plan-item">
+          <span class="plan-step">03</span>
+          <p class="plan-label">Updates</p>
+          {{UPDATES_BLOCK}}
+        </div>
+      </div>
+    </div>
+  </section>
 
   <section class="band band-plain">
     <div class="inner">

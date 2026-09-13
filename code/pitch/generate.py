@@ -12,9 +12,8 @@ something the proof file does not hold.
         --build-lede "..." \\
         --fit-point "200%|more website leads|for local businesses" (three times) \\
         --graph data/pitch-graph-<job_id>.json \\
-        --tool "GoHighLevel" --tool "n8n" \\
-        --timeline "Day 1-2|What ships;;Day 3-5|What ships" \\
-        --budget "..." --kickoff "..." --kickoff "..." \\
+        --kickoff "..." --kickoff "..." \\
+        --updates "Twice a week|Upwork, then the client's workspace" \\
         [--loom-url https://www.loom.com/share/...] [--video-length "3 minute"] \\
         [--hero-illustration path] [--live-artifact "Label|URL"] \\
         [--proof-link "Label|Detail|URL"] [--next-step "..."] \\
@@ -328,29 +327,19 @@ def fit_html(point):
     return f'<li>{FIT_ICON}<span>{esc(point)}</span></li>'
 
 
-def timeline_html(text):
-    if '|' not in text:
-        return f'<p class="plan-body">{esc(text)}</p>'
-    rows = []
-    for i, step in enumerate([s.strip() for s in text.split(';;') if s.strip()], 1):
-        when, _, what = step.partition('|')
-        rows.append(f'<li><span class="ms-num">{i:02d}</span><span class="ms-when">{esc(when.strip())}</span>'
-                    f'<span class="ms-what">{esc(what.strip())}</span></li>')
-    return f'<ol class="milestones">{"".join(rows)}</ol>'
-
-
-def budget_html(text):
-    head, _, rest = text.partition('. ')
-    if rest:
-        return f'<p class="plan-lead">{esc(head.strip())}.</p><p class="plan-body">{esc(rest.strip())}</p>'
-    return f'<p class="plan-body">{esc(text)}</p>'
-
-
 def split_label(raw, parts, flag):
     bits = [b.strip() for b in raw.split('|')]
     if len(bits) != parts or not all(bits):
         abort(f'{flag} needs {parts} parts split by |, got: {raw!r}')
     return bits
+
+
+def updates_html(text):
+    cadence, platform = split_label(text, 2, '--updates')
+    return ('<dl class="work-details">'
+            f'<div><dt>Cadence</dt><dd>{esc(cadence)}</dd></div>'
+            f'<div><dt>Platform</dt><dd>{esc(platform)}</dd></div>'
+            '</dl>')
 
 
 def main(argv=None):
@@ -360,10 +349,8 @@ def main(argv=None):
     ap.add_argument('--build-lede', required=True, help='one job-specific sentence explaining the proposed flow')
     ap.add_argument('--fit-point', action='append', required=True, help='"number|label|context", three times')
     ap.add_argument('--graph', required=True, help='the plan as JSON, or a path to it')
-    ap.add_argument('--tool', action='append', required=True)
-    ap.add_argument('--timeline', required=True)
-    ap.add_argument('--budget', required=True)
     ap.add_argument('--kickoff', action='append', required=True)
+    ap.add_argument('--updates', required=True, help='"cadence|platform" for client updates')
     ap.add_argument('--loom-url', default='')
     ap.add_argument('--video-length', default='3 minute')
     ap.add_argument('--hero-illustration', default='')
@@ -386,11 +373,10 @@ def main(argv=None):
     url = profile_url()
 
     dither = data_uri(DITHER) if DITHER.is_file() else ''
-    # The illustration belongs inside the plan canvas, beside the live flow.
-    # A second hero block above the page repeated the same idea without adding
-    # context, while the board placement makes the image part of the proposal.
     illustration_src = data_uri(args.hero_illustration) if args.hero_illustration else ''
-    hero_art = ''
+    hero_art = (f'<div class="hero-art" data-settle><img src="{illustration_src}" '
+                f'alt="Illustration of the proposed outcome for {esc(safe_job_title(job.get("title")))}"></div>'
+                if illustration_src else '')
 
     live = ''
     if args.live_artifact:
@@ -431,9 +417,8 @@ def main(argv=None):
     if args.showcase and not showcase_image.is_file():
         abort(f'lead magnet cover "{showcase_image}" does not exist.')
 
-    js = (DIAGRAM_JS.read_text(encoding='utf-8')
-          .replace('{{LOGOS_JSON}}', logos_json(json.loads(diagram_data)['nodes']))
-          .replace('{{ILLUSTRATION_SRC}}', illustration_src))
+    js = DIAGRAM_JS.read_text(encoding='utf-8').replace(
+        '{{LOGOS_JSON}}', logos_json(json.loads(diagram_data)['nodes']))
     fills = {
         '{{BODY_CLASS}}': '' if args.loom_url else 'no-video',
         '{{JOB_TITLE}}': esc(safe_job_title(job.get('title'))),
@@ -444,10 +429,8 @@ def main(argv=None):
         '{{VIDEO_LENGTH}}': esc(args.video_length),
         '{{FIT_POINTS}}': '\n        '.join(fit_html(p) for p in args.fit_point),
         '{{CV_BLOCK}}': cv_block(proof_text, me_text),
-        '{{TOOLS}}': '\n            '.join(f'<li>{esc(t)}</li>' for t in args.tool),
-        '{{TIMELINE_BLOCK}}': timeline_html(args.timeline),
-        '{{BUDGET_BLOCK}}': budget_html(args.budget),
         '{{KICKOFF_ITEMS}}': '\n            '.join(f'<li>{esc(k)}</li>' for k in args.kickoff),
+        '{{UPDATES_BLOCK}}': updates_html(args.updates),
         '{{LIVE_ARTIFACTS}}': live,
         '{{PROOF_LINK}}': proof_link,
         '{{TESTIMONIALS_BLOCK}}': reviews_html,
@@ -463,7 +446,6 @@ def main(argv=None):
         '{{NEXT_STEP}}': esc(args.next_step),
         '{{PROFILE_URL}}': esc(url or '#'),
         '{{FOOTER_LINKS}}': '<span class="dot">·</span>'.join(footer),
-        '{{PLAN_IMG_TOOLS}}': '', '{{PLAN_IMG_TIMELINE}}': '', '{{PLAN_IMG_BUDGET}}': '', '{{PLAN_IMG_KICKOFF}}': '',
         '{{DITHER_SRC_NEXT}}': dither, '{{DITHER_SRC}}': dither,
         '{{DIAGRAM_FALLBACK}}': diagram_fallback,
     }

@@ -29,17 +29,13 @@
   if (!base || !base.nodes || !base.nodes.length) return;
 
   var NS = 'http://www.w3.org/2000/svg';
-  var NW = 184, NH = 76, GRID = 20;
-  var COLS = 3, GAPX = 48, GAPY = 116;
-
-  var ILLUS_W = 300, ILLUS_H = 0, ILLUS_GAP = 52;
-  var ILLUSTRATION = '{{ILLUSTRATION_SRC}}';
+  var NW = 184, NH = 76, GRID = 20, GAPX = 48;
 
   // Vom Generator eingesetzt: slug -> innerer SVG-Inhalt der Marke.
   var LOGOS = {{LOGOS_JSON}};
 
   var state, view = { k: 1, x: 0, y: 0 }, sel = [], edited = false, editing = false;
-  var svg, scene, gGroups, gEdges, gNodes, gTemp, gAside, mini, miniView;
+  var svg, scene, gGroups, gEdges, gNodes, gTemp, mini, miniView;
   var undo = [], redo = [];
   var P = {}, statusTimer = 0;
 
@@ -374,11 +370,10 @@
     });
     var tallest = columns.reduce(function (n, column) { return Math.max(n, column.length); }, 1);
     var rowHeight = NH + 44;
-    var xShift = ILLUSTRATION ? ILLUS_W + ILLUS_GAP : 0;
     columns.forEach(function (column, columnIndex) {
       var yOffset = (tallest - column.length) * rowHeight / 2;
       column.forEach(function (node, rowIndex) {
-        node.x = xShift + columnIndex * (NW + GAPX);
+        node.x = columnIndex * (NW + GAPX);
         node.y = yOffset + rowIndex * rowHeight;
       });
     });
@@ -432,25 +427,13 @@
       });
     });
 
-    // Der Sketch sitzt links NEBEN dem Band, also faengt das Band erst hinter
-    // ihm an. Verschoben wird beim Layout, nicht beim Zeichnen -- sonst waeren
-    // Kanten, Ziehen und die Minimap gegen andere Koordinaten gerechnet.
-    var xShift = ILLUSTRATION ? ILLUS_W + ILLUS_GAP : 0;
     keys.forEach(function (k, ci) {
       var col = cols[k], span = col.length;
       col.forEach(function (d, j) {
-        d.x = xShift + ci * (NW + GAPX);
+        d.x = ci * (NW + GAPX);
         d.y = (j - (span - 1) / 2) * ROWH + (tallest - 1) / 2 * ROWH;
       });
     });
-  }
-
-  function illusRect() {
-    if (!ILLUSTRATION || !ILLUS_H) return null;
-    var y1 = 1e9, y2 = -1e9;
-    state.nodes.forEach(function (d) { y1 = Math.min(y1, d.y); y2 = Math.max(y2, d.y + NH); });
-    if (y1 > y2) { y1 = 0; y2 = NH; }
-    return { x: 0, y: (y1 + y2) / 2 - ILLUS_H / 2, w: ILLUS_W, h: ILLUS_H };
   }
 
   function bounds() {
@@ -459,11 +442,6 @@
       b.x1 = Math.min(b.x1, d.x); b.y1 = Math.min(b.y1, d.y);
       b.x2 = Math.max(b.x2, d.x + NW); b.y2 = Math.max(b.y2, d.y + NH);
     });
-    var ir = illusRect();
-    if (ir) {
-      b.x1 = Math.min(b.x1, ir.x); b.y1 = Math.min(b.y1, ir.y);
-      b.x2 = Math.max(b.x2, ir.x + ir.w); b.y2 = Math.max(b.y2, ir.y + ir.h);
-    }
     if (b.x1 > b.x2) b = { x1: 0, y1: 0, x2: NW, y2: NH };
     return b;
   }
@@ -587,11 +565,8 @@
     scene = el('g');
     scene.appendChild(el('rect', { x: -4000, y: -4000, width: 8000, height: 8000, fill: 'url(#dgGrid)' }));
     gGroups = el('g'); gEdges = el('g'); gNodes = el('g'); gTemp = el('g');
-    // Sketch und Notizen sind Beiwerk auf dem Board: sie fangen keine Klicks,
-    // damit Ziehen, Verbinden und Auswaehlen genau so bleiben wie vorher.
-    gAside = el('g', { 'pointer-events': 'none' });
     scene.appendChild(gGroups); scene.appendChild(gEdges);
-    scene.appendChild(gNodes); scene.appendChild(gAside); scene.appendChild(gTemp);
+    scene.appendChild(gNodes); scene.appendChild(gTemp);
     svg.appendChild(scene);
     stage.insertBefore(svg, stage.firstChild);
 
@@ -702,7 +677,6 @@
       gNodes.appendChild(g);
     });
 
-    drawAside();
     applyView();
     drawMini();
     updateInspector();
@@ -712,32 +686,6 @@
       var target = gNodes.querySelector('[data-id="' + focusId + '"]');
       if (target) target.focus({ preventScroll: true });
     }
-  }
-
-  /* Der Sketch und die Notizzettel. Beides gehoert zum Board, beides faengt
-     keine Klicks, und beides wird aus denselben Koordinaten gerechnet wie der
-     Flow -- damit zoomt, pannt und exportiert es mit. */
-  function drawAside() {
-    var ir = illusRect();
-    if (ir) {
-      // Papierflaeche unter dem Sketch, sonst schwimmt eine freigestellte
-      // Illustration ohne Kante auf dem gepunkteten Raster.
-      gAside.appendChild(el('rect', {
-        x: ir.x - 14, y: ir.y - 14, width: ir.w + 28, height: ir.h + 28, rx: 14,
-        fill: P.card, stroke: P.border, 'stroke-width': 1.2, filter: 'url(#dgNodeShadow)'
-      }));
-      var im = el('image', { x: ir.x, y: ir.y, width: ir.w, height: ir.h,
-        preserveAspectRatio: 'xMidYMid meet' });
-      im.setAttributeNS('http://www.w3.org/1999/xlink', 'href', ILLUSTRATION);
-      im.setAttribute('href', ILLUSTRATION);
-      gAside.appendChild(im);
-
-      var cap = el('text', { x: ir.x + ir.w / 2, y: ir.y + ir.h + 26,
-        'text-anchor': 'middle', fill: P.muted, 'font-size': 10.5, 'font-weight': 500, 'font-family': MONO });
-      cap.textContent = 'The short version';
-      gAside.appendChild(cap);
-    }
-
   }
 
   function applyView() {
@@ -1317,18 +1265,5 @@
     render();
     fit();
 
-    /* Die Hoehe des Sketches kommt aus dem Bild selbst, nicht aus einer im
-       Generator mitgeschriebenen Zahl -- die waere beim naechsten Austausch
-       des Bildes still falsch. Bis das Bild geladen ist, rechnet das Layout
-       ohne es; danach einmal neu setzen. */
-    if (ILLUSTRATION) {
-      var probe = new Image();
-      probe.onload = function () {
-        ILLUS_H = Math.round(ILLUS_W * (probe.naturalHeight / probe.naturalWidth));
-        render();
-        fit();
-      };
-      probe.src = ILLUSTRATION;
-    }
   })();
 })();

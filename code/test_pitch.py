@@ -149,7 +149,7 @@ class GenerateHelpersTest(unittest.TestCase):
         self.assertEqual(len(graph['nodes']), 9)
         self.assertEqual(len(graph['edges']), 8)
         self.assertTrue(all(node.get('why') for node in graph['nodes']))
-        self.assertIn('Storm campaign by zip code', fallback)
+        self.assertIn('Message storm-hit areas', fallback)
 
     def test_graph_rejects_more_than_twelve_client_level_steps(self):
         nodes = ','.join(f'{{"id":"n{i}","label":"Step {i}"}}' for i in range(13))
@@ -187,10 +187,25 @@ class GenerateHelpersTest(unittest.TestCase):
         self.assertIn('var MIN_READABLE = .88;', diagram)
         self.assertNotIn('function noteCards()', diagram)
 
-    def test_hero_illustration_is_embedded_in_the_board(self):
+    def test_hero_illustration_is_embedded_only_in_the_hero(self):
         generator = (CODE / 'pitch' / 'generate.py').read_text(encoding='utf-8')
-        self.assertIn(".replace('{{ILLUSTRATION_SRC}}', illustration_src)", generator)
+        diagram = (CODE / 'pitch' / 'diagram.js').read_text(encoding='utf-8')
+        self.assertIn('<div class="hero-art" data-settle>', generator)
+        self.assertNotIn('ILLUSTRATION_SRC', diagram)
         self.assertIn("REPORT_COVER = HERE / 'report-cover-example.jpg'", generator)
+
+    def test_working_together_follows_the_lead_magnet_without_budget_or_timeline(self):
+        template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')
+        self.assertLess(template.index('id="proof"'), template.index('id="plan"'))
+        self.assertIn('<span class="plan-step">02</span>', template)
+        self.assertIn('<span class="plan-step">03</span>', template)
+        self.assertNotIn('<p class="plan-label">Budget</p>', template)
+        self.assertNotIn('<p class="plan-label">Timeline</p>', template)
+        self.assertEqual(
+            gen.updates_html('Twice a week|Upwork, then ClickUp'),
+            '<dl class="work-details"><div><dt>Cadence</dt><dd>Twice a week</dd></div>'
+            '<div><dt>Platform</dt><dd>Upwork, then ClickUp</dd></div></dl>',
+        )
 
 
 if __name__ == '__main__':

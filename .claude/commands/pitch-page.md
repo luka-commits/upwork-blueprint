@@ -48,7 +48,7 @@ Write the graph to `data/pitch-graph-<id>.json`:
   that serve one outcome and explain them in the node note. Avoid more than
   seven linked stages on the main path; branches are easier to read than one
   very long chain.
-- `nodes`: `id`, `label` (a few words), `kind` (`source`, `step`, `sink`, `decision`, `datastore`, `service`, `actor`, `note`, `milestone`), `owner` (`you` builds it, `client` already runs it, `thirdparty` outside service), optional `logo` (a file name in `code/pitch/logos/`), `note` (what happens in this exact job) and `why` (why this step matters for this exact client outcome). Keep both to one or two plain sentences. Never use a generic automation explanation that would survive a different job title.
+- `nodes`: `id`, `label` (an everyday verb and outcome, ideally four words or fewer), `kind` (`source`, `step`, `sink`, `decision`, `datastore`, `service`, `actor`, `note`, `milestone`), `owner` (`you` builds it, `client` already runs it, `thirdparty` outside service), optional `logo` (a file name in `code/pitch/logos/`), `note` (what happens in this exact job) and `why` (the immediate business benefit). Keep each explanation to one short sentence. A reader must understand the label without opening it. Never use a generic automation explanation that would survive a different job title.
 - `edges`: `from`, `to`, optional `label`, optional `dashed` for later phases.
 - `groups`: `label` and `nodes`, one per sequential phase. Use two to five
   client-facing outcome labels, not technical buckets such as "Setup" or
@@ -78,14 +78,16 @@ commercial term.
 python3 code/pitch/generate.py <id> --hook "..." \
   --build-lede "one job-specific sentence explaining the full flow" \
   --fit-point "number|label|context" (three times, numbers only from context/proof.md) \
-  --graph data/pitch-graph-<id>.json --tool "..." (repeat) \
-  --timeline "Day 1-2|what ships;;Day 3-5|what ships" --budget "..." --kickoff "..." (repeat)
+  --graph data/pitch-graph-<id>.json --kickoff "..." (repeat) \
+  --updates "cadence|platform"
 ```
 
-- **Timeline:** an estimate based on explicit scope, dependencies and the
-  member's real availability. Mark unresolved client inputs. Do not turn tool
-  speed into a delivery guarantee.
-- **Budget:** an honest frame, no invented price. When the posting gives none, say what the quote depends on.
+- **Onboarding:** list only the access, content and decisions needed before the
+  first build can start.
+- **Updates:** name a specific cadence and where updates will live. Use Upwork
+  before a contract. After hire, prefer the client's existing workspace.
+- Do not put a budget or speculative delivery timeline on the pitch page. The
+  internal pricing guide remains in the cockpit for the member.
 - **Next step** (`--next-step`) points back to Upwork; the default asks them to send their website or current setup there.
 - **Build lede:** one sentence that names this job's trigger, useful outcome
   and final handoff. It sits above the board. Generic claims such as "drawn
@@ -93,14 +95,18 @@ python3 code/pitch/generate.py <id> --hook "..." \
 - Optional: `--loom-url` once recorded, `--live-artifact "Label|URL"` for anything actually built and `--proof-link "Label|Detail|URL"` for past work with no contact details on it.
 - For a complex flow whose result is hard to picture, generate one 16:9
   `--hero-illustration`: a scene from the client's industry with the finished
-  outcome visible, no text, logos or generic boxes and arrows. It is embedded
-  inside the board beside the flow. Skip it only when the result is already an
+  outcome visible, no text, logos or generic boxes and arrows. It always appears
+  in the hero directly below the headline, never inside the flow. Skip it only when the result is already an
   obvious short chain, and state that decision in the completion report.
-- When the job is tied to a business website, add the lead magnet block with
-  `--showcase "job-specific title|what the audit would reveal for this job|#next|Send your website on Upwork"`
-  and two or three `--showcase-point` findings the audit will check. The bundled
-  report cover is used automatically. The copy must name this job's industry,
-  acquisition path or build decision. Do not link to a contact page or promise
+- When the job is tied to a local business website, offer the Pocket SEO V2
+  lead magnet we actually send. Use a headline of at most eight words, one
+  sentence of at most 20 words and these three compact deliverables: a 25-point
+  Google Maps grid, a full Google Business Profile review, and a 15-point
+  website review with a prioritized action plan. Adapt the nouns to the job,
+  but do not replace the deliverables with a vague custom audit. Use
+  `--showcase "job-specific title|short delivery promise|#next|Send your website on Upwork"`
+  with three `--showcase-point` values of at most eight words each. The bundled
+  report cover is used automatically. Do not link to a contact page or promise
   findings that have not been measured.
 - Your YouTube videos appear when `context/videos.json` lists them (`{"channel": url, "videos": [{"id", "title", "thumb"}]}`); the channel page itself must show no email or booking link.
 

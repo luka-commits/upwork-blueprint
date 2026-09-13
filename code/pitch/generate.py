@@ -426,6 +426,12 @@ def plan_cards(showcase, kickoff, updates, outcomes, images, job_title):
     return ''.join(cards)
 
 
+def plan_lede(showcase):
+    """Describe only the number of steps the rendered plan actually contains."""
+    return ('Three clear steps from the first audit to a working system.' if showcase
+            else 'Two clear steps from kickoff to a working system.')
+
+
 def showcase_media(embed, video, image):
     """Prefer the live audit, then a walkthrough, then the static cover."""
     if embed:
@@ -564,6 +570,7 @@ def main(argv=None):
         '{{CV_BLOCK}}': cv_block(proof_text, me_text),
         '{{PLAN_CARDS}}': plan_cards(showcase, args.kickoff, args.updates,
                                      args.plan_outcome, args.plan_image, job.get('title')),
+        '{{PLAN_LEDE}}': plan_lede(args.showcase),
         '{{LIVE_ARTIFACTS}}': live,
         '{{PROOF_LINK}}': proof_link,
         '{{TESTIMONIALS_BLOCK}}': reviews_html,

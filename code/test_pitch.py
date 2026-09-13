@@ -321,7 +321,9 @@ class GenerateHelpersTest(unittest.TestCase):
         template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')
         self.assertLess(template.index('id="proof"'), template.index('id="plan"'))
         self.assertIn('{{PLAN_CARDS}}', template)
-        self.assertIn('Three clear steps from the first audit to a working system.', template)
+        self.assertIn('{{PLAN_LEDE}}', template)
+        self.assertEqual(gen.plan_lede(['audit']), 'Three clear steps from the first audit to a working system.')
+        self.assertEqual(gen.plan_lede([]), 'Two clear steps from kickoff to a working system.')
         self.assertNotIn('<p class="plan-label">Budget</p>', template)
         self.assertNotIn('<p class="plan-label">Timeline</p>', template)
         self.assertEqual(

@@ -200,6 +200,9 @@ class GenerateHelpersTest(unittest.TestCase):
         self.assertIn("ap.add_argument('--showcase-video'", generator)
         self.assertIn('autoplay muted loop playsinline', generator)
         self.assertIn('{{SHOWCASE_MEDIA}}', template)
+        self.assertIn('class="audit-window"', template)
+        self.assertNotIn('class="cover-book"', template)
+        self.assertNotIn('class="cover-sheet', template)
         self.assertIn('Cover of an example website audit', generator)
 
     def test_proof_section_reserves_a_freelancer_photo(self):

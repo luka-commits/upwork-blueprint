@@ -129,6 +129,8 @@ class ProjectSkillsTest(unittest.TestCase):
         self.assertIn('tools, features and implementation mechanics in the short', command)
         self.assertIn('internal names and must never appear in', command)
         self.assertNotIn('the plan in days', command)
+        self.assertIn('Get found`, `Build trust` and `Win enquiries', command)
+        self.assertIn('Never substitute an archived or external report design', command)
 
 
 if __name__ == '__main__':

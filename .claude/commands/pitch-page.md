@@ -132,8 +132,12 @@ python3 code/pitch/generate.py <id> --hook "..." \
   with three `--showcase-point` values of at most eight words each. When a safe
   example report is available, record a short silent scroll through it and pass
   the MP4 or WebM with `--showcase-video`; it lets the client see the deliverable.
-  The bundled report cover remains the fallback. Do not expose private client
-  data, link to a contact page or promise findings that have not been measured.
+  The recording must show the current report produced by the project-local
+  `lead-magnet` skill, with its `Get found`, `Build trust` and `Win enquiries`
+  sections. Never substitute an archived or external report design. Use safe
+  demo evidence when no reviewed job report exists. The bundled report cover
+  remains the fallback. Do not expose private client data, link to a contact
+  page or promise findings that have not been measured.
 - Your YouTube videos appear when `context/videos.json` lists them (`{"channel": url, "videos": [{"id", "title", "thumb"}]}`); the channel page itself must show no email or booking link.
 
 ## Step 6 · The Loom script

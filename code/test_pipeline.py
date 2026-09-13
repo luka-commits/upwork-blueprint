@@ -293,16 +293,24 @@ class PipelineTest(unittest.TestCase):
 
     def test_tasks_add_tick_and_delete(self):
         self.add({'id': 'J1'})
-        self.run_cli('task', 'J1', 'add', 'Send the kickoff checklist', '--due', '+2d')
+        self.run_cli('task', 'J1', 'add', 'Send the kickoff checklist', '--due', '+2d', '--time', '14:30')
         self.run_cli('task', 'J1', 'add', 'Ask for a review')
         tasks = self.data()[0]['tasks']
         self.assertEqual([t['id'] for t in tasks], [1, 2])
         self.assertEqual(tasks[0]['due'], (datetime.date.today() + datetime.timedelta(days=2)).isoformat())
+        self.assertEqual(tasks[0]['due_time'], '14:30')
+        self.assertIsNone(tasks[1]['due_time'])
         self.run_cli('task', 'J1', 'done', '1')
         self.assertTrue(self.data()[0]['tasks'][0]['done_at'])
         self.run_cli('task', 'J1', 'delete', '2')
         self.assertEqual(len(self.data()[0]['tasks']), 1)
         self.assertEqual(self.run_cli('task', 'J1', 'done', '9').returncode, 1)
+
+    def test_task_time_requires_a_date_and_valid_24_hour_time(self):
+        self.add({'id': 'J1'})
+        self.assertEqual(self.run_cli('task', 'J1', 'add', 'No date', '--time', '14:30').returncode, 1)
+        self.assertEqual(self.run_cli('task', 'J1', 'add', 'Bad time', '--due', '+1d', '--time', '24:00').returncode, 1)
+        self.assertFalse(self.data()[0].get('tasks'))
 
     def test_video_takes_only_loom_or_youtube(self):
         self.add({'id': 'J1'})

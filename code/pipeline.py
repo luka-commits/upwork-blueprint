@@ -23,7 +23,7 @@ Usage:
     python3 code/pipeline.py recording-links <job_id> '<json list>'
     python3 code/pipeline.py loom-review <job_id> on|off
     python3 code/pipeline.py loom-score <job_id> <0..100>
-    python3 code/pipeline.py task <job_id> add "what to do" [--due +2d|YYYY-MM-DD]
+    python3 code/pipeline.py task <job_id> add "what to do" [--due +2d|YYYY-MM-DD] [--time HH:MM]
     python3 code/pipeline.py task <job_id> done|reopen|delete <task_number>
     python3 code/pipeline.py lead-magnet-source <job_id> <website> --location "City, Country" [--place-id ID]
     python3 code/pipeline.py get <job_id>
@@ -567,9 +567,13 @@ def cmd_task(args):
         text = ' '.join((args.text or '').split())
         if not text:
             abort('a task needs text.')
+        if args.time and not args.due:
+            abort('--time needs --due.')
+        if args.time and not re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', args.time):
+            abort('--time expects HH:MM in 24-hour time.')
         number = max((t['id'] for t in tasks), default=0) + 1
         tasks.append({'id': number, 'text': text[:300], 'due': parse_follow_up(args.due) if args.due else None,
-                      'created_at': now_iso(), 'done_at': None})
+                      'due_time': args.time or None, 'created_at': now_iso(), 'done_at': None})
         message = f'task {number} added'
     else:
         task = next((t for t in tasks if str(t['id']) == str(args.text)), None)
@@ -830,6 +834,7 @@ def build_parser():
     p.add_argument('action', choices=('add', 'done', 'reopen', 'delete'))
     p.add_argument('text', help='The task text for add, the task number otherwise.')
     p.add_argument('--due')
+    p.add_argument('--time')
     p.set_defaults(func=cmd_task)
 
     p = sub.add_parser('pitch-url', help='Save the public URL of a hosted pitch page.')

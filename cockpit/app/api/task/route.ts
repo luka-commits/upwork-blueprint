@@ -15,6 +15,7 @@ export async function POST(req: Request) {
   }
   const args = ['task', id, action, value];
   if (data.due) args.push('--due', String(data.due));
+  if (data.time) args.push('--time', String(data.time));
   const r = await pipeline(...args);
   return json(r, r.ok ? 200 : 400);
 }

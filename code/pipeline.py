@@ -22,6 +22,7 @@ Usage:
     python3 code/pipeline.py video <job_id> <loom or youtube link>|-
     python3 code/pipeline.py task <job_id> add "what to do" [--due +2d|YYYY-MM-DD]
     python3 code/pipeline.py task <job_id> done|reopen|delete <task_number>
+    python3 code/pipeline.py lead-magnet-source <job_id> <website> --location "City, Country" [--place-id ID]
     python3 code/pipeline.py get <job_id>
     python3 code/pipeline.py list [--status new] [--limit 25]
     python3 code/pipeline.py summary
@@ -553,6 +554,40 @@ def cmd_pitch_url(args):
     print(f'{args.job_id}: pitch link {"removed" if value == "-" else "saved"}.')
 
 
+def cmd_lead_magnet_source(args):
+    """Save the member-confirmed local-business identity for the SEO audit."""
+    jobs = load()
+    job = find(jobs, args.job_id)
+    if job.get('status') not in ('replied', 'offer'):
+        abort('lead magnets are available only for replied or offer leads.')
+    website = args.website.strip()
+    location = args.location.strip()
+    place_id = args.place_id.strip()
+    parsed = urlparse(website)
+    host = (parsed.hostname or '').lower().rstrip('.')
+    import ipaddress
+    try:
+        private = not ipaddress.ip_address(host).is_global
+    except ValueError:
+        private = (host in ('localhost', '') or host.endswith(('.localhost', '.local', '.test', '.invalid'))
+                   or '.' not in host or bool(re.fullmatch(r'[\d.]+', host)))
+    if parsed.scheme != 'https' or private or parsed.username or parsed.password or any(c.isspace() for c in website):
+        abort("use the business's public HTTPS website.")
+    if not location or len(location) > 160:
+        abort('location must name the business city and country in 160 characters or fewer.')
+    if len(place_id) > 220 or any(c in place_id for c in '\r\n\t'):
+        abort('place ID is not valid.')
+    job['lead_magnet_source'] = {
+        'website': website,
+        'location': location,
+        'place_id': place_id,
+        'language': args.language,
+    }
+    job['lead_magnet_source_updated_at'] = now_iso()
+    save(jobs)
+    print(f'{args.job_id}: lead magnet source saved.')
+
+
 def cmd_get(args):
     """Exactly one record as JSON. The cheap way to one job."""
     print(json.dumps(find(load(), args.job_id), indent=2, ensure_ascii=False))
@@ -731,6 +766,14 @@ def build_parser():
     p.add_argument('job_id')
     p.add_argument('url', help='Public HTTPS URL, or "-" to remove it.')
     p.set_defaults(func=cmd_pitch_url)
+
+    p = sub.add_parser('lead-magnet-source', help='Save the confirmed local business used by the SEO audit.')
+    p.add_argument('job_id')
+    p.add_argument('website')
+    p.add_argument('--location', required=True)
+    p.add_argument('--place-id', default='')
+    p.add_argument('--language', default='English', choices=('English', 'German'))
+    p.set_defaults(func=cmd_lead_magnet_source)
 
     p = sub.add_parser('get', help='One record as JSON.')
     p.add_argument('job_id')

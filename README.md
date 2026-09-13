@@ -28,6 +28,10 @@ There is no setup step. Each command walks you through exactly what it needs, th
 | 10 | `/won` | Turns a started Upwork contract into a checked client project |
 | 11 | `/delivery` | Builds verified updates, handover and an earned review request |
 
+For a local business in conversation, `/lead-magnet` builds a private
+three-part SEO audit from live Firecrawl, Apify and DataForSEO evidence. The
+cockpit asks for the business website and location before any paid call starts.
+
 Any time: `/status` shows the local funnel and next move, `/cockpit` opens jobs,
 clients and tasks in the browser, and `/sync` brings them up to date with Upwork
 (replies, offers, contracts).

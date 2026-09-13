@@ -9,7 +9,7 @@ SKILLS = ROOT / '.claude' / 'skills'
 
 class ProjectSkillsTest(unittest.TestCase):
     def test_required_skills_are_project_local_and_self_contained(self):
-        names = {'upwork-copy', 'upwork-follow-up', 'upwork-mcp'}
+        names = {'lead-magnet', 'upwork-copy', 'upwork-follow-up', 'upwork-mcp'}
         self.assertEqual({path.parent.name for path in SKILLS.glob('*/SKILL.md')}, names)
         for name in names:
             text = (SKILLS / name / 'SKILL.md').read_text(encoding='utf-8')
@@ -107,6 +107,15 @@ class ProjectSkillsTest(unittest.TestCase):
         self.assertIn('valid HTTPS', gate)
         self.assertIn('including its video id', gate)
         self.assertIn('or invalid, write nothing', gate)
+
+    def test_lead_magnet_is_local_paid_and_never_sent(self):
+        skill = (SKILLS / 'lead-magnet' / 'SKILL.md').read_text(encoding='utf-8')
+        command = (ROOT / '.claude' / 'commands' / 'lead-magnet.md').read_text(encoding='utf-8')
+        for service in ('Firecrawl', 'Apify', 'DataForSEO'):
+            self.assertIn(service, skill)
+        self.assertIn('never retry', skill.casefold())
+        self.assertIn('Never publish', skill)
+        self.assertIn('Upwork calls: 0', command)
 
 
 if __name__ == '__main__':

@@ -95,6 +95,32 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(self.run_cli('pitch-url', 'J1', 'https://example.com/pitch').returncode, 0)
         self.assertEqual(self.data()[0]['pitch_url'], 'https://example.com/pitch')
 
+    def test_lead_magnet_source_is_explicit_local_business_data(self):
+        self.add({'id': 'J1', 'status': 'replied'})
+        invalid = self.run_cli('lead-magnet-source', 'J1', 'http://localhost:3000', '--location', 'Berlin, Germany')
+        self.assertNotEqual(invalid.returncode, 0)
+        result = self.run_cli(
+            'lead-magnet-source', 'J1', 'https://example.com',
+            '--location', 'Berlin, Germany', '--place-id', 'ChIJ-example', '--language', 'English',
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        source = self.data()[0]['lead_magnet_source']
+        self.assertEqual(source, {
+            'website': 'https://example.com',
+            'location': 'Berlin, Germany',
+            'place_id': 'ChIJ-example',
+            'language': 'English',
+        })
+        self.assertTrue(self.data()[0]['lead_magnet_source_updated_at'])
+        self.run_cli('prune', '--hours', '0')
+        self.assertEqual(self.data()[0]['lead_magnet_source'], source)
+
+    def test_lead_magnet_source_is_not_available_before_a_conversation(self):
+        self.add({'id': 'J1', 'status': 'new'})
+        result = self.run_cli('lead-magnet-source', 'J1', 'https://example.com', '--location', 'Berlin, Germany')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('lead_magnet_source', self.data()[0])
+
     def test_check_writes_nothing(self):
         self.add({'id': 'J1'})
         before = self.jobs.read_text(encoding='utf-8')

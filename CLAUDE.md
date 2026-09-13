@@ -26,7 +26,7 @@ Python: the commands call `python3`. On Windows, if that is not found, use `pyth
 5. `/pitch-page` - a one-page pitch site and Loom script for one job; record and link the Loom next, then `/loom-review` checks the recording when needed
 6. `/apply` - unlocked after the Pitch page and Loom video: cover letter, screening answers and bid, handed to you for manual submission on Upwork
 7. `/inbox`, `/reply` and `/follow-up` - client messages, reply drafts and the morning follow-up queue
-8. `/call-prep` and `/call-review` - prepare the sales decision, then turn the transcript into confirmed scope and open questions
+8. `/lead-magnet` when relevant, then `/call-prep` and `/call-review` - build a private local SEO audit, prepare the sales decision and confirm scope from the transcript
 9. `/proposal` - a scoped offer from the call record and member-approved commercial terms
 10. `/won` - a started Upwork contract becomes a checked client project
 11. `/delivery` - verified updates, handover and an earned review request
@@ -110,7 +110,7 @@ Link only what the member needs to open, as relative links like [audit-report.md
 - `data/profile.json`, `data/benchmark/` - raw connector responses the commands measure; candidate profiles are deleted after a day
 - `jobs/<id>/` - what the commands make for one job, with fixed names the
   cockpit shows: `pitch.html`, `loom-script.md`, `loom-review.md`,
-  `application.md`, `call-prep.md`, `call-review.md`, `proposal.md`,
+  `application.md`, `lead-magnet.html`, `call-prep.md`, `call-review.md`, `proposal.md`,
   `project.md`, `delivery.md`, `client-handover.md` and `review-request.md`
 - `context/tool-knowledge/` - what you learned about a tool's mechanics, one file per tool, so no job pays for the same research twice
 - `context/videos.json` - optional: your own YouTube videos for pitch pages

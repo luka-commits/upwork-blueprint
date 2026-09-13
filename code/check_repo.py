@@ -41,6 +41,7 @@ GERMAN = re.compile(
     r'sondern|statt|schon|noch|Datei|Ordner|Zeile|erledigt|fehlt|liegt|gibt|nichts|'
     r'etwas|dieser|diesem|diesen|deine[rnms]?|selbst|bereits|jeder|jede[nrms]?)\b',
     re.IGNORECASE)
+LANGUAGE_DATA_MARKER = '# multilingual-data'
 
 # Files a member creates or a command writes at runtime. A command may point at
 # them although a fresh clone does not have them yet.
@@ -87,7 +88,7 @@ def check_language():
     findings = []
     for p in shipped('**/*.md', '**/*.py', *COCKPIT):
         for i, line in enumerate(lines_of(p), 1):
-            if GERMAN.search(line):
+            if GERMAN.search(line) and LANGUAGE_DATA_MARKER not in line:
                 findings.append(f'{p.relative_to(ROOT)}:{i} is German: "{line.strip()[:60]}"')
                 break
     return findings

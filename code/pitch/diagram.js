@@ -41,7 +41,7 @@
   var state, view = { k: 1, x: 0, y: 0 }, sel = [], edited = false, editing = false;
   var svg, scene, gGroups, gEdges, gNodes, gTemp, gAside, mini, miniView;
   var undo = [], redo = [];
-  var P = {};
+  var P = {}, statusTimer = 0;
 
   // ---------------------------------------------------------------- helpers
   function el(n, a) {
@@ -75,6 +75,27 @@
   }
   function uid(p) { return p + Math.random().toString(36).slice(2, 8); }
 
+  function announce(message, hold) {
+    var status = document.getElementById('dg-status');
+    if (!status) return;
+    clearTimeout(statusTimer);
+    status.textContent = message;
+    status.dataset.active = 'true';
+    statusTimer = setTimeout(function () {
+      status.dataset.active = 'false';
+      updateInspector();
+    }, hold || 2200);
+  }
+
+  function syncControls() {
+    var undoButton = host.querySelector('[data-dg="undo"]');
+    var redoButton = host.querySelector('[data-dg="redo"]');
+    var deleteButton = host.querySelector('[data-dg="del"]');
+    if (undoButton) undoButton.disabled = !undo.length;
+    if (redoButton) redoButton.disabled = !redo.length;
+    if (deleteButton) deleteButton.disabled = !sel.length;
+  }
+
   // Greedy wrap: the node is a fixed width, so the only question is how many
   // words fit. Three lines is the cap; a fourth means it is a sentence and
   // belongs in the pitch text rather than in a box.
@@ -96,9 +117,16 @@
     redo.length = 0;
     edited = true;
     reflectEdited();
+    syncControls();
   }
-  function doUndo() { if (!undo.length) return; redo.push(clone(state)); state = undo.pop(); sel = []; render(); }
-  function doRedo() { if (!redo.length) return; undo.push(clone(state)); state = redo.pop(); sel = []; render(); }
+  function doUndo() {
+    if (!undo.length) { announce('Nothing to undo.'); return; }
+    redo.push(clone(state)); state = undo.pop(); sel = []; render(); announce('Last change undone.');
+  }
+  function doRedo() {
+    if (!redo.length) { announce('Nothing to redo.'); return; }
+    undo.push(clone(state)); state = redo.pop(); sel = []; render(); announce('Change restored.');
+  }
 
   function reflectEdited() {
     host.querySelectorAll('[data-dg="reset"], [data-dg="share"]').forEach(function (b) { b.hidden = !edited; });
@@ -127,7 +155,7 @@
     if (!selected) {
       owner.textContent = 'Plan'; kind.textContent = 'Step details'; title.textContent = 'Select any step';
       note.textContent = 'The explanation and ownership will appear here without crowding the canvas.';
-      if (tip) tip.textContent = 'Click a step';
+      if (tip && tip.dataset.active !== 'true') tip.textContent = 'Click a step or press Tab';
       return;
     }
     owner.textContent = selected.owner === 'client' ? 'Already in place'
@@ -135,7 +163,21 @@
     kind.textContent = selected.kind || 'step';
     title.textContent = selected.label;
     note.textContent = selected.note || 'This step is included in the proposed flow. The exact setup is confirmed before build.';
-    if (tip) tip.textContent = editing ? 'Drag to move' : 'Select another step';
+    if (tip && tip.dataset.active !== 'true') tip.textContent = editing ? 'Drag to move or press Enter to rename' : 'Select another step';
+  }
+
+  function kindCue(d) {
+    if (d.kind === 'source') return 'START';
+    if (d.kind === 'sink') return 'OUTCOME';
+    if (d.kind === 'decision') return 'DECISION';
+    if (d.kind === 'milestone') return 'MILESTONE';
+    return '';
+  }
+
+  function nodeAria(d) {
+    var owner = d.owner === 'client' ? 'already in place'
+      : d.owner === 'thirdparty' ? 'third-party service' : 'included in the build';
+    return (kindCue(d) ? kindCue(d).toLowerCase() + ', ' : '') + d.label + ', ' + owner;
   }
 
   /* ---------------------------------------------------------------- layout
@@ -307,7 +349,8 @@
   }
 
   // ---------------------------------------------------------------- render
-  function render() {
+  function render(focusId) {
+    if (playing) stopPlayback(true);
     readTokens();
     // Nur die eigene Zeichnung ersetzen: ein textContent='' nahm die Minimap
     // gleich mit, die als Kind der Buehne liegt.
@@ -409,7 +452,8 @@
 
     state.nodes.forEach(function (d) {
       var on = sel.indexOf(d.id) >= 0;
-      var g = el('g', { class: 'dg-node', transform: 'translate(' + d.x + ',' + d.y + ')' });
+      var g = el('g', { class: 'dg-node', transform: 'translate(' + d.x + ',' + d.y + ')',
+        tabindex: 0, role: 'button', 'aria-label': nodeAria(d), 'aria-pressed': on ? 'true' : 'false' });
       g.dataset.id = d.id;
       var shape = shapeFor(d, on);
       shape.setAttribute('filter', 'url(#dgNodeShadow)');
@@ -418,7 +462,8 @@
       var hasLogo = d.logo && LOGOS[d.logo];
       var textX = hasLogo ? NW / 2 + 13 : NW / 2;
       var lines = wrap(d.label, hasLogo ? 20 : 23);
-      var t = el('text', { x: textX, y: NH / 2 - (lines.length - 1) * 8 + 5,
+      var cue = kindCue(d);
+      var t = el('text', { x: textX, y: NH / 2 - (lines.length - 1) * 8 + (cue ? 10 : 5),
         'text-anchor': 'middle', fill: P.text, 'font-size': 13, 'font-weight': 600 });
       lines.forEach(function (ln, i) {
         var ts = el('tspan', { x: textX, dy: i ? 16 : 0 });
@@ -426,6 +471,14 @@
         t.appendChild(ts);
       });
       g.appendChild(t);
+
+      if (cue) {
+        var eyebrow = el('text', { x: NW / 2, y: 17, 'text-anchor': 'middle',
+          fill: on ? P.accent : P.muted, 'font-size': 9.5, 'font-weight': 700,
+          'font-family': MONO, 'letter-spacing': '.08em' });
+        eyebrow.textContent = cue;
+        g.appendChild(eyebrow);
+      }
 
       // The real brand mark, where one exists. A client recognises the n8n or
       // HubSpot logo before reading anything; a drawn stand-in never gets read
@@ -451,6 +504,11 @@
     applyView();
     drawMini();
     updateInspector();
+    syncControls();
+    if (focusId) {
+      var target = gNodes.querySelector('[data-id="' + focusId + '"]');
+      if (target) target.focus({ preventScroll: true });
+    }
   }
 
   /* Der Sketch und die Notizzettel. Beides gehoert zum Board, beides faengt
@@ -489,7 +547,7 @@
      that floor the view starts at the beginning of the flow instead, and the
      reader pans or zooms out deliberately. The minimap keeps the whole shape
      visible either way. */
-  var MIN_READABLE = 0.68;
+  var MIN_READABLE = 1;
   function fit() {
     var b = bounds(), w = stage.clientWidth || 800, h = stage.clientHeight || 380, m = 46;
     var k = Math.min((w - m * 2) / Math.max(1, b.x2 - b.x1), (h - m * 2) / Math.max(1, b.y2 - b.y1));
@@ -574,7 +632,8 @@
   }
 
   function removeSelected() {
-    if (!sel.length) return;
+    if (!sel.length) { announce('Select a step or connection first.'); return; }
+    var removed = sel.length;
     mark();
     var nodeIds = sel.filter(function (s) { return s.indexOf('e') !== 0 || byId(s); });
     var edgeIdx = sel.filter(function (s) { return /^e\d+$/.test(s) && !byId(s); })
@@ -585,6 +644,7 @@
     state.nodes = state.nodes.filter(function (d) { return nodeIds.indexOf(d.id) < 0; });
     sel = [];
     render();
+    announce(removed === 1 ? 'Selection deleted.' : removed + ' items deleted.');
   }
 
   function addNode() {
@@ -593,7 +653,8 @@
     var d = { id: uid('u'), label: 'Your step', kind: 'step', x: snap(b.x1), y: snap(b.y2 + 60) };
     state.nodes.push(d);
     sel = [d.id];
-    render();
+    render(d.id);
+    announce('Step added. Press Enter to rename it.');
   }
 
   // ---------------------------------------------------------------- pointer
@@ -633,13 +694,13 @@
     }
     if (node) {
       var id = node.dataset.id;
-      if (!editing) { sel = [id]; render(); return; }
+      if (!editing) { sel = [id]; render(id); return; }
       if (e.shiftKey) { if (sel.indexOf(id) < 0) sel.push(id); }
       else if (sel.indexOf(id) < 0) sel = [id];
       var start = toWorld(e);
       drag = { x: start.x, y: start.y, moved: false,
         origin: sel.map(function (s) { var d = byId(s); return d ? { id: s, x: d.x, y: d.y } : null; }).filter(Boolean) };
-      render();
+      render(id);
       return;
     }
     if (editing && edge) { sel = ['e' + edge.dataset.edge]; render(); return; }
@@ -741,12 +802,49 @@
   }, { passive: false });
 
   // ---------------------------------------------------------------- keyboard
+  function nearestNode(id, key) {
+    var current = byId(id);
+    if (!current) return null;
+    var cx = current.x + NW / 2, cy = current.y + NH / 2;
+    var best = null, bestScore = Infinity;
+    state.nodes.forEach(function (candidate) {
+      if (candidate.id === id) return;
+      var dx = candidate.x + NW / 2 - cx, dy = candidate.y + NH / 2 - cy;
+      var valid = key === 'ArrowRight' ? dx > 1 : key === 'ArrowLeft' ? dx < -1
+        : key === 'ArrowDown' ? dy > 1 : dy < -1;
+      if (!valid) return;
+      var primary = key === 'ArrowRight' || key === 'ArrowLeft' ? Math.abs(dx) : Math.abs(dy);
+      var secondary = key === 'ArrowRight' || key === 'ArrowLeft' ? Math.abs(dy) : Math.abs(dx);
+      var score = primary + secondary * 0.45;
+      if (score < bestScore) { bestScore = score; best = candidate; }
+    });
+    return best;
+  }
+
+  stage.addEventListener('focusin', function (e) {
+    var node = e.target.closest && e.target.closest('.dg-node');
+    if (!node) return;
+    var id = node.dataset.id;
+    if (sel.length !== 1 || sel[0] !== id) { sel = [id]; render(id); }
+  });
+
   document.addEventListener('keydown', function (e) {
     if (/^(INPUT|TEXTAREA)$/.test((e.target.tagName || ''))) return;
     var inView = host.contains(document.activeElement) || host.matches(':hover') ||
                  host.classList.contains('dg-full') || document.fullscreenElement === host;
     if (!inView) return;
-    if (editing && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); removeSelected(); }
+    var focusedNode = e.target.closest && e.target.closest('.dg-node');
+    if (focusedNode && /^Arrow(Left|Right|Up|Down)$/.test(e.key)) {
+      e.preventDefault();
+      var next = nearestNode(focusedNode.dataset.id, e.key);
+      if (next) { sel = [next.id]; render(next.id); }
+    } else if (focusedNode && (e.key === 'Enter' || e.key === 'F2')) {
+      e.preventDefault();
+      sel = [focusedNode.dataset.id];
+      if (editing) openEdit(focusedNode.dataset.id); else updateInspector();
+    } else if (focusedNode && e.key === ' ') {
+      e.preventDefault(); sel = [focusedNode.dataset.id]; updateInspector();
+    } else if (editing && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); removeSelected(); }
     else if (editing && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
       e.preventDefault(); e.shiftKey ? doRedo() : doUndo();
     } else if (e.key === 'Escape') {
@@ -764,50 +862,128 @@
      Deliberately not looping: a permanent moving dot competes with the copy
      for attention, and the point is made after one pass. */
   var playing = null;
-  function playFlow() {
-    if (playing) { cancelAnimationFrame(playing.raf); playing.dot.remove(); playing = null; }
-    var order = [], seen = {};
-    var starts = state.nodes.filter(function (d2) {
-      return !(state.edges || []).some(function (e) { return e.to === d2.id; });
+  function setPlayState(running) {
+    var button = host.querySelector('[data-dg="play"]');
+    if (!button) return;
+    button.setAttribute('aria-pressed', running ? 'true' : 'false');
+    button.textContent = running ? '\u25a0 Stop' : '\u25b6 Run flow';
+  }
+
+  function stopPlayback(silent) {
+    if (!playing) return;
+    cancelAnimationFrame(playing.raf);
+    (playing.dots || []).forEach(function (dot) { if (dot.parentNode) dot.remove(); });
+    (playing.paths || []).forEach(function (path) { if (path.parentNode) path.remove(); });
+    (playing.visuals || []).forEach(function (visual) {
+      visual.node.setAttribute('stroke', visual.stroke);
+      visual.node.setAttribute('stroke-width', visual.width);
     });
-    if (!starts.length) return;
-    // breadth-first from the entry points, so branches both get walked
-    var queue = [starts[0].id];
-    while (queue.length) {
-      var id = queue.shift();
-      if (seen[id]) continue;
-      seen[id] = 1;
-      (state.edges || []).forEach(function (e) {
-        if (e.from === id) { order.push(e); queue.push(e.to); }
+    playing = null;
+    setPlayState(false);
+    if (!silent) announce('Playback stopped.');
+  }
+
+  function playFlow() {
+    if (playing) { stopPlayback(false); return; }
+    var edges = state.edges || [];
+    if (!edges.length) { announce('Connect at least two steps to run the flow.'); return; }
+    var indegree = {}, outgoing = {}, readyAt = {};
+    state.nodes.forEach(function (node) {
+      indegree[node.id] = 0; outgoing[node.id] = []; readyAt[node.id] = 0;
+    });
+    edges.forEach(function (edge, index) {
+      if (!outgoing[edge.from] || indegree[edge.to] == null) return;
+      outgoing[edge.from].push({ edge: edge, index: index });
+      indegree[edge.to]++;
+    });
+    var starts = state.nodes.filter(function (d2) {
+      return indegree[d2.id] === 0;
+    });
+    if (!starts.length) { announce('This flow has a loop and no starting step.'); return; }
+
+    /* Build a topological schedule. Every root starts together, sibling
+       branches run together, and a merged path waits until all incoming work
+       has arrived. One serialized dot would tell the wrong story for both a
+       multi-source plan and a real fork. */
+    var queue = starts.map(function (node) { return node.id; });
+    var segments = [], paths = [], visuals = [], SPEED = 320, head = 0;
+    while (head < queue.length) {
+      var id = queue[head++];
+      outgoing[id].forEach(function (item) {
+        var a = byId(item.edge.from), b = byId(item.edge.to);
+        if (!a || !b) return;
+        var path = el('path', { d: edgePath(a, b), fill: 'none', stroke: 'none' });
+        gTemp.appendChild(path);
+        paths.push(path);
+        var duration = Math.max(420, path.getTotalLength() / SPEED * 1000);
+        segments.push({ path: path, edge: item, start: readyAt[id], duration: duration, dot: null, done: false });
+        readyAt[item.edge.to] = Math.max(readyAt[item.edge.to], readyAt[id] + duration);
+        indegree[item.edge.to]--;
+        if (indegree[item.edge.to] === 0) queue.push(item.edge.to);
       });
     }
-    if (!order.length) return;
+    if (segments.length !== edges.length) {
+      paths.forEach(function (path) { path.remove(); });
+      announce('This edited flow contains a loop. Remove it before playback.');
+      return;
+    }
 
-    var paths = order.map(function (e) {
-      var a = byId(e.from), b = byId(e.to);
-      if (!a || !b) return null;
-      var p = el('path', { d: edgePath(a, b) });
-      return p;
-    }).filter(Boolean);
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      paths.forEach(function (path) { path.remove(); });
+      announce('Flow ready: ' + starts.length + ' starting ' + (starts.length === 1 ? 'point' : 'points') +
+        ' connect through ' + edges.length + ' paths.', 3200);
+      return;
+    }
 
-    var dot = el('circle', { r: 7, fill: P.accent, opacity: .95 });
-    gTemp.appendChild(dot);
-    var i = 0, t0 = null, SPEED = 260;                 // px per second
+    setPlayState(true);
+    var totalDuration = segments.reduce(function (longest, segment) {
+      return Math.max(longest, segment.start + segment.duration);
+    }, 0);
+    announce('Running ' + starts.length + ' starting ' + (starts.length === 1 ? 'point' : 'points') +
+      ' through ' + edges.length + ' connections.', totalDuration + 1000);
+    var t0 = null, dots = [];
 
     function step(ts) {
       if (!t0) t0 = ts;
-      var len = paths[i].getTotalLength();
-      var travelled = ((ts - t0) / 1000) * SPEED;
-      if (travelled >= len) {
-        i++; t0 = ts;
-        if (i >= paths.length) { dot.remove(); playing = null; return; }
-        len = paths[i].getTotalLength(); travelled = 0;
+      var elapsed = ts - t0, finished = 0;
+      segments.forEach(function (segment) {
+        if (elapsed < segment.start) return;
+        if (elapsed >= segment.start + segment.duration) {
+          if (!segment.done) {
+            segment.done = true;
+            if (segment.dot) segment.dot.remove();
+            var completedVisual = gEdges.querySelector('[data-edge="' + segment.edge.index + '"] path:nth-of-type(2)');
+            if (completedVisual) {
+              completedVisual.setAttribute('stroke', P.edge);
+              completedVisual.setAttribute('stroke-width', 1.2);
+            }
+          }
+          finished++;
+          return;
+        }
+        if (!segment.dot) {
+          segment.dot = el('circle', { r: 6, fill: P.accent, opacity: .96, 'pointer-events': 'none' });
+          dots.push(segment.dot); gTemp.appendChild(segment.dot);
+          var visual = gEdges.querySelector('[data-edge="' + segment.edge.index + '"] path:nth-of-type(2)');
+          if (visual) {
+            visuals.push({ node: visual, stroke: visual.getAttribute('stroke'), width: visual.getAttribute('stroke-width') });
+            visual.setAttribute('stroke', P.accent); visual.setAttribute('stroke-width', HAIR_ON);
+          }
+        }
+        var progress = (elapsed - segment.start) / segment.duration;
+        var len = segment.path.getTotalLength();
+        var pt = segment.path.getPointAtLength(len * progress);
+        segment.dot.setAttribute('cx', pt.x); segment.dot.setAttribute('cy', pt.y);
+      });
+      if (finished === segments.length) {
+        stopPlayback(true);
+        announce('Flow complete: ' + starts.length + ' starting ' + (starts.length === 1 ? 'point' : 'points') +
+          ', ' + edges.length + ' connections.', 3200);
+        return;
       }
-      var pt = paths[i].getPointAtLength(Math.min(travelled, len));
-      dot.setAttribute('cx', pt.x); dot.setAttribute('cy', pt.y);
       playing.raf = requestAnimationFrame(step);
     }
-    playing = { dot: dot, raf: requestAnimationFrame(step) };
+    playing = { dots: dots, paths: paths, visuals: visuals, raf: requestAnimationFrame(step) };
   }
 
   // ---------------------------------------------------------------- export
@@ -842,16 +1018,23 @@
     var b = e.target.closest('[data-dg]');
     if (!b) return;
     var a = b.dataset.dg;
-    if (a === 'edit') { editing = !editing; reflectMode(); updateInspector(); }
-    else if (a === 'in') zoom(1.25);
-    else if (a === 'out') zoom(1 / 1.25);
-    else if (a === 'fit') fit();
+    if (e.detail === 0) {
+      host.classList.add('dg-instant');
+      requestAnimationFrame(function () { host.classList.remove('dg-instant'); });
+    }
+    if (a === 'edit') {
+      editing = !editing; reflectMode(); updateInspector();
+      announce(editing ? 'Editing on. Select a step, then press Enter to rename it.' : 'Editing finished.');
+    }
+    else if (a === 'in') { zoom(1.25); announce('Zoom ' + Math.round(view.k * 100) + '%.'); }
+    else if (a === 'out') { zoom(1 / 1.25); announce('Zoom ' + Math.round(view.k * 100) + '%.'); }
+    else if (a === 'fit') { fit(); announce('View returned to the start of the flow.'); }
     else if (a === 'add') addNode();
     else if (a === 'del') removeSelected();
     else if (a === 'undo') doUndo();
     else if (a === 'redo') doRedo();
-    else if (a === 'tidy') { mark(); autoLayout(); render(); fit(); }
-    else if (a === 'png') exportPNG();
+    else if (a === 'tidy') { mark(); autoLayout(); render(); fit(); announce('Steps tidied into phases.'); }
+    else if (a === 'png') { exportPNG(); announce('Preparing the PNG download.'); }
     else if (a === 'play') playFlow();
     else if (a === 'reset') {
       state = clone(base); autoLayout(); sel = []; undo = []; redo = [];
@@ -860,13 +1043,28 @@
       if (hint) hint.textContent = 'Drag steps, pull a dot to connect, double-click to rename.';
       history.replaceState(null, '', location.pathname + location.search);
       render(); fit();
+      announce('Original plan restored.');
     } else if (a === 'share') {
       var payload = btoa(unescape(encodeURIComponent(JSON.stringify(state))));
       var url = location.href.split('#')[0] + '#d=' + payload;
-      if (navigator.clipboard) navigator.clipboard.writeText(url);
       location.hash = 'd=' + payload;
-      var t = b.textContent; b.textContent = 'Link copied';
-      setTimeout(function () { b.textContent = t; }, 2200);
+      var original = b.textContent;
+      b.textContent = 'Copying...';
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(function () {
+          b.textContent = 'Link copied';
+          announce('Link copied. Send it here on Upwork.');
+          setTimeout(function () { b.textContent = original; }, 2200);
+        }).catch(function () {
+          b.textContent = 'Copy blocked';
+          announce('Copy was blocked. Copy the page address from your browser.', 4000);
+          setTimeout(function () { b.textContent = original; }, 3000);
+        });
+      } else {
+        b.textContent = 'Copy blocked';
+        announce('Copy is unavailable here. Copy the page address from your browser.', 4000);
+        setTimeout(function () { b.textContent = original; }, 3000);
+      }
     } else if (a === 'full') {
       if (document.fullscreenElement) { document.exitFullscreen(); }
       else if (host.requestFullscreen) {

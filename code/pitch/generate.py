@@ -27,6 +27,7 @@ import base64
 import datetime
 import html
 import json
+import math
 import pathlib
 import re
 import subprocess
@@ -156,35 +157,121 @@ def build_graph(spec):
             p = pathlib.Path(spec)
             source = p.read_text(encoding='utf-8') if p.is_file() else spec
         g = json.loads(source)
+    except OSError as e:
+        abort(f'--graph could not be read: {e}')
     except json.JSONDecodeError as e:
         abort(f'--graph is not valid JSON: {e}')
-    nodes = g.get('nodes') or []
+    if not isinstance(g, dict):
+        abort('--graph must be a JSON object with nodes, edges and optional groups.')
+    nodes = g.get('nodes', [])
+    edges = g.get('edges', [])
+    groups = g.get('groups', [])
+    if not isinstance(nodes, list) or not isinstance(edges, list) or not isinstance(groups, list):
+        abort('--graph nodes, edges and groups must be arrays.')
     if not nodes:
         abort('--graph has no nodes.')
     if len(nodes) > 12:
         abort(f'--graph has {len(nodes)} nodes; keep the client-level plan to 12 or fewer and move implementation detail into notes.')
     ids = set()
     for n in nodes:
-        if not n.get('id') or not n.get('label'):
+        if not isinstance(n, dict):
+            abort(f'each node must be an object, got: {n!r}')
+        if not isinstance(n.get('id'), str) or not isinstance(n.get('label'), str):
             abort(f'node without id or label: {n}')
+        n['id'], n['label'] = n['id'].strip(), n['label'].strip()
+        if not n['id'] or not n['label']:
+            abort(f'node without id or label: {n}')
+        if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', n['id']) or re.fullmatch(r'e\d+', n['id']):
+            abort(f'node id "{n["id"]}" must use 1-64 letters, numbers, _ or - and cannot look like an edge id.')
+        if len(n['label']) > 80:
+            abort(f'node "{n["id"]}" label is over 80 characters; move detail into its note.')
         if n['id'] in ids:
             abort(f'duplicate node id "{n["id"]}".')
         ids.add(n['id'])
-        if n.setdefault('kind', 'step') not in GRAPH_KINDS:
+        if not isinstance(n.setdefault('kind', 'step'), str) or n['kind'] not in GRAPH_KINDS:
             abort(f'unknown kind "{n["kind"]}". Allowed: {sorted(GRAPH_KINDS)}')
-        if n.get('owner') not in (None, *GRAPH_OWNERS):
+        if n.get('owner') is not None and (not isinstance(n['owner'], str) or n['owner'] not in GRAPH_OWNERS):
             abort(f'unknown owner "{n["owner"]}". Allowed: {sorted(GRAPH_OWNERS)}')
-    for e in g.get('edges') or []:
+        if 'note' in n and (not isinstance(n['note'], str) or not n['note'].strip()):
+            abort(f'node "{n["id"]}" note must be non-empty text.')
+        if len(n.get('note', '')) > 800:
+            abort(f'node "{n["id"]}" note is over 800 characters.')
+        if 'logo' in n and (not isinstance(n['logo'], str) or not re.fullmatch(r'[a-z0-9-]+', n['logo'])):
+            abort(f'node "{n["id"]}" logo must be a lowercase slug.')
+        positioned = [axis in n for axis in ('x', 'y')]
+        if any(positioned) and not all(positioned):
+            abort(f'node "{n["id"]}" must provide both x and y, or neither.')
+        if all(positioned) and any(isinstance(n[axis], bool) or not isinstance(n[axis], (int, float))
+                                   or not math.isfinite(n[axis]) for axis in ('x', 'y')):
+            abort(f'node "{n["id"]}" x and y must be finite numbers.')
+
+    pairs = set()
+    linked = set()
+    adjacency = {node_id: [] for node_id in ids}
+    indegree = {node_id: 0 for node_id in ids}
+    for e in edges:
+        if not isinstance(e, dict):
+            abort(f'each edge must be an object, got: {e!r}')
         for side in ('from', 'to'):
-            if e.get(side) not in ids:
+            if not isinstance(e.get(side), str) or e[side] not in ids:
                 abort(f'edge points at unknown node "{e.get(side)}".')
-    for grp in g.get('groups') or []:
-        if not grp.get('label'):
+        pair = (e['from'], e['to'])
+        if pair[0] == pair[1]:
+            abort(f'node "{pair[0]}" cannot connect to itself.')
+        if pair in pairs:
+            abort(f'duplicate edge "{pair[0]}" to "{pair[1]}".')
+        pairs.add(pair)
+        linked.update(pair)
+        adjacency[pair[0]].append(pair[1])
+        indegree[pair[1]] += 1
+        if 'dashed' in e and not isinstance(e['dashed'], bool):
+            abort(f'edge "{pair[0]}" to "{pair[1]}" dashed must be true or false.')
+        if 'label' in e and (not isinstance(e['label'], str) or not e['label'].strip()
+                             or len(e['label']) > 48):
+            abort(f'edge "{pair[0]}" to "{pair[1]}" label must be 1-48 characters.')
+        if 'label' in e:
+            e['label'] = e['label'].strip()
+
+    if len(nodes) > 1:
+        isolated = sorted(ids - linked)
+        if isolated:
+            abort(f'disconnected node "{isolated[0]}"; connect it or remove it from the client flow.')
+
+    # The layout and one-shot playback both rely on a forward-moving plan.
+    # Reject a loop here instead of silently drawing it in an arbitrary rank.
+    ready = [node_id for node_id, degree in indegree.items() if degree == 0]
+    visited = 0
+    while ready:
+        node_id = ready.pop()
+        visited += 1
+        for target in adjacency[node_id]:
+            indegree[target] -= 1
+            if indegree[target] == 0:
+                ready.append(target)
+    if visited != len(nodes):
+        abort('--graph contains a cycle; this client-level plan must move forward without loops.')
+
+    grouped = set()
+    group_labels = set()
+    for grp in groups:
+        if not isinstance(grp, dict) or not isinstance(grp.get('label'), str) or not grp['label'].strip():
             abort(f'group without label: {grp}')
-        for nid in grp.get('nodes') or []:
-            if nid not in ids:
+        grp['label'] = grp['label'].strip()
+        if len(grp['label']) > 60:
+            abort(f'group label "{grp["label"]}" is over 60 characters.')
+        if grp['label'] in group_labels:
+            abort(f'duplicate group label "{grp["label"]}".')
+        group_labels.add(grp['label'])
+        members = grp.get('nodes') or []
+        if not isinstance(members, list) or not members:
+            abort(f'group "{grp["label"]}" must name at least one node.')
+        for nid in members:
+            if not isinstance(nid, str) or nid not in ids:
                 abort(f'group "{grp["label"]}" names unknown node "{nid}".')
-    data = json.dumps({'nodes': nodes, 'edges': g.get('edges') or [], 'groups': g.get('groups') or []},
+            if nid in grouped:
+                abort(f'node "{nid}" belongs to more than one group.')
+            grouped.add(nid)
+    data = json.dumps({'nodes': nodes, 'edges': edges, 'groups': groups},
                       ensure_ascii=False)
     fallback = '\n            '.join(f'<li>{esc(n["label"])}</li>' for n in nodes)
     return data, fallback

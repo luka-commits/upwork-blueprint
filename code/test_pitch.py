@@ -5,6 +5,7 @@
 import importlib.util
 import contextlib
 import io
+import json
 import pathlib
 import sys
 import tempfile
@@ -104,6 +105,43 @@ class GenerateHelpersTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             gen.build_graph('{"nodes":[{"id":"a","label":"x"}],"edges":[{"from":"a","to":"zz"}]}')
 
+    def test_graph_rejects_malformed_structure_and_ambiguous_ids(self):
+        bad_graphs = (
+            '[]',
+            '{"nodes":{}}',
+            '{"nodes":["not a node"]}',
+            '{"nodes":[{"id":"e0","label":"Reserved"}]}',
+            '{"nodes":[{"id":"a","label":"A","x":10}]}',
+            '{"nodes":[{"id":"a","label":"A","kind":[]}]}',
+            '{"nodes":[{"id":"a","label":"A"},{"id":"b","label":"B"}],'
+            '"edges":[{"from":[],"to":"b"}]}',
+        )
+        for graph in bad_graphs:
+            with self.subTest(graph=graph), self.assertRaises(SystemExit):
+                gen.build_graph(graph)
+
+    def test_graph_rejects_cycles_duplicates_and_overlapping_groups(self):
+        bad_graphs = (
+            '{"nodes":[{"id":"a","label":"A"},{"id":"b","label":"B"}],'
+            '"edges":[{"from":"a","to":"b"},{"from":"b","to":"a"}]}',
+            '{"nodes":[{"id":"a","label":"A"},{"id":"b","label":"B"}],'
+            '"edges":[{"from":"a","to":"b"},{"from":"a","to":"b"}]}',
+            '{"nodes":[{"id":"a","label":"A"},{"id":"b","label":"B"}],'
+            '"edges":[{"from":"a","to":"b"}],"groups":['
+            '{"label":"One","nodes":["a"]},{"label":"Two","nodes":["a","b"]}]}',
+        )
+        for graph in bad_graphs:
+            with self.subTest(graph=graph), self.assertRaises(SystemExit):
+                gen.build_graph(graph)
+
+    def test_real_branching_fixture_passes_graph_gate(self):
+        fixture = CODE.parent / 'data' / 'pitch-graph-2098510962412502381.json'
+        data, fallback = gen.build_graph(str(fixture))
+        graph = json.loads(data)
+        self.assertEqual(len(graph['nodes']), 9)
+        self.assertEqual(len(graph['edges']), 8)
+        self.assertIn('Storm campaign by zip code', fallback)
+
     def test_graph_rejects_more_than_twelve_client_level_steps(self):
         nodes = ','.join(f'{{"id":"n{i}","label":"Step {i}"}}' for i in range(13))
         stderr = io.StringIO()
@@ -126,7 +164,11 @@ class GenerateHelpersTest(unittest.TestCase):
         self.assertIn('data-dg="full"', artifact_bar)
         self.assertIn('class="dg-inspector"', template)
         self.assertIn('.dg-foot[hidden] { display: none; }', template)
-        self.assertIn("if (!editing) { sel = [id]; render(); return; }", diagram)
+        self.assertIn("if (!editing) { sel = [id]; render(id); return; }", diagram)
+        self.assertIn("tabindex: 0, role: 'button'", diagram)
+        self.assertIn("var queue = starts.map", diagram)
+        self.assertIn('id="dg-status" role="status"', template)
+        self.assertIn('var MIN_READABLE = 1;', diagram)
         self.assertNotIn('function noteCards()', diagram)
 
 

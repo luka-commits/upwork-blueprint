@@ -280,8 +280,15 @@
     background: var(--card); border: 1px solid var(--border); border-radius: 8px;
     padding: 5px 10px; cursor: pointer; line-height: 1.2; min-width: 30px;
     transition: background .15s var(--ease), color .15s var(--ease), border-color .15s var(--ease); }
-  .dg-btn:hover { border-color: var(--dg-tint-stroke); background: color-mix(in srgb, var(--accent) 5%, var(--card)); }
   .dg-btn:active { transform: scale(.96); }
+  .dg-btn:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 42%, transparent);
+    outline-offset: 2px; border-color: var(--accent); }
+  .dg-btn:disabled { opacity: .42; cursor: not-allowed; }
+  .dg-btn:disabled:active { transform: none; }
+  @media (hover: hover) and (pointer: fine) {
+    .dg-btn:not(:disabled):hover { border-color: var(--dg-tint-stroke);
+      background: color-mix(in srgb, var(--accent) 5%, var(--card)); }
+  }
   .dg-btn-accent { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
   .dg-btn-ghost { background: transparent; }
 
@@ -289,6 +296,7 @@
     border-bottom: 1px solid var(--border-soft); background: color-mix(in srgb, var(--bg) 70%, var(--card));
     animation: dgReveal .2s var(--ease) both; }
   .dg-editbar[hidden] { display: none; }
+  .dg-instant .dg-editbar { animation: none; }
   .dg-editbar .dg-hint { margin-right: auto; }
   @keyframes dgReveal { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
@@ -298,12 +306,17 @@
   .dg-stage svg { display: block; width: 100%; height: 100%; }
   .dg-stage:focus { outline: none; }
   .dg-node { cursor: pointer; transition: opacity .18s var(--ease); }
+  .dg-node:focus { outline: none; }
+  .dg-node:focus-visible > :first-child { stroke: var(--accent); stroke-width: 2.5; }
   .is-editing .dg-node { cursor: grab; }
   .is-editing .dg-edge-hit { cursor: pointer; }
   /* Handles stay out of the way until the node is under the pointer, so the
      resting diagram reads as a diagram and not as a wiring panel. */
   .dg-handle { opacity: 0; transition: opacity .15s var(--ease); cursor: crosshair; }
-  .is-editing .dg-node:hover .dg-handle { opacity: 1; }
+  .is-editing .dg-node:focus .dg-handle { opacity: 1; }
+  @media (hover: hover) and (pointer: fine) {
+    .is-editing .dg-node:hover .dg-handle { opacity: 1; }
+  }
   .dg-mini { position: absolute; right: 12px; bottom: 12px; width: 132px; height: 84px;
     background: color-mix(in srgb, var(--bg) 88%, transparent); border: 1px solid var(--border);
     border-radius: 8px; overflow: hidden; pointer-events: none; }
@@ -336,6 +349,13 @@
   .dg-inspector strong { display: block; color: var(--text); font-size: 14px; line-height: 1.35; }
   .dg-inspector p { max-width: 76ch; margin: 5px 0 0; color: var(--text-2); font-size: 12.5px; line-height: 1.5; }
   .dg-inspector-tip { align-self: center; color: var(--text-3); font-size: 11px; white-space: nowrap; }
+  .dg-inspector-tip[data-active="true"] { color: var(--accent-deep); font-weight: 600; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dg-editbar { animation: dgFade .16s var(--ease) both; }
+    .dg-node, .dg-handle, .dg-inspector { transition-property: opacity, color, background; }
+    @keyframes dgFade { from { opacity: 0; } to { opacity: 1; } }
+  }
 
   /* Das Board ist das Kernstueck der Seite und bekommt deshalb echte Breite,
      statt in der 720px-Lesespalte zu stecken. Fliesstext bleibt schmal --
@@ -699,7 +719,7 @@
           <span class="artifact-tag">Proposed build</span>
           <span class="artifact-name">{{JOB_TITLE}}</span>
           <span class="dg-tools">
-            <button class="dg-btn dg-btn-accent" data-dg="play" title="Watch the proposed flow">&#9654; Run flow</button>
+            <button class="dg-btn dg-btn-accent" data-dg="play" title="Watch the proposed flow" aria-pressed="false">&#9654; Run flow</button>
             <button class="dg-btn" data-dg="edit" aria-pressed="false">Edit plan</button>
             <button class="dg-btn" data-dg="full" title="Fullscreen" aria-label="Fullscreen">&#10530;</button>
           </span>
@@ -713,7 +733,7 @@
           <button class="dg-btn" data-dg="in" aria-label="Zoom in">+</button>
           <button class="dg-btn" data-dg="fit">Fit</button>
         </div>
-        <div class="dg-stage" id="dg-stage" tabindex="0">
+        <div class="dg-stage" id="dg-stage" tabindex="0" aria-label="Interactive proposed workflow. Press Tab to select steps and use arrow keys to move between them." aria-describedby="dg-status">
           <ol class="dg-fallback">
             {{DIAGRAM_FALLBACK}}
           </ol>
@@ -728,13 +748,13 @@
           <span class="dg-key"><i class="sw sw-yours"></i>You already have this</span>
           <span class="dg-key">Select a step for the implementation detail</span>
         </div>
-        <figcaption class="dg-inspector" id="dg-inspector" aria-live="polite">
+        <figcaption class="dg-inspector" id="dg-inspector">
           <div class="dg-inspector-copy">
             <div class="dg-inspector-meta"><span class="dg-inspector-owner" id="dg-inspector-owner">Plan</span><span class="dg-inspector-kind" id="dg-inspector-kind">Step details</span></div>
             <strong id="dg-inspector-title">Select any step</strong>
             <p id="dg-inspector-note">The explanation and ownership will appear here without crowding the canvas.</p>
           </div>
-          <span class="dg-inspector-tip">Click a step</span>
+          <span class="dg-inspector-tip" id="dg-status" role="status" aria-live="polite">Click a step or press Tab</span>
         </figcaption>
         <div class="dg-foot" data-dg-editbar hidden>
           <button class="dg-btn dg-btn-ghost" data-dg="add">+ Step</button>

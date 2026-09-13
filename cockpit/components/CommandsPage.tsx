@@ -348,11 +348,13 @@ function SearchExplanation({ rules }: { rules: NonNullable<Command['search']> })
             const signal = !result?.saved ? 'No saved leads yet'
               : result.won ? `${result.won} won · ${result.conversations} conversations`
                 : result.conversations ? `${result.conversations} conversations · ${result.applied} applied`
-                  : `${result.applied} applied · ${result.skipped} not a fit`;
+                  : result.applied ? `${result.applied} applied · ${result.skipped} not a fit`
+                    : result.skipped ? `${result.saved} saved · ${result.skipped} not a fit`
+                      : `${result.saved} saved · no decisions`;
             const reason = result?.not_fit_reasons?.[0];
             const detail = reason ? ` Most common rejection: ${reason.reason} (${reason.count}).` : '';
             return <div key={theme.label} title={`${signal}.${detail}`}>
-              <strong>{theme.label}</strong><code>{theme.query}</code><span>{signal}</span>
+              <strong>{theme.label}</strong><span>{signal}</span><code>{theme.query}</code>
             </div>;
           })}
         </div>

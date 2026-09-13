@@ -53,8 +53,9 @@ change or next project based on the completed work. Do not send a vague
 
 ## Applied, lost, skipped and new
 
-An `applied` proposal has no room until the client writes. Re-check it on day 3
-and day 7, then park it. No Send button means the system is working correctly.
+An `applied` proposal has no room until the client writes, so it has no follow-up
+and creates no task. Sync moves it to `lost` after 14 full days without a client
+reply. No Send button and no reminder mean the system is working correctly.
 
 Do not follow up with `new` or `skipped` jobs. A `lost` lead gets one future
 check only when the client explicitly named timing or budget as the reason and a

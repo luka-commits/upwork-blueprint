@@ -38,7 +38,10 @@ Write one JSON object as the docstring of `code/sync.py` describes (proposals wi
 
 `python3 code/sync.py apply --file -`
 
-It moves jobs only forward (a declined proposal ends as lost), adds proposals sent outside the cockpit, saves each thread for the cockpit's chat window, turns a client waiting on you into a follow-up due today, and records the time of this sync. Then `python3 code/pipeline.py prune`.
+It moves jobs only forward, adds proposals sent outside the cockpit, saves each
+thread for the cockpit's chat window, moves an unanswered application to Lost
+after 14 full days, turns a client waiting on you into a follow-up due today,
+and records the time of this sync. Then `python3 code/pipeline.py prune`.
 
 ## Step 3 · Report
 

@@ -68,6 +68,17 @@ def verified_timestamp(value):
     return stamp.isoformat()
 
 
+def applied_expired(job, today=None):
+    """An unanswered proposal leaves the active pipeline after 14 full days."""
+    if job.get('status') != 'applied' or job.get('application_date_unknown'):
+        return False
+    stamp = verified_timestamp(job.get('applied_at'))
+    if not stamp:
+        return False
+    applied_day = datetime.datetime.fromisoformat(stamp).date()
+    return applied_day <= (today or datetime.datetime.now(datetime.timezone.utc).date()) - datetime.timedelta(days=14)
+
+
 def first_complete_client_message(thread):
     """The first reply exists only when this response proves complete history."""
     if thread.get('messages_complete') is not True:
@@ -157,9 +168,8 @@ def cmd_apply(args):
             continue
         new = target(job.get('status'), stages)
         if new:
-            follow = '+3d' if new == 'applied' else None
             date_args = ['--applied-at', 'unknown'] if new == 'applied' else []
-            if run_pipeline('set', jid, new, *(['--follow-up', follow] if follow else []), *date_args):
+            if run_pipeline('set', jid, new, *date_args):
                 moved.append({'id': jid, 'from': job.get('status'), 'to': new})
                 job['status'] = new
 
@@ -202,8 +212,16 @@ def cmd_apply(args):
         if t.get('awaiting_reply_from') == 'you' and job.get('status') not in ('lost', 'skipped'):
             if job.get('follow_up_plan'):
                 run_pipeline('follow-up', jid, 'clear', '--reason', 'The client replied; review the new message first.')
-            if run_pipeline('set', jid, job['status'], '--follow-up', today):
+            if job.get('status') in ('replied', 'offer', 'won') and run_pipeline('set', jid, job['status'], '--follow-up', today):
                 waiting.append(jid)
+
+    # Applied proposals cannot be messaged first. Once 14 days pass without a
+    # client reply, remove them from the active pipeline instead of creating work.
+    for job in pipeline.load():
+        if job.get('status') == 'applied' and (job.get('next_follow_up') or job.get('follow_up_plan')):
+            run_pipeline('follow-up', job['id'], 'clear', '--reason', 'Applied proposals cannot be followed up before the client replies.')
+        if applied_expired(job) and run_pipeline('set', job['id'], 'lost', '--note', 'No client reply within 14 days.'):
+            moved.append({'id': job['id'], 'from': 'applied', 'to': 'lost'})
 
     record = {'synced_at': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),
               'moved': moved, 'added': added, 'threads': len(threads), 'awaiting_you': waiting}

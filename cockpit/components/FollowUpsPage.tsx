@@ -111,7 +111,7 @@ export default function FollowUpsPage() {
         <aside className="panel follow-up-reminders" aria-labelledby="reminders-title">
           <h2 id="reminders-title">Scheduled reminders <span>{reminders.length}</span></h2>
           <p className="follow-up-reminders-note">Saved dates. Check the conversation before acting.</p>
-          {!reminders.length ? <p className="follow-up-reminders-empty">No follow-up dates are saved for applied leads, active conversations or clients.</p> : null}
+          {!reminders.length ? <p className="follow-up-reminders-empty">No follow-up dates are saved for active conversations or clients.</p> : null}
           {[{ name: 'Due now', items: due }, { name: 'Later', items: later }].filter(group => group.items.length).map(group => <section className="follow-up-reminder-group" key={group.name} aria-label={`${group.name} reminders`}>
             <h3>{group.name}<span>{group.items.length}</span></h3>
             <ul>{group.items.map(item => <li key={item.id}>

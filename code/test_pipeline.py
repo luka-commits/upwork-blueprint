@@ -168,14 +168,25 @@ class PipelineTest(unittest.TestCase):
 
     def test_applied_at_is_set_once(self):
         self.add({'id': 'J1'})
-        self.run_cli('set', 'J1', 'applied', '--follow-up', '+3d')
+        blocked = self.run_cli('set', 'J1', 'applied', '--follow-up', '+3d')
+        self.assertNotEqual(blocked.returncode, 0)
+        self.assertEqual(self.data()[0]['status'], 'new')
+        self.run_cli('set', 'J1', 'applied')
         job = self.data()[0]
         first = job['applied_at']
-        expected = (datetime.date.today() + datetime.timedelta(days=3)).isoformat()
-        self.assertEqual(job['next_follow_up'], expected)
+        self.assertIsNone(job['next_follow_up'])
         self.run_cli('set', 'J1', 'replied')
         self.run_cli('set', 'J1', 'applied')
         self.assertEqual(self.data()[0]['applied_at'], first)
+
+    def test_applied_stage_clears_a_legacy_follow_up(self):
+        self.add({'id': 'J1', 'status': 'applied', 'next_follow_up': '2026-09-20',
+                  'follow_up_plan': {'lane': 'light', 'step': 1, 'max_steps': 2}})
+        result = self.run_cli('set', 'J1', 'applied')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        job = self.data()[0]
+        self.assertIsNone(job['next_follow_up'])
+        self.assertNotIn('follow_up_plan', job)
 
     def test_verified_observations_are_zoned_nonfuture_and_never_move_stage(self):
         self.add({'id': 'J1', 'status': 'applied', 'application_date_unknown': True})
@@ -224,7 +235,7 @@ class PipelineTest(unittest.TestCase):
 
     def test_closing_clears_follow_up_and_history_records_each_step(self):
         self.add({'id': 'J1'})
-        self.run_cli('set', 'J1', 'applied', '--follow-up', '+3d')
+        self.run_cli('set', 'J1', 'applied')
         self.run_cli('set', 'J1', 'lost')
         job = self.data()[0]
         self.assertIsNone(job['next_follow_up'])

@@ -290,6 +290,8 @@ def cmd_detail(args):
 def cmd_set(args):
     if args.status not in STATUSES:
         abort(f'unknown status "{args.status}". Allowed: {", ".join(STATUSES)}')
+    if args.status == 'applied' and args.follow_up:
+        abort('applied proposals cannot have a follow-up before the client replies.')
     jobs = load()
     job = find(jobs, args.job_id)
     job['status'] = args.status
@@ -309,7 +311,7 @@ def cmd_set(args):
                     abort('--applied-at expects an ISO timestamp or unknown.')
             job['applied_at'] = observed or job['status_updated_at']
             job.pop('application_date_unknown', None)
-    if args.status in ('lost', 'skipped') or (args.status == 'won' and not args.follow_up):
+    if args.status in ('applied', 'lost', 'skipped') or (args.status == 'won' and not args.follow_up):
         job['next_follow_up'] = None
         job.pop('follow_up_plan', None)
     elif args.follow_up:

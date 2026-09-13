@@ -67,7 +67,7 @@ class CockpitTest(unittest.TestCase):
         self.assertTrue(first['has_posting'])
         self.assertNotIn('description', first['details'])
         self.assertEqual(first['artifacts'], ['pitch.html'])
-        self.assertEqual(state['today']['follow_ups_due'], ['222222', '333333'])
+        self.assertEqual(state['today']['follow_ups_due'], ['333333'])
 
     def test_full_view_carries_files_and_thread(self):
         r = self.cli('job', '111111')

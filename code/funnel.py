@@ -212,7 +212,7 @@ def status_markdown(jobs, today):
     applied = pipeline.applied_on(jobs, today.isoformat())
     target = target_from_context()
     due = [j for j in jobs if parse_day(j.get('next_follow_up')) and
-           parse_day(j.get('next_follow_up')) <= today and j.get('status') not in ('lost', 'skipped')]
+           parse_day(j.get('next_follow_up')) <= today and j.get('status') not in ('applied', 'lost', 'skipped')]
     tasks = [(j, task) for j in jobs for task in j.get('tasks') or [] if not task.get('done_at')]
     tasks.sort(key=lambda item: (item[1].get('due') or '9999-99-99', one_line(item[0].get('title'))))
     best = sorted((j for j in jobs if j.get('status') == 'new'),

@@ -126,8 +126,8 @@ chooses attachments and any boost, reviews Upwork's final cost and clicks Submit
 
 Never call the proposal confirmation tool and never mark the job Applied before
 the member says they submitted it. After they confirm the manual submission, run
-`python3 code/pipeline.py set <id> applied --follow-up +3d`. The follow-up is a
-re-check, not a message: a freelancer cannot write first on a proposal.
+`python3 code/pipeline.py set <id> applied`. A freelancer cannot write first on a
+proposal. Sync moves it to Lost after 14 days without a client reply.
 
 If the member requests a change, revise and run the gate again. Create a new
 preview only when the changed field affects it and remind the member that a new

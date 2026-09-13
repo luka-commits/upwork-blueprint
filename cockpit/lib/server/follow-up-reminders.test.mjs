@@ -7,13 +7,11 @@ test('returns past, current and future reminders in date then title and id order
   const jobs = [
     { id: '123459', title: 'Zulu', status: 'offer', next_follow_up: '2026-09-13' },
     { id: '123458', title: 'Beta', status: 'replied', next_follow_up: '2026-09-12' },
-    { id: '123457', title: 'Alpha', status: 'applied', next_follow_up: '2026-09-12' },
-    { id: '123456', title: 'Past', status: 'applied', next_follow_up: '2026-09-11' },
-    { id: '123455', title: 'Alpha', status: 'applied', next_follow_up: '2026-09-12' },
+    { id: '123457', title: 'Applied', status: 'applied', next_follow_up: '2026-09-12' },
   ];
 
   assert.deepEqual(scheduledFollowUps(jobs, '2026-09-12').map(job => job.id),
-    ['123456', '123455', '123457', '123458', '123459']);
+    ['123458', '123459']);
 });
 
 test('sanitizes saved reminder fields without deciding send eligibility', () => {
@@ -88,7 +86,7 @@ test('malformed optional plan fields become null or an empty reason', () => {
 test('does not mutate jobs or nested follow-up plans', () => {
   const plan = Object.freeze({ reason: 'Open decision', lane: 'hot', step: 1, max_steps: 3 });
   const job = Object.freeze({
-    id: '123456', title: 'Frozen', status: 'applied',
+    id: '123456', title: 'Frozen', status: 'replied',
     next_follow_up: '2026-09-12', follow_up_plan: plan,
   });
   const jobs = Object.freeze([job]);
@@ -98,6 +96,6 @@ test('does not mutate jobs or nested follow-up plans', () => {
 });
 
 test('rejects a malformed reference day instead of inventing one', () => {
-  const jobs = [{ id: '123456', title: 'Valid reminder', status: 'applied', next_follow_up: '2026-09-12' }];
+  const jobs = [{ id: '123456', title: 'Valid reminder', status: 'replied', next_follow_up: '2026-09-12' }];
   assert.deepEqual(scheduledFollowUps(jobs, '2026-02-30'), []);
 });

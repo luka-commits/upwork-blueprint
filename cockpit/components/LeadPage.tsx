@@ -408,8 +408,9 @@ function ApplicationStatus({ j, open }: { j: any; open: (view: WorkspaceView) =>
       hint={hasReply ? 'Use Sync to update this lead from Applied to In conversation.' : undefined} />
     <div className="application-status-card">
       <h3>{appliedAt ? `Applied ${day(appliedAt)}` : 'Submission date not recorded'}</h3>
-      <p>{j.thread?.room_id ? 'Read the latest conversation before following up.'
-        : 'You can send a message once the client opens an Upwork conversation.'}</p>
+      <p>{hasReply ? 'Sync moves this lead to In conversation.'
+        : appliedAt ? `No action needed. It moves to Lost after 14 days without a reply.`
+          : 'No action needed. Sync records the submission date when Upwork provides it.'}</p>
     </div>
     <div className="saved-application">
       <div><h3>{applicationSaved ? 'Application draft' : 'No application draft saved'}</h3>

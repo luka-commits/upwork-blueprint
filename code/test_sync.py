@@ -108,7 +108,7 @@ class SyncTest(unittest.TestCase):
         self.assertEqual(self.status()['100099']['status'], 'won')
         self.assertTrue(self.status()['100099']['application_date_unknown'])
 
-    def test_verified_creation_time_repairs_unknown_import_without_new_stage_history(self):
+    def test_verified_creation_time_repairs_unknown_import_then_expires_it(self):
         first = {'proposals': [{'job_id': '100099', 'title': 'Imported', 'status': 'Accepted'}]}
         self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(first))
         imported = self.status()['100099']
@@ -121,7 +121,9 @@ class SyncTest(unittest.TestCase):
         imported = self.status()['100099']
         self.assertEqual(imported['applied_at'], '2026-01-05T10:30:00+00:00')
         self.assertNotIn('application_date_unknown', imported)
-        self.assertEqual(imported['history'], history)
+        self.assertEqual(imported['history'][:-1], history)
+        self.assertEqual(imported['history'][-1]['status'], 'lost')
+        self.assertEqual(imported['status'], 'lost')
         self.assertTrue(imported['applied_observation']['verified'])
 
         later = {'proposals': [{'job_id': '100099', 'status': 'Accepted',
@@ -144,6 +146,41 @@ class SyncTest(unittest.TestCase):
         self.assertNotIn('applied_observation', jobs['100001'])
         self.assertEqual(jobs['100002']['applied_at'], before)
         self.assertNotIn('applied_observation', jobs['100002'])
+
+    def test_unanswered_application_expires_after_14_days_but_not_before(self):
+        today = datetime.datetime.now(datetime.timezone.utc).date()
+        old = f'{today - datetime.timedelta(days=14)}T00:00:00Z'
+        recent = f'{today - datetime.timedelta(days=13)}T00:00:00Z'
+        self.cli('pipeline.py', 'observe', '100002', 'applied', old,
+                 '--source', 'upwork-proposal', '--verified')
+        self.cli('pipeline.py', 'observe', '100003', 'applied', recent,
+                 '--source', 'upwork-proposal', '--verified')
+
+        result = self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps({
+            'proposals': [
+                {'job_id': '100002', 'status': 'Accepted'},
+                {'job_id': '100003', 'status': 'Accepted'},
+            ],
+        }))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        jobs = self.status()
+        self.assertEqual(jobs['100002']['status'], 'lost')
+        self.assertIn('No client reply within 14 days.', jobs['100002']['notes'])
+        self.assertEqual(jobs['100003']['status'], 'applied')
+        self.assertIsNone(jobs['100003']['next_follow_up'])
+
+    def test_client_reply_wins_over_expiration_on_day_14(self):
+        today = datetime.datetime.now(datetime.timezone.utc).date()
+        old = f'{today - datetime.timedelta(days=14)}T00:00:00Z'
+        self.cli('pipeline.py', 'set', '100001', 'applied', '--applied-at', old)
+        snapshot = {
+            'proposals': [{'job_id': '100001', 'status': 'Accepted'}],
+            'threads': [{'job_id': '100001', 'room_id': 'room-1', 'messages_complete': True,
+                         'messages': [{'from': 'client', 'at': f'{today}T08:00:00Z', 'text': 'Hello'}]}],
+        }
+        result = self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(snapshot))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.status()['100001']['status'], 'replied')
 
     def test_only_complete_explicit_client_history_records_first_reply(self):
         complete = {

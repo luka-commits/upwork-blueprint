@@ -276,7 +276,7 @@ def build_state():
     day = datetime.date.today()
     today = day.isoformat()
     due = [j['id'] for j in jobs if j.get('next_follow_up') and j['next_follow_up'] <= today
-           and j.get('status') not in ('lost', 'skipped')]
+           and j.get('status') not in ('applied', 'lost', 'skipped')]
     goal = daily_target()
     return {
         'generated_at': datetime.datetime.now().isoformat(timespec='seconds'),

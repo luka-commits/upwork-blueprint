@@ -383,7 +383,7 @@ export default function ListPage({ space }: { space: SpaceName }) {
     if (!status) return;
     const ids = [...selected];
     for (const id of ids) {
-      await move(id, status, status === 'applied' ? '+3d' : null, status === 'skipped' ? 'not a fit' : null);
+      await move(id, status, null, status === 'skipped' ? 'not a fit' : null);
     }
     setSelected(new Set());
     toast(`${ids.length} moved to ${LABEL[status]}.`);
@@ -643,7 +643,7 @@ function Board({ jobs, drawerId, openDrawer, closeDrawer, move, dropStage, setDr
         if (e.dataTransfer.types.includes('text/col')) return;
         e.preventDefault(); setDropStage(null);
         const id = e.dataTransfer.getData('text/plain'), job = jobs.find(j => String(j.id) === id);
-        if (job && job.status !== stage.key) move(id, stage.key, stage.key === 'applied' ? '+3d' : null);
+        if (job && job.status !== stage.key) move(id, stage.key);
       }}>
       <div className="col-head">
         <div className="col-title">{stage.label}</div><span className="col-count">{list.length}</span>

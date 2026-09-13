@@ -47,7 +47,7 @@ export function money(n: any) { n = Number(n); if (!n) return ''; return n >= 10
 export function firstNum(s: any): number | null { const m = String(s ?? '').replace(/,/g, '').match(/\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; }
 // Lost and skipped jobs are over. A won job is a client: its check-in date still counts.
 export const ENDED = ['lost', 'skipped'];
-export const isDue = (j: any) => !!j.next_follow_up && j.next_follow_up <= todayIso() && j.status !== 'new' && !ENDED.includes(j.status);
+export const isDue = (j: any) => !!j.next_follow_up && j.next_follow_up <= todayIso() && !['new', 'applied'].includes(j.status) && !ENDED.includes(j.status);
 export const openTasks = (j: any): any[] => (j.tasks || []).filter((t: any) => !t.done_at);
 export const taskDueKey = (task: any): string => task?.due ? `${task.due}T${task.due_time || '00:00'}` : '9999';
 export function taskIsDue(task: any, now = new Date()): boolean {
@@ -63,7 +63,7 @@ export const taskDueLabel = (task: any): string => task?.due
   : '';
 export const wonAt = (j: any): string | undefined => ((j.history || []).filter((h: any) => h.status === 'won').pop() || {}).at;
 export function ageBucket(iso?: string) { if (!iso) return 'Unknown'; const h = (Date.now() - +new Date(iso)) / 36e5; return h < 24 ? 'Last 24 hours' : h < 72 ? '1 to 3 days' : 'Older'; }
-export function dueBucket(j: any) { const t = todayIso(); return !j.next_follow_up || ENDED.includes(j.status) ? 'No follow-up' : j.next_follow_up < t ? 'Overdue' : j.next_follow_up === t ? 'Today' : 'Later'; }
+export function dueBucket(j: any) { const t = todayIso(); return !j.next_follow_up || j.status === 'applied' || ENDED.includes(j.status) ? 'No follow-up' : j.next_follow_up < t ? 'Overdue' : j.next_follow_up === t ? 'Today' : 'Later'; }
 export function clientText(j: any) {
   const c = j.client || {}, bits: string[] = [];
   if (c.rating) bits.push(`${c.rating}★`);
@@ -100,7 +100,7 @@ export function Score({ j }: { j: any }) {
 }
 
 export function DueChip({ j }: { j: any }) {
-  if (!j.next_follow_up || j.status === 'new' || ENDED.includes(j.status)) return null;
+  if (!j.next_follow_up || ['new', 'applied'].includes(j.status) || ENDED.includes(j.status)) return null;
   const days = Math.round((+new Date(j.next_follow_up) - +new Date(todayIso())) / 864e5);
   const txt = days < 0 ? `Follow-up ${-days}d overdue` : days === 0 ? 'Follow-up due today' : `Follow-up in ${days} days`;
   return <span className="uw-due-inline"><span className={`uw-duechip ${days <= 0 ? 'over' : 'soon'}`}>{txt}</span></span>;
@@ -125,14 +125,14 @@ export function Comp({ j }: { j: any }) {
   return <><span className={`uw-comp-n${cls}`}>{num === 0 ? 'none yet' : `${n} bids`}</span>{d.invites_sent ? <span className="uw-sub">{d.invites_sent} invited</span> : null}</>;
 }
 
-/** The stage right in the row. Applied sets a follow-up three days out; Skipped notes why. */
+/** The stage right in the row. Applied waits silently; Skipped records why. */
 export function StageSelect({ j }: { j: any }) {
   const { move } = useCockpit();
   const [disqualifying, setDisqualifying] = useState<HTMLSelectElement | null>(null);
   return (
     <><select className={`stage-select stage-${j.status}`} aria-label={`Stage for ${j.title || 'job'}`} value={j.status}
       onClick={e => e.stopPropagation()}
-      onChange={e => { const s = e.target.value; if (s === 'skipped') setDisqualifying(e.currentTarget); else void move(j.id, s, s === 'applied' ? '+3d' : null); }}>
+      onChange={e => { const s = e.target.value; if (s === 'skipped') setDisqualifying(e.currentTarget); else void move(j.id, s); }}>
       {ORDER.map(k => <option key={k} value={k}>{LABEL[k]}</option>)}
     </select>{disqualifying ? <DisqualifyDialog job={j} returnTo={disqualifying} onClose={() => setDisqualifying(null)} /> : null}</>
   );
@@ -200,7 +200,7 @@ export const COLS: Record<string, Col> = {
 };
 
 /** The next thing to do on a job: its follow-up or its earliest dated task, whichever comes first. */
-export function nextTodo(j: any): { text: string; due: string | null; due_time?: string | null } | null {
+export function nextTodo(j: any): { text: string; due: string | null; due_time?: string | null; note?: string | null } | null {
   if (j.status === 'offer') return { text: 'Review the offer', due: null };
   if (j.status === 'new') {
     const files = new Set(j.artifacts || []);
@@ -210,8 +210,16 @@ export function nextTodo(j: any): { text: string; due: string | null; due_time?:
         : !files.has('application.md') ? 'Prepare application' : 'Submit on Upwork';
     return { text, due: null };
   }
-  const items: { text: string; due: string | null; due_time?: string | null }[] = openTasks(j)
+  const items: { text: string; due: string | null; due_time?: string | null; note?: string | null }[] = openTasks(j)
     .map(t => ({ text: t.text, due: t.due || null, due_time: t.due_time || null }));
+  if (j.status === 'applied') {
+    items.sort((a, b) => taskDueKey(a).localeCompare(taskDueKey(b)));
+    if (items.length) return items[0];
+    const closes = !j.application_date_unknown && j.applied_at ? new Date(j.applied_at) : null;
+    if (closes && !Number.isNaN(+closes)) closes.setUTCDate(closes.getUTCDate() + 14);
+    return { text: 'Waiting for client', due: null,
+      note: closes && !Number.isNaN(+closes) ? `Auto-close ${short(closes.toISOString())}` : 'Sync needs the submission date' };
+  }
   if (j.next_follow_up && !ENDED.includes(j.status)) {
     const plan = j.follow_up_plan;
     const lane = typeof plan?.lane === 'string' ? plan.lane.replace('-', ' ') : '';
@@ -223,8 +231,7 @@ export function nextTodo(j: any): { text: string; due: string | null; due_time?:
   const clientMessages = (j.thread?.messages || []).filter((message: any) => message?.kind !== 'event' && message?.from !== 'me');
   const clientWaiting = !!j.thread?.room_id && j.thread?.awaiting_reply_from === 'you' && clientMessages.length > 0;
   const callMentioned = clientMessages.some((message: any) => /\b(call|meeting|meet|zoom|interview|chat)\b/i.test(String(message.text || '')));
-  const stageAction = j.status === 'applied' ? 'Check for a reply'
-      : j.status === 'replied' ? clientWaiting ? 'Reply to the client' : !files.has('call-prep.md') ? callMentioned ? 'Prepare for the call' : 'Check latest messages' : !files.has('call-review.md') ? 'Review the call' : !files.has('proposal.md') ? 'Draft proposal' : 'Send proposal on Upwork'
+  const stageAction = j.status === 'replied' ? clientWaiting ? 'Reply to the client' : !files.has('call-prep.md') ? callMentioned ? 'Prepare for the call' : 'Check latest messages' : !files.has('call-review.md') ? 'Review the call' : !files.has('proposal.md') ? 'Draft proposal' : 'Send proposal on Upwork'
         : j.status === 'won' ? !files.has('project.md') ? 'Set up the project' : 'Add next delivery task'
             : '';
   if (stageAction) items.push({ text: stageAction, due: null });
@@ -242,7 +249,7 @@ export function TodoCell({ j }: { j: any }) {
   const label = next.due === todayIso()
     ? `today${next.due_time ? `, ${next.due_time}` : ''}`
     : taskDueLabel(next);
-  return <>{next.text}{next.due ? <span className="uw-sub" style={late ? { color: 'var(--red-deep)', fontWeight: 600 } : undefined}>{label}</span> : null}</>;
+  return <>{next.text}{next.due || next.note ? <span className="uw-sub" style={late ? { color: 'var(--red-deep)', fontWeight: 600 } : undefined}>{next.due ? label : next.note}</span> : null}</>;
 }
 COLS.todo = { label: 'Next action', w: 190, asc: true, cell: j => <TodoCell j={j} />, sort: j => nextTodo(j)?.due || '9999', filter: 'multi', value: todoBucket };
 

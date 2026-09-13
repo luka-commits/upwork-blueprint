@@ -1,4 +1,4 @@
-const ACTIVE = new Set(['applied', 'replied', 'offer', 'won']);
+const ACTIVE = new Set(['replied', 'offer', 'won']);
 const JOB_ID = /^\d{6,25}$/;
 const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 

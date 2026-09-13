@@ -173,6 +173,20 @@ class CockpitTest(unittest.TestCase):
         self.assertEqual(short['reply_hours'], 0.033)
         self.assertGreater(short['reply_days'], 0)
 
+    def test_loom_quality_uses_only_bounded_saved_scores(self):
+        jobs = [
+            {'status': 'new', 'loom_review_score': 80},
+            {'status': 'new', 'loom_review_score': 91},
+            {'status': 'new', 'loom_review_score': 101},
+            {'status': 'new', 'loom_review_score': True},
+        ]
+        ins = self.cockpit.insights(jobs, dt.date(2026, 9, 12))
+        self.assertEqual(ins['loom_score'], 86)
+        self.assertEqual(ins['loom_score_sample'], 2)
+        empty = self.cockpit.insights([], dt.date(2026, 9, 12))
+        self.assertIsNone(empty['loom_score'])
+        self.assertEqual(empty['loom_score_sample'], 0)
+
     def test_28_day_applications_distinguish_zero_partial_and_unknown(self):
         today = dt.date(2026, 9, 12)
         empty = self.cockpit.insights([], today)

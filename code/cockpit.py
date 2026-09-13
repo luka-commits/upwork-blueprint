@@ -216,6 +216,10 @@ def insights(jobs, today):
     applications_28d_known = len(recent)
     applications_28d = applications_28d_known if dates_complete else None
     skipped = [j for j in jobs if j.get('status') == 'skipped']
+    loom_scores = [j.get('loom_review_score') for j in jobs
+                   if isinstance(j.get('loom_review_score'), int)
+                   and not isinstance(j.get('loom_review_score'), bool)
+                   and 0 <= j['loom_review_score'] <= 100]
     return {
         'funnel': funnel,
         'funnel_scope': 'all_saved',
@@ -235,6 +239,8 @@ def insights(jobs, today):
         'applications_28d_known': applications_28d_known,
         'applications_28d_complete': dates_complete,
         'per_week': round(applications_28d / 4, 1) if applications_28d is not None else None,
+        'loom_score': round(sum(loom_scores) / len(loom_scores)) if loom_scores else None,
+        'loom_score_sample': len(loom_scores),
         'skipped': {'total': len(skipped),
                     'filled': sum(1 for j in skipped if 'already filled' in (j.get('notes') or '')),
                     'bar': sum(1 for j in skipped if 'wants ' in (j.get('notes') or '')),

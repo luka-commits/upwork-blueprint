@@ -40,5 +40,13 @@ export function analyticsTiles(ins = {}) {
         ? 'Saved applications with known submission dates. This is not an account-wide total.'
         : `${count(ins.applications_28d_known ?? 0, 'dated application')} in this period. ${count(missingDates, 'application')} with a missing or invalid date.`,
     },
+    {
+      label: 'Loom quality',
+      value: ins.loom_score == null ? null : `${ins.loom_score}/100`,
+      empty: 'No reviews yet',
+      hint: ins.loom_score_sample
+        ? `Average of ${count(ins.loom_score_sample, 'saved Loom review')}. Internal quality check, not an Upwork metric.`
+        : 'Appears after a Loom review is enabled and completed during application preparation.',
+    },
   ];
 }

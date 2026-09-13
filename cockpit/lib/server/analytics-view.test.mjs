@@ -28,3 +28,13 @@ test('every displayed rate and reply delay carries its sample and scope', () => 
   assert.match(tiles[1].hint, /1 verified pair/);
   assert.match(tiles[1].hint, /1 conversation without verified timing/);
 });
+
+test('Loom quality carries its review sample and stays empty without one', () => {
+  const measured = analyticsTiles({ loom_score: 86, loom_score_sample: 2 })[3];
+  assert.equal(measured.value, '86/100');
+  assert.match(measured.hint, /2 saved Loom reviews/);
+  assert.match(measured.hint, /not an Upwork metric/);
+  const empty = analyticsTiles({})[3];
+  assert.equal(empty.value, null);
+  assert.equal(empty.empty, 'No reviews yet');
+});

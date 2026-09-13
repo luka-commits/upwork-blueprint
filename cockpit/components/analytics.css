@@ -37,7 +37,7 @@
 .analytics-scoreboard {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-bottom: 44px;
   padding: 0 2px 22px;
   border-bottom: 1px solid var(--analytics-rule);

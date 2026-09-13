@@ -71,7 +71,7 @@ test('the morning follow-up review can read but cannot send', () => {
   assert.ok(!tools.some(tool => tool.endsWith('__confirm_preview')));
 });
 
-test('lead magnet runs the local audit without Upwork or sending tools', () => {
+test('lead magnet builds and publishes the audit without Upwork or sending tools', () => {
   const spec = RUNNABLE['lead-magnet'];
   assert.equal(spec.job, true);
   assert.ok(spec.tools.includes('Bash(python3 .claude/skills/lead-magnet/scripts/build.py*)'));

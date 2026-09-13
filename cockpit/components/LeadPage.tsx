@@ -455,9 +455,10 @@ function SalesSupport({ j, open }: { j: any; open: () => void }) {
 }
 
 function LeadMagnetBuilder({ j }: { j: any }) {
-  const { state, post, runCommand, runs } = useCockpit();
+  const { state, post, runCommand, runs, toast } = useCockpit();
   const source = j.lead_magnet_source || {};
   const ready = (j.artifacts || []).includes('lead-magnet.html');
+  const publicUrl = typeof j.lead_magnet_url === 'string' ? j.lead_magnet_url : '';
   const [editing, setEditing] = useState(!source.website);
   const [website, setWebsite] = useState(source.website || '');
   const [location, setLocation] = useState(source.location || '');
@@ -475,26 +476,40 @@ function LeadMagnetBuilder({ j }: { j: any }) {
   }, [source.website, source.location, source.place_id, source.language]);
   const start = async () => {
     if (!valid || running) return;
-    const saved = await post('/api/lead-magnet-source', {
-      id: j.id,
-      website: website.trim(),
-      location: location.trim(),
-      place_id: placeId.trim(),
-      language,
-    });
-    if (saved) {
+    const sourceWasEdited = editing || !source.website;
+    if (sourceWasEdited) {
+      const saved = await post('/api/lead-magnet-source', {
+        id: j.id,
+        website: website.trim(),
+        location: location.trim(),
+        place_id: placeId.trim(),
+        language,
+      });
+      if (!saved) return;
       setEditing(false);
-      const target = website.trim().replace(/^https?:\/\/(?:www\.)?/, '').replace(/\/$/, '');
-      if (!window.confirm(`Start paid Firecrawl, Apify and DataForSEO calls for ${target}? Nothing will be sent or published.`)) return;
-      runCommand('lead-magnet', j.id);
     }
+    if (!(ready && !publicUrl && !sourceWasEdited)) {
+      const target = website.trim().replace(/^https?:\/\/(?:www\.)?/, '').replace(/\/$/, '');
+      if (!window.confirm(`Start paid Firecrawl, Apify and DataForSEO calls for ${target}, then publish the checked audit? Nothing will be sent.`)) return;
+    }
+    runCommand('lead-magnet', j.id);
+  };
+  const copyPublicUrl = () => {
+    navigator.clipboard.writeText(publicUrl).then(
+      () => toast('Audit link copied.'),
+      () => toast('Copy was blocked. Open the audit and copy its URL.'),
+    );
   };
   return <div className="lead-magnet-tool">
     <div className="lead-magnet-head">
       <div><strong>Local visibility audit</strong></div>
-      <span className={ready ? 'ready' : ''}>{ready ? 'Ready' : 'Not created'}</span>
+      <span className={publicUrl ? 'ready' : ''}>{publicUrl ? 'Published' : ready ? 'Publish interrupted' : 'Not created'}</span>
     </div>
-    {ready && !editing ? <a className="btn lead-magnet-open" href={artifactUrl(j.id, 'lead-magnet.html', artifactVersion(j.files, 'lead-magnet.html'))} target="_blank" rel="noopener">Open private audit</a> : null}
+    {ready && !editing && publicUrl ? <div className="material-actions lead-magnet-actions">
+      <button className="primary" onClick={copyPublicUrl}>Copy audit link</button>
+      <a className="btn" href={publicUrl} target="_blank" rel="noopener">Open public audit</a>
+    </div> : null}
+    {ready && !editing && !publicUrl ? <a className="btn lead-magnet-open" href={artifactUrl(j.id, 'lead-magnet.html', artifactVersion(j.files, 'lead-magnet.html'))} target="_blank" rel="noopener">Open local audit</a> : null}
     {!editing && source.website ? <div className="lead-magnet-source">
       <span>{source.website.replace(/^https?:\/\/(?:www\.)?/, '').replace(/\/$/, '')}</span>
       <small>{source.location}</small>
@@ -505,8 +520,8 @@ function LeadMagnetBuilder({ j }: { j: any }) {
       <details><summary>Exact profile or language</summary><label>Google place ID<input value={placeId} placeholder="Optional unless locations are ambiguous" onChange={event => setPlaceId(event.target.value)} /></label>
         <label>Search language<select value={language} onChange={event => setLanguage(event.target.value)}><option>English</option><option>German</option></select></label></details>
     </div>}
-    <p className="paid-note"><strong>Costs apply:</strong> Firecrawl, Apify and DataForSEO. Nothing is sent or published.</p>
-    {available ? <button className={ready ? undefined : 'primary'} disabled={!valid || running} onClick={() => void start()}>{running ? 'Building audit...' : ready ? 'Rebuild audit' : 'Create SEO audit'}</button>
+    <p className="paid-note"><strong>Costs apply:</strong> Firecrawl, Apify and DataForSEO. The checked audit publishes automatically. Nothing is sent.</p>
+    {available ? <button className={ready ? undefined : 'primary'} disabled={!valid || running} onClick={() => void start()}>{running ? 'Building and publishing...' : ready && !publicUrl ? 'Retry audit' : ready ? 'Rebuild audit' : 'Create SEO audit'}</button>
       : <p className="material-note">SEO audit creation is unavailable.</p>}
   </div>;
 }

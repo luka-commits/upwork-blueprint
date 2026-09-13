@@ -521,6 +521,10 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
   text-align: center;
 }
 
+.lead-magnet-actions {
+  margin-top: 11px;
+}
+
 .lead-magnet-source {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

@@ -11,8 +11,18 @@ type Command = {
   name: string;
   description: string;
   hint: string;
+  workflow: string[];
   button: boolean;
   needsJob: boolean;
+  search?: {
+    tracks: string[];
+    window_hours: number;
+    window_bounds: [number, number];
+    sources: string[];
+    filters: string[];
+    ranking: Array<{ label: string; points: number; uses: string }>;
+    gate: { fit: number; score: number; trap_cap: number };
+  };
 };
 
 type HistoryRun = {
@@ -127,6 +137,7 @@ export default function CommandsPage() {
   const [history, setHistory] = useState<HistoryRun[]>([]);
   const [commandsState, setCommandsState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [historyState, setHistoryState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [expandedCommand, setExpandedCommand] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now() / 1000);
 
   const finishedRunKey = runs.filter(run => run.done).map(run => run.id).sort().join('|');
@@ -234,22 +245,29 @@ export default function CommandsPage() {
               <h2>{group.title}</h2>
               <p className="note-sm">{group.hint}</p>
             </div>
-            {group.commands.map(command => (
-              <div className="command-row" key={command.name}>
-                <code className="command-name">/{command.name}</code>
-                <span className="command-description" title={command.description}>{command.description || 'No description yet.'}</span>
-                <div className="command-action">
-                  {command.name === 'follow-up' ? <Link className="link" href="/follow-ups">View review</Link> : null}
-                  {command.button && !command.needsJob ? (
-                    <button onClick={() => runCommand(command.name)}>Run</button>
-                  ) : command.needsJob ? (
-                    <Link className="btn" href="/">Choose job</Link>
-                  ) : (
-                    <button className="link command-copy" onClick={() => void copyCommand(command.name)}>Copy</button>
-                  )}
+            {group.commands.map(command => {
+              const canExplain = !!command.workflow.length || !!command.search;
+              const expanded = expandedCommand === command.name;
+              return <div className={`command-entry${expanded ? ' expanded' : ''}`} key={command.name}>
+                <div className="command-row">
+                  <code className="command-name">/{command.name}</code>
+                  <span className="command-description" title={command.description}>{command.description || 'No description yet.'}</span>
+                  <div className="command-action">
+                    {canExplain ? <button className="link command-how" aria-expanded={expanded}
+                      onClick={() => setExpandedCommand(expanded ? null : command.name)}>How it works <span aria-hidden="true">›</span></button> : null}
+                    {command.name === 'follow-up' ? <Link className="link" href="/follow-ups">View review</Link> : null}
+                    {command.button && !command.needsJob ? (
+                      <button onClick={() => runCommand(command.name)}>Run</button>
+                    ) : command.needsJob ? (
+                      <Link className="btn" href="/">Choose job</Link>
+                    ) : (
+                      <button className="link command-copy" onClick={() => void copyCommand(command.name)}>Copy</button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+                {expanded ? <CommandExplanation command={command} /> : null}
+              </div>;
+            })}
           </div>
         ))}
       </section>
@@ -269,4 +287,42 @@ export default function CommandsPage() {
       </section>
     </div>
   );
+}
+
+function CommandExplanation({ command }: { command: Command }) {
+  return <div className={`command-explanation${command.search ? ' search-explanation' : ''}`}>
+    {command.search ? <SearchExplanation rules={command.search} /> : null}
+    {command.workflow.length ? <div className="command-workflow">
+      <span className="command-detail-label">Workflow</span>
+      <ol>{command.workflow.map((step, index) => <li key={`${step}-${index}`}><span>{index + 1}</span>{step}</li>)}</ol>
+    </div> : null}
+    <div className="command-context">
+      <span>{command.needsJob ? 'Runs with one selected lead' : command.button ? 'Runs locally from this page' : 'Continues in Claude Code'}</span>
+      {command.hint ? <code>{command.hint}</code> : null}
+    </div>
+  </div>;
+}
+
+function SearchExplanation({ rules }: { rules: NonNullable<Command['search']> }) {
+  return <div className="search-rules">
+    <div className="search-rule-head">
+      <div><span className="command-detail-label">Looking now</span>
+        <strong>{rules.sources.join(' + ')}</strong>
+        <p>Fresh jobs from the last {rules.window_hours} hours. Payment verified only.</p></div>
+      <div className="search-tracks" aria-label="Current title search tracks">
+        {rules.tracks.map(track => <span key={track}>{track}</span>)}
+      </div>
+    </div>
+    <div className="ranking-rules">
+      <span className="command-detail-label">Ranking out of 100</span>
+      <div>{rules.ranking.map(part => <div className="ranking-rule" key={part.label}>
+        <strong>{part.points}</strong><span><b>{part.label}</b>{part.uses}</span>
+      </div>)}</div>
+    </div>
+    <div className="search-gate">
+      <span><b>Saved to Leads</b> Fit {rules.gate.fit}+ and total {rules.gate.score}+</span>
+      <span><b>Dropped first</b> {rules.filters.join(', ')}</span>
+      <span><b>Trap cap</b> {rules.gate.trap_cap}/100 for disguised support, operator or full-time roles</span>
+    </div>
+  </div>;
 }

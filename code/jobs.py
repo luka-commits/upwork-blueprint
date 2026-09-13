@@ -27,10 +27,12 @@ DATA = pathlib.Path(os.environ.get('BLUEPRINT_DATA') or ROOT / 'data')
 CANDIDATES = DATA / 'candidates.json'
 FIT = DATA / 'fit.json'
 PIPELINE = ROOT / 'code' / 'pipeline.py'
+ME = pathlib.Path(os.environ.get('BLUEPRINT_ME') or ROOT / 'context' / 'me.md')
 TAG = re.compile(r'</?untrusted_participant_content>')
 MIN_WINDOW, MAX_WINDOW = 10, 72
 FIT_GATE = 20
 TRAP_CAP = 60
+MIN_SCORE = 50
 
 
 def clean(text):
@@ -80,6 +82,14 @@ def member_rate():
 
 # --- window -----------------------------------------------------------------
 
+def search_window_hours():
+    raw = load_json(jobs_file(), [])
+    stamps = [parse_time(j.get('found_at')) for j in raw if j.get('found_at')]
+    stamps = [s for s in stamps if s]
+    hours = 24 if not stamps else (now() - max(stamps)).total_seconds() / 3600
+    return int(max(MIN_WINDOW, min(MAX_WINDOW, round(hours + 0.5))))
+
+
 def cmd_window(args):
     """Hours since the newest job in the pipeline, between 10 and 72.
 
@@ -87,12 +97,41 @@ def cmd_window(args):
     proposals on it. The window stretches to cover the gap since the last run, so
     skipping a weekend never leaves a hole nobody sees.
     """
-    raw = load_json(jobs_file(), [])
-    stamps = [parse_time(j.get('found_at')) for j in raw if j.get('found_at')]
-    stamps = [s for s in stamps if s]
-    # A first run has no last run to measure from: look back one day.
-    hours = 24 if not stamps else (now() - max(stamps)).total_seconds() / 3600
-    print(int(max(MIN_WINDOW, min(MAX_WINDOW, round(hours + 0.5)))))
+    print(search_window_hours())
+    return 0
+
+
+def member_tracks():
+    try:
+        text = ME.read_text(encoding='utf-8')
+    except OSError:
+        return []
+    match = re.search(r'(?ms)^## Job search tracks\s*\n(.*?)(?=^## |\Z)', text)
+    return [line[2:].strip() for line in match.group(1).splitlines()
+            if line.startswith('- ') and line[2:].strip()] if match else []
+
+
+def cmd_rules(args):
+    """The live search and ranking contract, for people and the cockpit."""
+    print(json.dumps({
+        'tracks': member_tracks(),
+        'window_hours': search_window_hours(),
+        'window_bounds': [MIN_WINDOW, MAX_WINDOW],
+        'sources': ['Upwork recommendations', 'Title search tracks'],
+        'filters': ['Already applied', 'Unverified payment', 'Outside the search window',
+                    'Already in the pipeline'],
+        'ranking': [
+            {'label': 'Niche fit', 'points': 40,
+             'uses': 'Services, tools, verified proof and repeated Not a fit lessons.'},
+            {'label': 'Client trust', 'points': 30,
+             'uses': 'Payment verification, rating, spend and hiring ratio.'},
+            {'label': 'Deal quality', 'points': 20,
+             'uses': 'Budget against the member rate, duration and full-time penalty.'},
+            {'label': 'Recency', 'points': 10,
+             'uses': 'How recently the job was posted inside the current window.'},
+        ],
+        'gate': {'fit': FIT_GATE, 'score': MIN_SCORE, 'trap_cap': TRAP_CAP},
+    }, ensure_ascii=False))
     return 0
 
 
@@ -390,12 +429,14 @@ def main(argv=None):
     p.set_defaults(func=cmd_clean)
     p = sub.add_parser('window')
     p.set_defaults(func=cmd_window)
+    p = sub.add_parser('rules')
+    p.set_defaults(func=cmd_rules)
     p = sub.add_parser('candidates')
     p.add_argument('files', nargs='+')
     p.add_argument('--window-hours', type=float, default=MIN_WINDOW)
     p.set_defaults(func=cmd_candidates)
     p = sub.add_parser('score')
-    p.add_argument('--min', type=int, default=50)
+    p.add_argument('--min', type=int, default=MIN_SCORE)
     p.set_defaults(func=cmd_score)
     p = sub.add_parser('detail')
     p.add_argument('job_id')

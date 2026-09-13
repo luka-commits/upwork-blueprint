@@ -34,7 +34,10 @@ class JobsTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = pathlib.Path(self.tmp.name)
         (self.dir / 'search').mkdir()
-        self.env = dict(os.environ, BLUEPRINT_DATA=str(self.dir), BLUEPRINT_JOBS=str(self.dir / 'jobs.json'))
+        self.me = self.dir / 'me.md'
+        self.me.write_text('# Member\n\n## Job search tracks\n\n- GoHighLevel\n- n8n\n', encoding='utf-8')
+        self.env = dict(os.environ, BLUEPRINT_DATA=str(self.dir), BLUEPRINT_JOBS=str(self.dir / 'jobs.json'),
+                        BLUEPRINT_ME=str(self.me))
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -56,6 +59,15 @@ class JobsTest(unittest.TestCase):
         self.assertEqual(cands[0]['snippet'], 'Build a CRM')
         self.assertIn('1 applied', r.stdout)
         self.assertIn('1 outside window', r.stdout)
+
+    def test_rules_explain_the_live_search_and_ranking_contract(self):
+        r = self.run_jobs('rules')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        rules = json.loads(r.stdout)
+        self.assertEqual(rules['tracks'], ['GoHighLevel', 'n8n'])
+        self.assertEqual(rules['window_hours'], 24)
+        self.assertEqual([part['points'] for part in rules['ranking']], [40, 30, 20, 10])
+        self.assertEqual(rules['gate'], {'fit': 20, 'score': 50, 'trap_cap': 60})
 
     def test_score_gates_on_fit_and_logs(self):
         (self.dir / 'search' / 't.json').write_text(json.dumps({'jobs': [job('1', 1), job('2', 1)]}),

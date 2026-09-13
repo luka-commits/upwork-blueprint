@@ -31,6 +31,7 @@ Usage:
     python3 code/pipeline.py get <job_id>
     python3 code/pipeline.py list [--status new] [--limit 25]
     python3 code/pipeline.py summary
+    python3 code/pipeline.py archive <job_id> [<job_id> ...] [--dry-run]
     python3 code/pipeline.py reset-search [--dry-run]
     python3 code/pipeline.py prune [--hours 24] [--dry-run]
 
@@ -871,6 +872,45 @@ def cmd_reset_search(args):
           f'{len(jobs) - len(removed)} applied leads, conversations and clients kept. Backup: {archive}')
 
 
+def cmd_archive(args):
+    """Remove exact pipeline records after making a recoverable local backup."""
+    jobs = load()
+    requested = list(dict.fromkeys(args.job_ids))
+    by_id = {str(job.get('id')): job for job in jobs}
+    missing = [job_id for job_id in requested if job_id not in by_id]
+    if missing:
+        abort(f'job id(s) not in the pipeline: {", ".join(missing)}. Nothing was changed.')
+    removed = [by_id[job_id] for job_id in requested]
+    if args.dry_run:
+        print(f'DRY RUN: {len(removed)} exact pipeline records would be archived and removed. '
+              f'{len(jobs) - len(removed)} records would stay. Nothing changed.')
+        return
+
+    stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    archive = data_dir() / 'pipeline-archives' / stamp
+    archive.mkdir(parents=True, exist_ok=False)
+    (archive / 'jobs.json').write_text(json.dumps(removed, indent=2, ensure_ascii=False), encoding='utf-8')
+
+    import shutil
+    archived_workspaces = 0
+    for job in removed:
+        source = jobs_dir() / str(job.get('id'))
+        if source.is_dir():
+            target = archive / 'jobs' / source.name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(source, target)
+            archived_workspaces += 1
+
+    removed_ids = set(requested)
+    save([job for job in jobs if str(job.get('id')) not in removed_ids])
+    for job_id in requested:
+        source = jobs_dir() / job_id
+        if source.is_dir():
+            shutil.rmtree(source)
+    print(f'{len(removed)} pipeline records removed; {archived_workspaces} job workspaces archived. '
+          f'{len(jobs) - len(removed)} records kept. Backup: {archive}')
+
+
 def build_parser():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='cmd', required=True)
@@ -982,6 +1022,11 @@ def build_parser():
 
     p = sub.add_parser('summary', help='The pipeline in about twenty lines.')
     p.set_defaults(func=cmd_summary)
+
+    p = sub.add_parser('archive', help='Remove exact pipeline records after archiving their files.')
+    p.add_argument('job_ids', nargs='+')
+    p.add_argument('--dry-run', action='store_true')
+    p.set_defaults(func=cmd_archive)
 
     p = sub.add_parser('reset-search', help='Remove never-applied search leads and archive their files.')
     p.add_argument('--dry-run', action='store_true')

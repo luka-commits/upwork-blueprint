@@ -460,6 +460,31 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual({job['id'] for job in json.loads(backups[0].read_text(encoding='utf-8'))}, {'NEW', 'SKIP'})
         self.assertTrue((backups[0].parent / 'jobs' / 'NEW' / 'pitch.html').is_file())
 
+    def test_archive_removes_only_exact_ids_and_keeps_a_recoverable_backup(self):
+        self.add({'id': 'NEW'})
+        self.add({'id': 'APPLIED', 'status': 'applied'})
+        folder = self.jobdir / 'APPLIED'
+        folder.mkdir(parents=True)
+        (folder / 'thread.json').write_text('{"room_id":"R1"}', encoding='utf-8')
+
+        dry = self.run_cli('archive', 'APPLIED', '--dry-run')
+        self.assertEqual(dry.returncode, 0, dry.stderr)
+        self.assertIn('1 exact pipeline records would be archived', dry.stdout)
+        self.assertEqual({job['id'] for job in self.data()}, {'NEW', 'APPLIED'})
+
+        missing = self.run_cli('archive', 'MISSING')
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertEqual({job['id'] for job in self.data()}, {'NEW', 'APPLIED'})
+
+        result = self.run_cli('archive', 'APPLIED')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([job['id'] for job in self.data()], ['NEW'])
+        backups = list((self.data_dir / 'pipeline-archives').glob('*/jobs.json'))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(json.loads(backups[0].read_text(encoding='utf-8'))[0]['id'], 'APPLIED')
+        self.assertTrue((backups[0].parent / 'jobs' / 'APPLIED' / 'thread.json').is_file())
+        self.assertFalse(folder.exists())
+
     def test_trim_keeps_live_pipeline(self):
         pipeline = load_module('pipeline')
         jobs = [{'id': f'OLD-{i}', 'status': 'new', 'found_at': f'2020-01-01T00:00:{i:02d}+00:00'}

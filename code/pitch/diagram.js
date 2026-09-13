@@ -29,28 +29,16 @@
   if (!base || !base.nodes || !base.nodes.length) return;
 
   var NS = 'http://www.w3.org/2000/svg';
-  var NW = 168, NH = 72, GRID = 20;
+  var NW = 184, NH = 76, GRID = 20;
   var COLS = 3, GAPX = 60, GAPY = 116;
 
-  /* Notes and the sketch live ON the board, not around it (14.08.2026).
-     Both were first built outside the canvas -- the note as small grey text
-     under a box, the illustration as its own HTML block above the widget --
-     and both were wrong for the same reason: a reader treats anything outside
-     the frame as caption, something to skim past. Inside the frame they are
-     part of the plan, and they pan, zoom, fullscreen and export with it. */
-  /* Schmal und kurz gehalten, und das ist keine Kosmetik: die Kartengroesse
-     bestimmt die Ausdehnung des Boards, die Ausdehnung bestimmt den
-     Fit-Zoom, und der Zoom bestimmt, ob die Notiz ueberhaupt lesbar ankommt.
-     Lange Notizen haben sich am 14.08.2026 selbst unlesbar gemacht. Ein Satz
-     pro Notiz haelt beides zusammen. */
-  var NOTE_W = 196, NOTE_FS = 12.6, NOTE_LH = 16, NOTE_PAD = 12;
   var ILLUS_W = 460, ILLUS_H = 0, ILLUS_GAP = 78;
   var ILLUSTRATION = '{{ILLUSTRATION_SRC}}';
 
   // Vom Generator eingesetzt: slug -> innerer SVG-Inhalt der Marke.
   var LOGOS = {{LOGOS_JSON}};
 
-  var state, view = { k: 1, x: 0, y: 0 }, sel = [], edited = false;
+  var state, view = { k: 1, x: 0, y: 0 }, sel = [], edited = false, editing = false;
   var svg, scene, gGroups, gEdges, gNodes, gTemp, gAside, mini, miniView;
   var undo = [], redo = [];
   var P = {};
@@ -77,7 +65,6 @@
       accent: tok('--accent', '#c1663e'), tint: tok('--dg-tint', '#f3e4db'),
       tintStroke: tok('--dg-tint-stroke', '#d8b69f'), edge: tok('--dg-edge', '#898276'),
       bg: tok('--bg', '#f3efe6'), bgBand: tok('--bg-band', '#ece5d7'),
-      note: tok('--dg-note', '#f7edd8'), noteStroke: tok('--dg-note-stroke', '#dcc79a'),
       text2: tok('--text-2', '#5c5347')
     };
   }
@@ -117,6 +104,38 @@
     host.querySelectorAll('[data-dg="reset"], [data-dg="share"]').forEach(function (b) { b.hidden = !edited; });
     var hint = document.getElementById('dg-hint');
     if (hint && edited) hint.textContent = 'This is your version. Copy it and send it to me, and I will build from it.';
+  }
+
+  function reflectMode() {
+    host.classList.toggle('is-editing', editing);
+    host.querySelectorAll('[data-dg-editbar]').forEach(function (bar) { bar.hidden = !editing; });
+    var button = host.querySelector('[data-dg="edit"]');
+    if (button) {
+      button.textContent = editing ? 'Done editing' : 'Edit plan';
+      button.setAttribute('aria-pressed', editing ? 'true' : 'false');
+    }
+  }
+
+  function updateInspector() {
+    var selected = sel.length === 1 ? byId(sel[0]) : null;
+    var owner = document.getElementById('dg-inspector-owner');
+    var kind = document.getElementById('dg-inspector-kind');
+    var title = document.getElementById('dg-inspector-title');
+    var note = document.getElementById('dg-inspector-note');
+    var tip = host.querySelector('.dg-inspector-tip');
+    if (!owner || !kind || !title || !note) return;
+    if (!selected) {
+      owner.textContent = 'Plan'; kind.textContent = 'Step details'; title.textContent = 'Select any step';
+      note.textContent = 'The explanation and ownership will appear here without crowding the canvas.';
+      if (tip) tip.textContent = 'Click a step';
+      return;
+    }
+    owner.textContent = selected.owner === 'client' ? 'Already in place'
+      : selected.owner === 'thirdparty' ? 'Third-party service' : 'Included in the build';
+    kind.textContent = selected.kind || 'step';
+    title.textContent = selected.label;
+    note.textContent = selected.note || 'This step is included in the proposed flow. The exact setup is confirmed before build.';
+    if (tip) tip.textContent = editing ? 'Drag to move' : 'Select another step';
   }
 
   /* ---------------------------------------------------------------- layout
@@ -181,76 +200,6 @@
     });
   }
 
-  /* Die Nummer eines Knotens ist die Bruecke zu seiner Notizkarte unter dem
-     Board. Erst standen die Notizen als Zettel auf dem Canvas selbst -- sah
-     als Whiteboard gut aus, war aber bei der Zoomstufe, auf die ein Board mit
-     Sketch plus zwoelf Knoten zwangslaeufig faellt, schlicht nicht mehr
-     lesbar (gemessen 14.08.2026: Fit landete bei 0.37, also 4px Schrift).
-     Eine Erklaerung, die man erst heranzoomen muss, erklaert nichts. Jetzt
-     traegt der Knoten nur die Nummer, und die Karte darunter den Text in
-     voller Lesegroesse. */
-  function noteIndex(d) {
-    var n = 0;
-    for (var i = 0; i < state.nodes.length; i++) {
-      if (state.nodes[i].note) n++;
-      if (state.nodes[i].id === d.id) return d.note ? n : 0;
-    }
-    return 0;
-  }
-
-  /* Die Zettel haengen unter dem Band, nicht unter ihrem eigenen Knoten: in
-     einem Rang mit mehreren Knoten uebereinander waere darunter kein Platz,
-     und ein Zettel ueber einem Knoten kostet mehr als er erklaert. Die
-     gepunktete Linie stellt die Zuordnung wieder her.
-
-     Zwei versetzte Reihen, weil eine Karte breiter ist als der Abstand zweier
-     Raenge: in einer Reihe schoebe jede Karte die naechste weiter nach
-     rechts, bis die letzte hinter dem Flow endet und auf nichts mehr zeigt
-     (gemessen bei neun Notizen). Ueber zwei Reihen hat jede Karte den
-     doppelten Rangabstand zur naechsten in derselben Reihe. */
-  function noteCards() {
-    var withNotes = state.nodes.filter(function (d) { return d.note; });
-    if (!withNotes.length) return [];
-    var bandBottom = -1e9;
-    state.nodes.forEach(function (d) { bandBottom = Math.max(bandBottom, d.y + NH); });
-    withNotes.sort(function (a, b) { return a.x - b.x; });
-
-    var cards = withNotes.map(function (d, idx) {
-      var lines = wrapNote(d.note, NOTE_W - NOTE_PAD * 2);
-      return {
-        node: d, lines: lines, w: NOTE_W, row: idx % 2,
-        // 42 = Platz fuer den Nummernkreis plus erste Textzeile, 12 = Luft unten.
-        h: 42 + (lines.length - 1) * NOTE_LH + 12,
-        x: d.x + NW / 2 - NOTE_W / 2, y: 0
-      };
-    });
-    var top = bandBottom + 54, tallestRow0 = 0;
-    cards.forEach(function (c) { if (c.row === 0) tallestRow0 = Math.max(tallestRow0, c.h); });
-
-    [0, 1].forEach(function (r) {
-      var prev = null;
-      cards.forEach(function (c) {
-        if (c.row !== r) return;
-        c.y = r === 0 ? top : top + tallestRow0 + 22;
-        if (prev && c.x < prev.x + prev.w + 20) c.x = prev.x + prev.w + 20;
-        prev = c;
-      });
-    });
-    return cards;
-  }
-
-  // Wie wrap(), aber in Pixeln gemessen statt in Zeichen.
-  function wrapNote(text, maxPx) {
-    var words = String(text).split(/\s+/), lines = [], cur = '';
-    var perChar = NOTE_FS * 0.52;
-    for (var i = 0; i < words.length; i++) {
-      var t = cur ? cur + ' ' + words[i] : words[i];
-      if (t.length * perChar > maxPx && cur) { lines.push(cur); cur = words[i]; } else cur = t;
-    }
-    if (cur) lines.push(cur);
-    return lines;
-  }
-
   function illusRect() {
     if (!ILLUSTRATION || !ILLUS_H) return null;
     var y1 = 1e9, y2 = -1e9;
@@ -264,10 +213,6 @@
     state.nodes.forEach(function (d) {
       b.x1 = Math.min(b.x1, d.x); b.y1 = Math.min(b.y1, d.y);
       b.x2 = Math.max(b.x2, d.x + NW); b.y2 = Math.max(b.y2, d.y + NH);
-    });
-    noteCards().forEach(function (c) {
-      b.x1 = Math.min(b.x1, c.x); b.y1 = Math.min(b.y1, c.y);
-      b.x2 = Math.max(b.x2, c.x + c.w); b.y2 = Math.max(b.y2, c.y + c.h);
     });
     var ir = illusRect();
     if (ir) {
@@ -472,27 +417,15 @@
 
       var hasLogo = d.logo && LOGOS[d.logo];
       var textX = hasLogo ? NW / 2 + 13 : NW / 2;
-      var lines = wrap(d.label, hasLogo ? 18 : 21);
+      var lines = wrap(d.label, hasLogo ? 20 : 23);
       var t = el('text', { x: textX, y: NH / 2 - (lines.length - 1) * 8 + 5,
-        'text-anchor': 'middle', fill: P.text, 'font-size': 12.5, 'font-weight': 600 });
+        'text-anchor': 'middle', fill: P.text, 'font-size': 13, 'font-weight': 600 });
       lines.forEach(function (ln, i) {
         var ts = el('tspan', { x: textX, dy: i ? 16 : 0 });
         ts.textContent = ln;
         t.appendChild(ts);
       });
       g.appendChild(t);
-
-      // Nummer als Anker zur Notizkarte unter dem Board.
-      var ni = noteIndex(d);
-      if (ni) {
-        var bg = el('g', { transform: 'translate(-9,-9)' });
-        bg.appendChild(el('circle', { cx: 0, cy: 0, r: 11.5, fill: P.accent }));
-        var nt = el('text', { x: 0, y: 4, 'text-anchor': 'middle',
-          fill: '#fff', 'font-size': 12, 'font-weight': 700 });
-        nt.textContent = ni;
-        bg.appendChild(nt);
-        g.appendChild(bg);
-      }
 
       // The real brand mark, where one exists. A client recognises the n8n or
       // HubSpot logo before reading anything; a drawn stand-in never gets read
@@ -517,6 +450,7 @@
     drawAside();
     applyView();
     drawMini();
+    updateInspector();
   }
 
   /* Der Sketch und die Notizzettel. Beides gehoert zum Board, beides faengt
@@ -543,45 +477,6 @@
       gAside.appendChild(cap);
     }
 
-    noteCards().forEach(function (c) {
-      var g = el('g');
-      var fromX = c.node.x + NW / 2, fromY = c.node.y + NH;
-      var toX = c.x + c.w / 2, toY = c.y;
-      g.appendChild(el('path', {
-        d: 'M' + fromX + ',' + fromY + ' C' + fromX + ',' + ((fromY + toY) / 2) +
-           ' ' + toX + ',' + ((fromY + toY) / 2) + ' ' + toX + ',' + toY,
-        fill: 'none', stroke: P.noteStroke, 'stroke-width': 1.4, 'stroke-dasharray': '2 5'
-      }));
-      g.appendChild(el('circle', { cx: fromX, cy: fromY, r: 3, fill: P.noteStroke }));
-
-      // Leicht gekippt, wie von Hand angepinnt -- der Unterschied zwischen
-      // "Notiz" und "noch ein Kasten".
-      var card = el('g', { transform: 'rotate(-0.8,' + (c.x + c.w / 2) + ',' + (c.y + c.h / 2) + ')' });
-      card.appendChild(el('rect', { x: c.x, y: c.y, width: c.w, height: c.h, rx: 8,
-        fill: P.note, stroke: P.noteStroke, 'stroke-width': 1.2, filter: 'url(#dgNodeShadow)' }));
-
-      // Dieselbe Nummer wie am Knoten: zwei Enden derselben Linie, auch wenn
-      // die Linie beim Pannen mal aus dem Bild laeuft.
-      var ni = noteIndex(c.node);
-      if (ni) {
-        card.appendChild(el('circle', { cx: c.x + 16, cy: c.y + 16, r: 9, fill: P.accent }));
-        var nn = el('text', { x: c.x + 16, y: c.y + 19.6, 'text-anchor': 'middle',
-          fill: '#fff', 'font-size': 10.5, 'font-weight': 700 });
-        nn.textContent = ni;
-        card.appendChild(nn);
-      }
-
-      var t = el('text', { x: c.x + NOTE_PAD, y: c.y + 42,
-        fill: P.text2, 'font-size': NOTE_FS });
-      c.lines.forEach(function (ln, i) {
-        var ts = el('tspan', { x: c.x + NOTE_PAD, dy: i ? NOTE_LH : 0 });
-        ts.textContent = ln;
-        t.appendChild(ts);
-      });
-      card.appendChild(t);
-      g.appendChild(card);
-      gAside.appendChild(g);
-    });
   }
 
   function applyView() {
@@ -729,7 +624,7 @@
     var edge = e.target.closest('.dg-edge-hit');
     stage.setPointerCapture(e.pointerId);
 
-    if (handle) {                       // pull a new connection
+    if (editing && handle) {                       // pull a new connection
       conn = { from: handle.dataset.id, to: null };
       conn.line = el('path', { fill: 'none', stroke: P.accent, 'stroke-width': 2,
         'stroke-dasharray': '5 4', 'marker-end': 'url(#dgArrowSel)' });
@@ -738,6 +633,7 @@
     }
     if (node) {
       var id = node.dataset.id;
+      if (!editing) { sel = [id]; render(); return; }
       if (e.shiftKey) { if (sel.indexOf(id) < 0) sel.push(id); }
       else if (sel.indexOf(id) < 0) sel = [id];
       var start = toWorld(e);
@@ -746,7 +642,7 @@
       render();
       return;
     }
-    if (edge) { sel = ['e' + edge.dataset.edge]; render(); return; }
+    if (editing && edge) { sel = ['e' + edge.dataset.edge]; render(); return; }
 
     sel = [];
     panning = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
@@ -835,7 +731,7 @@
 
   stage.addEventListener('dblclick', function (e) {
     var node = e.target.closest('.dg-node');
-    if (node) openEdit(node.dataset.id);
+    if (editing && node) openEdit(node.dataset.id);
   });
 
   stage.addEventListener('wheel', function (e) {
@@ -850,8 +746,8 @@
     var inView = host.contains(document.activeElement) || host.matches(':hover') ||
                  host.classList.contains('dg-full') || document.fullscreenElement === host;
     if (!inView) return;
-    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeSelected(); }
-    else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+    if (editing && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); removeSelected(); }
+    else if (editing && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
       e.preventDefault(); e.shiftKey ? doRedo() : doUndo();
     } else if (e.key === 'Escape') {
       if (host.classList.contains('dg-full')) host.classList.remove('dg-full');
@@ -946,7 +842,8 @@
     var b = e.target.closest('[data-dg]');
     if (!b) return;
     var a = b.dataset.dg;
-    if (a === 'in') zoom(1.25);
+    if (a === 'edit') { editing = !editing; reflectMode(); updateInspector(); }
+    else if (a === 'in') zoom(1.25);
     else if (a === 'out') zoom(1 / 1.25);
     else if (a === 'fit') fit();
     else if (a === 'add') addNode();
@@ -960,7 +857,7 @@
       state = clone(base); autoLayout(); sel = []; undo = []; redo = [];
       edited = false; reflectEdited();
       var hint = document.getElementById('dg-hint');
-      if (hint) hint.textContent = 'Drag to move, pull a dot to connect, double-click to rename.';
+      if (hint) hint.textContent = 'Drag steps, pull a dot to connect, double-click to rename.';
       history.replaceState(null, '', location.pathname + location.search);
       render(); fit();
     } else if (a === 'share') {
@@ -1010,7 +907,9 @@
       });
     }
     if (state.nodes.some(function (d) { return d.x == null; })) autoLayout();
-    reflectEdited();
+    var first = state.nodes.filter(function (d) { return d.kind === 'source'; })[0] || state.nodes[0];
+    if (!sel.length && first) sel = [first.id];
+    reflectEdited(); reflectMode();
     render();
     fit();
 

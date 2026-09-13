@@ -3,6 +3,8 @@
     python3 -m unittest discover -s code -p 'test_*.py'
 """
 import importlib.util
+import contextlib
+import io
 import pathlib
 import sys
 import tempfile
@@ -102,10 +104,30 @@ class GenerateHelpersTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             gen.build_graph('{"nodes":[{"id":"a","label":"x"}],"edges":[{"from":"a","to":"zz"}]}')
 
+    def test_graph_rejects_more_than_twelve_client_level_steps(self):
+        nodes = ','.join(f'{{"id":"n{i}","label":"Step {i}"}}' for i in range(13))
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit):
+            gen.build_graph('{"nodes":[' + nodes + '],"edges":[]}')
+        self.assertIn('12 or fewer', stderr.getvalue())
+
     def test_markers_strip_a_section(self):
         page = 'a<!-- videos:start -->YT<!-- videos:end -->b'
         self.assertEqual(gen.keep_or_strip(page, 'videos', False), 'ab')
         self.assertEqual(gen.keep_or_strip(page, 'videos', True), 'aYTb')
+
+    def test_flow_builder_has_three_resting_actions_and_details_on_demand(self):
+        template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')
+        diagram = (CODE / 'pitch' / 'diagram.js').read_text(encoding='utf-8')
+        artifact_bar = template.split('<div class="artifact-bar">', 1)[1].split('</div>', 1)[0]
+        self.assertEqual(artifact_bar.count('data-dg='), 3)
+        self.assertIn('data-dg="play"', artifact_bar)
+        self.assertIn('data-dg="edit"', artifact_bar)
+        self.assertIn('data-dg="full"', artifact_bar)
+        self.assertIn('class="dg-inspector"', template)
+        self.assertIn('.dg-foot[hidden] { display: none; }', template)
+        self.assertIn("if (!editing) { sel = [id]; render(); return; }", diagram)
+        self.assertNotIn('function noteCards()', diagram)
 
 
 if __name__ == '__main__':

@@ -149,14 +149,20 @@ def profile_url():
 
 
 def build_graph(spec):
-    p = pathlib.Path(spec)
     try:
-        g = json.loads(p.read_text(encoding='utf-8') if p.is_file() else spec)
+        if str(spec).lstrip().startswith(('{', '[')):
+            source = spec
+        else:
+            p = pathlib.Path(spec)
+            source = p.read_text(encoding='utf-8') if p.is_file() else spec
+        g = json.loads(source)
     except json.JSONDecodeError as e:
         abort(f'--graph is not valid JSON: {e}')
     nodes = g.get('nodes') or []
     if not nodes:
         abort('--graph has no nodes.')
+    if len(nodes) > 12:
+        abort(f'--graph has {len(nodes)} nodes; keep the client-level plan to 12 or fewer and move implementation detail into notes.')
     ids = set()
     for n in nodes:
         if not n.get('id') or not n.get('label'):

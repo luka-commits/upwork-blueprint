@@ -577,6 +577,11 @@
   .cover-face { display: block; width: 100%; }
   .cover-video { aspect-ratio: 4 / 5; object-fit: cover; object-position: top; background: var(--card); }
   .audit-frame { height: calc(100% - 34px); border: 0; background: var(--card); }
+  /* The embedded report was designed and checked at a 390px mobile viewport.
+     Keep that exact layout inside the smaller visual phone instead of asking
+     the report to squeeze itself into the 272px opening. */
+  .showcase-preview .audit-frame { width: 390px; height: 717px;
+    transform: scale(.6974358974); transform-origin: top left; }
   .audit-expand { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; margin: 14px auto 0;
     padding: 0 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--card);
     color: var(--text); font: inherit; font-size: 13px; font-weight: 650; cursor: pointer;
@@ -589,8 +594,9 @@
   .audit-overlay { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center;
     padding: 42px 20px; background: rgba(28,23,18,.78);
     backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
-  .audit-overlay .audit-window { width: min(430px, calc(100vw - 40px));
+  .audit-overlay .audit-window { width: min(404px, calc(100vw - 40px));
     height: min(820px, calc(100vh - 88px)); }
+  .audit-overlay .audit-frame { width: 100%; height: calc(100% - 34px); transform: none; }
   .audit-overlay .audit-expand { position: fixed; top: 16px; right: 18px; margin: 0;
     border-color: rgba(255,255,255,.32); background: rgba(28,23,18,.72); color: var(--card); }
   body.audit-open { overflow: hidden; }

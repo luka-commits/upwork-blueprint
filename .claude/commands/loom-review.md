@@ -43,7 +43,7 @@ Check the recording against five questions:
 1. Does the first 20 seconds name this client's outcome and why the page exists?
 2. Does every fact match the full posting, pitch page or `context/proof.md`?
 3. Does the explanation follow one path through the diagram and milestones?
-4. Is it roughly three to four minutes, conversational and free of filler?
+4. Is the audible delivery concise, clear, conversational and free of filler?
 5. Does it end with one next action on Upwork and no outside contact route?
 
 A serious unsupported claim, wrong client fact, contact-policy violation or
@@ -52,7 +52,9 @@ missing next step is a hold. Small delivery roughness is a fix, not fake drama.
 ## Step 3: Write and check the review
 
 Score the recording out of 100: opening and relevance 20, accuracy 30,
-structure 20, delivery 15, and the Upwork next step 15. Write
+structure 20, audible delivery 15, and the Upwork next step 15. A transcript
+cannot prove screen framing, cursor movement or visual emphasis. Mark those as
+unverified instead of scoring them. Write
 `jobs/<id>/loom-review.md` with exactly these sections: `## Score` containing
 `N/100`, then `## Verdict`, `## Message`, `## Accuracy`, `## Structure`,
 `## Delivery`, and `## Fix before sending`. Lead with three non-empty lines

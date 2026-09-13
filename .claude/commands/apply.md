@@ -39,11 +39,13 @@ proof:
 1. The first 20 seconds name the client's outcome and why the page exists.
 2. Every claim matches the posting, pitch page or `context/proof.md`.
 3. The explanation follows one clear path through the plan.
-4. It is concise and conversational.
+4. The audible delivery is concise, clear and conversational.
 5. It ends with one next action on Upwork and no outside contact route.
 
 Score the recording out of 100: opening and relevance 20, accuracy 30,
-structure 20, delivery 15, and the Upwork next step 15. Write
+structure 20, audible delivery 15, and the Upwork next step 15. A transcript
+cannot prove screen framing, cursor movement or visual emphasis. Mark those as
+unverified instead of scoring them. Write
 `jobs/<id>/loom-review.md` with exactly `## Score` containing `N/100`, then
 `## Verdict`, `## Message`, `## Accuracy`, `## Structure`, `## Delivery`, and
 `## Fix before sending`. Run `python3 code/funnel.py check loom-review <id>` and

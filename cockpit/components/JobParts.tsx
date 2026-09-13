@@ -14,14 +14,12 @@ import {
   wonAt,
 } from '@/lib/model';
 import './lead.css';
+import { DisqualifyButton } from './DisqualifyLead';
 
 export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materials', replyOpen = false, onReviewReply, preparationActionsOnly = false }: {
   j: any; materialsLabel?: string; salesLabel?: string; replyOpen?: boolean; onReviewReply?: () => void; preparationActionsOnly?: boolean;
 }) {
   const { state, move, runCommand, toast } = useCockpit();
-  const [reasonOpen, setReasonOpen] = useState(false);
-  const [reason, setReason] = useState('');
-  const reasonRef = useRef<HTMLInputElement>(null);
   const d = j.details || {};
   const files = j.artifacts || [];
   const thread = j.thread || {};
@@ -43,21 +41,10 @@ export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materi
   };
   const interactive = (command: string, label: string, message: string, trailing = '') =>
     <button className="primary" onClick={() => copyCommand(command, message, trailing)}>{label}</button>;
-  useEffect(() => { if (reasonOpen) reasonRef.current?.focus(); }, [reasonOpen]);
   const skip = <details className="action-more next-more">
     <summary aria-label="More actions" title="More actions"><span aria-hidden="true">…</span></summary>
     <div className="action-menu">
-      {!reasonOpen ? <button onClick={() => setReasonOpen(true)}>Not a fit</button> : <div className="skip-reason">
-        <input
-          ref={reasonRef}
-          placeholder="Why not?"
-          aria-label="Reason"
-          value={reason}
-          onChange={e => setReason(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') void move(j.id, 'skipped', null, reason.trim() ? `not a fit: ${reason.trim()}` : 'not a fit'); }}
-        />
-        <button onClick={() => move(j.id, 'skipped', null, reason.trim() ? `not a fit: ${reason.trim()}` : 'not a fit')}>Skip it</button>
-      </div>}
+      <DisqualifyButton job={j} />
     </div>
   </details>;
 

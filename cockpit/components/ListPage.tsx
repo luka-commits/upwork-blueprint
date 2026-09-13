@@ -12,6 +12,7 @@ import { useCockpit } from '@/lib/context';
 import { jobPreview } from '@/lib/job-brief.mjs';
 import { clampColumnWidth, columnWidthForKey, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH } from '@/lib/column-width.mjs';
 import { revealContent } from '@/lib/surface-motion.mjs';
+import { DisqualifyButton } from './DisqualifyLead';
 
 type SpaceName = 'jobs';
 type SpaceState = { view: View; saved: View[] };
@@ -76,6 +77,22 @@ export default function ListPage({ space }: { space: SpaceName }) {
   useEffect(() => {
     const animation = revealContent(resultsRef.current);
     return () => animation?.cancel();
+  }, [st.view.layout]);
+
+  useEffect(() => {
+    const results = resultsRef.current;
+    if (st.view.layout === 'board' || !results || !rootRef.current) return;
+    const resize = () => {
+      const height = `${Math.max(240, Math.floor(window.innerHeight - results.getBoundingClientRect().top - 26))}px`;
+      if (results.style.getPropertyValue('--table-height') !== height) results.style.setProperty('--table-height', height);
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(rootRef.current);
+    const header = document.querySelector('header.top');
+    if (header) observer.observe(header);
+    window.addEventListener('resize', resize);
+    resize();
+    return () => { observer.disconnect(); window.removeEventListener('resize', resize); results.style.removeProperty('--table-height'); };
   }, [st.view.layout]);
 
   useEffect(() => {
@@ -607,7 +624,8 @@ function Table({ jobs, st, drawerId, selected, setSelected, menu, colFilter, ope
           const next = new Set(current); e.target.checked ? next.add(id) : next.delete(id); return next;
         })} aria-label={`Select ${j.title}`} /></td>
         {st.view.cols.map(colId => <td key={colId} data-column={colId}>{COLS[colId].cell(j)}{colId === 'job'
-          ? <Link className="row-open" href={`/job/${id}`} aria-label={`Open ${j.title} on its full page`} title="Open full page" onClick={e => e.stopPropagation()}>↗</Link> : null}</td>)}
+          ? <><Link className="row-open" href={`/job/${id}`} aria-label={`Open ${j.title} on its full page`} title="Open full page" onClick={e => e.stopPropagation()}>↗</Link>
+            {STAGES.some(stage => stage.key === j.status) ? <DisqualifyButton job={j} compact /> : null}</> : null}</td>)}
       </tr>;
     })}</tbody>
   </table></div></div>;

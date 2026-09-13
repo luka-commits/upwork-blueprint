@@ -62,8 +62,8 @@
   .top-inner { padding: 14px 32px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; letter-spacing: -.035em; padding: 0; }
   .brand img { width: 30px; height: 30px; object-fit: contain; border-radius: var(--radius-control); box-shadow: 0 2px 5px #0056a824; }
-  .tabs { position: relative; isolation: isolate; display: grid; grid-template-columns: repeat(4, 1fr); padding: 4px; border: 1px solid #ffffffb3; border-radius: 8px; background: #dce5f14d; box-shadow: inset 0 1px 3px #435c7d0a; }
-  .tabs::before { content: ''; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 4); border-radius: var(--radius-control); background: linear-gradient(180deg, #fffffff5, #ffffffb3); border: 1px solid #fff; box-shadow: inset 0 1px 0 #fff, 0 2px 5px #26496e12; pointer-events: none; transform: translateX(calc(var(--section-index, 0) * 100%)); transition: transform 180ms var(--ease-out); }
+  .tabs { position: relative; isolation: isolate; display: grid; grid-template-columns: repeat(3, 1fr); padding: 4px; border: 1px solid #ffffffb3; border-radius: 8px; background: #dce5f14d; box-shadow: inset 0 1px 3px #435c7d0a; }
+  .tabs::before { content: ''; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 3); border-radius: var(--radius-control); background: linear-gradient(180deg, #fffffff5, #ffffffb3); border: 1px solid #fff; box-shadow: inset 0 1px 0 #fff, 0 2px 5px #26496e12; pointer-events: none; transform: translateX(calc(var(--section-index, 0) * 100%)); transition: transform 180ms var(--ease-out); }
   .tabs a { position: relative; text-align: center; color: var(--text-2); font-weight: 550; font-size: 13px; padding: 6px 15px; border: 1px solid transparent; border-radius: var(--radius-control); transition: color 140ms ease; }
   .tabs a:hover { text-decoration: none; color: var(--text); }
   .tabs a[aria-current] { color: var(--text); }
@@ -80,7 +80,18 @@
     border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); color: var(--text-3); font-size: 13px; text-decoration: none; opacity: 0; }
   .uw-row:hover .row-open, .uw-row:focus-within .row-open, .row-open:focus-visible { opacity: 1; }
   .row-open:hover { color: var(--brand); border-color: var(--brand); text-decoration: none; }
+  .row-disqualify { top: 38px; padding: 0; font-size: 18px; }
+  .row-disqualify:hover { color: var(--red-deep); border-color: var(--red-deep); }
+  .decision-dialog { width: min(440px, calc(100vw - 48px)); padding: 24px; color: var(--text); background: var(--card); border: 1px solid var(--glass-line); border-radius: var(--radius-float, 12px); box-shadow: var(--glass-shadow); }
+  .decision-dialog::backdrop { background: #15263b33; backdrop-filter: blur(3px); }
+  .decision-dialog h2 { margin: 0; font-size: 18px; letter-spacing: -.02em; }
+  .decision-job { margin: 8px 0 20px; color: var(--text-2); }
+  .decision-dialog label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 550; }
+  .decision-dialog textarea { display: block; width: 100%; resize: vertical; padding: 10px; font: inherit; color: inherit; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-control); }
+  .decision-dialog .hint { margin: 6px 0 0; font-weight: 400; }
+  .decision-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
   .wrap { padding: 30px 32px 60px; }
+  .wrap.list-wrap { padding-bottom: 24px; }
   @media (min-width: 1100px) { body.drawer-open .wrap { margin-right: var(--drawer); } }
 
   .workspace-head { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
@@ -173,7 +184,7 @@
   /* The table as in the Sqanit master list: a white card with its own scroll area,
      a sticky header that is the table's control bar, thin lines between cells. */
   .table-card { background: var(--card); border: 1px solid #ffffff; border-radius: var(--radius-panel); overflow: hidden; box-shadow: 0 0 0 1px #c8d4e44d, var(--shadow-1); }
-  .tabellen-feld { overflow: auto; max-height: calc(100vh - 310px); overscroll-behavior: contain; }
+  .tabellen-feld { overflow: auto; height: var(--table-height, auto); max-height: var(--table-height, calc(100dvh - 260px)); overscroll-behavior: contain; }
   .rt-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; width: 100%; font-size: 12.5px; text-align: left; }
   .rt-table thead th { position: sticky; top: 0; z-index: 5; padding: 0; background: #fafbfe; border-bottom: 1px solid var(--border);
     font-size: 12px; font-weight: 550; color: var(--text-2); user-select: none; }
@@ -417,6 +428,7 @@
     .drawer { background: #f5f8fce8; -webkit-backdrop-filter: blur(18px) saturate(1.25); backdrop-filter: blur(18px) saturate(1.25); }
   }
   @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    .decision-dialog::backdrop { background: #15263b66; backdrop-filter: none; }
     header.top, .toolbar, .pop, .drawer { background: #f5f8fc; -webkit-backdrop-filter: none; backdrop-filter: none; }
     .top-actions button:not(.primary), .tool, .search-box input, .tabs a[aria-current] { background: #fff; }
     .table-card, .panel { border-color: var(--border-strong); }

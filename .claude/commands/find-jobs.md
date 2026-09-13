@@ -43,7 +43,14 @@ Run `python3 code/jobs.py candidates data/search/*.json --window-hours <window>`
 
 ## Step 3 · Judge niche fit
 
-Run `python3 code/jobs.py lessons` first: your own past decisions, applied and skipped, with your reasons. They outrank anything below.
+Run `python3 code/jobs.py lessons` first: the member's past decisions, including
+the reasons saved through **Not a fit** in the cockpit. Use relevant reasons to
+calibrate fit and explain their effect in the candidate's rationale. A bare
+"not a fit" is not evidence of a particular budget, niche or tool preference.
+Treat one rejection as specific to that job; repeated reasons can guide ranking,
+but never invent a blanket exclusion or silently rewrite `context/me.md`. Only
+explicit member boundaries there may remove jobs before scoring. Automated
+"cannot apply" skips describe eligibility, not the member's taste.
 
 Then give every candidate a niche fit from 0 to 40 against `context/me.md` and `context/proof.md`:
 

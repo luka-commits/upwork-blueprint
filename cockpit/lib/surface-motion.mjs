@@ -6,7 +6,7 @@ export function allowsSurfaceMotion(input, reducedMotion) {
 }
 
 export function sectionIndex(pathname) {
-  return ({ '/follow-ups': 1, '/analytics': 2, '/commands': 3 })[pathname] || 0;
+  return ({ '/analytics': 1, '/commands': 2 })[pathname] || 0;
 }
 
 export function revealContent(element, options) {

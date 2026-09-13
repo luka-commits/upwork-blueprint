@@ -5,6 +5,7 @@ import { Fragment, type CSSProperties, type ReactNode, useEffect, useLayoutEffec
 import { useCockpit } from '@/lib/context';
 import { formatApplicationBid, parseApplication } from '@/lib/application-review.mjs';
 import { revealContent } from '@/lib/surface-motion.mjs';
+import { timelineView } from '@/lib/timeline.mjs';
 import { artifactUrl, artifactVersion, useArtifactText } from '@/lib/artifact-content.mjs';
 import { leadWorkspace, nextPreparationMaterial } from '@/lib/lead-workspace.mjs';
 import { BoostBlock, NextStep, TasksBlock } from './JobParts';
@@ -283,7 +284,7 @@ function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, add
     </div> : null}
     <div ref={contentRef} id="workspace-content" role={hasTabs ? 'tabpanel' : undefined} aria-labelledby={hasTabs ? `workspace-tab-${tab}` : undefined} tabIndex={hasTabs ? 0 : undefined}
       className={tab === 'conversation' ? 'convo-body' : 'workspace-content'}>
-      {tab === 'timeline' ? <><WorkspaceHeading title="Timeline" hint="Decisions, notes and work saved for this lead." /><Timeline j={j} /></> : null}
+      {tab === 'timeline' ? <Timeline j={j} /> : null}
       <div className="workspace-conversation" hidden={tab !== 'conversation'}>
         <Conversation j={j} />
         <ReplyDrafts key={`${j.id}:${j.replies?.generated_at || 'no-drafts'}`} j={j} />
@@ -772,22 +773,30 @@ function Field({ label, value }: { label: string; value: any }) {
 }
 
 function Timeline({ j }: { j: any }) {
-  const items: any[] = [];
-  if (j.found_at) items.push({ at: j.found_at, kind: 'status', text: 'Lead saved' });
-  (j.history || []).forEach((h: any, index: number) => {
-    if (index > 0 || h.status !== 'new') items.push({ at: h.at, kind: 'status', text: `Moved to ${LABEL[h.status] || h.status}` });
-  });
-  (j.log || []).forEach((line: any) => items.push({ at: line.at, kind: 'note', text: line.text }));
-  (j.files || []).forEach((file: any) => items.push({ at: file.at, kind: 'file', text: `${FILE_LABEL[file.name] || file.name} made` }));
-  (j.tasks || []).forEach((task: any) => {
-    items.push({ at: task.created_at, kind: 'task', text: `Task added: ${task.text}` });
-    if (task.done_at) items.push({ at: task.done_at, kind: 'task', text: `Task done: ${task.text}` });
-  });
-  items.sort((a, b) => String(b.at).localeCompare(String(a.at)));
-  return items.length ? <ul className="tl">{items.map((item, index) => <li key={`${item.at}-${index}`}>
-    <span className={`tl-dot ${item.kind}`} />
-    <div>{item.text}<div className="tl-when">{stamp(item.at)}</div></div>
-  </li>)}</ul> : <p className="empty">No timeline activity yet.</p>;
+  const { recent, earlier, activity } = timelineView(j);
+  if (!recent.length && !activity.length) return <p className="empty">No timeline activity yet.</p>;
+  return <div className="timeline">
+    {recent.length ? <TimelineItems items={recent} /> : null}
+    {earlier.length ? <details className="timeline-details"><summary>Earlier updates <span>{earlier.length}</span></summary>
+      <div className="disclosure-body"><TimelineItems items={earlier} /></div>
+    </details> : null}
+    {activity.length ? <details className="timeline-details"><summary>Files and tasks <span>{activity.length}</span></summary>
+      <div className="disclosure-body"><TimelineItems items={activity} /></div>
+    </details> : null}
+  </div>;
+}
+
+function TimelineItems({ items }: { items: any[] }) {
+  const when = (at: string) => Number.isFinite(Date.parse(at)) ? stamp(at) : 'Date unknown';
+  return <ul className="tl">{items.map(item => <li key={item.id}>
+    <span className={`tl-dot ${item.kind}`} aria-hidden="true" />
+    <div>{item.kind === 'saved' ? 'Lead saved'
+      : item.kind === 'status' ? `Moved to ${LABEL[item.status] || item.status}`
+        : item.kind === 'file' ? `${FILE_LABEL[item.name] || item.name} updated`
+          : item.kind === 'task' ? `${item.done ? 'Completed' : 'Added'}: ${item.text}` : item.text}
+      <div className="tl-when">{when(item.at)}{item.kind === 'task' && item.done ? ` · Added ${when(item.created_at)}` : ''}</div>
+    </div>
+  </li>)}</ul>;
 }
 
 function Conversation({ j }: { j: any }) {

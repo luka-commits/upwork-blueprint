@@ -8,8 +8,8 @@ test('surface motion is limited to pointer navigation without reduced motion', (
   assert.equal(allowsSurfaceMotion('pointer', true), false);
 });
 
-test('section marker keeps full lead pages in Leads', () => {
-  assert.deepEqual(['/', '/job/123456', '/follow-ups', '/analytics', '/commands'].map(sectionIndex), [0, 0, 1, 2, 3]);
+test('three-section marker keeps lead pages and follow-up reviews in Leads', () => {
+  assert.deepEqual(['/', '/job/123456', '/follow-ups', '/analytics', '/commands'].map(sectionIndex), [0, 0, 0, 1, 2]);
 });
 
 test('rapid changes cancel only the previous surface animation and never animate layout', () => {

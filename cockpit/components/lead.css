@@ -63,6 +63,11 @@
   min-width: 0;
 }
 
+.timeline-details { border-top: 1px solid var(--border); margin-top: 8px; }
+.timeline-details > summary { padding: 12px 0; font-size: 12px; color: var(--text-2); cursor: pointer; }
+.timeline-details > summary > span { margin-left: 6px; color: var(--text-3); }
+.timeline-details > .disclosure-body { padding: 8px 0 0; }
+
 .lead-page .panel {
   min-width: 0;
   padding: 15px 17px;
@@ -694,16 +699,6 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
 
 .action-menu .danger-link {
   color: var(--red-deep);
-}
-
-.skip-reason {
-  display: grid;
-  grid-template-columns: minmax(120px, 1fr) auto;
-  gap: 5px;
-}
-
-.skip-reason input {
-  min-width: 0;
 }
 
 .date-chip-wrap {

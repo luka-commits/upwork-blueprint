@@ -372,8 +372,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
         <div className="top-inner">
           <span className="brand"><img src="/icon.png" width="30" height="30" alt="" />Automatable Cockpit</span>
           <nav className="tabs" aria-label="Sections" style={{ '--section-index': sectionIndex(pathname) } as CSSProperties}>
-            <Link href="/" aria-current={pathname === '/' ? 'page' : pathname.startsWith('/job/') ? 'location' : undefined}>Leads{due ? <span className="badge" title="Due today or earlier">{due}</span> : null}</Link>
-            <Link href="/follow-ups" aria-current={pathname === '/follow-ups' ? 'page' : undefined}>Follow-ups</Link>
+            <Link href="/" aria-current={pathname === '/' ? 'page' : pathname.startsWith('/job/') || pathname === '/follow-ups' ? 'location' : undefined}>Leads{due ? <span className="badge" title="Due today or earlier">{due}</span> : null}</Link>
             <Link href="/analytics" aria-current={pathname === '/analytics' ? 'page' : undefined}>Analytics</Link>
             <Link href="/commands" aria-current={pathname === '/commands' ? 'page' : undefined}>Commands</Link>
           </nav>
@@ -386,7 +385,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
           </div>
         </div>
       </header>
-      <main className="wrap" ref={pageRef}>
+      <main className={`wrap${pathname === '/' ? ' list-wrap' : ''}`} ref={pageRef}>
         {connectionLost ? <div className="empty-state" role="alert"><strong>Connection lost</strong><p>{CONNECTION_LOST}</p><button onClick={() => void load()}>Try again</button></div>
           : state ? children : <p className="empty" role="status">Loading cockpit.</p>}
       </main>

@@ -290,6 +290,35 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(by_id['OLD']['rationale'], 'good fit')
         self.assertEqual(by_id['FRESH']['description'], 'fresh text')
 
+    def test_disqualification_reason_survives_pruning_and_reaches_search_lessons(self):
+        old = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=30)).isoformat()
+        self.add({'id': 'NOFIT', 'title': 'Fictional CRM support', 'found_at': old,
+                  'notes': 'Prior decision.', 'description': 'Cached job content',
+                  'next_follow_up': '2026-10-01', 'follow_up_plan': {'step': 1}})
+        reason = 'not a fit: Ongoing support, not an implementation project.'
+        result = self.run_cli('set', 'NOFIT', 'skipped', '--note', reason)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.run_cli('prune').returncode, 0)
+        saved = self.data()[0]
+        self.assertEqual(saved['status'], 'skipped')
+        self.assertEqual(saved['notes'], f'Prior decision. {reason}')
+        self.assertIsNone(saved['next_follow_up'])
+        self.assertNotIn('follow_up_plan', saved)
+        self.assertNotIn('description', saved)
+        lessons = subprocess.run([sys.executable, str(CODE / 'jobs.py'), 'lessons'],
+                                 capture_output=True, text=True, env=self.env)
+        self.assertEqual(lessons.returncode, 0, lessons.stderr)
+        self.assertIn(reason, lessons.stdout)
+        self.assertIn('Fictional CRM support', lessons.stdout)
+        before = self.data()
+        self.assertEqual(self.run_cli('set', 'NOFIT', 'new').returncode, 0)
+        self.assertEqual(self.data()[0]['notes'], before[0]['notes'])
+
+    def test_disqualification_without_reason_never_invents_one(self):
+        self.add({'id': 'NOFIT'})
+        self.assertEqual(self.run_cli('set', 'NOFIT', 'skipped', '--note', 'not a fit').returncode, 0)
+        self.assertEqual(self.data()[0]['notes'], 'not a fit')
+
     def test_trim_keeps_live_pipeline(self):
         pipeline = load_module('pipeline')
         jobs = [{'id': f'OLD-{i}', 'status': 'new', 'found_at': f'2020-01-01T00:00:{i:02d}+00:00'}

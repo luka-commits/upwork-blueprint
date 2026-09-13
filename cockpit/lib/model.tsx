@@ -1,7 +1,8 @@
 'use client';
 // What a job is, in words and cells: the labels, the small helpers, and every
 // column the list can show. Ported from the first cockpit page, same rules.
-import React from 'react';
+import React, { useState } from 'react';
+import { DisqualifyDialog } from '@/components/DisqualifyLead';
 import { useCockpit } from './context';
 import { calendarDate, todayIso } from './dates.mjs';
 import { jobPreview } from './job-brief.mjs';
@@ -114,12 +115,13 @@ export function Comp({ j }: { j: any }) {
 /** The stage right in the row. Applied sets a follow-up three days out; Skipped notes why. */
 export function StageSelect({ j }: { j: any }) {
   const { move } = useCockpit();
+  const [disqualifying, setDisqualifying] = useState<HTMLSelectElement | null>(null);
   return (
-    <select className={`stage-select stage-${j.status}`} aria-label={`Stage for ${j.title || 'job'}`} value={j.status}
+    <><select className={`stage-select stage-${j.status}`} aria-label={`Stage for ${j.title || 'job'}`} value={j.status}
       onClick={e => e.stopPropagation()}
-      onChange={e => { const s = e.target.value; move(j.id, s, s === 'applied' ? '+3d' : null, s === 'skipped' ? 'not a fit' : null); }}>
+      onChange={e => { const s = e.target.value; if (s === 'skipped') setDisqualifying(e.currentTarget); else void move(j.id, s, s === 'applied' ? '+3d' : null); }}>
       {ORDER.map(k => <option key={k} value={k}>{LABEL[k]}</option>)}
-    </select>
+    </select>{disqualifying ? <DisqualifyDialog job={j} returnTo={disqualifying} onClose={() => setDisqualifying(null)} /> : null}</>
   );
 }
 

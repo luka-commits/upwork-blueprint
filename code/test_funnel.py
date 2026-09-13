@@ -29,7 +29,7 @@ class FunnelAcceptanceTest(unittest.TestCase):
         self.run_pipeline('add', '--file', '-', stdin=json.dumps({
             'id': '111111', 'title': 'Build the sales system', 'score': 84,
         }))
-        self.run_pipeline('set', '111111', 'applied')
+        self.run_pipeline('set', '111111', 'applied', '--applied-at', '2026-09-12T09:00:00+00:00')
         self.run_pipeline('set', '111111', 'replied', '--follow-up', '2026-09-12')
         # A later manual correction may revisit applied. Daily activity still
         # counts the first application once, never every repeated history event.

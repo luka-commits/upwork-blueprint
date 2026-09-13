@@ -239,6 +239,7 @@ export default function CommandsPage() {
                 <code className="command-name">/{command.name}</code>
                 <span className="command-description" title={command.description}>{command.description || 'No description yet.'}</span>
                 <div className="command-action">
+                  {command.name === 'follow-up' ? <Link className="link" href="/follow-ups">View review</Link> : null}
                   {command.button && !command.needsJob ? (
                     <button onClick={() => runCommand(command.name)}>Run</button>
                   ) : command.needsJob ? (

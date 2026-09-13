@@ -210,16 +210,14 @@ export function nextTodo(j: any): { text: string; due: string | null; due_time?:
         : !files.has('application.md') ? 'Prepare application' : 'Submit on Upwork';
     return { text, due: null };
   }
-  const items: { text: string; due: string | null; due_time?: string | null; note?: string | null }[] = openTasks(j)
-    .map(t => ({ text: t.text, due: t.due || null, due_time: t.due_time || null }));
   if (j.status === 'applied') {
-    items.sort((a, b) => taskDueKey(a).localeCompare(taskDueKey(b)));
-    if (items.length) return items[0];
     const closes = !j.application_date_unknown && j.applied_at ? new Date(j.applied_at) : null;
     if (closes && !Number.isNaN(+closes)) closes.setUTCDate(closes.getUTCDate() + 14);
     return { text: 'Waiting for client', due: null,
       note: closes && !Number.isNaN(+closes) ? `Auto-close ${short(closes.toISOString())}` : 'Sync needs the submission date' };
   }
+  const items: { text: string; due: string | null; due_time?: string | null; note?: string | null }[] = openTasks(j)
+    .map(t => ({ text: t.text, due: t.due || null, due_time: t.due_time || null }));
   if (j.next_follow_up && !ENDED.includes(j.status)) {
     const plan = j.follow_up_plan;
     const lane = typeof plan?.lane === 'string' ? plan.lane.replace('-', ' ') : '';

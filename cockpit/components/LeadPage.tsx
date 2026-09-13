@@ -116,7 +116,7 @@ export default function LeadPage({ id }: { id: string }) {
       </div>
       <div className="lead-head-actions">
         <StageSelect j={j} />
-        <SetTaskButton job={j} />
+        {workspace.mode !== 'waiting' ? <SetTaskButton job={j} /> : null}
         {j.url ? <a className="btn" href={j.url} target="_blank" rel="noopener">Open on Upwork</a> : null}
         {workspace.mode === 'prepare' ? <NextStep key={`next-${j.id}`} j={j} preparationActionsOnly /> : null}
       </div>
@@ -141,7 +141,8 @@ export default function LeadPage({ id }: { id: string }) {
       <div ref={centerRef} className="lead-center">
         {workspace.mode !== 'sales' && workspace.mode !== 'prepare' ? <StageActions j={j} workspace={workspace} tab={tab} setTab={setTab} move={move} /> : null}
         <WorkspacePanel j={j} workspace={workspace} tab={tab} setTab={setTab} note={note} setNote={setNote} noteRef={noteRef} addNote={addNote} />
-        {workspace.mode !== 'delivery' && workspace.mode !== 'sales' && workspace.mode !== 'prepare' ? <TasksPanel j={j} /> : null}
+        {workspace.mode !== 'delivery' && workspace.mode !== 'sales' && workspace.mode !== 'prepare' && workspace.mode !== 'waiting'
+          ? <TasksPanel j={j} /> : null}
       </div>
 
       {workspace.layout.tools ? <aside id="lead-tools" className="lead-right" hidden={!toolsOpen} inert={!toolsOpen ? true : undefined}>

@@ -2,7 +2,7 @@
 
 /* Der Sektionskopf des Kaltreports: eine Marke, fuenf Kapitel.
  *
- * WARUM (Luka, 06.09.2026): „die Sektionen haben unterschiedliche Ueberschriften, der Flow
+ * WARUM (the reviewer, 06.09.2026): „die Sektionen haben unterschiedliche Ueberschriften, der Flow
  * des Lead Magnets ist nicht mehr richtig erkennbar." Gemessen am selben Tag stimmte, was er
  * sah: von fuenf Abschnitten trug genau einer eine Marke („The path"), die uebrigen fingen
  * mit einer nackten Ueberschrift an. Wer scrollt, sieht dann eine Folge von Aussagen und
@@ -58,8 +58,8 @@ export const KAPITEL: Record<"branche" | "befund" | "weg" | "termin", Kapitel> =
     nummer: "04",
     kicker: { en: "Your next step", de: "Ihr nächster Schritt" },
     titel: {
-      en: "Thirty minutes, then you know where you stand",
-      de: "Dreißig Minuten, danach wissen Sie, wo Sie stehen",
+      en: "Turn the findings into your first actions",
+      de: "Aus den Befunden werden die ersten Schritte",
     },
   },
 };
@@ -89,7 +89,7 @@ export function SektionsKopf({ kapitel, locale, hell = false, className = "" }: 
 }
 
 /* ------------------------------------------------ Wo bin ich gerade? ---
- * WARUM (Luka, 06.09.2026): „it would be cool if we have a roadmap in the header bar
+ * WARUM (the reviewer, 06.09.2026): „it would be cool if we have a roadmap in the header bar
  * that shows which section of the report we are in right now, that runs along as we
  * scroll down the page. That gives a clear orientation."
  *

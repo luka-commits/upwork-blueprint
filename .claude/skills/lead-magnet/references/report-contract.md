@@ -1,4 +1,4 @@
-# Pocket CEO audit contract
+# Lead magnet audit contract
 
 The report answers three questions in this order:
 
@@ -16,7 +16,7 @@ closed and open in place. Each closed section shows its score, evidence source
 and one business consequence. Supporting method and source limits sit in one
 disclosure at the end.
 
-Use the warm paper, ink and amber Pocket CEO report palette. Cards contain
+Use the warm paper, ink and amber report palette. Cards contain
 measured objects, not paragraphs. Keep headings short and owner-facing. The
 report ends with `Reply here on Upwork` and has no outbound link.
 
@@ -35,13 +35,13 @@ traffic estimates are not first-party analytics, and the website check covers
 what a visitor can see rather than what happens after an enquiry.
 
 Thresholds and their limits live in `measurement-benchmarks.md`. Report copy
-must label them as Pocket CEO operating heuristics, never Google requirements
+must label them as operating heuristics, never Google requirements
 or causal proof.
 
 ## Source snapshot
 
 The research programs in `code/` and `scripts/` are a self-contained snapshot
-of Pocket CEO's measured engine from 13 September 2026. They were copied from
+of the measured engine from 13 September 2026. They were copied from
 `method/blueprint/code` and the `instantly-proposal-response-v2` managed-agent
 bundle. This repository owns its snapshot so another freelancer never needs
 the original operator's filesystem or Pocket CEO's database.

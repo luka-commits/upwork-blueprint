@@ -1,17 +1,17 @@
-/** Was jede Leistung tut und enthält — als Fließtext, für die Service-Kästen im Kaltreport.
+/** Was jede Leistung tut und enthält - als Fließtext, für die Service-Kästen im Kaltreport.
  *
  *  EIGENE DATEI, WEIL SIE OFT ANGEFASST WIRD (06.09.2026). Die Kästen wurden an einem Abend
  *  viermal umgebaut; Texte und Bauteil in derselben Datei heißt, dass jede Textrunde das
  *  Bauteil anfasst.
  *
- *  DIE FORM (Luka, 06.09.2026): keine Aufzählung, sondern ein kurzer Absatz, der die Merkmale
+ *  DIE FORM (the reviewer, 06.09.2026): keine Aufzählung, sondern ein kurzer Absatz, der die Merkmale
  *  zusammenfasst. Zwei bis drei Sätze, in der Sprache des Betriebsinhabers.
  *
- *  DIE QUELLE: jeder Absatz ist aus `deliverables` in `lib/build-plan.ts` geschrieben —
+ *  DIE QUELLE: jeder Absatz ist aus `deliverables` in `lib/build-plan.ts` geschrieben -
  *  derselben Liste, die im Angebot und im Vertrag steht. Nichts hier steht über den
  *  Lieferumfang hinaus. Der erste Entwurf hatte binnen Minuten drei Behauptungen enthalten,
  *  die dort nicht stehen ("jede Bewertung in 48 Stunden beantwortet", "lädt schnell im
- *  Mobilfunknetz", Bewertungen auf der Website) — genau deshalb steht hier die Regel:
+ *  Mobilfunknetz", Bewertungen auf der Website) - genau deshalb steht hier die Regel:
  *
  *  **Ändert sich der Lieferumfang, ändert sich zuerst `build-plan.ts` und dann dieser Text.**
  *  Wer hier etwas hinzufügt, das dort nicht steht, verspricht einem Fremden etwas, das im
@@ -26,7 +26,7 @@ export type Locale = "en" | "de";
 export const SERVICE_TEXT: Record<string, Record<Locale, string>> = {
   MM: {
     en: "We map the three businesses actually taking your work, draw how an enquiry reaches you today, and freeze 28 days of calls, clicks and enquiries as your starting numbers. What comes out is a fix list, ordered by what each gap costs you, and everything later is measured against that day.",
-    de: "Wir kartieren die drei Betriebe, die Ihnen tatsächlich Aufträge abnehmen, zeichnen auf, wie eine Anfrage heute bei Ihnen ankommt, und frieren 28 Tage Anrufe, Klicks und Anfragen als Ihre Startzahlen ein. Heraus kommt eine Mängelliste, sortiert nach dem, was jede Lücke Sie kostet — und alles Spätere wird an diesem Tag gemessen.",
+    de: "Wir kartieren die drei Betriebe, die Ihnen tatsächlich Aufträge abnehmen, zeichnen auf, wie eine Anfrage heute bei Ihnen ankommt, und frieren 28 Tage Anrufe, Klicks und Anfragen als Ihre Startzahlen ein. Heraus kommt eine Mängelliste, sortiert nach dem, was jede Lücke Sie kostet - und alles Spätere wird an diesem Tag gemessen.",
   },
   SL: {
     en: "Every way an enquiry can reach you gets a reply within five minutes, day and night, and a missed call gets a text back. Routing rules send each type of enquiry to whoever should handle it, and out of hours answers in wording you approved. It then runs 48 hours under watch on your real enquiries before we call it done.",
@@ -38,7 +38,7 @@ export const SERVICE_TEXT: Record<string, Record<Locale, string>> = {
   },
   GB: {
     en: "Categories, your full service list, hours and service area are set the way Google reads them, with up to twenty photos ordered so the strongest show first. The first month of profile posts is written and scheduled, and the profile and your website are matched on the business facts, because Google reads a mismatch as a reason to trust neither.",
-    de: "Kategorien, Ihre volle Leistungsliste, Zeiten und Einzugsgebiet werden so gesetzt, wie Google sie liest, dazu bis zu zwanzig Fotos in einer Reihenfolge, die die stärksten zuerst zeigt. Der erste Monat Profil-Beiträge ist geschrieben und eingeplant, und Profil und Website sagen dieselben Fakten — eine Abweichung liest Google als Grund, keinem von beiden zu trauen.",
+    de: "Kategorien, Ihre volle Leistungsliste, Zeiten und Einzugsgebiet werden so gesetzt, wie Google sie liest, dazu bis zu zwanzig Fotos in einer Reihenfolge, die die stärksten zuerst zeigt. Der erste Monat Profil-Beiträge ist geschrieben und eingeplant, und Profil und Website sagen dieselben Fakten - eine Abweichung liest Google als Grund, keinem von beiden zu trauen.",
   },
   ST: {
     en: "Home, contact and about, up to three service pages from your own service list, and a blog page ready for what comes later. Every phone screen has one tap to call and a form that lands in your inbox and on your phone. Everything you already rank for keeps its address, and the site goes live submitted to Google with Search Console set up.",

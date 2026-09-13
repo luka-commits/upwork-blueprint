@@ -2,7 +2,7 @@
 
 /* The offer on the cold report: named, not explained.
  *
- * One rule for every disclosure here (Luka, 06.09.2026, nach der Schienen-Fassung):
+ * One rule for every disclosure here (the reviewer, 06.09.2026, nach der Schienen-Fassung):
  * closed is an icon and a headline; open is ONE sentence saying what it is and one
  * saying what the owner gets from it. Kein Bild, keine Aufzählung, keine Zeichnung.
  * Die ausführliche Beschreibung gehört auf die Angebotsseite für das Gespräch; die
@@ -31,17 +31,17 @@ export function VideoStage({ url, title }: { url: string; title: string }) {
 
 /** Der geöffnete Service: EIN Satz und das Paket.
  *
- *  Der Weg dahin, in einer Nacht (Luka, 05./06.09.2026): erst eine Drei-Stationen-Schiene
+ *  Der Weg dahin, in einer Nacht (the reviewer, 05./06.09.2026): erst eine Drei-Stationen-Schiene
  *  mit gezeichneten Bildschirmen und vier Merkmalszeilen, dann zwei Sätze, jetzt einer.
  *  Der zweite Satz war jedes Mal eine allgemeine Wahrheit über die Branche ("die meisten
- *  Anfragen bekommt der, der zuerst antwortet") — richtig, aber austauschbar, und
+ *  Anfragen bekommt der, der zuerst antwortet") - richtig, aber austauschbar, und
  *  austauschbar ist in einer Kaltakquise dasselbe wie überflüssig. Was hier steht, muss
  *  sagen, was der Dienst IST. Warum er zählt, sagt der Befund weiter oben, der an diesem
  *  Betrieb gemessen wurde. */
 export function ServiceOpen({ bar, locale }: { bar: GanttBar; locale: Locale }) {
   const video = bar.code ? LEAD_MAGNET_OFFER.videos[bar.code] : "";
   const satz = bar.code ? SERVICE_TEXT[bar.code]?.[locale] : "";
-  // KEIN PAKET-VERMERK MEHR (Luka, 06.09.2026). Die Zeile steht ohnehin nur im gewählten
+  // KEIN PAKET-VERMERK MEHR (the reviewer, 06.09.2026). Die Zeile steht ohnehin nur im gewählten
   // Paket, und "In every package" unter jedem Kasten war eine Notiz an uns, keine
   // Information für den Empfänger.
   return (
@@ -52,7 +52,7 @@ export function ServiceOpen({ bar, locale }: { bar: GanttBar; locale: Locale }) 
   );
 }
 
-/** What Pocket CEO would run in this part of the report: three tiles that
+/** What the freelancer would run in this part of the report: three tiles that
  *  name build-plan rows by code, one open at a time, the open one below the
  *  row at full width. */
 export function OfferStrip({ pillar, data, locale }: { pillar: OfferPillar; data: ProposalData; locale: Locale }) {
@@ -99,7 +99,7 @@ export function PlanMobile({ plan, locale }: { plan: GanttPlan; locale: Locale }
   const openBar = rows.find(({ bar }) => bar.name === openName)?.bar;
   // The phone plan is a small Gantt, not a list of cards: one line per row,
   // the weeks as cells on the right, so the whole plan fits on one screen
-  // (Luka, 05.09.2026: "für mobile müssen wir das Design klar überarbeiten").
+  // (the reviewer, 05.09.2026: "für mobile müssen wir das Design klar überarbeiten").
   const weekList = Array.from({ length: weeks }, (_, index) => index + 1);
   const inWeek = (row: { from: number; to: number; spots?: number[] }, week: number) => (row.spots ? row.spots.includes(week) : week >= row.from && week <= row.to);
   void byWeek;

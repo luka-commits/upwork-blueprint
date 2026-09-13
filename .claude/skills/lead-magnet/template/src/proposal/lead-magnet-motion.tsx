@@ -92,5 +92,5 @@ export function CountUp({ value, id }: { value: number | null | undefined; id: s
     preference.addEventListener("change", stop);
     return () => { observer.disconnect(); cancelAnimationFrame(frame); preference.removeEventListener("change", stop); };
   }, [value, id, seen]);
-  return <span ref={ref} role="img" aria-label={String(value ?? "—")}><span aria-hidden>{display ?? "—"}</span></span>;
+  return <span ref={ref} role="img" aria-label={String(value ?? "-")}><span aria-hidden>{display ?? "-"}</span></span>;
 }

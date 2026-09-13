@@ -1,8 +1,8 @@
 /* Der Lösungsabschnitt des Kaltreports: drei Schritte statt eines Wochenplans.
  *
- * WARUM KEIN BALKENPLAN MEHR (Luka, 06.09.2026): der Gantt mit Paketreitern beantwortete
+ * WARUM KEIN BALKENPLAN MEHR (the reviewer, 06.09.2026): der Gantt mit Paketreitern beantwortete
  * eine Frage, die der Empfänger noch nicht hat. Er hat gerade gelesen, dass er auf 24 von
- * 25 Punkten hinter jemand anderem liegt — und bekam als Antwort einen Projektplan mit
+ * 25 Punkten hinter jemand anderem liegt - und bekam als Antwort einen Projektplan mit
  * Wochenrastern und drei Paketen zur Auswahl. Der volle Fahrplan gehört ins Gespräch, wo
  * jemand danebensitzt und ihn erklärt; hier muss stehen, was wir für ihn tun und was ihm
  * das bringt.
@@ -11,7 +11,7 @@
  * in Tagen), dann kommt neues dazu (das braucht Wochen). Wer umgekehrt anfängt, kauft
  * Sichtbarkeit für Anfragen, die er danach wieder liegen lässt.
  *
- * Jede Zeile ist das, was der Betrieb bekommt — nie, was wir tun. "Interne Verlinkung" ist
+ * Jede Zeile ist das, was der Betrieb bekommt - nie, was wir tun. "Interne Verlinkung" ist
  * unsere Sprache; "Ihre Seiten verweisen aufeinander, damit Google die wichtigste erkennt"
  * ist seine.
  */
@@ -233,7 +233,7 @@ function BildBleiben() {
 
 /* ------------------------------------------------------ Die drei Bereiche ---
  * Die Zeichen für „das haben wir angesehen" im Kopf des Berichts. Vorher standen dort
- * drei Symbole von der Stange; diese hier zeigen die Sache selbst — eine Seite mit
+ * drei Symbole von der Stange; diese hier zeigen die Sache selbst - eine Seite mit
  * Anruf-Knopf, ein Profilkärtchen mit Bewertung, ein Kartenausschnitt mit drei
  * Ergebnissen. Sie sitzen in einem 20er-Feld und tragen die Farbe der Umgebung.
  */
@@ -279,7 +279,7 @@ export function ZeichenSichtbarkeit() {
 }
 
 /* ------------------------------------------------- Zeichen je Leistung ---
- * Dieselbe Machart wie die drei im Kopf (Luka, 06.09.2026: „so kannst du die auch bei den
+ * Dieselbe Machart wie die drei im Kopf (the reviewer, 06.09.2026: „so kannst du die auch bei den
  * einzelnen Service-Sektionen machen"): jedes zeigt die Sache selbst statt eines Symbols
  * von der Stange, sitzt in einem 22er-Feld und nimmt seine Farbe von der Umgebung.
  *
@@ -445,7 +445,7 @@ export function LeistungsZeichen({ code, className }: { code?: string; className
 
 type Kachel = { en: string; de: string };
 /** Eine der fünfzehn Positionen: ihr Name, und was sie dem Betrieb bringt. Der Name ist
- *  der aus dem Angebot, der Satz darunter ist seine Sprache — die beiden gehören zusammen,
+ *  der aus dem Angebot, der Satz darunter ist seine Sprache - die beiden gehören zusammen,
  *  sonst liest er entweder eine Fachliste oder ein Versprechen ohne Substanz. */
 type Leistung = { name: Kachel; nutzen: Kachel; code?: string; nurScale?: boolean };
 type Schritt = {
@@ -623,7 +623,7 @@ const SCHRITTE: Schritt[] = [
 
 
 const TON = {
-  /* `feld` traegt jetzt das Zeichen der Leistung statt eines Punktes (Luka, 06.09.2026:
+  /* `feld` traegt jetzt das Zeichen der Leistung statt eines Punktes (the reviewer, 06.09.2026:
      „remember to also use those icons in section 3 in the dropdowns"). Dieselbe Machart
      wie die Kaesten oben im Kopf: helle Flaeche, Zeichen in der Farbe des Schritts. */
   sofort: { num: "bg-[#2c7048]", chip: "bg-[#dcefe3] text-[#2c7048]", dot: "bg-[#2c7048]", feld: "bg-[#dcefe3] text-[#2c7048]" },
@@ -634,7 +634,7 @@ const TON = {
 /** Die Bewegung in den drei Bildern.
  *
  *  KOSTET NICHTS UND LÄUFT AUF DER GRAFIKKARTE: alles hier bewegt entweder `transform`,
- *  `opacity` oder `stroke-dashoffset`, nie Größe oder Position im Layout — der Browser
+ *  `opacity` oder `stroke-dashoffset`, nie Größe oder Position im Layout - der Browser
  *  muss also nie neu rechnen, wo etwas steht. Gemessen am 06.09.2026 hob das die
  *  Blockierzeit der Seite nicht messbar an.
  *
@@ -665,11 +665,11 @@ export function SolutionSection({ locale }: { locale: Locale }) {
       <style dangerouslySetInnerHTML={{ __html: BEWEGUNG }} />
       <div className="mx-auto max-w-[1160px] px-5 sm:px-8">
         <SektionsKopf kapitel={KAPITEL.weg} locale={locale} />
-        {/* Der erklärende Absatz unter der Überschrift ist raus (Luka, 06.09.2026,
+        {/* Der erklärende Absatz unter der Überschrift ist raus (the reviewer, 06.09.2026,
             „minimalistisch"). Die drei Schritte tragen ihre Begründung selbst; ein Satz
             darüber, der dasselbe noch einmal sagt, verzögert nur den Blick auf sie. */}
 
-        {/* NEBENEINANDER STATT UNTEREINANDER (Luka, 06.09.2026). Als drei volle Zeilen
+        {/* NEBENEINANDER STATT UNTEREINANDER (the reviewer, 06.09.2026). Als drei volle Zeilen
             war jede Karte 1160 Pixel breit fuer eine Ueberschrift und ein Bild, also zur
             Haelfte leer, und man sah nie alle drei zugleich. Nebeneinander liest sich die
             Reihenfolge als Reihenfolge. `items-start` haelt die anderen beiden ruhig,
@@ -678,10 +678,10 @@ export function SolutionSection({ locale }: { locale: Locale }) {
           {SCHRITTE.map((s, i) => {
             const ton = TON[s.ton];
             return (
-              /* AUFGEKLAPPT WIRD, WER ES WISSEN WILL (Luka, 06.09.2026). Zu sehen ist der
+              /* AUFGEKLAPPT WIRD, WER ES WISSEN WILL (the reviewer, 06.09.2026). Zu sehen ist der
                  Schritt mit seinem Bild; die sechs Zeilen darunter holt sich, wer nachlesen
                  will. Der erste Schritt steht offen, damit sichtbar ist, dass hinter jeder
-                 Zeile etwas liegt — eine Seite, auf der drei zugeklappte Kästen stehen und
+                 Zeile etwas liegt - eine Seite, auf der drei zugeklappte Kästen stehen und
                  sonst nichts, sieht aus wie eine leere Seite. */
               <details key={s.titel.en} data-lm-motion={`solution-${i}`} className="group overflow-hidden rounded-[18px] border border-hairline bg-white shadow-[0_1px_2px_rgba(28,23,18,.03),0_10px_30px_rgba(28,23,18,.045)]">
                 <summary className="grid cursor-pointer list-none items-center gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_292px] sm:p-6 lg:grid-cols-1 lg:gap-3 [&::-webkit-details-marker]:hidden">
@@ -689,7 +689,7 @@ export function SolutionSection({ locale }: { locale: Locale }) {
                     <div className="flex items-center gap-3">
                       {/* EINMAL DIE ZAHL, NICHT ZWEIMAL. Neben dem Kreis mit der "2" stand
                           die Pille "PHASE 2" -- dieselbe Ziffer im Abstand von acht Pixeln.
-                          Der Kreis ist raus, die Pille traegt das Wort, das Luka wollte
+                          Der Kreis ist raus, die Pille traegt das Wort, das the reviewer wollte
                           (06.09.2026: "kannst stattdessen Phase 1, 2, 3 schreiben"). */}
                       <span className={`lm-datenlabel rounded-md px-3 py-1.5 ${ton.chip}`}>{s.wann[locale]}</span>
                     </div>
@@ -727,81 +727,6 @@ export function SolutionSection({ locale }: { locale: Locale }) {
           })}
         </div>
 
-        {/* Die drei Zusagen standen hier als eigene Karten und stehen jetzt im
-            Preisblock darunter: zweimal dasselbe untereinander liest niemand zweimal. */}
-
-        {/* WAS SIE RISKIEREN: NICHTS (Luka, 06.09.2026: „aus Sales-Sicht smart gestalten,
-            es soll rüberkommen dass es glaubwürdig ist, dass es risikofrei ist").
-            Die Reihenfolge ist die Verkaufslogik: erst was es kostet, dann warum ein Nein
-            später nichts kostet, und zum Schluss das, was wir NICHT versprechen. Der letzte
-            Punkt ist der, der die anderen glaubwürdig macht: wer offen sagt, wo er keine
-            Zusage gibt, wird beim Rest geglaubt. Genau daran scheitern die Anbieter, über
-            die sich Handwerker in ihren Bewertungen beschweren. */}
-        <div className="mt-9">
-          {/* OHNE UEBERSCHRIFT (Luka, 06.09.2026). Der Preis links und die vier Zusagen rechts
-              sagen dasselbe wie die Zeile "Sie koennen jederzeit aussteigen", nur belegt statt
-              behauptet. Eine Ueberschrift, die den Inhalt darunter wiederholt, kostet nur
-              Hoehe und schiebt den Preis unter die Falz. */}
-          <p className="lm-blockmarke m-0">{de ? "Die Konditionen" : "The terms"}</p>
-
-          <div className="mt-4 grid gap-3.5 lg:grid-cols-[minmax(0,.72fr)_minmax(0,1.28fr)]">
-            <div className="flex flex-col justify-center rounded-[18px] border border-hairline bg-white p-6 shadow-[0_1px_2px_rgba(28,23,18,.03),0_10px_30px_rgba(28,23,18,.045)] sm:p-7">
-              {/* „Starts at" statt „Where it starts" (Luka, 06.09.2026): das eine sagt,
-                  dass hier die Preise anfangen, das andere klingt nach dem einzigen Preis. */}
-              <p className="lm-blockmarke m-0">{de ? "Ab" : "Starts at"}</p>
-              <p className="m-0 mt-1.5 flex items-baseline gap-1.5">
-                <span className="tnum text-[40px] font-black leading-none tracking-[-.045em] sm:text-[46px]">$199</span>
-                <span className="text-[14px] font-bold text-graphite">{de ? "im Monat" : "a month"}</span>
-              </p>
-              <p className="m-0 mt-1 text-[13px] leading-[1.4] text-graphite">
-                {de ? "nach einem Aufbau ab $499" : "after a build from $499"}
-              </p>
-              {/* DASS ES DER EINSTIEG IST, MUSS DASTEHEN (Luka, 06.09.2026). „$199 im Monat"
-                  allein liest sich wie unser Preis, dabei ist es die untere Kante. Wer das
-                  erst im Gespraech erfaehrt, fuehlt sich geholt — und genau das Gefuehl
-                  soll dieser Abschnitt ausraeumen, nicht erzeugen. Die anderen Preise
-                  stehen bewusst nicht hier: was passt, haengt am Befund, und eine
-                  Preistabelle im Kaltreport laedt zum Vergleichen ein, bevor jemand
-                  weiss, was er vergleicht. */}
-              <p className="m-0 mt-2.5 inline-flex w-fit rounded-full bg-navy-soft/60 px-2.5 py-1 text-[11.5px] font-bold leading-[1.3] text-navy">
-                {de ? "mehrere Modelle, je nach Bedarf" : "different plans for what you need"}
-              </p>
-            </div>
-
-            <ul className="m-0 grid list-none gap-px overflow-hidden rounded-[18px] border border-hairline bg-hairline p-0 shadow-[0_1px_2px_rgba(28,23,18,.03),0_10px_30px_rgba(28,23,18,.045)] sm:grid-cols-2">
-              {[
-                /* NUR DIE ZEILE, KEIN NACHSATZ (Luka, 06.09.2026: „cut out the h2 in the
-                   benefit boxes and make the headlines a bit stronger to compensate").
-                   Sieben Zusagen mit je zwei Zeilen Erklaerung sind vierzehn Zeilen, die
-                   niemand liest. Also traegt jede Zeile jetzt selbst, was vorher darunter
-                   stand: nicht „Ihr Gebiet bleibt Ihres" plus Erklaerung, sondern gleich
-                   „kein Wettbewerber von Ihnen in Ihrem Gebiet". */
-                { en: "Thirty days money back", de: "Dreißig Tage Geld zurück" },
-                { en: "No minimum term", de: "Keine Mindestlaufzeit" },
-                { en: "Every account in your name", de: "Jedes Konto auf Ihren Namen" },
-                { en: "No rival of yours in your area", de: "Kein Wettbewerber in Ihrem Gebiet" },
-                { en: "One setup, then it runs", de: "Einmal einrichten, dann läuft es" },
-                { en: "Luka and Varun, every time", de: "Immer Luka und Varun" },
-                { en: "A five-minute report every month", de: "Jeden Monat ein Report" },
-              ].map((z, k, alle) => (
-                /* EINE UNGERADE ZAHL LAESST DIE LETZTE KACHEL ALLEIN, und daneben klafft ein
-                   grauer Block. Sieben Zusagen sind nicht schlechter als acht, also spannt
-                   sich die letzte ueber beide Spalten, statt ein achtes Argument zu erfinden,
-                   nur damit das Raster aufgeht. */
-                <li key={z.en} className={`bg-white px-6 py-[18px] ${
-                  alle.length % 2 === 1 && k === alle.length - 1 ? "sm:max-lg:col-span-2" : ""}`}>
-                  <b className="flex items-center gap-2.5 text-[15.5px] font-black leading-[1.32] tracking-[-.018em]">
-                    <span className="grid size-[20px] shrink-0 place-items-center rounded-full bg-[#2c7048] text-white">
-                      <svg viewBox="0 0 16 16" fill="none" aria-hidden className="size-[12px]"><path d="M3.5 8.4l3 3L12.5 5" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    </span>
-                    <span className="min-w-0">{z[locale]}</span>
-                  </b>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-        </div>
       </div>
     </section>
   );

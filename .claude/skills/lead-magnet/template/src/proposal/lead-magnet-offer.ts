@@ -1,4 +1,4 @@
-/** What Pocket CEO would run in each part of the cold report, and the videos
+/** What the freelancer would run in each part of the cold report, and the videos
  *  that explain it. One place, so every report shows the same offer.
  *
  *  The service texts are not written here: each pillar names the build-plan
@@ -19,13 +19,13 @@ export const LEAD_MAGNET_OFFER = {
   // war das die teuerste Sache auf der Seite, und der Bericht geht auch in die USA. Jetzt
   // 4,2 MB (CRF 28, AAC 96k, faststart); im Standbildvergleich gegen die 5,9-MB-Fassung und
   // gegen das Original kein sichtbarer Unterschied. Die alten Dateien bleiben liegen.
-  heroVideoUrl: "https://srtaczbopsllupgabakd.supabase.co/storage/v1/object/public/videos/lead-magnet/hero-glass-dry-bounce-quiet-2026-09-06-web2.mp4",
+  heroVideoUrl: "",
   // AUS UNSEREM EIGENEN HAUS (06.09.2026). Das Standbild ist das groesste sichtbare Element
   // der Seite. Aus dem Speicher geholt wartete es auf eine zweite Verbindung -- gemessen
   // schwankte es zwischen 0,3 und 1,7 s, und mit ihm die ganze Bewertung zwischen 86 und 95.
   // Neben der Seite ausgeliefert nutzt es die Verbindung, die ohnehin schon offen ist.
   // Es ist die unveraenderte Datei aus `videos/lead-magnet/hero-glass-no-fix-2026-09-06.jpg`.
-  heroVideoPoster: "/hero-poster.jpg",
+  heroVideoPoster: "",
   heroVideoPortrait: false,
   pillars: {
     /** Get found: the search plan, the profile matched to the winners, the pages per area. */

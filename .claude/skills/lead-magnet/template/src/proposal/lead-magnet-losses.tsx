@@ -1,17 +1,17 @@
 /* Wo lokale Betriebe Geld verlieren: die allgemeine Lage, bevor es persönlich wird.
  *
- * WARUM DIESE SEKTION (Luka, 06.09.2026): der Bericht sprang bisher vom Hero direkt in die
+ * WARUM DIESE SEKTION (the reviewer, 06.09.2026): der Bericht sprang bisher vom Hero direkt in die
  * Befunde dieses einen Betriebs. Damit las sich die Mängelliste wie ein Vorwurf an ihn.
  * Steht davor, dass die halbe Branche dieselben drei Löcher hat, liest sich derselbe Befund
- * als Chance statt als Kritik — und die eigene Messung darunter bekommt einen Maßstab.
+ * als Chance statt als Kritik - und die eigene Messung darunter bekommt einen Maßstab.
  *
- * JEDE ZAHL HAT EINE STUDIE, UND DIE STUDIE STEHT DANEBEN. Zwei der vier Zahlen, die Luka
+ * JEDE ZAHL HAT EINE STUDIE, UND DIE STUDIE STEHT DANEBEN. Zwei der vier Zahlen, die the reviewer
  * genannt hatte, sind bei der Prüfung durchgefallen und stehen deshalb nicht hier:
  *
- *   „78 % kaufen beim ersten, der antwortet" — führt zu einer nie veröffentlichten Umfrage
+ *   „78 % kaufen beim ersten, der antwortet" - führt zu einer nie veröffentlichten Umfrage
  *   ohne Methodik; die oft genannte HBR-Quelle sagt das an keiner Stelle.
  *
- *   „Die ersten drei auf der Karte bekommen 60 bis 75 % der Klicks" — keine Originalstudie
+ *   „Die ersten drei auf der Karte bekommen 60 bis 75 % der Klicks" - keine Originalstudie
  *   auffindbar, die belastbaren Messungen liegen bei rund der Hälfte davon.
  *
  * Die Quelle sichtbar danebenzuschreiben ist selbst ein Verkaufsargument: kein Wettbewerber
@@ -26,8 +26,8 @@ import { Malkasten } from "./lead-magnet-solution";
 type Locale = "en" | "de";
 type Text = { en: string; de: string };
 
-/** Ein Satz, der mit seiner Zahl anfaengt (Luka, 06.09.2026). `zahl` steht gross oben
- *  neben der Zeichnung, `nach` laeuft als normaler Satz darunter weiter — zusammengelesen
+/** Ein Satz, der mit seiner Zahl anfaengt (the reviewer, 06.09.2026). `zahl` steht gross oben
+ *  neben der Zeichnung, `nach` laeuft als normaler Satz darunter weiter - zusammengelesen
  *  ergeben beide einen Satz, getrennt gesetzt, weil nur so die Zahl den Blick faengt. */
 type Loch = {
   zahl: Text;
@@ -36,7 +36,7 @@ type Loch = {
   bild: ReactNode;
 };
 
-/* Drei Szenen in derselben Machart wie unten im Loesungsteil (Luka, 06.09.2026: „wie auch
+/* Drei Szenen in derselben Machart wie unten im Loesungsteil (the reviewer, 06.09.2026: „wie auch
  * unten"): Verlauf statt Volltonflaeche, weicher Schatten, helle Kante. Jede zeigt genau
  * das Loch, das die Zahl daneben misst. `aria-hidden`, weil der Text alles sagt. */
 
@@ -161,13 +161,13 @@ const LOECHER: Loch[] = [
     zahl: { en: "31%", de: "31 %" },
     nach: { en: "of local business sites do not fit a phone screen.", de: "der Betriebswebsites passen nicht auf einen Handy-Bildschirm." },
     quelle: {
-      en: "Pocket CEO, 11,321 businesses checked, September 2026.",
-      de: "Pocket CEO, 11.321 geprüfte Betriebe, September 2026.",
+      en: "11,321 local business websites checked, September 2026.",
+      de: "11.321 geprüfte Betriebswebsites, September 2026.",
     },
     bild: <BildHandy />,
   },
   {
-    /* „Half" statt „~48 %" (Luka, 06.09.2026). Die Tilde vor einer Prozentzahl sieht aus
+    /* „Half" statt „~48 %" (the reviewer, 06.09.2026). Die Tilde vor einer Prozentzahl sieht aus
        wie ein Taschenspielertrick; „rund die Haelfte" ist dieselbe Aussage und ehrlicher,
        weil die gemessenen 47,9 % ohnehin eine Momentaufnahme sind. */
     zahl: { en: "Half", de: "Die Hälfte" },

@@ -10,9 +10,7 @@ import { Fragment, type ReactNode, type CSSProperties } from "react";
 // scheme alternated white and beige band by band, and every switch produced a
 // visible seam. Paper below, cards above it: the hierarchy now comes from the
 // cards lifting off the page rather than from the page changing colour.
-// The palette of the pitch pages that go out by email
-// (~/dev/projects/personal/upwork/outputs/2026-08-15_*.html), with Pocket CEO's
-// navy in place of their terracotta. Warm paper as the ground, a deeper beige
+// The palette uses warm paper as the ground, a deeper beige
 // for alternate bands, and one dark ink band near the close for punch - the
 // colour division is the band, never a card on a coloured page.
 export const d = {
@@ -418,7 +416,7 @@ export function ScoreRing({ score, size, label, strokeWidth = 9 }: { score: numb
           color: c.fg,
         }}
       >
-        {score === null ? "–" : score}
+        {score === null ? "-" : score}
       </span>
     </div>
   );

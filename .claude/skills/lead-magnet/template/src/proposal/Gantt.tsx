@@ -83,7 +83,7 @@ export function Gantt({
   variant?: "default" | "report";
   showPackages?: boolean;
   /** Zeilen ausblenden, die im gewählten Paket nicht enthalten sind. Im Kaltreport ist das
-   *  Pflicht: ausgegraut bewarben sie genau das, was der Empfänger NICHT bekommt (Luka,
+   *  Pflicht: ausgegraut bewarben sie genau das, was der Empfänger NICHT bekommt (the reviewer,
    *  06.09.2026). Im Vertrag bleiben sie sichtbar, dort sind sie der Ausbauweg. */
   hideOutOfPlan?: boolean;
   /** Rows open to show deliverables, milestone and what we need from them. */

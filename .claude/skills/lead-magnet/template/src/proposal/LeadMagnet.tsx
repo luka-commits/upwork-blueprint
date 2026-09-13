@@ -4,12 +4,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { KAPITEL, KapitelLeiste, SektionsKopf, useAktivesKapitel } from "./lead-magnet-kopf";
-import {
-  reportProfileIcons,
-  CalendarCheck2,
-  Check,
-  ChevronDown,
-} from "./service-icons";
+import { reportProfileIcons, Check, ChevronDown } from "./service-icons";
 import type {
   CroElement,
   GbpAuditRow,
@@ -17,14 +12,12 @@ import type {
 } from "./types";
 import { GbpPanel } from "./exhibits/GbpPanel";
 import { GeoGrid } from "./exhibits/GeoGrid";
-import { LEAD_MAGNET_OFFER } from "./lead-magnet-offer";
-import { OfferStrip, PlanMobile, ServiceOpen } from "./lead-magnet-offer-ui";
+import { PlanMobile, ServiceOpen } from "./lead-magnet-offer-ui";
 import { Gantt } from "./Gantt";
 import { PackageProvider, usePackage } from "./packages";
 import { ProposalStyles } from "./ui";
 import { LeadMagnetStyles } from "./lead-magnet-styles";
 import { CountUp, ReportMotion } from "./lead-magnet-motion";
-import { ReportOpenBeacon } from "./report-open-beacon";
 import { LossesSection } from "./lead-magnet-losses";
 import { SolutionSection, ZeichenProfil, ZeichenSichtbarkeit, ZeichenWebsite } from "./lead-magnet-solution";
 
@@ -55,7 +48,7 @@ const copy = {
     evidence: "What the map shows",
     next: "What to change",
     testValue: "25 Google Maps searches across the service area",
-    nextMaps: "Complete the profile, strengthen the page for the main service and repeat the same scan in 8–12 weeks.",
+    nextMaps: "Complete the profile, strengthen the page for the main service and repeat the same scan in 8-12 weeks.",
     seo: "Search checked",
     seoEmpty: "No reliable local search term was available.",
     lighthouse: "Official Google Lighthouse report",
@@ -98,7 +91,7 @@ const copy = {
     evidence: "Was die Karte zeigt",
     next: "Was zu ändern ist",
     testValue: "25 Google-Maps-Suchen im Einzugsgebiet",
-    nextMaps: "Profil vervollständigen, die Seite für die Hauptleistung stärken und denselben Test in 8–12 Wochen wiederholen.",
+    nextMaps: "Profil vervollständigen, die Seite für die Hauptleistung stärken und denselben Test in 8-12 Wochen wiederholen.",
     seo: "Geprüfte Suche",
     seoEmpty: "Es war kein belastbarer lokaler Suchbegriff verfügbar.",
     lighthouse: "Offizieller Google-Lighthouse-Bericht",
@@ -285,7 +278,7 @@ function HeroVisual({ data }: { data: ProposalData }) {
       {isFile && video.posterUrl ? <link rel="preload" as="image" href={video.posterUrl} fetchPriority="high" /> : null}
       <div className={`overflow-hidden rounded-[22px] border-[5px] border-[#30363a] bg-navy-deep shadow-[0_24px_60px_rgba(8,12,22,.2)] ${frame}`}>
         {isFile
-          // AUTOMATISCH, ABER STUMM (Luka, 06.09.2026). Jeder Browser laesst ein Video nur
+          // AUTOMATISCH, ABER STUMM (the reviewer, 06.09.2026). Jeder Browser laesst ein Video nur
           // ohne Ton von selbst starten; mit Ton bleibt es stehen, und der Empfaenger sieht
           // ein totes Standbild. Also: laeuft an, zeigt Lukas Gesicht in Bewegung, und wer
           // hoeren will, tippt einmal auf den Ton. Untertitel sind im Video eingebrannt.
@@ -297,7 +290,7 @@ function HeroVisual({ data }: { data: ProposalData }) {
   );
 }
 
-/* WARUM DIESER ABSCHNITT UEBERHAUPT ZAEHLT (Luka, 06.09.2026: „why this matters sollte als
+/* WARUM DIESER ABSCHNITT UEBERHAUPT ZAEHLT (the reviewer, 06.09.2026: „why this matters sollte als
  * eine Sektion über das GBP und dann die Sektion automate this darunter. Wichtig ist, dass
  * diese Sektionen auch minimalistisch sind und visuell anstatt viel Text").
  *
@@ -325,7 +318,7 @@ const WARUM: Record<SectionKey, { en: string; de: string }> = {
 function WarumLeiste({ sectionKey, locale }: { sectionKey: SectionKey; locale: Locale }) {
   return (
     <div className="lm-warum mb-5 flex items-center gap-3.5 rounded-2xl border border-hairline bg-white px-4 py-3.5 sm:mb-6 sm:gap-4 sm:px-5 sm:py-4">
-      {/* EIN AUSRUFEZEICHEN, NICHT DAS ZEICHEN DER SAEULE (Luka, 06.09.2026). Das Saeulen-
+      {/* EIN AUSRUFEZEICHEN, NICHT DAS ZEICHEN DER SAEULE (the reviewer, 06.09.2026). Das Saeulen-
           zeichen steht schon in der Kopfzeile darueber; ein zweites Mal sagt es nichts Neues.
           Das Ausrufezeichen sagt, was diese Zeile ist: der Grund, warum das Folgende zaehlt. */}
       <span className="lm-glas grid size-11 shrink-0 place-items-center rounded-[13px] text-navy">
@@ -369,7 +362,7 @@ function Accordion({
   const t = copy[locale];
   const [index = "", purpose = kicker] = kicker.split(" · ");
   return (
-    <section id={`report-${sectionKey}`} className="lm-pillar scroll-mt-[76px] overflow-hidden border-t border-black/10 first:border-t-0">
+    <section id={`report-${sectionKey}`} data-audit-section={sectionKey} className="lm-pillar scroll-mt-[76px] overflow-hidden border-t border-black/10 first:border-t-0">
       <button
         type="button"
         aria-expanded={open}
@@ -383,9 +376,9 @@ function Accordion({
           <h2 className="m-0 text-[22px] font-black leading-[1.02] tracking-[-.04em] text-ink sm:text-[25px]">{purpose}</h2>
           <span data-onepager="pillar" className="mt-1.5 block text-[9px] font-black uppercase tracking-[.12em] text-pewter">{title}</span>
         </div>
-        <div data-onepager="score" data-score={score} className="col-start-2 row-start-2 flex flex-wrap gap-2 lg:col-start-3 lg:row-start-1 lg:justify-end"><Score value={score} id={`score-${sectionKey}`} />{secondaryScore ? <span className={`tnum inline-flex min-w-[92px] flex-col justify-center rounded-[10px] border px-3 py-2 ${scoreTone(secondaryScore.value)}`}><small className="mb-1 text-[7px] font-black uppercase tracking-wide opacity-70">{secondaryScore.label}</small><b className="text-xl leading-none">{secondaryScore.value ?? "—"}<small className="text-[10px] opacity-60">/100</small></b></span> : null}</div>
+        <div data-onepager="score" data-score={score} className="col-start-2 row-start-2 flex flex-wrap gap-2 lg:col-start-3 lg:row-start-1 lg:justify-end"><Score value={score} id={`score-${sectionKey}`} />{secondaryScore ? <span className={`tnum inline-flex min-w-[92px] flex-col justify-center rounded-[10px] border px-3 py-2 ${scoreTone(secondaryScore.value)}`}><small className="mb-1 text-[7px] font-black uppercase tracking-wide opacity-70">{secondaryScore.label}</small><b className="text-xl leading-none">{secondaryScore.value ?? "-"}<small className="text-[10px] opacity-60">/100</small></b></span> : null}</div>
         {/* The verdict sentence stays in the markup for the one-pager only;
-            the row itself is number and button (Luka, 05.09.2026). */}
+            the row itself is number and button (the reviewer, 05.09.2026). */}
         <span data-onepager="finding" className="sr-only">{finding}</span>
         <div className="col-start-3 row-span-2 row-start-1 flex justify-end lg:col-start-4 lg:row-span-1">
           <span className={`inline-flex min-h-12 min-w-[132px] items-center justify-center gap-2 rounded-full px-5 text-[14px] font-black tracking-[-.01em] transition ${open ? "border border-navy bg-white text-navy" : "bg-navy text-white group-hover:bg-navy-deep"}`}>
@@ -540,7 +533,7 @@ function WebsiteDetail({ data, locale }: { data: ProposalData; locale: Locale })
     if (index === 2) return <div className="grid grid-cols-3 gap-2">{(serviceNames.length ? serviceNames : [primaryService, locale === "de" ? "Zweite Leistung" : "Second service", locale === "de" ? "Dritte Leistung" : "Third service"]).map((service) => <span key={service} className={`grid min-h-14 content-between rounded-lg p-2 ${pale}`}><strong className="line-clamp-2 text-[8px] leading-tight text-slate-800">{service}</strong><i className={`mt-2 h-1.5 w-8 rounded-full ${ink}`} /></span>)}</div>;
     if (index === 3) return <div className="grid grid-cols-2 gap-2">{[review?.text ?? (locale === "de" ? "Konkrete Erfahrung eines echten Kunden." : "A specific experience from a real customer."), locale === "de" ? "Zweite freigegebene Kundenstimme." : "A second approved customer story."].map((text, item) => <span key={item} className={`rounded-lg p-2 ${pale}`}><b className="text-[8px] text-amber-500">★★★★★</b><i className="mt-1 line-clamp-2 block text-[7px] not-italic leading-relaxed text-slate-600">{text}</i></span>)}</div>;
     if (index === 4) return <div className="grid grid-cols-3 gap-2">{["Years", "Customers", "Response"].map((label, item) => <span key={label} className={`grid h-14 place-items-center rounded-lg ${pale}`}><b className="text-[16px] text-slate-900">{["10+", "500+", "1h"][item]}</b><small className="text-[6px] uppercase text-slate-500">{label}</small></span>)}</div>;
-    if (index === 5) return <div className={`flex items-center justify-between rounded-lg px-3 py-3 ${pale}`}><span><b className="text-lg text-slate-950">{profile?.ratingValue?.toFixed(1) ?? "4.8"}</b><small className="ml-2 text-[9px] text-amber-500">★★★★★</small></span><span className="text-[8px] font-bold text-blue-700">{profile?.reviewsCount ?? "—"} Google reviews</span></div>;
+    if (index === 5) return <div className={`flex items-center justify-between rounded-lg px-3 py-3 ${pale}`}><span><b className="text-lg text-slate-950">{profile?.ratingValue?.toFixed(1) ?? "4.8"}</b><small className="ml-2 text-[9px] text-amber-500">★★★★★</small></span><span className="text-[8px] font-bold text-blue-700">{profile?.reviewsCount ?? "-"} Google reviews</span></div>;
     if ([6, 7].includes(index)) return <div className={`grid grid-cols-[.9fr_1.1fr] gap-3 rounded-lg p-2.5 ${pale}`}><div className="grid min-h-16 place-items-center rounded-lg bg-slate-800"><span className="grid size-7 place-items-center rounded-full bg-white text-[9px]">▶</span></div><div className="grid content-center gap-1.5"><strong className="text-[9px] text-slate-900">{index === 6 ? businessName : (locale === "de" ? "Eine echte Kundengeschichte" : "A real customer story")}</strong><i className="h-1.5 w-full rounded-full bg-slate-300" /><i className="h-1.5 w-2/3 rounded-full bg-slate-300" /></div></div>;
     if (index === 8) return <div className="flex gap-2">{[0, 1, 2, 3].map((item) => <span key={item} className="grid h-10 flex-1 place-items-center rounded-lg bg-slate-100 text-[7px] font-bold text-slate-400">LOGO</span>)}</div>;
     if (index === 9) return <div className="grid grid-cols-3 gap-2">{["01", "02", "03"].map((step) => <span key={step} className={`rounded-lg p-2 ${pale}`}><b className="text-[8px] text-slate-900">{step}</b><i className="mt-2 block h-1.5 w-full rounded-full bg-slate-300" /><i className="mt-1 block h-1.5 w-2/3 rounded-full bg-slate-300" /></span>)}</div>;
@@ -566,7 +559,7 @@ function WebsiteDetail({ data, locale }: { data: ProposalData; locale: Locale })
           {groups.map((group) => {
             const groupApplicable = group.elements.filter((element) => element.applies !== false);
             const presentCount = groupApplicable.filter((element) => element.present).length;
-            return <details key={group.title} className="group bg-white"><summary className="flex min-h-[66px] cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden"><strong className="text-[13px] text-slate-950">{group.title}</strong><span className="flex items-center gap-2">{groupApplicable.length ? <b className={`tnum text-[12px] ${presentCount === groupApplicable.length ? "text-emerald-700" : "text-red-700"}`}>{presentCount}/{groupApplicable.length}</b> : <b className="text-[11px] font-semibold text-slate-400">{t.notNeeded}</b>}<ChevronDown className="size-4 text-navy transition-transform group-open:rotate-180" /></span></summary><div className="grid gap-2 border-t border-slate-100 px-4 pb-4 pt-3">{group.elements.map((element) => <div key={element.label} className="flex items-start gap-2 text-[11px] font-semibold leading-snug text-slate-700"><span className={`mt-0.5 grid size-4 shrink-0 place-items-center rounded-full text-[10px] text-white ${element.applies === false ? "bg-slate-300" : element.present ? "bg-emerald-600" : "bg-red-600"}`}>{element.applies === false ? "–" : element.present ? <Check size={11} /> : "×"}</span><span className={element.applies === false ? "text-slate-400" : ""}>{elementLabel(element)}{element.applies === false ? ` · ${t.notNeeded}` : ""}</span></div>)}</div></details>;
+            return <details key={group.title} className="group bg-white"><summary className="flex min-h-[66px] cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden"><strong className="text-[13px] text-slate-950">{group.title}</strong><span className="flex items-center gap-2">{groupApplicable.length ? <b className={`tnum text-[12px] ${presentCount === groupApplicable.length ? "text-emerald-700" : "text-red-700"}`}>{presentCount}/{groupApplicable.length}</b> : <b className="text-[11px] font-semibold text-slate-400">{t.notNeeded}</b>}<ChevronDown className="size-4 text-navy transition-transform group-open:rotate-180" /></span></summary><div className="grid gap-2 border-t border-slate-100 px-4 pb-4 pt-3">{group.elements.map((element) => <div key={element.label} className="flex items-start gap-2 text-[11px] font-semibold leading-snug text-slate-700"><span className={`mt-0.5 grid size-4 shrink-0 place-items-center rounded-full text-[10px] text-white ${element.applies === false ? "bg-slate-300" : element.present ? "bg-emerald-600" : "bg-red-600"}`}>{element.applies === false ? "-" : element.present ? <Check size={11} /> : "×"}</span><span className={element.applies === false ? "text-slate-400" : ""}>{elementLabel(element)}{element.applies === false ? ` · ${t.notNeeded}` : ""}</span></div>)}</div></details>;
           })}
         </div>
 
@@ -593,7 +586,7 @@ function firstSentence(text: string): string {
   return (match ? match[0] : text).trim();
 }
 
-/** Alles nach dem ersten Satz — der Rest, der in die Ausklapp-Zeile gehört. */
+/** Alles nach dem ersten Satz - der Rest, der in die Ausklapp-Zeile gehört. */
 function restSentences(text: string): string {
   const rest = text.trim().slice(firstSentence(text).length).trim();
   return rest;
@@ -640,7 +633,7 @@ function ExecutiveActions({ items, locale, onViewEvidence }: { items: ExecutiveA
   };
   return (
     <div className="lm-actions mt-5">
-      {/* KLEINER (Luka, 06.09.2026). Als 34-px-Zeile stand die Ueberschrift so gross da
+      {/* KLEINER (the reviewer, 06.09.2026). Als 34-px-Zeile stand die Ueberschrift so gross da
           wie die Aussagen im Hero und in der Verlust-Sektion, dabei fuehrt sie nur eine
           Liste an. Sie ordnet, sie behauptet nicht. */}
       <h2 className="m-0 text-[clamp(19px,2vw,24px)] font-black leading-[1.05] tracking-[-.028em]">{labels.title}</h2>
@@ -649,8 +642,8 @@ function ExecutiveActions({ items, locale, onViewEvidence }: { items: ExecutiveA
       <div>
         {(() => {
         const zeile = (action: ExecutiveAction, index: number, trennlinie: boolean) => {
-          // KURZ, DANN AUFKLAPPEN (Luka, 06.09.2026). Der Befund stand hier in voller Länge,
-          // teils über zwei Sätze — fünfmal untereinander liest das niemand. Links steht jetzt
+          // KURZ, DANN AUFKLAPPEN (the reviewer, 06.09.2026). Der Befund stand hier in voller Länge,
+          // teils über zwei Sätze - fünfmal untereinander liest das niemand. Links steht jetzt
           // ein Satz; der gemessene Beleg und der Rest der Anweisung liegen im Ausklapper,
           // zusammen mit dem Sprung in den Abschnitt, der es zeigt.
           const beleg = action.evidence ?? "";
@@ -670,8 +663,8 @@ function ExecutiveActions({ items, locale, onViewEvidence }: { items: ExecutiveA
                 <a href={`#report-${evidenceTarget(action)}`} onClick={() => onViewEvidence(evidenceTarget(action))} className="mt-1.5 block w-fit text-[12px] font-semibold text-navy underline decoration-navy/25 underline-offset-4">{labels.show}</a>
               </details>
             </div>
-            {/* DER PFEIL IST DIE AUSSAGE (Luka, 06.09.2026: die Tabelle war zu langweilig).
-                Vorher stand hier ein Haken, und ein Haken heisst "erledigt" — dabei ist
+            {/* DER PFEIL IST DIE AUSSAGE (the reviewer, 06.09.2026: die Tabelle war zu langweilig).
+                Vorher stand hier ein Haken, und ein Haken heisst "erledigt" - dabei ist
                 das eine offene Aufgabe. Der Pfeil sagt, was der Befund links wird, wenn
                 man rechts etwas tut, und macht aus zwei Textspalten eine Bewegung. Auf
                 dem Telefon zeigt er nach unten, weil dort untereinander gelesen wird. */}
@@ -688,9 +681,9 @@ function ExecutiveActions({ items, locale, onViewEvidence }: { items: ExecutiveA
           </article>
           );
         };
-        // ZWEI OFFEN, DER REST AUF WUNSCH (Luka, 06.09.2026). Fünf Befunde untereinander
+        // ZWEI OFFEN, DER REST AUF WUNSCH (the reviewer, 06.09.2026). Fünf Befunde untereinander
         // liest niemand, der noch entscheidet, ob er überhaupt antwortet. Die zwei
-        // stärksten stehen da, die anderen sind einen Klick entfernt — verborgen wird
+        // stärksten stehen da, die anderen sind einen Klick entfernt - verborgen wird
         // nichts, nur gestapelt.
         const gezeigt = items.slice(0, 5);
         const rest = gezeigt.slice(2);
@@ -699,7 +692,7 @@ function ExecutiveActions({ items, locale, onViewEvidence }: { items: ExecutiveA
             {gezeigt.slice(0, 2).map((action, index) => zeile(action, index, index < 1 || rest.length > 0))}
             {rest.length ? (
               <details className="lm-more group border-t border-black/10">
-                {/* GROESSER (Luka, 06.09.2026). Als 12-px-Zeile las sich der Aufklapper wie
+                {/* GROESSER (the reviewer, 06.09.2026). Als 12-px-Zeile las sich der Aufklapper wie
                     eine Fussnote, und drei weitere Befunde sind keine Fussnote. */}
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-navy-soft/50 px-3.5 py-4 text-[15px] font-black tracking-[-.01em] text-navy transition hover:bg-navy-soft sm:px-5 sm:py-[18px] sm:text-[17px] [&::-webkit-details-marker]:hidden">
                   {labels.more(rest.length)}
@@ -722,9 +715,9 @@ function ExecutiveActions({ items, locale, onViewEvidence }: { items: ExecutiveA
 /** The build plan, package by package, without a price: what would be built
  *  in which week, so the owner sees the vision before the call. The price is
  *  settled on the call (proposal-blueprint.md). */
-/** NICHT MEHR IM KALTREPORT, ABSICHTLICH AUFGEHOBEN (Luka, 06.09.2026: „die Roadmap
+/** NICHT MEHR IM KALTREPORT, ABSICHTLICH AUFGEHOBEN (the reviewer, 06.09.2026: „die Roadmap
  *  speichern wir uns für später auf"). Der Wochenplan mit Paketreitern gehört ins Angebot
- *  nach dem Gespräch, wo jemand danebensitzt und ihn erklärt — im Kaltreport steht jetzt
+ *  nach dem Gespräch, wo jemand danebensitzt und ihn erklärt - im Kaltreport steht jetzt
  *  `SolutionSection`. Diese Funktion bleibt stehen, damit die Angebotsseite sie übernehmen
  *  kann, statt sie aus der Historie zu holen. */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- aufgehoben fuer die Angebotsseite, siehe Kommentar oben
@@ -739,8 +732,8 @@ function RoadmapSection({ data, locale }: { data: ProposalData; locale: Locale }
         <h2 className="mt-2 text-[clamp(26px,3vw,36px)] font-black leading-[1.05] tracking-[-.03em]">{locale === "de" ? "Was wir für Sie bauen würden" : "What we would build for you"}</h2>
         <PackageProvider names={plan.packages.map((p) => p.name)} initial={initial}>
           <PackageTabs plan={plan} locale={locale} />
-          {/* DER BALKENPLAN BLEIBT (Luka, 06.09.2026, nach einem Zwischenschritt als Liste):
-              die Wochen sind das, was diese Seite vom Angebot unterscheidet — man sieht, dass
+          {/* DER BALKENPLAN BLEIBT (the reviewer, 06.09.2026, nach einem Zwischenschritt als Liste):
+              die Wochen sind das, was diese Seite vom Angebot unterscheidet - man sieht, dass
               in Woche eins etwas passiert. Nur die Zeilen, die im gewählten Paket NICHT drin
               sind, fallen weg: ausgegraut bewarben sie ausgerechnet das, was der Empfänger
               nicht bekommt. */}
@@ -774,7 +767,7 @@ function PackageTabs({ plan, locale }: { plan: NonNullable<ProposalData["gantt"]
  *  comparable winner has that the client lacks. No paragraphs. */
 function OrganicSection({ organic, locale }: { organic: NonNullable<NonNullable<ProposalData["search"]>["organic"]>; locale: Locale }) {
   const de = locale === "de";
-  const fmt = (n: number | null | undefined) => (n == null ? "–" : n.toLocaleString(de ? "de-DE" : "en-GB"));
+  const fmt = (n: number | null | undefined) => (n == null ? "-" : n.toLocaleString(de ? "de-DE" : "en-GB"));
   const rows = [
     { name: de ? "Sie" : "You", pageOne: organic.pageOne, mine: true, farLarger: false },
     ...(organic.winners ?? []).map((w) => ({ name: w.name, pageOne: w.pageOne ?? 0, mine: false, farLarger: w.farLarger })),
@@ -783,7 +776,7 @@ function OrganicSection({ organic, locale }: { organic: NonNullable<NonNullable<
   const demand = organic.demand;
   const position = organic.serp?.clientPosition ?? null;
   // One sentence, measured against demand for the town term: that is what
-  // is on the table, not how other local sites do (Luka, 05.09.2026).
+  // is on the table, not how other local sites do (the reviewer, 05.09.2026).
   // A bare trade word is a country figure, never a town one. Saying "searches
   // a month" over the national number told a Cirencester owner his town
   // searched 33,100 times a month (07.09.2026), so the scope is now named.
@@ -840,66 +833,26 @@ function OrganicSection({ organic, locale }: { organic: NonNullable<NonNullable<
 }
 
 function CloseSection({ data, locale, onPoster }: { data: ProposalData; locale: Locale; onPoster: () => void }) {
-  const t = copy[locale];
-  // DIESELBE ROLLE FUER BEIDE, keine Arbeitsteilung (Luka, 06.09.2026). Der erste Entwurf
-  // gab jedem eine eigene Zustaendigkeit, und wer das liest, fragt sich als Erstes, an wen
-  // er denn nun geraet. "Co-founder" bei beiden sagt das Gegenteil: es sind genau diese
-  // zwei, und es ist egal, wer abnimmt.
-  const rollen = (r: string) => ({ "Luka Knieling": r, "Varun Razdan": r });
-  // Der Titel steht jetzt im Sektionskopf (KAPITEL.termin), hier bleiben nur die Rollen.
-  const closeCopy: { roles: Record<string, string> } = locale === "de"
-    ? { roles: rollen("Mitgründer von Pocket CEO") }
-    : { roles: rollen("Co-founder at Pocket CEO") };
-  // OHNE UNTERZEILE (Luka, 06.09.2026). Sie zaehlte auf, was im Gespraech passiert --
-  // aber wer hier ankommt, hat den ganzen Bericht hinter sich und weiss das. Die
-  // Ueberschrift sagt, was er danach hat, und darunter steht der Kalender; alles
-  // dazwischen schiebt nur den Termin nach unten.
   return (
-    <section id="book" className="lm-close relative overflow-hidden border-t-[7px] border-[#6f91ef] bg-navy-deep px-5 py-8 text-white sm:px-8 sm:py-10">
+    <section id="reply" className="lm-close relative overflow-hidden border-t-[7px] border-[#6f91ef] bg-navy-deep px-5 py-8 text-white sm:px-8 sm:py-10">
       <div className="relative mx-auto max-w-[1160px]">
-        <div className="mb-5 max-w-[720px] sm:mb-6">
-          {/* KEINE LOGO-PAARUNG MEHR (Luka, 06.09.2026). Dieselbe Zeile steht oben im
-              Kopf und begleitet den Leser die ganze Seite; ein zweites Mal ueber dem
-              Abschluss sagt sie nichts Neues und schiebt nur den Termin nach unten. */}
+        <div className="max-w-[760px]">
           <SektionsKopf kapitel={KAPITEL.termin} locale={locale} hell />
-        </div>
-        <div className="mx-auto grid max-w-[760px] gap-5">
-          {/* DIE ZUSAMMENFASSUNG STEHT JETZT HIER (Luka, 06.09.2026: „die Section ist etwas
-              verloren"). Zwischen zwei grossen Abschnitten unterbrach sie ohne Grund; im
-              Abschluss ist sie die zweite Handlung neben dem Termin — das Blatt, das er
-              seinem Partner zeigt, bevor er bucht. */}
+          <p className="mb-0 mt-5 max-w-[52ch] text-[17px] leading-[1.55] text-white/80">
+            {locale === "de"
+              ? "Antworten Sie hier auf Upwork. Ich übertrage die Befunde in den ersten konkreten Schritt für Ihr Projekt."
+              : "Reply here on Upwork. I'll turn these findings into the first practical step for your project."}
+          </p>
           {data.onePager?.url ? (
-            <button type="button" onClick={onPoster} className="flex w-full items-center gap-4 rounded-2xl border border-white/25 bg-white/10 p-3 text-left backdrop-blur-sm transition-colors hover:bg-white/15">
-              <img src={`/_next/image?url=${encodeURIComponent(data.onePager.url)}&w=256&q=75`} alt="" aria-hidden loading="lazy" decoding="async" className="h-[62px] w-[84px] shrink-0 rounded-lg bg-white object-cover object-top" />
-              <span className="min-w-0 flex-1">
-                <span className="lm-blockmarke block !text-[#aab8e8]">{locale === "de" ? "Zum Weitergeben" : "To pass on"}</span>
-                <span className="mt-1 block text-[17px] font-black leading-[1.15] tracking-[-.02em] text-white">{locale === "de" ? "Ihr ganzer Report auf einer Seite" : "Your full report in one page"}</span>
-              </span>
-              <span className="shrink-0 rounded-full bg-white px-4 py-2 text-[12.5px] font-black text-navy-deep">{locale === "de" ? "Ansehen" : "Open"}</span>
+            <button type="button" onClick={onPoster} className="mt-6 inline-flex min-h-11 items-center rounded-xl border border-white/25 bg-white/10 px-5 text-[13px] font-black text-white backdrop-blur-sm transition-colors hover:bg-white/15">
+              {locale === "de" ? "Einseitige Zusammenfassung öffnen" : "Open the one-page summary"}
             </button>
           ) : null}
-          <div className="overflow-hidden rounded-2xl border border-white/25 bg-[#000a30]/32">
-            <div className="grid gap-4 px-4 py-4 sm:grid-cols-2 sm:px-5">
-              {(data.team ?? []).slice(0, 2).map((person) => (
-                <div key={person.name} className="flex items-center gap-3">
-                  {person.photo ? <img src={person.photo} alt={person.name} className="size-12 shrink-0 rounded-full border-2 border-[#00185e] object-cover" /> : <span className="grid size-12 shrink-0 place-items-center rounded-full border-2 border-[#00185e] bg-white text-[12px] font-black text-navy-deep">{person.name.slice(0, 1)}</span>}
-                  <p className="m-0 min-w-0 text-[13px] leading-[1.35]"><strong className="block text-[14px] text-white">{person.name}</strong>{closeCopy.roles[person.name] ? <span className="text-white/80">{closeCopy.roles[person.name]}</span> : null}</p>
-                </div>
-              ))}
-              {/* KEINE TEAM-NOTIZ (Luka, 06.09.2026: "leave out that text"). Der Satz aus der
-                  Zeile stand ueber den beiden Gesichtern und erklaerte, dass wir zu zweit sind —
-                  das sieht man an den beiden Gesichtern. */}
-            </div>
-
-          </div>
-
-          <aside className="overflow-hidden rounded-2xl border border-white/70 bg-white text-ink"><div className="border-b border-slate-200 px-5 py-4"><span className="lm-datenlabel rounded-full bg-emerald-50 px-2 py-1 !text-emerald-800">30 minutes · free</span><div className="mt-2 flex items-center justify-between"><h3 className="m-0 text-xl font-black">{t.book}.</h3><CalendarCheck2 size={20} className="text-navy" /></div></div>{data.close.bookingUrl ? <SpaeterRahmen src={data.close.bookingUrl} title={t.book} className="h-[820px] w-full lg:h-[790px]" /> :<a href={data.close.ctaUrl} className="m-5 inline-flex min-h-12 items-center justify-center rounded-xl bg-navy px-5 font-black text-white no-underline">{data.close.ctaLabel}</a>}<div className="flex items-center justify-between border-t border-slate-200 px-5 py-3"><a href={data.close.bookingUrl ?? data.close.ctaUrl} target="_blank" rel="noreferrer" className="text-[10px] font-black text-navy">Open calendar in a new tab ↗</a><small className="text-[9px] text-pewter">Directly with Luka Knieling</small></div></aside>
         </div>
       </div>
     </section>
   );
 }
-
 // Lukas eigene Profile. Sie stehen hier und nicht in den Berichtsdaten: sie
 // gehoeren zu ihm, nicht zu einem Kunden, und aendern sich pro Bericht nie.
 // Vier von Hand gezogene Raender. Sie sind bewusst nicht identisch: ein
@@ -910,17 +863,17 @@ const SKIZZEN_RAND = [
   "M10 6 C85 10, 205 4, 290 11 C293 72, 296 138, 292 190 C205 187, 88 192, 9 189 C6 128, 7 66, 10 6 Z",
   "M6 9 C95 5, 190 11, 294 7 C291 68, 295 142, 290 193 C195 189, 100 195, 8 190 C11 132, 3 70, 6 9 Z",
 ];
-const UPWORK_PROFIL = "https://www.upwork.com/freelancers/~01a748c991a3b91762";
-const YOUTUBE_KANAL = "https://www.youtube.com/@Luka.k-ai";
+const UPWORK_PROFIL = "#reply";
+const YOUTUBE_KANAL = "#reply";
 
 export function LeadMagnet({ data }: { data: ProposalData }) {
   const locale: Locale = data.language ?? data.findings.gbp?.locale ?? "en";
   const t = copy[locale];
   const [open, setOpen] = useState<SectionKey | null>(null);
-  /* DIE SEITE DARF NICHT WEGSPRINGEN (Luka, 06.09.2026: „die Orientierung muss immer
+  /* DIE SEITE DARF NICHT WEGSPRINGEN (the reviewer, 06.09.2026: „die Orientierung muss immer
      gegeben sein für den Lead"). Nur eine Säule ist offen: wer die zweite aufklappt,
      schliesst damit die erste, und liegt die weiter oben, faellt alles ueber dem
-     Leser zusammen — der Browser haelt die Scrollposition, also rutscht der Inhalt
+     Leser zusammen - der Browser haelt die Scrollposition, also rutscht der Inhalt
      unter ihm weg. Statt die Position zu korrigieren, holen wir die neu geoeffnete
      Saeule an den Kopf: dann steht immer das oben, worauf gerade geklickt wurde.
      Nur beim Wechsel, nicht beim ersten Oeffnen und nicht beim Schliessen. */
@@ -999,12 +952,12 @@ export function LeadMagnet({ data }: { data: ProposalData }) {
   const fallbackActions: ExecutiveAction[] = locale === "de" ? [
     { art: "profile", title: missingMap ? "Einen Hauptservice überall gleich benennen" : "Hauptservice monatlich abgleichen", evidence: missingMap ? `An ${missingMap} von ${ranks.length || 25} geprüften Orten sehen Kunden das Profil nicht in den lokalen Google-Ergebnissen.` : "Kunden sehen das Profil im gesamten geprüften Gebiet.", change: `Im Profil und auf der passenden Website-Seite dieselbe Bezeichnung für ${mapTerm || "den Hauptservice"} verwenden.`, benefit: "Google kann den Betrieb der richtigen Suche zuordnen, und Kunden erkennen sofort, dass die Leistung zu ihrem Problem passt.", what: "Hauptservice in Profil und Website abgleichen.", effort: "30 Minuten · Sie + Webperson" },
     { art: "profile", title: profileAction, evidence: currentProfileEvidence || (currentPhotoCount != null ? `Im geprüften Profil sind ${currentPhotoCount} öffentliche Fotos sichtbar.` : "Die öffentlichen Profilangaben sind vollständig, aber neue Fotos halten den Eindruck aktuell."), change: firstProfileGap ? profileAction : "Ein echtes, aktuelles Foto der Arbeit oder des Teams im Google-Profil hochladen.", benefit: firstProfileGap ? "Kunden verstehen schneller, ob der Betrieb ihr Anliegen löst und wie sie Kontakt aufnehmen." : "Ein aktuelles Foto zeigt, dass der Betrieb aktiv ist, und macht den ersten Anruf weniger riskant.", what: profileAction, effort: firstProfileGap ? "45 Minuten · wir nach Freigabe" : "10 Minuten · Sie" },
-    { art: "form", title: websiteAction, evidence: websiteEvidence, change: websiteAction, benefit: "Kunden, die gerade nicht anrufen können, können ihr Anliegen trotzdem senden. So gehen weniger Anfragen verloren.", what: websiteAction, effort: "1–2 Stunden · wir" },
+    { art: "form", title: websiteAction, evidence: websiteEvidence, change: websiteAction, benefit: "Kunden, die gerade nicht anrufen können, können ihr Anliegen trotzdem senden. So gehen weniger Anfragen verloren.", what: websiteAction, effort: "1-2 Stunden · wir" },
     { art: "reviews", title: "Zehn Kunden den Bewertungslink senden", evidence: currentReviewEvidence || "Auf dem geprüften Profil sind noch keine aktuellen Kundenerfahrungen sichtbar.", change: "Zehn zufriedenen Kunden heute den direkten Google-Link senden und danach jede neue Bewertung beantworten.", benefit: "Aktuelle Erfahrungen nehmen neuen Kunden Unsicherheit und erhöhen die Chance, dass sie anrufen.", what: "Bewertungslink versenden.", effort: "30 Minuten · Sie" },
   ] : [
     { art: "profile", title: missingMap ? "Use one main service name everywhere" : "Check the main service monthly", evidence: missingMap ? `At ${missingMap} of ${ranks.length || 25} checked locations, customers do not see the profile in Google's local results.` : "Customers can see the profile across the entire checked area.", change: `Use the same wording for ${mapTerm || "the main service"} in the profile and matching website page.`, benefit: "Google can match the business to the right search, and customers can immediately see that the service fits their problem.", what: "Match the main service across Google and the website.", effort: "30 minutes · you + web person" },
     { art: "profile", title: profileAction, evidence: currentProfileEvidence || (currentPhotoCount != null ? `${currentPhotoCount} public photos are visible on the checked profile.` : "The public profile details are complete, but recent photos keep it current."), change: firstProfileGap ? profileAction : "Upload one genuine, recent photo of the work or team to the Google profile.", benefit: firstProfileGap ? "Customers understand sooner whether the business can solve their problem and how to get help." : "A recent photo proves the business is active and makes the first call feel less risky.", what: profileAction, effort: firstProfileGap ? "45 minutes · us after approval" : "10 minutes · you" },
-    { art: "form", title: websiteAction, evidence: websiteEvidence, change: websiteAction, benefit: "Customers who cannot call immediately can still ask for help, so fewer enquiries are lost.", what: websiteAction, effort: "1–2 hours · us" },
+    { art: "form", title: websiteAction, evidence: websiteEvidence, change: websiteAction, benefit: "Customers who cannot call immediately can still ask for help, so fewer enquiries are lost.", what: websiteAction, effort: "1-2 hours · us" },
     { art: "reviews", title: "Text the review link to ten customers", evidence: currentReviewEvidence || "The checked profile does not show recent customer experiences.", change: "Send ten happy customers the direct Google link today, then answer every new review.", benefit: "Recent experiences remove doubt for new customers and make them more likely to call.", what: "Send the review link.", effort: "30 minutes · you" },
   ];
   const suppliedActions = (data.actions?.items ?? [])
@@ -1014,7 +967,7 @@ export function LeadMagnet({ data }: { data: ProposalData }) {
       let benefit = action.benefit ?? "";
       const mapWinnerLeads = evidence.match(/^At (\d+) of (\d+) spots(.*), customers see (.+) before you\.$/i);
       const mapClientLeads = evidence.match(/^At (\d+) of (\d+) spots(.*), customers still see another business first, most often (.+)\.$/i);
-      // Kurz und in einem Atemzug lesbar (Luka, 06.09.2026). Vorher stand hier ein
+      // Kurz und in einem Atemzug lesbar (the reviewer, 06.09.2026). Vorher stand hier ein
       // Zweisatz mit „ranks outside the top three at ... checked locations within 5 km";
       // dieselbe Aussage, nur so lang, dass niemand sie zu Ende liest.
       if (mapWinnerLeads) evidence = `Outside the top three at ${mapWinnerLeads[1]} of ${mapWinnerLeads[2]} nearby searches. ${mapWinnerLeads[4]} leads.`;
@@ -1071,7 +1024,7 @@ export function LeadMagnet({ data }: { data: ProposalData }) {
   // Wie tief das Feld ist, nicht nur wer vorn steht. "25 von 25" liest sich als
   // Dominanz, bis daneben steht, dass ueberhaupt nur drei Betriebe je oben
   // auftauchten; umgekehrt ist "keiner von 25" gegen vierzig Wettbewerber eine
-  // ganz andere Nachricht als gegen zwei (Luka, 07.09.2026).
+  // ganz andere Nachricht als gegen zwei (the reviewer, 07.09.2026).
   const mapRivals = data.findings.geoGrid?.rivals ?? null;
   const mapField = mapRivals
     ? (locale === "de"
@@ -1139,43 +1092,39 @@ export function LeadMagnet({ data }: { data: ProposalData }) {
   // The walkthrough is one video for every report (lead-magnet-offer.ts); a
   // row's own Loom still wins. The legacy dev hint remains in the data,
   // but only a real URL renders a stage in either environment.
-  const heroVideo = data.heroVideo?.url
-    ? data.heroVideo
-    : LEAD_MAGNET_OFFER.heroVideoUrl
-      ? { url: LEAD_MAGNET_OFFER.heroVideoUrl, posterUrl: LEAD_MAGNET_OFFER.heroVideoPoster, portrait: LEAD_MAGNET_OFFER.heroVideoPortrait }
-      : process.env.NODE_ENV !== "production" ? { placeholder: true } : undefined;
+  const heroVideo = data.heroVideo?.url ? data.heroVideo : undefined;
   const hasHeroVideo = Boolean(heroVideo?.url);
 
   return (
-    <ReportMotion><main className="lm-report relative min-h-screen overflow-x-clip bg-canvas text-ink">
-      <ProposalStyles /><LeadMagnetStyles /><ReportOpenBeacon slug={data.slug} />
-      {/* DIE KOPFZEILE BLEIBT STEHEN UND TRAEGT DEN TERMIN (Luka, 06.09.2026). Der Bericht
+    <ReportMotion><main data-template="upwork-lead-magnet-v1" className="lm-report relative min-h-screen overflow-x-clip bg-canvas text-ink">
+      <ProposalStyles /><LeadMagnetStyles />
+      {/* DIE KOPFZEILE BLEIBT STEHEN UND TRAEGT DEN TERMIN (the reviewer, 06.09.2026). Der Bericht
           ist lang; wer auf halber Strecke ueberzeugt ist, soll nicht erst ans Ende scrollen
           muessen. Milchglas, damit der Text darunter durchscheint statt abgeschnitten zu wirken. */}
-      <header className="sticky top-0 z-40 bg-canvas/80 px-5 backdrop-blur-md sm:px-8"><nav className="mx-auto flex min-h-[68px] max-w-[1160px] items-center justify-between gap-5 border-b border-black/15"><span className="inline-flex items-center gap-2.5 sm:gap-3"><img src="/pocket-ceo-logo.webp" alt="Pocket CEO" width={240} height={46} className="h-[26px] w-auto" />{data.clientFaviconUrl || data.clientName ? <><span aria-hidden className="text-[15px] font-semibold text-pewter">×</span>{/* Im Kopf dunkler Grund mit weisser Schrift: `bg-navy-soft` faellt hier dunkel aus, und
+      <header className="sticky top-0 z-40 bg-canvas/80 px-5 backdrop-blur-md sm:px-8"><nav className="mx-auto flex min-h-[68px] max-w-[1160px] items-center justify-between gap-5 border-b border-black/15"><span className="inline-flex items-center gap-2.5 sm:gap-3"><strong className="text-[13px] tracking-[-.01em]">Private audit</strong>{data.clientFaviconUrl || data.clientName ? <><span aria-hidden className="text-[15px] font-semibold text-pewter">×</span>{/* Im Kopf dunkler Grund mit weisser Schrift: `bg-navy-soft` faellt hier dunkel aus, und
     der Buchstabe war auf dem Bildschirm kaum zu lesen (nachgesehen 06.09.2026). */}
-<KundenZeichen url={data.clientFaviconUrl} name={data.clientName} klasseBild="size-7 rounded-md object-cover" klasseErsatz="grid size-7 place-items-center rounded-md bg-navy text-[11px] font-black text-white" /><span className="hidden max-w-[220px] truncate text-[13px] font-bold text-ink sm:inline">{data.clientName}</span></> : null}</span><KapitelLeiste aktiv={aktivesKapitel} locale={locale} /><span className="flex items-center gap-3 sm:gap-4">{data.onePager?.url ? (<button type="button" onClick={() => setPosterOpen(true)} className="hidden min-h-9 items-center gap-1.5 rounded-full border border-black/15 px-3.5 text-[12.5px] font-bold text-graphite hover:border-navy/35 hover:bg-navy-soft/50 hover:text-navy sm:inline-flex"><svg viewBox="0 0 16 16" fill="none" aria-hidden className="size-3.5"><rect x="2.5" y="2" width="11" height="12" rx="1.6" stroke="currentColor" strokeWidth="1.6" /><path d="M5.5 6h5M5.5 9h5M5.5 12h3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>{locale === "de" ? "Report auf einer Seite" : "Report in one page"}</button>) : null}<a href="#book" className="lm-cta inline-flex min-h-9 items-center gap-1.5 rounded-full bg-navy px-4 text-[12.5px] font-black text-white no-underline sm:px-5 sm:text-[13px]">{locale === "de" ? "Fahrplan holen" : "Get your roadmap"}<svg viewBox="0 0 16 16" fill="none" aria-hidden className="size-3.5"><path d="M3 8h9M8.5 4.5L12 8l-3.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg></a></span></nav></header>
+<KundenZeichen url={data.clientFaviconUrl} name={data.clientName} klasseBild="size-7 rounded-md object-cover" klasseErsatz="grid size-7 place-items-center rounded-md bg-navy text-[11px] font-black text-white" /><span className="hidden max-w-[220px] truncate text-[13px] font-bold text-ink sm:inline">{data.clientName}</span></> : null}</span><KapitelLeiste aktiv={aktivesKapitel} locale={locale} /><span className="flex items-center gap-3 sm:gap-4">{data.onePager?.url ? (<button type="button" onClick={() => setPosterOpen(true)} className="hidden min-h-9 items-center gap-1.5 rounded-full border border-black/15 px-3.5 text-[12.5px] font-bold text-graphite hover:border-navy/35 hover:bg-navy-soft/50 hover:text-navy sm:inline-flex"><svg viewBox="0 0 16 16" fill="none" aria-hidden className="size-3.5"><rect x="2.5" y="2" width="11" height="12" rx="1.6" stroke="currentColor" strokeWidth="1.6" /><path d="M5.5 6h5M5.5 9h5M5.5 12h3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>{locale === "de" ? "Report auf einer Seite" : "Report in one page"}</button>) : null}<a href="#kapitel-befund" className="lm-cta inline-flex min-h-9 items-center gap-1.5 rounded-full bg-navy px-4 text-[12.5px] font-black text-white no-underline sm:px-5 sm:text-[13px]">{locale === "de" ? "Befunde ansehen" : "See the findings"}<svg viewBox="0 0 16 16" fill="none" aria-hidden className="size-3.5"><path d="M3 8h9M8.5 4.5L12 8l-3.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg></a></span></nav></header>
 
-      <section className="lm-hero relative px-5 py-8 sm:px-8 sm:py-11"><div aria-hidden className="pointer-events-none absolute -right-16 top-8 text-[clamp(80px,13vw,190px)] font-black tracking-[-.08em] text-navy/[.035] [writing-mode:vertical-rl]">PRIVATE</div><div className={`relative mx-auto grid max-w-[1160px] items-center gap-7 ${hasHeroVideo ? (heroVideo?.portrait ? "lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-x-10 lg:gap-y-7" : "lg:grid-cols-[minmax(0,1fr)_530px] lg:gap-x-10 lg:gap-y-7") : ""}`}><div className={hasHeroVideo ? "" : "max-w-[760px]"}><span className="inline-flex max-w-full items-center gap-3 rounded-full border border-black/10 bg-white/85 py-2 pl-2 pr-5 shadow-xs"><KundenZeichen url={data.clientFaviconUrl} name={data.clientName} klasseBild="size-11 rounded-full object-cover" klasseErsatz="grid size-11 place-items-center rounded-full bg-navy-soft text-[15px] text-navy" /><span className="min-w-0"><span className="lm-datenlabel block">{t.preparedFor}</span><span className="block truncate text-[17px] font-black leading-tight tracking-[-.02em] sm:text-[19px]">{data.clientName}</span></span></span><h1 className="mt-5 max-w-[10ch] text-[clamp(42px,4.8vw,66px)] font-black leading-[.98] tracking-[-.055em]">{t.title}</h1>{heroHook ? <p data-onepager="hook" className="mb-0 mt-4 max-w-[600px] text-[17px] font-semibold leading-[1.35] text-slate-800 sm:text-[19px]">{heroHook}</p> : null}{/* DER TERMIN STEHT SCHON HIER (Luka, 06.09.2026). Wer nach dem ersten Satz ueberzeugt
+      <section className="lm-hero relative px-5 py-8 sm:px-8 sm:py-11"><div aria-hidden className="pointer-events-none absolute -right-16 top-8 text-[clamp(80px,13vw,190px)] font-black tracking-[-.08em] text-navy/[.035] [writing-mode:vertical-rl]">PRIVATE</div><div className={`relative mx-auto grid max-w-[1160px] items-center gap-7 ${hasHeroVideo ? (heroVideo?.portrait ? "lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-x-10 lg:gap-y-7" : "lg:grid-cols-[minmax(0,1fr)_530px] lg:gap-x-10 lg:gap-y-7") : ""}`}><div className={hasHeroVideo ? "" : "max-w-[760px]"}><span className="inline-flex max-w-full items-center gap-3 rounded-full border border-black/10 bg-white/85 py-2 pl-2 pr-5 shadow-xs"><KundenZeichen url={data.clientFaviconUrl} name={data.clientName} klasseBild="size-11 rounded-full object-cover" klasseErsatz="grid size-11 place-items-center rounded-full bg-navy-soft text-[15px] text-navy" /><span className="min-w-0"><span className="lm-datenlabel block">{t.preparedFor}</span><span className="block truncate text-[17px] font-black leading-tight tracking-[-.02em] sm:text-[19px]">{data.clientName}</span></span></span><h1 className="mt-5 max-w-[10ch] text-[clamp(42px,4.8vw,66px)] font-black leading-[.98] tracking-[-.055em]">{t.title}</h1>{heroHook ? <p data-onepager="hook" className="mb-0 mt-4 max-w-[600px] text-[17px] font-semibold leading-[1.35] text-slate-800 sm:text-[19px]">{heroHook}</p> : null}{/* DER TERMIN STEHT SCHON HIER (the reviewer, 06.09.2026). Wer nach dem ersten Satz ueberzeugt
                     ist, soll nicht acht Bildschirme weit scrollen muessen, um zu buchen. */}
-                <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-2"><a href="#book" className="lm-cta inline-flex min-h-12 items-center gap-2 rounded-xl bg-navy px-6 text-[15px] font-black text-white no-underline">{locale === "de" ? "Fahrplan holen, kostenlos" : "Get your roadmap, free"}<svg viewBox="0 0 16 16" fill="none" aria-hidden className="size-4"><path d="M3 8h9M8.5 4.5L12 8l-3.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg></a></div></div>{hasHeroVideo ? <HeroVisual data={{ ...data, heroVideo }} /> : null}
-        {/* WAS WIR ANGESEHEN HABEN (Luka, 06.09.2026). Die drei Kacheln standen ohne
-            Ueberschrift da und mussten selbst erklaeren, was sie sind — die Zeile darueber
+                <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-2"><a href="#kapitel-befund" className="lm-cta inline-flex min-h-12 items-center gap-2 rounded-xl bg-navy px-6 text-[15px] font-black text-white no-underline">{locale === "de" ? "Befunde ansehen" : "See the findings"}<svg viewBox="0 0 16 16" fill="none" aria-hidden className="size-4"><path d="M3 8h9M8.5 4.5L12 8l-3.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg></a></div></div>{hasHeroVideo ? <HeroVisual data={{ ...data, heroVideo }} /> : null}
+        {/* WAS WIR ANGESEHEN HABEN (the reviewer, 06.09.2026). Die drei Kacheln standen ohne
+            Ueberschrift da und mussten selbst erklaeren, was sie sind - die Zeile darueber
             macht aus drei Begriffen eine Aussage: das ist der Umfang der Pruefung. */}
         <div className={hasHeroVideo ? "lg:col-span-2" : ""}>
         {/* Der Beleg, wer das geschrieben hat. Der Rand ist gezeichnet und nicht
           gerechnet: vier leicht unterschiedliche Pfade, damit die Karten nicht
           gestempelt wirken. Die beiden Marken sind die einzigen fremden Farben
           im Dokument, damit der Leser sie als Beleg liest und nicht als
-          Fussnote (Luka, 07.09.2026). */}
+          Fussnote (the reviewer, 07.09.2026). */}
         {(data.reviews?.items?.length ?? 0) > 0 ? (
         <section aria-label={locale === "de" ? "Wer diesen Bericht geschrieben hat" : "Who wrote this report"} className="lm-beleg mb-5">
           <div>
             <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-3">
               <p className="m-0 max-w-[52ch] text-[12.5px] leading-[1.45] text-graphite">
                 {locale === "de"
-                  ? "Diesen Bericht hat Luka Knieling gebaut. Was Kunden über seine Arbeit sagen, steht öffentlich nachlesbar."
-                  : "Luka Knieling put this report together. What his clients say about the work is public and checkable."}
+                  ? `${data.preparedBy || "Der Freelancer"} hat diesen Bericht erstellt. Die Bewertungen auf dem Upwork-Profil sind öffentlich prüfbar.`
+                  : `${data.preparedBy || "The freelancer"} put this report together. The reviews on the Upwork profile are public and checkable.`}
               </p>
               <span className="flex items-center gap-2.5">
                 <a href={data.reviews?.profileUrl ?? UPWORK_PROFIL} target="_blank" rel="noreferrer" className="lm-marke inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white px-3 py-1.5 no-underline">
@@ -1231,7 +1180,7 @@ export function LeadMagnet({ data }: { data: ProposalData }) {
         ) : null}
         <p className="lm-blockmarke m-0 mb-2">{t.checkedTitle}</p>
         <div className="grid overflow-hidden rounded-[16px] border border-black/10 bg-white/75 shadow-[0_8px_24px_rgba(28,23,18,.04)] sm:grid-cols-3">
-          {/* EIGENE ZEICHEN STATT SYMBOLE VON DER STANGE (Luka, 06.09.2026: „coolere Icons
+          {/* EIGENE ZEICHEN STATT SYMBOLE VON DER STANGE (the reviewer, 06.09.2026: „coolere Icons
               fuer den mehr Custom-Look"). Jedes zeigt die Sache selbst -- eine Seite mit
               Anruf-Knopf, ein Profilkaertchen mit Bewertung, ein Kartenausschnitt mit
               Stecknadel. */}
@@ -1252,9 +1201,9 @@ export function LeadMagnet({ data }: { data: ProposalData }) {
       <section className="lm-analysis border-y border-black/10 bg-[#f4f1ea] px-5 py-10 sm:px-8 sm:py-12"><div className="mx-auto max-w-[1160px]"><SektionsKopf kapitel={KAPITEL.befund} locale={locale} className="mb-8 sm:mb-10" /><section aria-label={t.summary} className="mb-10 sm:mb-14"><ExecutiveActions items={executiveActions} locale={locale} onViewEvidence={setOpen} /></section>
 
       <div className="lm-scorecard overflow-hidden rounded-[24px] border border-[#d7d4cd] bg-white shadow-[0_18px_52px_rgba(28,23,18,.08)]"><div className="flex items-center justify-between bg-navy-deep px-5 py-5 text-white sm:px-7"><h2 className="m-0 text-[20px] font-black leading-none tracking-[-.025em] sm:text-[23px]">{t.stand}</h2><strong className="tnum text-[46px] font-black leading-none tracking-[-.06em] text-[#f1cf67] sm:text-[58px]"><CountUp value={scores.overall} id="overall" /><small className="ml-1 text-[15px] text-[#aab8e8]">/100</small></strong></div>
-        <Accordion sectionKey="maps" open={open === "maps"} onToggle={() => oeffneSaeule("maps")} kicker={t.mapsKicker} title={t.maps} score={scores.maps} finding={mapsVerdict} locale={locale}><div className="grid gap-6 lg:grid-cols-[minmax(320px,.95fr)_minmax(0,1.05fr)]">{data.findings.geoGrid ? <GeoGrid data={data.findings.geoGrid} showNote={false} /> : null}<div className="grid content-start gap-4"><div className="rounded-2xl border border-hairline bg-white p-5"><p className="m-0 text-[16px] font-bold leading-[1.5]">{mapPosition ?? mapReading}</p>{mapWeakSide ? <p className="mb-0 mt-2 text-[13px] leading-[1.45] text-graphite">{mapWeakSide}</p> : null}{mapField ? <p className="mb-0 mt-2 text-[13px] leading-[1.45] text-graphite">{mapField}</p> : null}</div>{data.findings.geoGrid?.winners?.length ? <div className="rounded-2xl border border-hairline bg-white p-5"><h3 className="text-lg font-black">{t.mapWinners}</h3><ul className="m-0 mt-3 list-none p-0">{[...data.findings.geoGrid.winners.slice(0, 3).map((winner) => ({ label: winner.name, category: winner.category ?? null, points: winner.topThreePoints, reviews: winner.reviews, rating: winner.rating, mine: false })), ...(data.findings.geoGrid.client ? [{ label: t.you, category: data.findings.gbp?.current?.categories?.primary ?? null, points: data.findings.geoGrid.client.topThreePoints, reviews: data.findings.geoGrid.client.reviews, rating: data.findings.geoGrid.client.rating, mine: true }] : [])].sort((a, b) => b.points - a.points).map((row) => <li key={row.label} className={`grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 border-t border-slate-100 py-2 text-[13px] first:border-t-0 ${row.mine ? "font-black text-navy" : "text-slate-800"}`}><span className="min-w-0 truncate">{row.label}</span><span className="tnum whitespace-nowrap text-right text-[12px] text-graphite"><b className={row.mine ? "text-navy" : "text-slate-900"}>{row.points}</b>/{ranks.length || 25}{row.rating != null ? ` · ${Number(row.rating).toFixed(1)}★` : ""}{row.reviews != null ? ` · ${row.reviews}` : ""}</span></li>)}</ul>{data.findings.geoGrid.winners[0].topThreePoints < 10 ? <p className="mb-0 mt-3 text-[12px] leading-[1.4] text-graphite">{t.fragmented(data.findings.geoGrid.winners[0].topThreePoints)}</p> : null}</div> : null}</div></div>{data.search?.organic ? <OrganicSection organic={data.search.organic} locale={locale} /> : null}<OfferStrip pillar="maps" data={data} locale={locale} /></Accordion>
-        <Accordion sectionKey="profile" open={open === "profile"} onToggle={() => oeffneSaeule("profile")} kicker={t.profileKicker} title={t.profile} score={scores.profile} finding={profileFinding} locale={locale}>{data.findings.gbp ? <GbpPanel icons={reportProfileIcons} data={{ ...data.findings.gbp, locale }} requireComplete={data.templateVersion === "lead-magnet-v1"} /> : null}<OfferStrip pillar="profile" data={data} locale={locale} /></Accordion>
-        <Accordion sectionKey="website" open={open === "website"} onToggle={() => oeffneSaeule("website")} kicker={t.websiteKicker} title={t.website} score={scores.website} finding={websiteFinding} locale={locale}><WebsiteDetail data={data} locale={locale} /><OfferStrip pillar="website" data={data} locale={locale} /></Accordion>
+        <Accordion sectionKey="maps" open={open === "maps"} onToggle={() => oeffneSaeule("maps")} kicker={t.mapsKicker} title={t.maps} score={scores.maps} finding={mapsVerdict} locale={locale}><div className="grid gap-6 lg:grid-cols-[minmax(320px,.95fr)_minmax(0,1.05fr)]">{data.findings.geoGrid ? <GeoGrid data={data.findings.geoGrid} showNote={false} /> : null}<div className="grid content-start gap-4"><div className="rounded-2xl border border-hairline bg-white p-5"><p className="m-0 text-[16px] font-bold leading-[1.5]">{mapPosition ?? mapReading}</p>{mapWeakSide ? <p className="mb-0 mt-2 text-[13px] leading-[1.45] text-graphite">{mapWeakSide}</p> : null}{mapField ? <p className="mb-0 mt-2 text-[13px] leading-[1.45] text-graphite">{mapField}</p> : null}</div>{data.findings.geoGrid?.winners?.length ? <div className="rounded-2xl border border-hairline bg-white p-5"><h3 className="text-lg font-black">{t.mapWinners}</h3><ul className="m-0 mt-3 list-none p-0">{[...data.findings.geoGrid.winners.slice(0, 3).map((winner) => ({ label: winner.name, category: winner.category ?? null, points: winner.topThreePoints, reviews: winner.reviews, rating: winner.rating, mine: false })), ...(data.findings.geoGrid.client ? [{ label: t.you, category: data.findings.gbp?.current?.categories?.primary ?? null, points: data.findings.geoGrid.client.topThreePoints, reviews: data.findings.geoGrid.client.reviews, rating: data.findings.geoGrid.client.rating, mine: true }] : [])].sort((a, b) => b.points - a.points).map((row) => <li key={row.label} className={`grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 border-t border-slate-100 py-2 text-[13px] first:border-t-0 ${row.mine ? "font-black text-navy" : "text-slate-800"}`}><span className="min-w-0 truncate">{row.label}</span><span className="tnum whitespace-nowrap text-right text-[12px] text-graphite"><b className={row.mine ? "text-navy" : "text-slate-900"}>{row.points}</b>/{ranks.length || 25}{row.rating != null ? ` · ${Number(row.rating).toFixed(1)}★` : ""}{row.reviews != null ? ` · ${row.reviews}` : ""}</span></li>)}</ul>{data.findings.geoGrid.winners[0].topThreePoints < 10 ? <p className="mb-0 mt-3 text-[12px] leading-[1.45] text-graphite">{t.fragmented(data.findings.geoGrid.winners[0].topThreePoints)}</p> : null}</div> : null}</div></div>{data.search?.organic ? <OrganicSection organic={data.search.organic} locale={locale} /> : null}</Accordion>
+        <Accordion sectionKey="profile" open={open === "profile"} onToggle={() => oeffneSaeule("profile")} kicker={t.profileKicker} title={t.profile} score={scores.profile} finding={profileFinding} locale={locale}>{data.findings.gbp ? <GbpPanel icons={reportProfileIcons} data={{ ...data.findings.gbp, locale }} requireComplete={data.templateVersion === "lead-magnet-v1"} /> : null}</Accordion>
+        <Accordion sectionKey="website" open={open === "website"} onToggle={() => oeffneSaeule("website")} kicker={t.websiteKicker} title={t.website} score={scores.website} finding={websiteFinding} locale={locale}><WebsiteDetail data={data} locale={locale} /></Accordion>
       </div></div></section>
 
       {data.onePager?.url && posterOpen ? (
@@ -1270,7 +1219,7 @@ export function LeadMagnet({ data }: { data: ProposalData }) {
       <CloseSection data={data} locale={locale} onPoster={() => setPosterOpen(true)} />
       {/* Die sechs Fragen, die auf jedem Gespraech kommen, unter dem Kalender:
           wer bucht, liest sie nicht mehr, und wer nicht bucht, hat genau
-          dort seine Einwaende (Luka, 07.09.2026). Die
+          dort seine Einwaende (the reviewer, 07.09.2026). Die
           Antworten liegen laengst in den Daten und wurden nur nie gezeigt. */}
       {(data.faq?.length ?? 0) > 0 ? (
         <section aria-label={locale === "de" ? "Häufige Fragen" : "Common questions"} className="border-t border-black/10 bg-[#f4f1ea] px-5 py-10 sm:px-8 sm:py-12">
@@ -1291,8 +1240,8 @@ export function LeadMagnet({ data }: { data: ProposalData }) {
         </section>
       ) : null}
 
-      <footer className="bg-[#f3efe6] px-5 py-7"><div className="mx-auto flex max-w-[1160px] items-center justify-between gap-4 text-[9px] text-pewter"><span className="inline-flex items-center gap-2"><img src="/pocket-ceo-logo.webp" alt="Pocket CEO" width={240} height={46} className="h-[20px] w-auto opacity-80" /></span><span>{t.footer} · {data.dateLabel}</span></div></footer>
-      {showSticky ? <a href="#book" className="fixed inset-x-3 bottom-3 z-50 flex min-h-12 items-center justify-center rounded-xl bg-navy px-5 text-sm font-black text-white shadow-2xl sm:hidden">{locale === "de" ? "Fahrplan holen ↗" : "Get your roadmap ↗"}</a> : null}
+      <footer className="bg-[#f3efe6] px-5 py-7"><div className="mx-auto flex max-w-[1160px] items-center justify-between gap-4 text-[9px] text-pewter"><strong>Private website audit</strong><span>{t.footer} · {data.dateLabel}</span></div></footer>
+      {showSticky ? <a href="#reply" className="fixed inset-x-3 bottom-3 z-50 flex min-h-12 items-center justify-center rounded-xl bg-navy px-5 text-sm font-black text-white shadow-2xl sm:hidden">{locale === "de" ? "Auf Upwork antworten" : "Reply on Upwork"}</a> : null}
     </main></ReportMotion>
   );
 }

@@ -1,13 +1,13 @@
 ---
 name: lead-magnet
-description: Builds the Pocket CEO local SEO audit for an active Upwork conversation from live website, Google profile, search and map evidence. Creates a local report and never sends or publishes it.
+description: Builds a private local SEO audit for an active Upwork conversation from live website, Google profile, search and map evidence. Creates a local report and never sends or publishes it.
 ---
 
 # Lead magnet
 
-Build the same three-part SEO audit used by Pocket CEO: how the business is
-found in Local Maps, how its Google Business Profile builds trust, and how its
-website turns attention into an enquiry. The output is a private local report
+Build a three-part SEO audit: how the business is found in Local Maps, how its
+Google Business Profile builds trust, and how its website turns attention into
+an enquiry. The output is a private local report
 for an existing Upwork conversation. It contains no price, external contact
 route, calendar or unsupported claim.
 
@@ -38,6 +38,16 @@ The report remains at `jobs/<id>/lead-magnet.html`. Open and review it locally.
 Never publish it, add it to a message or send it from this skill. A public link
 needs a separately approved host and the same pre-contract contact-details gate
 as a pitch page.
+
+The renderer uses the bundled source-derived React template. Read
+`references/template-source.md` before changing its structure. After any
+template edit, rebuild the single-file runtime with:
+
+```bash
+cd .claude/skills/lead-magnet/template
+npm ci
+npm run build
+```
 
 For a public pitch-page preview, never reuse a client report. Generate the
 fictional current-format example instead:

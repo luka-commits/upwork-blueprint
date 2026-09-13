@@ -594,8 +594,8 @@ export interface InvestmentOption {
    * commonest reason a client cancels in month three. */
   monthlyIncludes?: string[];
   /** The way out of the monthly: a one-off fee, set to the same figure as the
-   * build, and they run the whole thing themselves. Pocket CEO's promise is
-   * that you can fire us, so the price of doing that belongs on the page next
+   * build, and they run the whole thing themselves. The client can end the
+   * service, so the price of doing that belongs on the page next
    * to the price of keeping us. */
   handoverFee?: string;
 }
@@ -646,7 +646,7 @@ export interface ProposalData {
   /** Every source this proposal rests on, registered once. Figures point at an
    * id from here; the ledger at the end of the page prints the list.
    *
-   * Why this exists (Luka, 31.08.2026): "bitte die Quellen auch immer dort
+   * Why this exists (the reviewer, 31.08.2026): "bitte die Quellen auch immer dort
    * reinpacken." Until then the proposal marked what was measured and what was
    * not, but never where anything came from. That holds until the first person
    * asks, and the first person asks in the room where the deal is decided. */

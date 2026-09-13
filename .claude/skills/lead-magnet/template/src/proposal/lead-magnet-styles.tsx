@@ -2,7 +2,7 @@
 export function LeadMagnetStyles() {
   return <style>{`
 /* ---------------------------------------------------------- Schriftskala ---
- * VIER ROLLEN, NICHT SIEBEN GROESSEN (Luka, 06.09.2026: „einheitliche Fonts und
+ * VIER ROLLEN, NICHT SIEBEN GROESSEN (the reviewer, 06.09.2026: „einheitliche Fonts und
  * Ueberschriftengroessen festlegen"). Vorher trug jede Sektion ihre eigene
  * clamp-Formel: 76, 58, 48, 44, 36, 30, 26 Pixel, keine zwei gleich und keine
  * aus einer Reihe. Deshalb las sich eine Ueberschrift ueber einer Liste so
@@ -22,7 +22,7 @@ export function LeadMagnetStyles() {
  --lm-aussage:clamp(28px,3.2vw,44px); --lm-aussage-lw:-.042em; --lm-aussage-zh:1.06;
  --lm-sektion:clamp(21px,2.1vw,28px); --lm-sektion-lw:-.032em; --lm-sektion-zh:1.15;
  --lm-block:clamp(18px,1.6vw,22px);   --lm-block-lw:-.025em; --lm-block-zh:1.2;
- /* ARCHIVO, WIE DER REST DER MARKE (Luka, 06.09.2026, Entscheidung an mich
+ /* ARCHIVO, WIE DER REST DER MARKE (the reviewer, 06.09.2026, Entscheidung an mich
     delegiert). Der Bericht lief auf Inter, das Verkaufsdokument und der Vertrag
     auf Archivo: derselbe Interessent sah zwei Schriften auf dem Weg vom
     Kaltkontakt zur Unterschrift. Dazu ist Inter die Schrift, an der man
@@ -34,13 +34,13 @@ export function LeadMagnetStyles() {
 /* ------------------------------------------------ Kapitel und Bloecke ---
  * Jedes Kapitel traegt denselben Kopf (Nummer, Name, Aussage), jeder Block
  * darin dieselbe kleine Marke. Vorher hatte von fuenf Abschnitten genau einer
- * eine Marke, und die Ueberschriften standen sonst nackt da — man sah eine
- * Folge von Aussagen statt einen Bericht mit Kapiteln (Luka, 06.09.2026). */
+ * eine Marke, und die Ueberschriften standen sonst nackt da - man sah eine
+ * Folge von Aussagen statt einen Bericht mit Kapiteln (the reviewer, 06.09.2026). */
 .lm-kopf+*{margin-top:32px}
 
 /* VIER ROLLEN FUER KLEINSCHRIFT, NICHT NEUN VARIANTEN. Gemessen am 06.09.2026
    trugen die Marken im Bericht 9, 9.5, 10 und 10.5 Pixel, die Gewichte 600, 700
-   und 900 und Laufweiten von 0.2 bis 1.4 Pixel — jede Stelle hatte ihre eigenen
+   und 900 und Laufweiten von 0.2 bis 1.4 Pixel - jede Stelle hatte ihre eigenen
    Werte, weil sie einzeln getippt wurden. Vier Rollen reichen, und welche gilt,
    entscheidet die Aufgabe:
      kapitelmarke  Nummer und Kapitelname, einmal je Kapitel
@@ -59,10 +59,10 @@ export function LeadMagnetStyles() {
 .lm-report .lm-h-block{font-size:var(--lm-block);line-height:var(--lm-block-zh);letter-spacing:var(--lm-block-lw)}
 
 /* ------------------------------------ Bewegung in der Verlust-Sektion ---
- * Dieselbe Machart wie unten im Loesungsteil (Luka, 06.09.2026: „genauso wie am
+ * Dieselbe Machart wie unten im Loesungsteil (the reviewer, 06.09.2026: „genauso wie am
  * Ende des Lead Magnets"): nur transform, opacity und stroke-dashoffset, damit
  * der Browser nichts neu berechnen muss. Jede beginnt in ihrem Endzustand, so
- * dass ein stehendes Bild vollstaendig ist — wer Bewegung abgestellt hat, sieht
+ * dass ein stehendes Bild vollstaendig ist - wer Bewegung abgestellt hat, sieht
  * dieselbe Zeichnung, nur still. */
 .lm-losses .laeuft{stroke-dasharray:3 9;animation:lm-l-laeuft 2.4s linear infinite}
 @keyframes lm-l-laeuft{to{stroke-dashoffset:-24}}
@@ -95,7 +95,7 @@ export function LeadMagnetStyles() {
 .lm-hero article strong{font-size:14px;font-weight:600;line-height:1.4}
 .lm-analysis{background:var(--color-surface-2);padding-top:72px;padding-bottom:80px;border-color:var(--color-hairline)}
 .lm-actions{margin-top:0}
-/* Die Ueberschrift fuehrt eine Liste an, sie behauptet nichts (Luka, 06.09.2026:
+/* Die Ueberschrift fuehrt eine Liste an, sie behauptet nichts (the reviewer, 06.09.2026:
    „unproportional gross"). Vorher stand sie mit 42px so gross da wie die Aussagen
    im Hero und in der Verlust-Sektion. */
 .lm-actions h2{font-size:var(--lm-block);line-height:var(--lm-block-zh);letter-spacing:var(--lm-block-lw)}
@@ -217,8 +217,8 @@ export function LeadMagnetStyles() {
 }
 @media(prefers-reduced-motion:reduce){.lm-report *,.lm-report *::before,.lm-report *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
-/* ORANGE IST DER AKZENT, NAVY BLEIBT DIE HANDLUNG (Luka, 06.09.2026).
-   Der Report war durchgehend navy auf Creme — sauber, aber ohne Blick­fang, und die
+/* ORANGE IST DER AKZENT, NAVY BLEIBT DIE HANDLUNG (the reviewer, 06.09.2026).
+   Der Report war durchgehend navy auf Creme - sauber, aber ohne Blick­fang, und die
    Hausfarbe Orange (--color-orange) kam gar nicht vor. Die Regel dahinter, damit es nicht
    bunt wird: Orange markiert, wohin man schauen soll (Ziffern, Kicker, geöffnete Zeile),
    Navy bleibt für alles, was man anklickt. Ein Knopf wird nie orange. */
@@ -261,7 +261,7 @@ export function LeadMagnetStyles() {
   box-shadow:0 1px 0 color-mix(in srgb,var(--lm-accent) 40%,transparent)}
 /* Der Knopf antwortet auf den Druck: 160 ms, ease-out, ein Hauch kleiner. Ohne das fühlt
    sich ein Klick an, als hätte die Seite ihn nicht gehört. */
-/* DER KNOPF IST DAS EINZIGE ORANGE AUF DER SEITE (Luka, 06.09.2026). Der ganze Bericht
+/* DER KNOPF IST DAS EINZIGE ORANGE AUF DER SEITE (the reviewer, 06.09.2026). Der ganze Bericht
    laeuft in Navy und Sand; wenn genau eine Flaeche die Signalfarbe traegt, findet das Auge
    sie ohne Suchen. Wuerde Orange auch anderswo stehen, waere es Dekoration statt Wegweiser.
 
@@ -296,7 +296,7 @@ export function LeadMagnetStyles() {
   .lm-report .lm-cta::after{animation:none;opacity:0}
 }
 
-/* GLAS STATT FLÄCHE (Luka, 06.09.2026: „cooler glasy look wie bei Apple").
+/* GLAS STATT FLÄCHE (the reviewer, 06.09.2026: „cooler glasy look wie bei Apple").
    Drei Schichten machen den Unterschied: ein Verlauf von fast weiss nach blau, eine
    helle Kante innen an der Oberseite, und ein weicher Schatten darunter. Der Verlauf
    allein sieht flach aus, die Kante allein sieht aufgeklebt aus. */

@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -73,23 +74,27 @@ class LeadMagnetRendererTest(unittest.TestCase):
     def test_report_has_exactly_three_sections_and_no_outbound_route(self):
         page = renderer.render('Example & Sons', self.cro, self.search, '2026-09-13', site=self.site)
         self.assertEqual(page.count('data-audit-section="'), 3)
+        self.assertIn('name="lead-magnet-template" content="upwork-lead-magnet-v1"', page)
         self.assertIn('Get found', page)
         self.assertIn('Build trust', page)
         self.assertIn('Win enquiries', page)
         self.assertIn('Example &amp; Sons', page)
-        self.assertIn('Pages checked', page)
-        self.assertIn('/contact', page)
-        self.assertIn('0.5 for attention', page)
-        self.assertIn('equal average of measured sections only', page)
-        self.assertIn('Reply here on Upwork.', page)
+        self.assertIn('Almost everyone loses money in the same three places', page)
+        self.assertIn('Three steps, in this order', page)
+        self.assertIn('Reply here on Upwork', page)
+        self.assertIn("connect-src 'none'", page)
         self.assertNotIn('javascript:bad', page)
         self.assertNotIn('mailto:', page)
         self.assertNotIn('calendly', page.casefold())
+        self.assertNotIn('Pocket CEO', page)
+        self.assertIsNone(re.search(r'(?:src|href|action)=["\']https?://', page, re.I))
 
     def test_missing_sources_stay_unmeasured(self):
-        page = renderer.render('Example', {}, {}, '2026-09-13')
-        self.assertGreaterEqual(page.count('Not measured'), 3)
-        self.assertIn('needs more evidence', page)
+        data = renderer.proposal_data('Example', {}, {}, '2026-09-13')
+        self.assertIsNone(data['findings']['geoGrid']['ranks'])
+        self.assertIsNone(data['findings']['gbp'])
+        self.assertIsNone(data['cro'])
+        self.assertEqual(data['heroLead'], 'The audit needs more evidence before it can draw a conclusion.')
 
     def test_partial_map_grid_is_not_scored_or_padded(self):
         partial = {'geoGrid': {'ranks': [1] * 24, 'requestedPoints': 25, 'checkedPoints': 24}}
@@ -98,8 +103,9 @@ class LeadMagnetRendererTest(unittest.TestCase):
 
     def test_missing_speed_reason_is_visible(self):
         cro = dict(self.cro, speed={'ok': False, 'why': 'quota unavailable'})
-        page = renderer.render('Example', cro, self.search, '2026-09-13', site=self.site)
-        self.assertIn('Mobile speed not measured: quota unavailable.', page)
+        data = renderer.proposal_data('Example', cro, self.search, '2026-09-13', site=self.site)
+        self.assertIsNone(data['cro']['speed'])
+        self.assertEqual(data['cro']['sourcesLine'], 'Mobile speed not measured: quota unavailable.')
 
     def test_sparse_profile_fields_are_unknown_and_unscored(self):
         result = search.gbp_from_summary({}, 'Example')
@@ -246,7 +252,9 @@ class LeadMagnetRendererTest(unittest.TestCase):
             finally:
                 sys.argv = old
             self.assertTrue(output.is_file())
-            self.assertNotIn('https://', output.read_text(encoding='utf-8'))
+            page = output.read_text(encoding='utf-8')
+            self.assertIsNone(re.search(r'(?:src|href|action)=["\']https?://', page, re.I))
+            self.assertIn("connect-src 'none'", page)
 
     def test_demo_is_a_safe_current_format_report(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -258,13 +266,16 @@ class LeadMagnetRendererTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             page = output.read_text(encoding='utf-8')
             self.assertEqual(page.count('data-audit-section="'), 3)
-            self.assertIn('Example local visibility audit', page)
+            self.assertIn('Example website audit', page)
             self.assertIn('Get found', page)
             self.assertIn('Build trust', page)
             self.assertIn('Win enquiries', page)
+            self.assertIn('Almost everyone loses money in the same three places', page)
+            self.assertIn('Three steps, in this order', page)
             self.assertNotIn('Pocket CEO', page)
-            self.assertNotIn('https://', page)
-            self.assertNotIn('<script', page)
+            self.assertIsNone(re.search(r'(?:src|href|action)=["\']https?://', page, re.I))
+            self.assertIn('<script', page)
+            self.assertIn("connect-src 'none'", page)
 
     def test_builder_dry_run_names_paid_services_without_calling_them(self):
         with tempfile.TemporaryDirectory() as raw:

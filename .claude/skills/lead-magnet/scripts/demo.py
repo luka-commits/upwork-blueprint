@@ -46,11 +46,21 @@ def example_evidence(business: str, service: str, conversion: str) -> tuple[dict
             "requestedPoints": 25,
             "checkedPoints": 25,
             "winners": [
-                {"name": f"Northside {category}", "domain": "Measured competitor"},
-                {"name": f"City {category}", "domain": "Measured competitor"},
+                {"name": f"Northside {category}", "topThreePoints": 18, "bestRank": 1, "rating": 4.8, "reviews": 127},
+                {"name": f"City {category}", "topThreePoints": 11, "bestRank": 2, "rating": 4.7, "reviews": 84},
             ],
+            "client": {"topThreePoints": 10, "averageRank": 6.2, "rating": 4.6, "reviews": 42},
         },
         "gbp": {
+            "profile": {
+                "name": business,
+                "category": category,
+                "city": "Example market",
+                "rating": 4.6,
+                "reviews": 42,
+                "description": f"{business} provides {service} across the local area.",
+                "photos": 18,
+            },
             "auditRows": [
                 {"label": "Phone", "value": "A public phone is listed.", "status": "good"},
                 {"label": "Updates", "value": "No recent update was found.", "status": "warn"},
@@ -87,13 +97,8 @@ def main() -> int:
         args.location,
         site,
     )
-    page = page.replace("Private local visibility audit", "Example local visibility audit")
-    page = page.replace("Private audit for", "Example audit for")
-    page = page.replace(
-        "Pocket CEO operating heuristics",
-        "the operating heuristics used for this audit",
-    )
-    if "Pocket CEO" in page or "https://" in page or "<script" in page:
+    page = page.replace("Private website audit", "Example website audit")
+    if "Pocket CEO" in page or "pocket-ceo-logo" in page:
         raise RuntimeError("demo report contains internal or external content")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(page, encoding="utf-8")

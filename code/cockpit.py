@@ -27,6 +27,8 @@ import webbrowser
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'code'))
 import pipeline  # noqa: E402  (read-only use: load, jobs_dir)
+import application_check  # noqa: E402
+import pitch_check  # noqa: E402
 
 APP = ROOT / 'cockpit'
 JOBS_DIR = pipeline.jobs_dir()
@@ -48,6 +50,32 @@ def artifacts(job_id):
     internal = {'thread.json', 'replies.json', 'outbox.json'}
     return sorted(p.name for p in folder.iterdir()
                   if p.is_file() and not p.name.startswith('.') and p.name not in internal)
+
+
+def artifact_health(job):
+    """Return gate-backed readiness without hiding saved drafts from the member."""
+    folder = JOBS_DIR / str(job.get('id') or '')
+    valid, errors = [], {}
+    proof_path = pathlib.Path(os.environ.get('BLUEPRINT_CONTEXT') or ROOT / 'context') / 'proof.md'
+    proof = proof_path.read_text(encoding='utf-8') if proof_path.is_file() else ''
+    for name in artifacts(str(job.get('id') or '')):
+        path = folder / name
+        problems = None
+        try:
+            if name == 'pitch.html':
+                problems = pitch_check.check_page(path)
+            elif name == 'loom-script.md':
+                problems, _ = pitch_check.check_loom(path)
+            elif name == 'application.md':
+                problems, _, _, _, _ = application_check.check(
+                    path.read_text(encoding='utf-8'), str(job.get('title') or ''), proof)
+        except (OSError, UnicodeError):
+            problems = ['file could not be read']
+        if problems is None or not problems:
+            valid.append(name)
+        else:
+            errors[name] = problems
+    return valid, errors
 
 
 def read_json(folder, name):
@@ -75,6 +103,7 @@ def job_view(job_id):
             'version': f'{stat.st_mtime_ns}-{stat.st_size}',
         })
     j['files'] = files
+    j['valid_artifacts'], j['artifact_errors'] = artifact_health(job)
     j['thread'] = read_json(folder, 'thread.json')
     j['replies'] = read_json(folder, 'replies.json')
     j['outbox'] = read_json(folder, 'outbox.json')
@@ -88,6 +117,7 @@ def card(job):
     j['has_posting'] = bool(details.pop('description', None) or job.get('description'))
     j['details'] = details
     j['artifacts'] = artifacts(job.get('id', ''))
+    j['valid_artifacts'], j['artifact_errors'] = artifact_health(job)
     return j
 
 

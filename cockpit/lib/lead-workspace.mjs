@@ -92,7 +92,8 @@ export function nextPreparationMaterial(files, hasValidVideo) {
 export function applicationListAction(job, pitchRunning = false) {
   if (job?.status !== 'new') return 'open';
   if (pitchRunning) return 'running';
-  const files = new Set((Array.isArray(job?.artifacts) ? job.artifacts : [])
+  const source = Array.isArray(job?.valid_artifacts) ? job.valid_artifacts : job?.artifacts;
+  const files = new Set((Array.isArray(source) ? source : [])
     .map(file => typeof file === 'string' ? file : file?.name)
     .filter(Boolean));
   return files.has('pitch.html') && files.has('loom-script.md') ? 'ready' : 'apply';

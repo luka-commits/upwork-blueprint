@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseRunResult } from '../run-result.mjs';
+import { artifactParts, parseRunResult } from '../run-result.mjs';
+
+test('saved run artifact links reopen inside the cockpit after reload', () => {
+  assert.deepEqual(artifactParts('Open [pitch.html](jobs/123456/pitch.html).'), [
+    { text: 'Open ' },
+    { text: 'pitch.html', href: '/files/123456/pitch.html' },
+    { text: '.' },
+  ]);
+  assert.deepEqual(artifactParts('[outside](https://example.com)'), [{ text: '[outside](https://example.com)' }]);
+});
 
 test('an English follow-up report becomes a useful result card', () => {
   const result = `COMPLETE: 2 follow-ups are due today.

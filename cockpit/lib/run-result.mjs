@@ -29,6 +29,20 @@ function plain(value) {
     .trim();
 }
 
+export function artifactParts(value) {
+  const source = String(value || '');
+  const pattern = /\[([^\]]+)\]\(jobs\/([0-9]{6,25})\/([^/)]+)\)/g;
+  const parts = [];
+  let at = 0;
+  for (const match of source.matchAll(pattern)) {
+    if (match.index > at) parts.push({ text: source.slice(at, match.index) });
+    parts.push({ text: match[1], href: `/files/${match[2]}/${encodeURIComponent(match[3])}` });
+    at = match.index + match[0].length;
+  }
+  if (at < source.length) parts.push({ text: source.slice(at) });
+  return parts.length ? parts : [{ text: source }];
+}
+
 function fieldFor(value) {
   const text = plain(value);
   for (const [key, pattern] of FIELDS) {

@@ -66,8 +66,24 @@ class PitchCheckTest(unittest.TestCase):
         problems, _ = pitch_check.check_loom(f.name)
         self.assertEqual(len(problems), 2)
 
+    def test_loom_rejects_contact_routes(self):
+        spoken = ' '.join(['word'] * 450)
+        for contact in ('Email me at me@example.com.', 'Book a call with me.',
+                        'See https://example.com/demo.'):
+            with tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as f:
+                f.write(f'# Loom script\n\n{spoken} {contact}\nReply here on Upwork.')
+            problems, _ = pitch_check.check_loom(f.name)
+            self.assertTrue(problems, contact)
+
 
 class GenerateHelpersTest(unittest.TestCase):
+    def test_client_job_title_cannot_break_the_copy_gate(self):
+        self.assertEqual(gen.safe_job_title('CRM' + chr(0x2014) + 'Automation'), 'CRM-Automation')
+
+    def test_pitch_defaults_to_three_reviews(self):
+        parser_source = (CODE / 'pitch' / 'generate.py').read_text(encoding='utf-8')
+        self.assertIn("add_argument('--max-reviews', type=int, default=3)", parser_source)
+
     def test_reviews_come_from_the_proof_file(self):
         r = gen.reviews(PROOF, 0)
         self.assertEqual([x['quote'] for x in r], ['Sharp and fast.', 'Would hire again.'])

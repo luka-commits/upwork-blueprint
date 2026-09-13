@@ -67,12 +67,15 @@ class CockpitTest(unittest.TestCase):
         self.assertTrue(first['has_posting'])
         self.assertNotIn('description', first['details'])
         self.assertEqual(first['artifacts'], ['pitch.html'])
+        self.assertEqual(first['valid_artifacts'], ['pitch.html'])
+        self.assertEqual(first['artifact_errors'], {})
         self.assertEqual(state['today']['follow_ups_due'], ['333333'])
 
     def test_full_view_carries_files_and_thread(self):
         r = self.cli('job', '111111')
         job = json.loads(r.stdout)
         self.assertEqual([f['name'] for f in job['files']], ['pitch.html'])
+        self.assertEqual(job['valid_artifacts'], ['pitch.html'])
         self.assertRegex(job['files'][0]['version'], r'^\d+-\d+$')
         self.assertEqual(job['thread']['messages'][0]['text'], 'Hi')
         self.assertEqual(job['replies']['drafts'][0]['text'], 'Hello')

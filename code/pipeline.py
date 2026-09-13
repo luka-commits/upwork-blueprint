@@ -12,6 +12,7 @@ Usage:
     python3 code/pipeline.py add --check <job_id> [<job_id> ...]
     python3 code/pipeline.py add --file <records.json>|- [--dry-run]
     python3 code/pipeline.py detail <job_id> --file <details.json>|-
+    python3 code/pipeline.py assess <job_id> --file <assessment.json>|-
     python3 code/pipeline.py describe <job_id> "Plain-language summary of the work"
     python3 code/pipeline.py observe <job_id> applied|replied <ISO timestamp> --source <source> --verified
     python3 code/pipeline.py set <job_id> <status> [--follow-up +3d|YYYY-MM-DD] [--note "..."]
@@ -433,6 +434,32 @@ def cmd_describe(args):
     print(f'{args.job_id}: job summary updated.')
 
 
+def cmd_assess(args):
+    """Replace one model-written assessment after the full posting was read."""
+    value = read_json_arg(args.file)
+    allowed = {'niche_fit', 'score', 'rationale', 'summary', 'trap'}
+    if not isinstance(value, dict) or set(value) - allowed:
+        abort('assessment needs only niche_fit, score, rationale, summary and optional trap.')
+    if not isinstance(value.get('niche_fit'), int) or not 0 <= value['niche_fit'] <= 40:
+        abort('assessment niche_fit must be an integer from 0 to 40.')
+    if not isinstance(value.get('score'), int) or not 0 <= value['score'] <= 100:
+        abort('assessment score must be an integer from 0 to 100.')
+    rationale = ' '.join(str(value.get('rationale') or '').split())
+    summary = ' '.join(str(value.get('summary') or '').split())
+    if not rationale or not summary:
+        abort('assessment needs a rationale and summary.')
+    jobs = load()
+    job = find(jobs, args.job_id)
+    job.update(niche_fit=value['niche_fit'], score=value['score'], rationale=rationale, summary=summary)
+    trap = ' '.join(str(value.get('trap') or '').split())
+    if trap:
+        job['trap'] = trap
+    else:
+        job.pop('trap', None)
+    save(jobs)
+    print(f'{args.job_id}: assessment updated to {value["score"]}/100 from the full posting.')
+
+
 def parse_verified_timestamp(value):
     """Canonicalize a nonfuture zoned timestamp, or return None."""
     try:
@@ -552,6 +579,8 @@ def cmd_loom_score(args):
     job = find(jobs, args.job_id)
     job['loom_review_score'] = args.score
     job['loom_reviewed_at'] = now_iso()
+    if job.get('video'):
+        job['loom_review_video'] = job['video']
     save(jobs)
     print(f'{args.job_id}: Loom review score saved as {args.score}/100.')
 
@@ -758,9 +787,12 @@ def cmd_prune(args):
     raw_cache = [p for pattern in ('search/*.json', 'details/*.json', 'candidates.json')
                  for p in data_dir().glob(pattern)
                  if p.is_file() and datetime.datetime.fromtimestamp(p.stat().st_mtime, datetime.timezone.utc) < cutoff]
+    previews = [p for p in jobs_dir().glob('*/.pitch-preview.png')
+                if p.is_file() and datetime.datetime.fromtimestamp(p.stat().st_mtime, datetime.timezone.utc) < cutoff]
     if args.dry_run:
         print(f'DRY RUN: {hits} of {len(jobs)} jobs older than {args.hours}h, '
-              f'{fields} cached fields, {len(threads)} saved threads and {len(raw_cache)} raw cache files would be removed. Nothing changed.')
+              f'{fields} cached fields, {len(threads)} saved threads, {len(raw_cache)} raw cache files and '
+              f'{len(previews)} pitch previews would be removed. Nothing changed.')
         return
     if hits:
         save(jobs)
@@ -768,8 +800,10 @@ def cmd_prune(args):
         t.unlink()
     for item in raw_cache:
         item.unlink()
-    print(f'{hits} jobs pruned, {fields} cached fields removed, {len(threads)} saved threads and '
-          f'{len(raw_cache)} raw cache files deleted.')
+    for preview in previews:
+        preview.unlink()
+    print(f'{hits} jobs pruned, {fields} cached fields removed, {len(threads)} saved threads, '
+          f'{len(raw_cache)} raw cache files and {len(previews)} pitch previews deleted.')
 
 
 def build_parser():
@@ -786,6 +820,11 @@ def build_parser():
     p.add_argument('job_id')
     p.add_argument('--file', metavar='PATH', required=True, help='JSON object. "-" reads stdin.')
     p.set_defaults(func=cmd_detail)
+
+    p = sub.add_parser('assess', help='Replace a scored assessment after reading the full posting.')
+    p.add_argument('job_id')
+    p.add_argument('--file', metavar='PATH', required=True, help='JSON object. "-" reads stdin.')
+    p.set_defaults(func=cmd_assess)
 
     p = sub.add_parser('describe', help='Revise the member-written job summary, not the source posting.')
     p.add_argument('job_id')

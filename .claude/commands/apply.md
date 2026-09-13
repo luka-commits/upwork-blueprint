@@ -8,9 +8,9 @@ argument-hint: "<job id>"
 Use the project-local `upwork-copy` skill for every line the client will read.
 The member described in `context/me.md` is the sender.
 
-The application itself. Early applications win, so this is fast. The Blueprint
-prepares every field and the connector preview, then stops. The member reviews
-and submits the proposal on Upwork themselves.
+The application itself. Keep the handoff fast without claiming that submission
+speed causes wins. The Blueprint prepares every field and the connector preview,
+then stops. The member reviews and submits the proposal on Upwork themselves.
 
 Read first: [references/upwork-rules.md](../../references/upwork-rules.md), the proposals section of [references/upwork-mcp.md](../../references/upwork-mcp.md), [references/profile-formula.md](../../references/profile-formula.md) (the proof tiers), `context/me.md`, `context/proof.md`.
 
@@ -29,9 +29,12 @@ link under Materials. Report zero Upwork calls.
 Read `loom_review_enabled` from the Step 0 pipeline record. It defaults to true
 when absent. When it is false, skip this entire step and continue to Step 2.
 
-Before any Upwork call, run `python3 code/funnel.py transcript loom <id>` and
-read the transcript path it prints. Compare the recording with the job, pitch
-page, Loom script and verified proof:
+When `loom_review_video` in the pipeline record exactly matches the current video
+and `jobs/<id>/loom-review.md` exists, read and reuse that review. Do not
+transcribe or score the same recording twice. Otherwise, before any Upwork call,
+run `python3 code/funnel.py transcript loom <id>` and read the transcript path it
+prints. Compare the recording with the job, pitch page, Loom script and verified
+proof:
 
 1. The first 20 seconds name the client's outcome and why the page exists.
 2. Every claim matches the posting, pitch page or `context/proof.md`.
@@ -79,22 +82,15 @@ date as a sales device. Put answers to required screening questions in
 their separate fields, not in the cover letter, unless the posting explicitly
 requires the answer there.
 
-Save everything to `jobs/<id>/application.md` in this exact shape so the cockpit
-can present each field separately:
+Save the cover letter to `jobs/<id>/application.md` in this exact shape so the
+cockpit can present it separately:
 
 ```markdown
 # Cover letter
 
 <the complete letter>
 
-# Screening answers
-
-## <the client's exact question>
-
-<one or two sentence answer>
 ```
-
-Omit the Screening answers section when the job asks none.
 
 ## Step 5 · The gate
 
@@ -109,12 +105,28 @@ Omit the Screening answers section when the job asks none.
 2. `list_freelancer_proposals` action `list`: an existing proposal for this job means stop and say so.
 3. When this is not an invitation and no proposal exists, if `manage_proposals`
    action `create` is available, call it with `job_reference`, `cover_letter`, the
-   member-approved `charged_amount` and the screening `answers`. The tool
+   member-approved `charged_amount` and only screening `answers` already known
+   from the posting. The tool
    description says this returns a preview and submits nothing; that behavior is
    not yet measured. If the action is absent or returns anything other than a
    preview, stop without another write and use the manual handoff. No other
    `manage_proposals` action is permitted in this command.
-4. Save what the preview knows, so the cockpit shows it next to the job: `python3 code/pipeline.py detail <id> --file -` with one JSON object holding `bid_amount` (the exact `charged_amount` used), `connects_cost`, `connects_balance`, `boost_available`, `boost_reason`, `boost_top_bids` (the list of `current_top_bids`, highest first, or `null` when `current_top_bids_available` is false), `boost_recommended` (`recommended_connects`), `boost_max` (`max_boost_connects`), `boost_note`, `boost_recommendation` and `screening_questions`. Leave out what the preview did not return; never estimate a bid.
+4. The preview may reveal screening questions that the posting did not expose.
+   Answer each in one or two sentences from the posting and verified proof, append
+   the section below to `application.md`, then rerun the gate. A mandatory answer
+   without proof is a hold. If the connector requires answers before it reveals
+   the questions, stop and use the manual handoff. Do not guess a question or
+   make another preview merely to discover it.
+
+   ```markdown
+   # Screening answers
+
+   ## <the client's exact question>
+
+   <one or two sentence answer>
+   ```
+
+5. Save what the preview knows, so the cockpit shows it next to the job: `python3 code/pipeline.py detail <id> --file -` with one JSON object holding `bid_amount` (the exact `charged_amount` used), `connects_cost`, `connects_balance`, `boost_available`, `boost_reason`, `boost_top_bids` (the list of `current_top_bids`, highest first, or `null` when `current_top_bids_available` is false), `boost_recommended` (`recommended_connects`), `boost_max` (`max_boost_connects`), `boost_note`, `boost_recommendation` and `screening_questions`. Leave out what the preview did not return; never estimate a bid.
 
 ## Step 7 · Prepare the manual handoff
 

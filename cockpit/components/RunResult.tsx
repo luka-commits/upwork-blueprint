@@ -1,12 +1,15 @@
 'use client';
 
-import { parseRunResult } from '@/lib/run-result.mjs';
+import { artifactParts, parseRunResult } from '@/lib/run-result.mjs';
 import './run-result.css';
 
 function Text({ value }: { value: string }) {
   const lines = String(value || '').split('\n').map(line => line.replace(/^[-*]\s+/, '').trim()).filter(Boolean);
-  if (lines.length > 1) return <ul>{lines.map((line, index) => <li key={index}>{line}</li>)}</ul>;
-  return <p>{lines[0] || ''}</p>;
+  const content = (line: string) => artifactParts(line).map((part: any, index: number) => part.href
+    ? <a key={index} href={part.href} target="_blank" rel="noopener">{part.text}</a>
+    : part.text);
+  if (lines.length > 1) return <ul>{lines.map((line, index) => <li key={index}>{content(line)}</li>)}</ul>;
+  return <p>{content(lines[0] || '')}</p>;
 }
 
 function Block({ label, value }: { label: string; value: string }) {

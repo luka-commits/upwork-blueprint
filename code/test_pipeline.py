@@ -81,6 +81,18 @@ class PipelineTest(unittest.TestCase):
         self.assertNotEqual(self.run_cli('describe', 'missing', 'New summary').returncode, 0)
         self.assertEqual(self.jobs.read_bytes(), saved)
 
+    def test_assess_replaces_only_member_written_ranking_fields(self):
+        self.add({'id': 'J1', 'score': 80, 'niche_fit': 35, 'client': {'rating': 5}})
+        value = {'score': 61, 'niche_fit': 21, 'rationale': ' Full text is weaker. ',
+                 'summary': ' Build the actual system. ', 'trap': ''}
+        result = self.run_cli('assess', 'J1', '--file', '-', stdin=json.dumps(value))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        job = self.data()[0]
+        self.assertEqual((job['score'], job['niche_fit']), (61, 21))
+        self.assertEqual(job['rationale'], 'Full text is weaker.')
+        self.assertEqual(job['summary'], 'Build the actual system.')
+        self.assertEqual(job['client'], {'rating': 5})
+
     def test_parallel_notes_do_not_lose_changes(self):
         self.add({'id': 'J1'})
         children = [subprocess.Popen([sys.executable, str(PIPELINE), 'note', 'J1', f'Note {i}'],
@@ -98,11 +110,12 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(self.data()[0]['pitch_url'], 'https://example.com/pitch')
 
     def test_loom_score_is_saved_as_owned_analytics_data(self):
-        self.add({'id': 'J1'})
+        self.add({'id': 'J1', 'video': 'https://www.loom.com/share/abc123'})
         result = self.run_cli('loom-score', 'J1', '86')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.data()[0]['loom_review_score'], 86)
         self.assertTrue(self.data()[0]['loom_reviewed_at'])
+        self.assertEqual(self.data()[0]['loom_review_video'], 'https://www.loom.com/share/abc123')
         before = self.jobs.read_bytes()
         self.assertNotEqual(self.run_cli('loom-score', 'J1', '101').returncode, 0)
         self.assertEqual(self.jobs.read_bytes(), before)
@@ -361,6 +374,9 @@ class PipelineTest(unittest.TestCase):
             thread.write_text('{"messages": []}', encoding='utf-8')
             stamp = (datetime.datetime.now() - datetime.timedelta(hours=age)).timestamp()
             os.utime(thread, (stamp, stamp))
+            preview = self.jobdir / name / '.pitch-preview.png'
+            preview.write_bytes(b'preview')
+            os.utime(preview, (stamp, stamp))
         for relative, age in (('search/old.json', 30), ('search/fresh.json', 1),
                               ('details/old.json', 30), ('candidates.json', 30)):
             cache = self.data_dir / relative
@@ -369,9 +385,11 @@ class PipelineTest(unittest.TestCase):
             stamp = (datetime.datetime.now() - datetime.timedelta(hours=age)).timestamp()
             os.utime(cache, (stamp, stamp))
         r = self.run_cli('prune')
-        self.assertIn('1 jobs pruned, 3 cached fields removed, 1 saved threads and 3 raw cache files deleted', r.stdout)
+        self.assertIn('1 jobs pruned, 3 cached fields removed, 1 saved threads, 3 raw cache files and 1 pitch previews deleted', r.stdout)
         self.assertFalse((self.jobdir / 'OLD' / 'thread.json').exists())
         self.assertTrue((self.jobdir / 'FRESH' / 'thread.json').exists())
+        self.assertFalse((self.jobdir / 'OLD' / '.pitch-preview.png').exists())
+        self.assertTrue((self.jobdir / 'FRESH' / '.pitch-preview.png').exists())
         self.assertFalse((self.data_dir / 'search' / 'old.json').exists())
         self.assertTrue((self.data_dir / 'search' / 'fresh.json').exists())
         self.assertFalse((self.data_dir / 'details' / 'old.json').exists())

@@ -73,7 +73,9 @@ Keep it between 420 and 560 spoken words. Use casual spoken English, contraction
 
 - `python3 code/pitch_check.py page jobs/<id>/pitch.html`: no email, phone, booking link, messenger or social profile anywhere on the page, no unfilled placeholder. Upwork suspends accounts for contact details before a contract, and a linked page counts.
 - `python3 code/pitch_check.py loom jobs/<id>/loom-script.md`: three to four minutes of words, ending on Upwork.
-- Look at the page: a headless screenshot (Chrome `--headless --screenshot`), then read the image. Never call a page done unseen.
+- Run `python3 code/pitch_capture.py <id>`, read the screenshot path it prints,
+  then run `python3 code/pitch_capture.py <id> --clean`. Never call a page done
+  unseen. The cleanup removes the temporary screenshot after the visual check.
 
 ## Step 8 · Shareable link, only if wanted
 

@@ -403,6 +403,7 @@ function ApplicationStatus({ j, open }: { j: any; open: (view: WorkspaceView) =>
   const hasReply = (j.thread?.messages || []).some((message: any) => message?.from === 'client' && message?.kind !== 'event');
   const appliedAt = !j.application_date_unknown && (j.applied_at || j.history?.find((event: any) => event.status === 'applied')?.at);
   const applicationSaved = j.artifacts?.includes('application.md');
+  const applicationValid = (j.valid_artifacts || j.artifacts || []).includes('application.md');
   return <>
     <WorkspaceHeading title={hasReply ? 'A client reply is saved' : 'Waiting for the client'}
       hint={hasReply ? 'Use Sync to update this lead from Applied to In conversation.' : undefined} />
@@ -413,8 +414,9 @@ function ApplicationStatus({ j, open }: { j: any; open: (view: WorkspaceView) =>
           : 'No action needed. Sync records the submission date when Upwork provides it.'}</p>
     </div>
     <div className="saved-application">
-      <div><h3>{applicationSaved ? 'Application draft' : 'No application draft saved'}</h3>
-        <p>{applicationSaved ? 'Your local draft may differ from the submitted application.'
+      <div><h3>{applicationValid ? 'Application draft' : applicationSaved ? 'Application draft needs refresh' : 'No application draft saved'}</h3>
+        <p>{applicationValid ? 'Your local draft may differ from the submitted application.'
+          : applicationSaved ? 'The saved draft no longer passes the current application gate.'
           : 'Applications sent outside the cockpit may have no local copy.'}</p></div>
       <button onClick={() => open('materials')}>View materials</button>
     </div>
@@ -591,9 +593,11 @@ function FollowUpPlan({ j }: { j: any }) {
 function Materials({ j, files, includeSales = true }: { j: any; files: string[]; includeSales?: boolean }) {
   const { state, post, runCommand, runs, toast } = useCockpit();
   const d = j.details || {};
-  const pitchReady = files.includes('pitch.html');
-  const scriptReady = files.includes('loom-script.md');
-  const applicationReady = files.includes('application.md');
+  const validFiles = new Set(Array.isArray(j.valid_artifacts) ? j.valid_artifacts : files);
+  const pitchReady = validFiles.has('pitch.html');
+  const scriptReady = validFiles.has('loom-script.md');
+  const applicationReady = validFiles.has('application.md');
+  const invalid = j.artifact_errors || {};
   const videoReady = validVideoUrl(j.video);
   const applicationUnlocked = pitchReady && videoReady;
   const applicationBlocker = !pitchReady && !videoReady
@@ -623,7 +627,8 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
           <LoomScriptView id={j.id} version={version('loom-script.md')} />
         </div>
       </> : canRun('pitch-page')
-        ? <PitchPageButton j={j} primary />
+        ? <><PitchPageButton j={j} primary />
+          {invalid['pitch.html'] || invalid['loom-script.md'] ? <p className="material-note material-blocker">The saved pitch output failed its gate. Generate it again.</p> : null}</>
         : <p className="material-note">Pitch generation is unavailable.</p>}
     </MaterialRow>
 
@@ -637,7 +642,8 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
         {videoReady && applicationRunning ? <p className="material-note">Reviewing the recording and preparing the application.</p> : null}
         {videoReady && !applicationReady && !applicationRunning && canRun('apply')
           ? <button className="primary" onClick={() => runCommand('apply', j.id)}>Review and prepare application</button> : null}
-        {videoReady && files.includes('loom-review.md') ? <div className="preparation-output">
+        {files.includes('application.md') && !applicationReady ? <p className="material-note material-blocker">The saved application failed its gate. Prepare it again before copying.</p> : null}
+        {videoReady && j.loom_review_video === j.video && files.includes('loom-review.md') ? <div className="preparation-output">
           <span>Loom review</span>
           <LoomReviewView id={j.id} version={version('loom-review.md')} />
         </div> : null}

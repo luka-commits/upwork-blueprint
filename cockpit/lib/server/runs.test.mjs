@@ -82,7 +82,10 @@ test('application drafting waits for the pitch page and Loom video', () => {
   assert.match(applicationPrerequisiteError({ files: [] }), /finish the Pitch page.*add a valid Loom or YouTube video link/);
   assert.match(applicationPrerequisiteError({ files: [{ name: 'pitch.html' }] }), /add a valid Loom or YouTube video link/);
   assert.match(applicationPrerequisiteError({ files: [], video: 'https:\/\/www.loom.com\/share\/abc' }), /finish the Pitch page/);
-  assert.equal(applicationPrerequisiteError({ files: [{ name: 'pitch.html' }], video: 'https://www.loom.com/share/abc' }), '');
+  assert.match(applicationPrerequisiteError({ files: [{ name: 'pitch.html' }], video: 'https://www.loom.com/share/abc' }), /Loom script/);
+  assert.equal(applicationPrerequisiteError({ files: [{ name: 'pitch.html' }, { name: 'loom-script.md' }], video: 'https://www.loom.com/share/abc' }), '');
+  assert.match(applicationPrerequisiteError({ files: [{ name: 'pitch.html' }, { name: 'loom-script.md' }],
+    valid_artifacts: ['loom-script.md'], video: 'https://www.loom.com/share/abc' }), /Pitch page/);
 });
 
 test('application runs install the preview-only action guard', () => {

@@ -98,6 +98,23 @@ class JobsTest(unittest.TestCase):
         self.run_jobs('candidates', str(self.dir / 'search' / 't.json'))
         self.assertEqual(self.run_jobs('score').returncode, 1)
 
+    def test_reassess_uses_full_post_fit_and_closes_a_weak_lead(self):
+        (self.dir / 'jobs.json').write_text(json.dumps([{
+            'id': '1', 'status': 'new', 'score': 80, 'niche_fit': 35,
+            'client_trust': 20, 'deal_quality': 15, 'recency': 10,
+            'summary': 'Snippet summary',
+        }]), encoding='utf-8')
+        (self.dir / 'fit.json').write_text(json.dumps({'1': {
+            'fit': 10, 'rationale': 'Mandatory experience is not covered.',
+            'summary': 'Full description summary.',
+        }}), encoding='utf-8')
+        result = self.run_jobs('reassess', '1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        saved = json.loads((self.dir / 'jobs.json').read_text(encoding='utf-8'))[0]
+        self.assertEqual(saved['score'], 55)
+        self.assertEqual(saved['niche_fit'], 10)
+        self.assertEqual(saved['status'], 'skipped')
+
     def test_hiring_progress_does_not_mean_a_multi_hire_job_is_closed(self):
         (self.dir / 'jobs.json').write_text(json.dumps([{'id': '9', 'status': 'new', 'title': 'x',
                                                           'found_at': iso(1)}]), encoding='utf-8')

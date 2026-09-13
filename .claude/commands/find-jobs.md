@@ -83,6 +83,12 @@ After reading that full description, add a `brief` object to the same file:
 
 Use the client's facts, not guesses. Do not mix fit, competition or sales advice into this brief; those have their own places in the cockpit. Then `python3 code/jobs.py detail <id> data/details/<id>.json`. It stores the brief, Connects price, competition, hiring progress and full posting. Only a new job with `can_apply` false is skipped automatically. Hiring progress and unmet preferred Job Success or earnings are advisory: a job may hire several people, and a preference is not an eligibility block. Never fetch details for a whole list: that is the request pattern Upwork flags as scraping.
 
+Now judge that job's fit again from the full posting, including every mandatory
+requirement. Replace its entry in `data/fit.json`, then run
+`python3 code/jobs.py reassess <id>`. This replaces the snippet-based score and
+closes the lead when the full posting falls below the same fit or score gate.
+Never let the snippet score survive as the final assessment for an opened job.
+
 Write the outcome in plain language: who uses the finished work, what happens
 for them, and what changes. Expand shorthand such as "membership automation"
 into the actual behavior from the posting. A member should be able to explain

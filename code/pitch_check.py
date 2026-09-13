@@ -73,6 +73,16 @@ def check_loom(path):
                         f'{LOOM_MIN} to {LOOM_MAX} words, three to four minutes')
     if 'upwork' not in text[-600:].lower():
         problems.append('the ending does not point the client back to Upwork')
+    for link in re.findall(r'https://[^\s<>]+', text):
+        if 'upwork.com' not in link.lower():
+            problems.append(f'links outside Upwork: {link[:80]}')
+    for match in EMAIL.finditer(text):
+        problems.append(f'shows an email address: {match.group(0)}')
+    for match in PHONE.finditer(text):
+        if len(re.sub(r'\D', '', match.group(0))) >= 9:
+            problems.append(f'shows what looks like a phone number: {match.group(0).strip()}')
+    for match in BOOKING_WORDS.finditer(text):
+        problems.append(f'asks for contact off Upwork: "{match.group(0)}"')
     if chr(0x2014) in text:
         problems.append('uses an em-dash')
     return problems, words

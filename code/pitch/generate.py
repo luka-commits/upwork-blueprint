@@ -69,6 +69,11 @@ def esc(text):
     return html.escape(str(text), quote=True)
 
 
+def safe_job_title(text):
+    """Client titles are data, but the generated page follows our copy rules."""
+    return str(text or '').replace(chr(0x2014), '-')
+
+
 def data_uri(path, mime=None):
     p = pathlib.Path(path)
     if not p.is_file():
@@ -268,7 +273,7 @@ def main(argv=None):
     ap.add_argument('--showcase', default='', help='"Title|Teaser|URL|CTA" for a sample of your work')
     ap.add_argument('--showcase-point', action='append', default=[])
     ap.add_argument('--showcase-image', default='')
-    ap.add_argument('--max-reviews', type=int, default=0)
+    ap.add_argument('--max-reviews', type=int, default=3)
     ap.add_argument('--out')
     args = ap.parse_args(argv)
 
@@ -326,7 +331,7 @@ def main(argv=None):
           .replace('{{ILLUSTRATION_SRC}}', ''))
     fills = {
         '{{BODY_CLASS}}': '' if args.loom_url else 'no-video',
-        '{{JOB_TITLE}}': esc(job.get('title', '')),
+        '{{JOB_TITLE}}': esc(safe_job_title(job.get('title'))),
         '{{HOOK}}': esc(args.hook),
         '{{HERO_ART}}': hero_art,
         '{{LOOM_URL}}': esc(args.loom_url or '#'),

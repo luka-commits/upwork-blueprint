@@ -85,8 +85,9 @@ export function commandAvailability() {
 /** Explain why an application run cannot start before its client materials exist. */
 export function applicationPrerequisiteError(job) {
   const files = (job?.files || []).map(file => typeof file === 'string' ? file : file?.name);
+  const valid = new Set(Array.isArray(job?.valid_artifacts) ? job.valid_artifacts : files);
   const missing = [];
-  if (!files.includes('pitch.html')) missing.push('finish the Pitch page');
+  if (!valid.has('pitch.html') || !valid.has('loom-script.md')) missing.push('finish the Pitch page and Loom script');
   if (!/^https:\/\/(?:www\.)?(?:loom\.com\/share\/[^\s/?#]+|youtube\.com\/watch\?v=[^\s&#]+|youtu\.be\/[^\s/?#]+)/.test(String(job?.video || '').trim())) missing.push('add a valid Loom or YouTube video link');
   if (!missing.length) return '';
   const steps = missing.length === 2 ? `${missing[0]} and ${missing[1]}` : missing[0];

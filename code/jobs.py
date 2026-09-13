@@ -293,6 +293,43 @@ def cmd_score(args):
     return 0
 
 
+def cmd_reassess(args):
+    """Apply one fit decision rewritten after reading the full posting."""
+    fit = load_json(FIT, {}).get(args.job_id)
+    job = next((j for j in load_json(jobs_file(), []) if str(j.get('id')) == args.job_id), None)
+    if not isinstance(fit, dict) or not job:
+        print(f'ABORT: job {args.job_id} needs both a pipeline record and data/fit.json entry.', file=sys.stderr)
+        return 1
+    try:
+        niche = max(0, min(40, int(fit.get('fit'))))
+    except (TypeError, ValueError):
+        print(f'ABORT: job {args.job_id} needs an integer fit from 0 to 40.', file=sys.stderr)
+        return 1
+    total = niche + sum(int(job.get(key) or 0) for key in ('client_trust', 'deal_quality', 'recency'))
+    if fit.get('trap'):
+        total = min(total, TRAP_CAP)
+    assessment = {
+        'niche_fit': niche,
+        'score': max(0, min(100, total)),
+        'rationale': fit.get('rationale') or '',
+        'summary': fit.get('summary') or job.get('summary') or '',
+        'trap': fit.get('trap') or '',
+    }
+    out = pipeline('assess', args.job_id, '--file', '-', stdin=json.dumps(assessment))
+    if out.returncode:
+        print(out.stderr, file=sys.stderr)
+        return 1
+    print(out.stdout.strip())
+    if niche < FIT_GATE or total < MIN_SCORE:
+        reason = fit.get('trap') or 'full posting does not meet the search gate'
+        moved = pipeline('set', args.job_id, 'skipped', '--note', str(reason))
+        if moved.returncode:
+            print(moved.stderr, file=sys.stderr)
+            return 1
+        print(moved.stdout.strip())
+    return 0
+
+
 # --- detail -----------------------------------------------------------------
 
 def find_key(obj, key):
@@ -438,6 +475,9 @@ def main(argv=None):
     p = sub.add_parser('score')
     p.add_argument('--min', type=int, default=MIN_SCORE)
     p.set_defaults(func=cmd_score)
+    p = sub.add_parser('reassess')
+    p.add_argument('job_id')
+    p.set_defaults(func=cmd_reassess)
     p = sub.add_parser('detail')
     p.add_argument('job_id')
     p.add_argument('file')

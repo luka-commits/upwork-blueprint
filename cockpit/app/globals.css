@@ -170,15 +170,6 @@
   .col-chip { border: 0; border-radius: var(--radius-control); padding: 4px 8px; font-size: 11.5px; font-weight: 500; background: var(--card); color: var(--text-3); }
   .col-chip[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand); }
   .col-chip:disabled { opacity: .6; cursor: default; }
-  .order { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
-  .order-row { display: flex; align-items: center; gap: 4px; padding: 4px 0; border-radius: 4px; cursor: grab; }
-  @media (hover: hover) and (pointer: fine) { .order-row:hover { background: var(--hover); } }
-  .order-row.drop-before { box-shadow: inset 0 2px 0 var(--brand); }
-  .order-row.drop-after { box-shadow: inset 0 -2px 0 var(--brand); }
-  .order-row .num { width: 20px; text-align: right; font-size: 10.5px; color: var(--text-3); }
-  .order-row .grow { flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .order-row button { padding: 4px 8px; font-size: 11px; line-height: 1; border-radius: 4px; }
-  .order-row button:disabled { opacity: .2; }
   .active-filters, .bulk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 12px; }
   .active-filters > span { font-size: 11px; font-weight: 600; color: var(--text-3); margin-right: 4px; }
   .af-chip { border: 0; border-radius: var(--radius-control); background: var(--brand-soft); color: var(--brand); padding: 4px 8px; font-size: 11px; font-weight: 600; gap: 4px; }
@@ -281,7 +272,7 @@
   .drawer-stage { display: flex; gap: 8px; align-items: center; }
   .drawer-stage .uw-due-inline { display: inline; margin: 0; }
   .drawer-body { flex: 1; overflow-y: auto; padding: 2px 22px 24px; }
-  .drawer-foot { border-top: 1px solid #c6d4e64d; padding: 14px 20px; display: flex; justify-content: flex-end; background: #ffffff70; }
+  .drawer-foot { border-top: 1px solid #c6d4e64d; padding: 14px 20px; display: flex; flex-direction: column; gap: 8px; background: #ffffff70; }
   .drawer h4, .panel h4 { margin: 18px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-2); }
   .say { margin: 0 0 10px; font-size: 13.5px; color: var(--text-2); }
   .actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -402,7 +393,10 @@
   .runitem:first-child { border-top: 0; }
   .runitem-head { display: flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 600; }
   .runitem-head .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .runitem-status { font-size: 13px; color: var(--text-2); margin: 4px 0 0 22px; }
+  .runitem-status { font-size: 13px; color: var(--text-2); margin: 6px 0 0 22px; line-height: 1.45; }
+  .runitem-status-label { display: block; margin-bottom: 2px; color: var(--text-3); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+  .run-progress { height: 4px; margin: 9px 0 0 22px; overflow: hidden; border-radius: 999px; background: var(--brand-soft); }
+  .run-progress > span { display: block; width: 38%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brand), #77a8ff, var(--brand)); animation: run-progress 1.4s var(--ease-out) infinite; }
   .runitem-foot { display: flex; gap: 12px; margin: 6px 0 0 22px; }
   .runitem .run-log { margin: 6px 0 0 22px; max-height: 260px; background: var(--bg); border-radius: var(--radius-control); }
   .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--brand-soft); border-top-color: var(--brand); animation: spin .8s linear infinite; flex: none; }
@@ -417,6 +411,7 @@
   .runitem.finished .runitem-made a { color: var(--ok); }
   .runitem > .run-result { margin: 9px 0 0 22px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes run-progress { from { transform: translateX(-105%); } to { transform: translateX(275%); } }
   .run-log { overflow-y: auto; padding: 10px 12px; font-size: 12.5px; display: grid; gap: 6px; }
   .run-log .text { white-space: pre-wrap; }
   .run-log .tool { color: var(--text-3); font-size: 12px; }

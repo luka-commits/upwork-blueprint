@@ -102,7 +102,7 @@ export function Score({ j }: { j: any }) {
 export function DueChip({ j }: { j: any }) {
   if (!j.next_follow_up || j.status === 'new' || ENDED.includes(j.status)) return null;
   const days = Math.round((+new Date(j.next_follow_up) - +new Date(todayIso())) / 864e5);
-  const txt = days < 0 ? `${-days}d overdue` : days === 0 ? 'due today' : `in ${days} days`;
+  const txt = days < 0 ? `Follow-up ${-days}d overdue` : days === 0 ? 'Follow-up due today' : `Follow-up in ${days} days`;
   return <span className="uw-due-inline"><span className={`uw-duechip ${days <= 0 ? 'over' : 'soon'}`}>{txt}</span></span>;
 }
 
@@ -176,13 +176,13 @@ export type Col = {
 export const COLS: Record<string, Col> = {
   score: { label: 'Score', w: 92, cell: j => <Score j={j} />, sort: j => j.score ?? -1, filter: 'range', value: j => j.score },
   job: { label: 'Job', w: 440, fixed: true, asc: true, cell: j => <JobCell j={j} />, sort: j => (j.title || '').toLowerCase() },
-  action: { label: 'Action', w: 154, cell: () => null, sort: j => j.status === 'new' ? 0 : 1 },
+  action: { label: 'Next step', w: 200, cell: () => null, sort: j => nextTodo(j)?.due || (j.status === 'new' ? '0000' : '9999') },
   client: { label: 'Client', w: 150, unit: 'rating', cell: j => clientText(j) || <Dash />, sort: j => (j.client || {}).rating ?? -1, filter: 'range', value: j => (j.client || {}).rating },
   comp: { label: 'Competition', w: 124, cell: j => <Comp j={j} />, sort: j => firstNum(j.proposals) ?? -1, filter: 'multi', value: j => j.proposals == null ? 'Unknown' : `${j.proposals} bids` },
   budget: { label: 'Budget', w: 150, cell: j => <>{budgetText(j)}{(j.details || {}).connects_cost != null ? <span className="uw-sub">{j.details.connects_cost} connects</span> : null}</>,
     sort: j => firstNum(j.budget) ?? -1, filter: 'multi', value: j => j.job_type === 'hourly' ? 'Hourly' : j.job_type === 'fixed' ? 'Fixed price' : 'Unknown' },
   posted: { label: 'Posted', w: 100, cell: j => ago(j.posted_date), sort: j => j.posted_date || '', filter: 'multi', value: j => ageBucket(j.posted_date) },
-  stage: { label: 'Stage', w: 178, asc: true, cell: j => <><StageSelect j={j} /><DueChip j={j} /></>, sort: j => ORDER.indexOf(j.status), filter: 'multi', value: j => LABEL[j.status] || j.status },
+  stage: { label: 'Stage', w: 178, asc: true, cell: j => <StageSelect j={j} />, sort: j => ORDER.indexOf(j.status), filter: 'multi', value: j => LABEL[j.status] || j.status },
   followup: { label: 'Follow-up', w: 130, asc: true, cell: j => j.next_follow_up && !ENDED.includes(j.status) ? <DueChip j={j} /> : <Dash />, sort: j => j.next_follow_up || '9999', filter: 'multi', value: dueBucket },
   tasks: { label: 'Next task', w: 210, asc: true, cell: j => <TasksCell j={j} />, sort: j => openTasks(j).map(taskDueKey).sort()[0] || '99999',
     filter: 'multi', value: j => openTasks(j).some(task => taskIsDue(task)) ? 'Task due' : openTasks(j).length ? 'Open tasks' : 'No open tasks' },
@@ -261,18 +261,18 @@ export const SPACES: Record<'jobs', Space> = {
     cols: Object.keys(COLS),
     presets: [
       view('All open', { filters: { stage: { kind: 'multi', values: OPEN_LABELS } }, cols: ['score', 'job', 'action', 'client', 'comp', 'budget', 'stage'] }),
-      view('To do', { filters: { todo: { kind: 'multi', values: ['Due now'] } }, cols: ['score', 'job', 'client', 'todo', 'stage'], sort: { id: 'todo', desc: false } }),
+      view('To do', { filters: { todo: { kind: 'multi', values: ['Due now'] } }, cols: ['score', 'job', 'client', 'action', 'stage'], sort: { id: 'action', desc: false } }),
       view('To apply', { filters: { stage: { kind: 'multi', values: ['Not applied'] }, score: { kind: 'range', min: 60, max: null } },
         cols: ['score', 'job', 'action', 'client', 'comp', 'budget', 'boost', 'posted'], sort: { id: 'score', desc: true } }),
-      view('In play', { filters: { stage: { kind: 'multi', values: ['Applied', 'In conversation', 'Offer'] } }, cols: ['score', 'job', 'client', 'budget', 'todo', 'stage'] }),
-      view('Clients', { filters: { stage: { kind: 'multi', values: ['Won'] } }, cols: ['job', 'client', 'won', 'todo', 'files'], sort: { id: 'won', desc: true } }),
+      view('In play', { filters: { stage: { kind: 'multi', values: ['Applied', 'In conversation', 'Offer'] } }, cols: ['score', 'job', 'client', 'budget', 'action', 'stage'] }),
+      view('Clients', { filters: { stage: { kind: 'multi', values: ['Won'] } }, cols: ['job', 'client', 'won', 'action', 'files'], sort: { id: 'won', desc: true } }),
       view('Closed', { filters: { stage: { kind: 'multi', values: ['Lost', 'Skipped'] } }, cols: ['score', 'job', 'client', 'found', 'stage'], sort: { id: 'found', desc: true } }),
     ],
   },
 };
 
 export const GROUPS = [
-  { title: 'Job', cols: ['score', 'job', 'action', 'stage', 'todo', 'followup', 'tasks', 'files', 'posted', 'found', 'won'] },
+  { title: 'Job', cols: ['score', 'job', 'action', 'stage', 'followup', 'tasks', 'files', 'posted', 'found', 'won'] },
   { title: 'Client', cols: ['client', 'country', 'spent'] },
   { title: 'Deal', cols: ['budget', 'comp', 'connects', 'boost', 'engagement', 'fit'] },
 ];

@@ -90,3 +90,19 @@
   padding: 20px 0;
   border-bottom: 1px solid var(--border);
 }
+
+.drawer-open-full {
+  width: 100%;
+  justify-content: center;
+}
+
+.drawer-foot-secondary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  width: 100%;
+}
+
+.drawer-foot-secondary > button:first-child {
+  justify-content: center;
+}

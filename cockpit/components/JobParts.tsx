@@ -17,6 +17,17 @@ import {
 import './lead.css';
 import { DisqualifyButton } from './DisqualifyLead';
 
+export function PitchPageButton({ j, idleLabel = 'Generate pitch page', primary = false }: {
+  j: any; idleLabel?: string; primary?: boolean;
+}) {
+  const { state, runCommand, runs } = useCockpit();
+  const running = runs.some(run => run.command === 'pitch-page' && run.job === j.id && !run.done);
+  return <button className={primary ? 'primary' : undefined} disabled={running || !state?.commands?.['pitch-page']}
+    onClick={() => runCommand('pitch-page', j.id)}>
+    {running ? 'Preparing...' : idleLabel}
+  </button>;
+}
+
 export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materials', replyOpen = false, onReviewReply, preparationActionsOnly = false }: {
   j: any; materialsLabel?: string; salesLabel?: string; replyOpen?: boolean; onReviewReply?: () => void; preparationActionsOnly?: boolean;
 }) {
@@ -53,7 +64,7 @@ export function NextStep({ j, materialsLabel = 'Materials', salesLabel = 'Materi
     if (preparationActionsOnly) return <div className="next-step">{skip}</div>;
     if (!files.includes('pitch.html') || !files.includes('loom-script.md')) return <div className="next-step">
       {!canRun('pitch-page') ? <p className="say">Create the pitch page first.</p> : null}
-      {canRun('pitch-page') ? <div className="next-primary"><button className="primary" onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button></div> : null}
+      {canRun('pitch-page') ? <div className="next-primary"><PitchPageButton j={j} primary /></div> : null}
       <div className="next-secondary">{skip}</div>
     </div>;
     if (!validVideoUrl(j.video)) return <div className="next-step">

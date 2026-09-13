@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useCockpit } from '@/lib/context';
 import { DueChip, Flags, Score, StageSelect, ago, budgetText, day, money, stamp, validVideoUrl, wonAt } from '@/lib/model';
-import { BoostBlock, FilesChecklist, NextStep, TasksBlock } from './JobParts';
+import { BoostBlock, FilesChecklist, NextStep, PitchPageButton, TasksBlock } from './JobParts';
+import { DisqualifyButton } from './DisqualifyLead';
 import JobBrief from './JobBrief';
 import './drawer.css';
 
@@ -81,6 +82,7 @@ export default function Drawer() {
   }, [api, closeDrawer, drawerId, state?.generated_at, toast]);
 
   const isClient = job?.status === 'won';
+  const needsPitch = job?.status === 'new' && (!job.artifacts?.includes('pitch.html') || !job.artifacts?.includes('loom-script.md'));
   const titleId = job ? 'drawer-title' : undefined;
   return <aside
     className={`drawer${drawerId ? ' open' : ''}`}
@@ -105,7 +107,10 @@ export default function Drawer() {
       <div className="drawer-body" ref={bodyRef}>
         {isClient ? <ClientDrawer j={job} /> : <LeadDrawer j={job} />}
       </div>
-      <div className="drawer-foot"><Link className="btn" href={`/job/${job.id}`} onClick={closeDrawer}>Open full page →</Link></div>
+      <div className="drawer-foot">
+        {needsPitch ? <div className="drawer-foot-secondary"><PitchPageButton j={job} /><DisqualifyButton job={job} /></div> : null}
+        <Link className="btn primary drawer-open-full" href={`/job/${job.id}`} onClick={closeDrawer}>Open full page</Link>
+      </div>
     </> : drawerId ? <>
       <div className="drawer-head">
         <div className="drawer-title">
@@ -124,9 +129,9 @@ function LeadDrawer({ j }: { j: any }) {
   const ready = Number(files.includes('pitch.html') && files.includes('loom-script.md')) +
     Number(validVideoUrl(j.video) && files.includes('application.md'));
   return <>
-    <section className="drawer-next" aria-label="Next step">
+    {j.status !== 'new' ? <section className="drawer-next" aria-label="Next step">
       <NextStep key={`next-${j.id}`} j={j} />
-    </section>
+    </section> : null}
     <LeadOverview j={j} />
     <div className="drawer-supporting">
       <DrawerDisclosure label="Materials" summary={`${ready} of 2 ready`}>

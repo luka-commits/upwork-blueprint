@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   COLS, GROUPS, Icon, LABEL, ORDER, SPACES, STAGES,
-  DueChip, Score, View, Filter, ago, budgetText, clientText,
+  DueChip, Score, TodoCell, View, Filter, ago, budgetText, clientText,
   describeFilter, filterActive, isDue, todoBucket,
 } from '@/lib/model';
 import { useCockpit } from '@/lib/context';
@@ -14,6 +14,7 @@ import { clampColumnWidth, columnWidthForKey, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH
 import { revealContent } from '@/lib/surface-motion.mjs';
 import { applicationListAction } from '@/lib/lead-workspace.mjs';
 import { DisqualifyButton } from './DisqualifyLead';
+import { PitchPageButton } from './JobParts';
 
 type SpaceName = 'jobs';
 type SpaceState = { view: View; saved: View[] };
@@ -27,9 +28,9 @@ function S(spaces: SpacesState, space: SpaceName): SpaceState {
   const sp = SPACES[space];
   const st = spaces[space] || (spaces[space] = { view: clone(sp.presets[0]), saved: [] });
   const v = st.view;
-  v.cols = (v.cols || []).filter(c => sp.cols.includes(c));
+  v.cols = [...new Set((v.cols || []).map(c => c === 'todo' ? 'action' : c).filter(c => sp.cols.includes(c)))];
   if (!v.cols.includes('job')) v.cols.splice(1, 0, 'job');
-  const legacyAllOpen = ['score', 'job', 'client', 'comp', 'budget', 'todo', 'stage'];
+  const legacyAllOpen = ['score', 'job', 'client', 'comp', 'budget', 'action', 'stage'];
   if (v.name === 'All open' && JSON.stringify(v.cols) === JSON.stringify(legacyAllOpen)) {
     v.cols = clone(sp.presets.find(item => item.name === 'All open')!.cols);
   }
@@ -435,8 +436,7 @@ export default function ListPage({ space }: { space: SpaceName }) {
 
       {st.view.layout === 'list' ? <div className="menu" id="menu-columns">
         <button className="tool" onClick={() => toggleMenu('columns')} aria-expanded={menu === 'columns'}>Columns · {st.view.cols.length}</button>
-        {menu === 'columns' ? <ColumnsPanel space={space} st={st} update={update} dropCol={dropCol}
-          onDragStart={columnDragStart} onDragOver={columnDragOver} onDrop={columnDrop} onDragEnd={columnDragEnd} /> : null}
+        {menu === 'columns' ? <ColumnsPanel space={space} st={st} update={update} /> : null}
       </div> : null}
     </div>
 
@@ -538,10 +538,8 @@ function FieldPanel({ space, id, st, jobs, optSearch, setOptSearch, update, pass
     <button className="primary" onClick={close}>Done</button></div></>;
 }
 
-function ColumnsPanel({ space, st, update, dropCol, onDragStart, onDragOver, onDrop, onDragEnd }: {
+function ColumnsPanel({ space, st, update }: {
   space: SpaceName; st: SpaceState; update: (change: (draft: SpaceState) => void) => void;
-  dropCol: { id: string; after: boolean } | null; onDragStart: (e: React.DragEvent, id: string) => void;
-  onDragOver: (e: React.DragEvent, id: string) => void; onDrop: (e: React.DragEvent, id: string) => void; onDragEnd: () => void;
 }) {
   const groups = GROUPS.map(group => ({ ...group, cols: group.cols.filter(id => SPACES[space].cols.includes(id)) })).filter(group => group.cols.length);
   return <div className="pop columns-pop" role="region" aria-label="Choose columns">
@@ -562,18 +560,6 @@ function ColumnsPanel({ space, st, update, dropCol, onDragStart, onDragOver, onD
           onClick={() => update(draft => { draft.view.cols = draft.view.cols.includes(id) ? draft.view.cols.filter(c => c !== id) : [...draft.view.cols, id]; })}>{COLS[id].label}</button>)}
       </div></div>;
     })}
-    <div className="order"><div className="pop-title"><b>Order</b><span className="hint">drag to reorder · left to right</span></div>
-      {st.view.cols.map((id, i) => <div key={id} className={`order-row${dropCol?.id === id ? dropCol.after ? ' drop-after' : ' drop-before' : ''}`} draggable
-        onDragStart={e => onDragStart(e, id)} onDragOver={e => onDragOver(e, id)} onDrop={e => onDrop(e, id)} onDragEnd={onDragEnd}>
-        <span className="num">{i + 1}</span><span className="grow">{COLS[id].label}</span>
-        <button aria-label={`Move ${COLS[id].label} left`} disabled={i === 0} onClick={() => update(draft => {
-          const index = draft.view.cols.indexOf(id); [draft.view.cols[index], draft.view.cols[index - 1]] = [draft.view.cols[index - 1], draft.view.cols[index]];
-        })}>↑</button>
-        <button aria-label={`Move ${COLS[id].label} right`} disabled={i === st.view.cols.length - 1} onClick={() => update(draft => {
-          const index = draft.view.cols.indexOf(id); [draft.view.cols[index], draft.view.cols[index + 1]] = [draft.view.cols[index + 1], draft.view.cols[index]];
-        })}>↓</button>
-      </div>)}
-    </div>
   </div>;
 }
 
@@ -631,16 +617,13 @@ function Table({ jobs, st, drawerId, selected, setSelected, menu, colFilter, ope
 }
 
 function ApplicationActionCell({ job }: { job: any }) {
-  const { state, runCommand, runs } = useCockpit();
+  const { runs } = useCockpit();
   const running = runs.some(run => run.command === 'pitch-page' && run.job === job.id && !run.done);
   const action = applicationListAction(job, running);
-  if (action === 'open') return <Link className="lead-action-open" href={`/job/${job.id}`}>Open</Link>;
+  if (action === 'open') return <TodoCell j={job} />;
   if (action === 'ready') return <div className="lead-action-ready"><span aria-label="Pitch ready">✓</span><Link href={`/job/${job.id}`}>Open</Link></div>;
   return <div className="lead-action">
-    <button className="primary" disabled={action === 'running' || !state?.commands?.['pitch-page']}
-      title="Creates the pitch page and Loom script" onClick={() => runCommand('pitch-page', job.id)}>
-      {action === 'running' ? 'Preparing...' : 'Apply'}
-    </button>
+    <PitchPageButton j={job} idleLabel="Apply" primary />
     {action !== 'running' ? <DisqualifyButton job={job} /> : null}
   </div>;
 }

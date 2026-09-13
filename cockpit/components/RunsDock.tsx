@@ -128,7 +128,13 @@ export default function RunsDock() {
               <span className="stamp">{clock((run.t1 || now) - run.t0)}</span>
               {run.done ? <button className="link" onClick={() => dismissRun(run.id)} aria-label="Remove run">✕</button> : null}
             </div>
-            {!run.showResult || !run.result ? <div className="runitem-status">{outcome?.headline || run.status}</div> : null}
+            {!run.done ? <div className="run-progress" role="progressbar" aria-label={`${runTitle(run, state)} progress`}>
+              <span />
+            </div> : null}
+            {!run.showResult || !run.result ? <div className="runitem-status">
+              {!run.done ? <span className="runitem-status-label">Current step</span> : null}
+              {outcome?.headline || run.status}
+            </div> : null}
             {run.made.length ? (
               <div className="runitem-made">
                 {run.made.map((made, index) => made.href ? (

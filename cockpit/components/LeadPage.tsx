@@ -10,7 +10,7 @@ import { timelineView } from '@/lib/timeline.mjs';
 import { artifactUrl, artifactVersion, useArtifactText } from '@/lib/artifact-content.mjs';
 import { leadWorkspace } from '@/lib/lead-workspace.mjs';
 import { parseLoomReview, parseLoomScript } from '@/lib/loom-artifacts.mjs';
-import { BoostBlock, NextStep, TasksBlock } from './JobParts';
+import { BoostBlock, NextStep, PitchPageButton, TasksBlock } from './JobParts';
 import JobBrief from './JobBrief';
 import {
   CLOSED,
@@ -622,7 +622,7 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
           <LoomScriptView id={j.id} version={version('loom-script.md')} />
         </div>
       </> : canRun('pitch-page')
-        ? <button className="primary" onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button>
+        ? <PitchPageButton j={j} primary />
         : <p className="material-note">Pitch generation is unavailable.</p>}
     </MaterialRow>
 
@@ -658,13 +658,13 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
           <a className="btn" href={artifactUrl(j.id, 'pitch.html', version('pitch.html'))} target="_blank" rel="noopener">Open local preview</a>
         </div>
         <PitchUrlEditor j={j} post={post} copy={copy} />
-      </> : canRun('pitch-page') ? <button onClick={() => runCommand('pitch-page', j.id)}>Generate pitch page</button> : <p className="material-note">Pitch page generation is unavailable.</p>}
+      </> : canRun('pitch-page') ? <PitchPageButton j={j} /> : <p className="material-note">Pitch page generation is unavailable.</p>}
     </MaterialRow>
 
     <MaterialRow label="Loom script" ready={scriptReady}>
       {scriptReady
         ? <LoomScriptView id={j.id} version={version('loom-script.md')} />
-        : canRun('pitch-page') ? <button onClick={() => runCommand('pitch-page', j.id)}>Generate Loom script</button> : <p className="material-note">The Loom script is made with the pitch page.</p>}
+        : canRun('pitch-page') ? <PitchPageButton j={j} idleLabel="Generate Loom script" /> : <p className="material-note">The Loom script is made with the pitch page.</p>}
     </MaterialRow>
 
     <MaterialRow label="Loom video" ready={videoReady}>

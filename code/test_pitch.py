@@ -10,6 +10,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 CODE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(CODE))
@@ -18,6 +19,10 @@ import pitch_check  # noqa: E402
 spec = importlib.util.spec_from_file_location('generate', CODE / 'pitch' / 'generate.py')
 gen = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gen)
+
+capture_spec = importlib.util.spec_from_file_location('pitch_capture', CODE / 'pitch_capture.py')
+capture = importlib.util.module_from_spec(capture_spec)
+capture_spec.loader.exec_module(capture)
 
 PROOF = """# Your proof
 
@@ -228,6 +233,31 @@ class GenerateHelpersTest(unittest.TestCase):
         self.assertIn("dither_fit = '1.05' if args.dither_source else ''", generator)
         self.assertIn('data-fit="{{DITHER_FIT}}"', template)
         self.assertIn("Number.isFinite(requestedFit)", template)
+
+    def test_recognizable_dither_art_is_never_vertically_flipped(self):
+        template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')
+        command = (CODE.parent / '.claude' / 'commands' / 'pitch-page.md').read_text(encoding='utf-8')
+        self.assertNotIn('scaleY(-1)', template)
+        self.assertIn('vertical flipping is not', command)
+        self.assertIn('inspect its actual crop on the finished', command)
+
+    def test_capture_accepts_a_valid_preview_when_chrome_does_not_exit(self):
+        with tempfile.TemporaryDirectory() as raw:
+            folder = pathlib.Path(raw)
+            page = folder / 'pitch.html'
+            output = folder / '.pitch-preview.png'
+            page.write_text('<!doctype html><title>Pitch</title>', encoding='utf-8')
+
+            def create_then_timeout(*args, **kwargs):
+                output.write_bytes(b'\x89PNG\r\n\x1a\n' + b'x' * 1000)
+                raise capture.subprocess.TimeoutExpired(args[0], kwargs['timeout'])
+
+            with mock.patch.object(capture, 'paths', return_value=(page, output)), \
+                    mock.patch.object(capture, 'ROOT', folder), \
+                    mock.patch.object(capture, 'browser_path', return_value='/bin/true'), \
+                    mock.patch.object(capture.subprocess, 'run', side_effect=create_then_timeout), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(capture.main(['123']), 0)
 
     def test_showcase_html_requires_the_current_safe_report(self):
         with tempfile.TemporaryDirectory() as raw:

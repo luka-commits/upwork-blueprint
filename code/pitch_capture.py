@@ -32,6 +32,13 @@ def paths(job_id):
     return folder / 'pitch.html', folder / '.pitch-preview.png'
 
 
+def preview_ready(output):
+    if not output.is_file() or output.stat().st_size < 1000:
+        return False
+    with output.open('rb') as handle:
+        return handle.read(8) == b'\x89PNG\r\n\x1a\n'
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('job_id')
@@ -50,13 +57,19 @@ def main(argv=None):
     browser = browser_path()
     if not browser:
         parser.error('Chrome or Chromium is not installed.')
+    output.unlink(missing_ok=True)
+    result = None
     with tempfile.TemporaryDirectory(prefix='upwork-pitch-browser-') as profile:
-        result = subprocess.run([
-            browser, '--headless=new', '--disable-gpu', '--hide-scrollbars',
-            '--window-size=1440,1200', f'--user-data-dir={profile}',
-            f'--screenshot={output}', page.resolve().as_uri(),
-        ], capture_output=True, text=True, timeout=60)
-    if result.returncode or not output.is_file() or output.stat().st_size < 1000:
+        try:
+            result = subprocess.run([
+                browser, '--headless=new', '--disable-gpu', '--hide-scrollbars',
+                '--window-size=1440,1200', f'--user-data-dir={profile}',
+                f'--screenshot={output}', page.resolve().as_uri(),
+            ], capture_output=True, text=True, timeout=20)
+        except subprocess.TimeoutExpired as exc:
+            if not preview_ready(output):
+                parser.error(f'Chrome timed out before creating the preview: {exc}')
+    if not preview_ready(output) or (result is not None and result.returncode):
         detail = (result.stderr or result.stdout or '').strip().splitlines()
         parser.error(f'Chrome did not create the preview{f": {detail[-1]}" if detail else "."}')
     print(f'Preview: {output.relative_to(ROOT)}')

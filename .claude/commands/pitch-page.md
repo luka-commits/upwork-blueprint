@@ -115,6 +115,10 @@ python3 code/pitch/generate.py <id> --hook "..." \
   logos or generic diagrams. Make the system, work or finished outcome the
   subject. People may appear only as small context; never build the image around
   a person looking at a screen, pointing at a board or posing beside the work.
+  Generate the hero and card images as one coherent visual series. Inspect every
+  source image before assembly, then inspect its actual crop on the finished
+  page. Reject repeated compositions, fake readable UI, dominant people and any
+  crop that hides the industry or the work.
 - Do not put a budget or speculative delivery timeline on the pitch page. The
   internal pricing guide remains in the cockpit for the member.
 - **Next step** (`--next-step`) points back to Upwork; the default asks them to send their website or current setup there.
@@ -135,6 +139,9 @@ python3 code/pitch/generate.py <id> --hook "..." \
   Prefer a small local SVG when simple geometry communicates the industry more
   clearly than generated art. The source is embedded in the pitch and may not
   load anything from the network.
+  Keep every recognizable motif upright in every section. Horizontal mirroring
+  is acceptable when composition needs it; vertical flipping is not. Roofs,
+  vehicles, people and tools look broken as soon as gravity is reversed.
 - When the job is tied to a local business website, offer the Pocket SEO V2
   lead magnet we actually send. Make the free upfront work explicit: the client
   sends the website, and the member returns the complete audit before the build.
@@ -179,6 +186,10 @@ Keep it between 420 and 560 spoken words. Use casual spoken English, contraction
 - Run `python3 code/pitch_capture.py <id>`, read the screenshot path it prints,
   then run `python3 code/pitch_capture.py <id> --clean`. Never call a page done
   unseen. The cleanup removes the temporary screenshot after the visual check.
+- Inspect the hero and all three plan-image crops. Check every dither placement:
+  the source must be upright, identifiable and clear of the copy. If an audit is
+  embedded, open it and confirm both the compact phone and expanded view render
+  at a 390px document width without horizontal overflow.
 
 ## Step 8 · Publish the client page
 

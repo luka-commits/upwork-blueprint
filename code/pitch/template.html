@@ -110,15 +110,15 @@
      so endet das Feld exakt dort, wo der Text beginnt, und zwar bei jeder
      Bildschirmbreite. Ein Prozentwert hat bei zwei Anlaeufen jedes Mal in die
      Schrift gereicht. */
-  /* Dasselbe Feld in der Mitte der Seite, aber am unteren Rand und gespiegelt:
-     das Motiv taucht dreimal auf (Hero, Scope, Abschluss) und traegt die Seite
-     durch, statt nur ihre Enden zu markieren. */
+  /* Dasselbe Feld in der Mitte der Seite, aber am unteren Rand. Das Motiv
+     taucht dreimal auf (Hero, Scope, Abschluss) und bleibt dabei aufrecht.
+     Vertikales Spiegeln zerstoert erkennbare Motive wie Dachlinien. */
   .band-dotted { position: relative; overflow: hidden;
     padding-bottom: clamp(120px, 14vw, 180px); }
   .band-dotted > .inner { position: relative; z-index: 1; }
   .band-dotted .dither-plan { position: absolute; left: 0; right: 0; top: auto;
     bottom: 0; width: 100%; height: calc(clamp(120px, 14vw, 180px) + 8px);
-    display: block; opacity: .85; pointer-events: none; transform: scaleY(-1);
+    display: block; opacity: .85; pointer-events: none;
     -webkit-mask-image: linear-gradient(to top, #000 62%, transparent 100%);
     mask-image: linear-gradient(to top, #000 62%, transparent 100%); }
 

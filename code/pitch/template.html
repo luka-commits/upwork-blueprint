@@ -670,19 +670,18 @@
   .anim .plan-item:nth-child(3) { transition-delay: .16s; }
   .anim .plan-item:nth-child(4) { transition-delay: .24s; }
 
-  .anim [data-cover] .cover-book { opacity: 0; transform: rotateY(-34deg) rotateX(6deg) translateY(14px); }
-  .anim [data-cover].in .cover-book { opacity: 1; transform: rotateY(-15deg) rotateX(3deg) rotateZ(-1.5deg); }
+  .anim [data-cover] { opacity: 0; transform: translateY(10px) scale(.985); }
+  .anim [data-cover].in { opacity: 1; transform: none; }
 
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     :root { --tilt: 0deg; }
-    .anim [data-rise], .anim [data-settle], .anim [data-cover] .cover-book,
+    .anim [data-rise], .anim [data-settle], .anim [data-cover],
     .anim .fit-list li, .anim .yt-grid .yt-card, .anim .plan-item, .anim .plan-item::after {
       opacity: 1 !important; transform: none !important; transition: opacity .01s linear !important; }
-    .anim [data-cover].in .cover-book { transform: rotateY(-15deg) rotateX(3deg) rotateZ(-1.5deg) !important; }
     .device { transform: none !important; transition: none !important; }
-    .cover-book, .btn, .testimonial, .fit-list li, .plan-item, .yt-card, .device-screen .play { transition: none !important; }
-    .cover-book:hover, .btn:hover, .testimonial:hover, .fit-list li:hover, .plan-item:hover, .yt-card:hover { transform: none; }
+    .showcase-preview, .btn, .testimonial, .fit-list li, .plan-item, .yt-card, .device-screen .play { transition: none !important; }
+    .showcase-preview:hover, .btn:hover, .testimonial:hover, .fit-list li:hover, .plan-item:hover, .yt-card:hover { transform: none; }
   }
   /* A page without a walkthrough video yet shows no empty player. */
   .no-video .device-stage { display: none; }

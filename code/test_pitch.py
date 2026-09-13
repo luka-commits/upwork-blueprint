@@ -201,8 +201,8 @@ class GenerateHelpersTest(unittest.TestCase):
         self.assertIn('autoplay muted loop playsinline', generator)
         self.assertIn('{{SHOWCASE_MEDIA}}', template)
         self.assertIn('class="audit-window"', template)
-        self.assertNotIn('class="cover-book"', template)
-        self.assertNotIn('class="cover-sheet', template)
+        self.assertNotIn('cover-book', template)
+        self.assertNotIn('cover-sheet', template)
         self.assertIn('Cover of an example website audit', generator)
 
     def test_proof_section_reserves_a_freelancer_photo(self):

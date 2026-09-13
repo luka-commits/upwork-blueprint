@@ -56,7 +56,18 @@ python3 code/pitch/generate.py <id> --hook "..." \
 
 ## Step 6 · The Loom script
 
-Write `jobs/<id>/loom-script.md`: what you say while scrolling the page, in beats. Their situation, the first milestone, the path through the diagram, the parts that make it valuable to them, one or two proofs from `context/proof.md`, the timeline in days, the ask on Upwork. Spoken language, short sentences, no em-dashes. Three to four minutes.
+Write `jobs/<id>/loom-script.md` as the words the member says while scrolling the finished page. Mirror the sections that are actually rendered, in their exact top-to-bottom order. Do not fall back to a generic Loom template and do not speak through a section that the page does not contain.
+
+Use beats for:
+
+1. The hero: their situation and the outcome you understood.
+2. Why the member fits, using only proof that is visible on the page and verified in `context/proof.md`.
+3. `What I'd build`: follow the diagram's groups and connections in visual order. Explain the useful path instead of reading every node aloud.
+4. The proof, sample or background sections that are actually present.
+5. `How this would work`: the first milestone, timeline, client inputs and scope boundaries shown on the page.
+6. `The next step`: the specific future state you see for this job, then say that the goal is to exceed expectations and become a long-term partner. For jobs tied to a business website, ask them to send the website URL here on Upwork so you can run a useful audit upfront. When a website is irrelevant, ask for the closest existing setup or screenshot instead.
+
+Keep it between 420 and 560 spoken words. Use casual spoken English, contractions and short explanations, like a capable person walking a colleague through an idea. Warm, direct and likeable. One understated joke or self-aware aside is welcome when the job gives you a natural opening, but never force a punchline and never joke at the client's expense. No greetings, generic praise, inflated claims, contact details or em-dashes. End on the Upwork CTA, with nothing after it.
 
 ## Step 7 · The gates
 

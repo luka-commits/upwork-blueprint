@@ -87,6 +87,15 @@ python3 code/pitch/generate.py <id> --hook "..." \
   --plan-image jobs/<id>/plan-01.jpg (once per card)
 ```
 
+- **Industry treatment:** choose one restrained `--theme` and keep it for the
+  whole page: `steel` for trades, construction and operations; `signal` for
+  software, AI and automation; `growth` for SEO, marketing and commerce;
+  `calm` for health, coaching, education and care; or `warm` for general
+  professional services. The hero and three card illustrations do the heavier
+  work: use the client's actual environment, materials and workflow. Motion may
+  echo that work through depth and direction, but must remain subtle, readable
+  and disabled by reduced-motion preferences. Do not add decorative gimmicks.
+
 - **Copy hierarchy:** lead every section and card with the result the client
   wants to feel: fewer lost leads, a calmer handoff, faster replies or clear
   control. Put the tools, features and implementation mechanics in the short
@@ -129,15 +138,16 @@ python3 code/pitch/generate.py <id> --hook "..." \
   website review with a prioritized action plan. Adapt the nouns to the job,
   but do not replace the deliverables with a vague custom audit. Use
   `--showcase "job-specific title|short delivery promise|#next|Send your website on Upwork"`
-  with three `--showcase-point` values of at most eight words each. When a safe
-  example report is available, record a short silent scroll through it and pass
-  the MP4 or WebM with `--showcase-video`; it lets the client see the deliverable.
-  The recording must show the current report produced by the project-local
-  `lead-magnet` skill, with its `Get found`, `Build trust` and `Win enquiries`
-  sections. Never substitute an archived or external report design. Use safe
-  demo evidence when no reviewed job report exists. The bundled report cover
-  remains the fallback. Do not expose private client data, link to a contact
-  page or promise findings that have not been measured.
+  with three `--showcase-point` values of at most eight words each. Generate the
+  safe fictional example with
+  `python3 .claude/skills/lead-magnet/scripts/demo.py jobs/<id>/lead-magnet-example.html --business "Example [industry]" --service "[client service]" --location "[client market]" --conversion "[desired enquiry action]"`
+  and embed it with `--showcase-html`; the client can scroll and open the three
+  audit sections directly. It must show the current project-local report with
+  its `Get found`, `Build trust` and `Win enquiries` sections. Never substitute an archived or external report design. A short `--showcase-video` walkthrough
+  is only the fallback when an embed cannot be used; the bundled report cover is
+  the final fallback. Do not expose private client data, link to a contact page
+  or promise findings that have not been measured. Its fictional business,
+  service, conversion and market must match the actual industry.
 - Your YouTube videos appear when `context/videos.json` lists them (`{"channel": url, "videos": [{"id", "title", "thumb"}]}`); the channel page itself must show no email or booking link.
 
 ## Step 6 · The Loom script

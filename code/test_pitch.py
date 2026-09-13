@@ -194,16 +194,41 @@ class GenerateHelpersTest(unittest.TestCase):
         self.assertNotIn('ILLUSTRATION_SRC', diagram)
         self.assertIn("REPORT_COVER = HERE / 'report-cover-example.jpg'", generator)
 
-    def test_showcase_prefers_a_muted_video_and_keeps_the_cover_fallback(self):
+    def test_showcase_prefers_the_live_report_and_keeps_safe_fallbacks(self):
         generator = (CODE / 'pitch' / 'generate.py').read_text(encoding='utf-8')
         template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')
+        self.assertIn("ap.add_argument('--showcase-html'", generator)
+        self.assertIn('class="cover-face audit-frame"', generator)
+        self.assertIn('sandbox loading="lazy"', generator)
         self.assertIn("ap.add_argument('--showcase-video'", generator)
         self.assertIn('autoplay muted loop playsinline', generator)
         self.assertIn('{{SHOWCASE_MEDIA}}', template)
+        self.assertIn('height: 680px', template)
+        self.assertIn('data-theme="{{THEME}}"', template)
+        self.assertIn("choices=('warm', 'steel', 'signal', 'growth', 'calm')", generator)
         self.assertIn('class="audit-window"', template)
         self.assertNotIn('cover-book', template)
         self.assertNotIn('cover-sheet', template)
         self.assertIn('Cover of an example website audit', generator)
+
+    def test_showcase_html_requires_the_current_safe_report(self):
+        with tempfile.TemporaryDirectory() as raw:
+            folder = pathlib.Path(raw)
+            current = folder / 'current.html'
+            current.write_text('<details data-audit-section="maps">Get found</details>'
+                               '<details data-audit-section="profile">Build trust</details>'
+                               '<details data-audit-section="website">Win enquiries</details>', encoding='utf-8')
+            media = gen.showcase_media(current, '', folder / 'missing.jpg')
+            self.assertIn('data:text/html;base64,', media)
+            self.assertIn('Interactive example website audit', media)
+            unsafe = folder / 'unsafe.html'
+            unsafe.write_text(current.read_text(encoding='utf-8') + '<script></script>', encoding='utf-8')
+            with self.assertRaises(SystemExit):
+                gen.showcase_media(unsafe, '', folder / 'missing.jpg')
+            branded = folder / 'branded.html'
+            branded.write_text(current.read_text(encoding='utf-8') + 'Pocket CEO', encoding='utf-8')
+            with self.assertRaises(SystemExit):
+                gen.showcase_media(branded, '', folder / 'missing.jpg')
 
     def test_proof_section_reserves_a_freelancer_photo(self):
         template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')

@@ -15,6 +15,7 @@ from unittest import mock
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RENDERER = ROOT / '.claude' / 'skills' / 'lead-magnet' / 'scripts' / 'render_report.py'
 BUILDER = ROOT / '.claude' / 'skills' / 'lead-magnet' / 'scripts' / 'build.py'
+DEMO = ROOT / '.claude' / 'skills' / 'lead-magnet' / 'scripts' / 'demo.py'
 SKILL = ROOT / '.claude' / 'skills' / 'lead-magnet'
 PIPELINE = ROOT / 'code' / 'pipeline.py'
 sys.path.insert(0, str(SKILL / 'scripts'))
@@ -246,6 +247,24 @@ class LeadMagnetRendererTest(unittest.TestCase):
                 sys.argv = old
             self.assertTrue(output.is_file())
             self.assertNotIn('https://', output.read_text(encoding='utf-8'))
+
+    def test_demo_is_a_safe_current_format_report(self):
+        with tempfile.TemporaryDirectory() as raw:
+            output = pathlib.Path(raw) / 'lead-magnet-example.html'
+            result = subprocess.run(
+                [sys.executable, str(DEMO), str(output)],
+                text=True, capture_output=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            page = output.read_text(encoding='utf-8')
+            self.assertEqual(page.count('data-audit-section="'), 3)
+            self.assertIn('Example local visibility audit', page)
+            self.assertIn('Get found', page)
+            self.assertIn('Build trust', page)
+            self.assertIn('Win enquiries', page)
+            self.assertNotIn('Pocket CEO', page)
+            self.assertNotIn('https://', page)
+            self.assertNotIn('<script', page)
 
     def test_builder_dry_run_names_paid_services_without_calling_them(self):
         with tempfile.TemporaryDirectory() as raw:

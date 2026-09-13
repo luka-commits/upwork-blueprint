@@ -17,7 +17,8 @@ something the proof file does not hold.
         [--loom-url https://www.loom.com/share/...] [--video-length "3 minute"] \\
         [--hero-illustration path] [--live-artifact "Label|URL"] \\
         [--proof-link "Label|Detail|URL"] [--next-step "..."] \\
-        [--showcase "Title|Teaser|URL|CTA" --showcase-point "..." --showcase-video path]
+        [--theme warm|steel|signal|growth|calm] \\
+        [--showcase "Title|Teaser|URL|CTA" --showcase-point "..." --showcase-html path]
 
 Writes jobs/<job_id>/pitch.html. Exits 1 on anything missing or malformed: a half
 page with a silent gap is worse than a stop that names the cause.
@@ -386,8 +387,25 @@ def plan_cards(showcase, kickoff, updates, outcomes, images, job_title):
     return ''.join(cards)
 
 
-def showcase_media(video, image):
-    """Prefer a silent report walkthrough; retain the cover as a safe fallback."""
+def showcase_media(embed, video, image):
+    """Prefer the live audit, then a walkthrough, then the static cover."""
+    if embed:
+        path = pathlib.Path(embed)
+        if path.suffix.lower() not in {'.html', '.htm'} or not path.is_file():
+            abort('--showcase-html must be an existing HTML file.')
+        source = path.read_text(encoding='utf-8')
+        required = ('data-audit-section="maps"', 'data-audit-section="profile"',
+                    'data-audit-section="website"', 'Get found', 'Build trust', 'Win enquiries')
+        if not all(marker in source for marker in required):
+            abort('--showcase-html must be a current three-part lead-magnet report.')
+        forbidden = re.search(r'<(?:script|iframe|form)\b|https?://|mailto:|tel:|\son\w+\s*=|pocket\s+(?:ceo|seo)',
+                              source, flags=re.I)
+        if forbidden:
+            abort(f'--showcase-html contains unsafe or internal content: {forbidden.group(0)!r}.')
+        encoded = base64.b64encode(source.encode('utf-8')).decode('ascii')
+        return (f'<iframe class="cover-face audit-frame" src="data:text/html;base64,{encoded}" '
+                'title="Interactive example website audit" sandbox loading="lazy" '
+                'referrerpolicy="no-referrer"></iframe>')
     if video:
         path = pathlib.Path(video)
         mime = {'.mp4': 'video/mp4', '.webm': 'video/webm'}.get(path.suffix.lower())
@@ -416,6 +434,7 @@ def main(argv=None):
     ap.add_argument('--loom-url', default='')
     ap.add_argument('--video-length', default='3 minute')
     ap.add_argument('--hero-illustration', default='')
+    ap.add_argument('--theme', choices=('warm', 'steel', 'signal', 'growth', 'calm'), default='warm')
     ap.add_argument('--live-artifact', action='append', default=[], help='"Label|URL" of something already built')
     ap.add_argument('--proof-link', default='', help='"Label|Detail|URL" of past work, no contact details on it')
     ap.add_argument('--next-step', default=DEFAULT_NEXT)
@@ -423,6 +442,7 @@ def main(argv=None):
     ap.add_argument('--showcase-point', action='append', default=[])
     ap.add_argument('--showcase-image', default='')
     ap.add_argument('--showcase-video', default='', help='silent MP4 or WebM scroll through an example audit')
+    ap.add_argument('--showcase-html', default='', help='safe current lead-magnet HTML embedded as an interactive example')
     ap.add_argument('--max-reviews', type=int, default=3)
     ap.add_argument('--out')
     args = ap.parse_args(argv)
@@ -477,7 +497,7 @@ def main(argv=None):
     page = keep_or_strip(page, 'showcase', bool(args.showcase))
     showcase = split_label(args.showcase, 4, '--showcase') if args.showcase else ['', '', '', '']
     showcase_image = pathlib.Path(args.showcase_image) if args.showcase_image else REPORT_COVER
-    if args.showcase and not args.showcase_video and not showcase_image.is_file():
+    if args.showcase and not args.showcase_html and not args.showcase_video and not showcase_image.is_file():
         abort(f'lead magnet cover "{showcase_image}" does not exist.')
 
     js = DIAGRAM_JS.read_text(encoding='utf-8').replace(
@@ -485,6 +505,7 @@ def main(argv=None):
     fills = {
         '{{BODY_CLASS}}': '' if args.loom_url else 'no-video',
         '{{JOB_TITLE}}': esc(safe_job_title(job.get('title'))),
+        '{{THEME}}': args.theme,
         '{{HOOK}}': esc(args.hook),
         '{{BUILD_LEDE}}': esc(args.build_lede),
         '{{HERO_ART}}': hero_art,
@@ -505,7 +526,8 @@ def main(argv=None):
         '{{LEAD_MAGNET_URL}}': esc(showcase[2]),
         '{{LEAD_MAGNET_CTA}}': esc(showcase[3]),
         '{{SHOWCASE_POINTS}}': ''.join(f'<li>{esc(p)}</li>' for p in args.showcase_point),
-        '{{SHOWCASE_MEDIA}}': showcase_media(args.showcase_video, showcase_image) if args.showcase else '',
+        '{{SHOWCASE_MEDIA}}': showcase_media(args.showcase_html, args.showcase_video, showcase_image) if args.showcase else '',
+        '{{SHOWCASE_STATUS}}': 'Scroll' if args.showcase_html else 'Preview',
         '{{NEXT_STEP}}': esc(args.next_step),
         '{{PROFILE_URL}}': esc(url or '#'),
         '{{FOOTER_LINKS}}': '<span class="dot">·</span>'.join(footer),

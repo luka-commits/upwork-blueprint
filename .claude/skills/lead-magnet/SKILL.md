@@ -39,6 +39,19 @@ Never publish it, add it to a message or send it from this skill. A public link
 needs a separately approved host and the same pre-contract contact-details gate
 as a pitch page.
 
+For a public pitch-page preview, never reuse a client report. Generate the
+fictional current-format example instead:
+
+```bash
+python3 .claude/skills/lead-magnet/scripts/demo.py jobs/<id>/lead-magnet-example.html \
+  --business "Example [industry]" --service "[client service]" \
+  --location "[client market]" --conversion "[desired enquiry action]"
+```
+
+The demo uses no paid service, real client or external link. Match its fictional
+business, service, market and conversion to the job's real industry. It exists
+only so the pitch page can embed the real report experience safely.
+
 ## Evidence rules
 
 Every score and sentence comes from the files produced in the same run. A

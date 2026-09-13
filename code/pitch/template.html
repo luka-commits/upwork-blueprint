@@ -1,9 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="{{THEME}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
+<link rel="icon" href="data:,">
 <title>{{JOB_TITLE}}: how I'd build this</title>
 <style>
   /* ------------------------------------------------------------------
@@ -38,6 +39,37 @@
     --measure-wide: 880px;
     --ease: cubic-bezier(.16,1,.3,1);
     --tilt: 11deg;          /* driven by scroll, see the device script */
+  }
+
+  /* One restrained palette can follow the client's world without changing the
+     page's structure. Media still carries most of the industry context. */
+  html[data-theme="steel"] {
+    --bg: #edf1f3; --bg-band: #e1e8eb; --card: #f8fafb; --ink: #172329;
+    --ink-raised: #22333b; --text: #1d2b32; --text-2: #4d5d65; --text-3: #61717a;
+    --accent: #b85d32; --accent-deep: #94441f; --accent-on-ink: #eb9669;
+    --on-ink: #edf3f5; --on-ink-2: #b5c3c9; --border: #d2dcdf; --border-soft: #dce4e7;
+    --dg-tint: #f0dfd6; --dg-tint-stroke: #d9ad98; --dg-edge: #78868c;
+  }
+  html[data-theme="signal"] {
+    --bg: #eef3f8; --bg-band: #e2eaf3; --card: #f8fbfe; --ink: #142337;
+    --ink-raised: #1e3048; --text: #1a2a3f; --text-2: #4d5e73; --text-3: #627287;
+    --accent: #316bc5; --accent-deep: #22529b; --accent-on-ink: #78aaff;
+    --on-ink: #eef5ff; --on-ink-2: #b4c4d8; --border: #d3deeb; --border-soft: #dce5ef;
+    --dg-tint: #e0eafb; --dg-tint-stroke: #adc5e9; --dg-edge: #78869a;
+  }
+  html[data-theme="growth"] {
+    --bg: #eff3ed; --bg-band: #e3eae0; --card: #fafcf8; --ink: #17271e;
+    --ink-raised: #22372a; --text: #1c3024; --text-2: #4d6254; --text-3: #607466;
+    --accent: #3f7a55; --accent-deep: #2d6040; --accent-on-ink: #7fbd93;
+    --on-ink: #eff7f1; --on-ink-2: #b4c8ba; --border: #d5dfd3; --border-soft: #dfe7dd;
+    --dg-tint: #dfede2; --dg-tint-stroke: #b2cfba; --dg-edge: #7a897e;
+  }
+  html[data-theme="calm"] {
+    --bg: #eff4f3; --bg-band: #e2ecea; --card: #f9fcfb; --ink: #17302f;
+    --ink-raised: #21413f; --text: #1b3735; --text-2: #4b6664; --text-3: #607976;
+    --accent: #357b76; --accent-deep: #27615d; --accent-on-ink: #7fc0bb;
+    --on-ink: #eef8f7; --on-ink-2: #b1cdca; --border: #d1e0de; --border-soft: #dce8e6;
+    --dg-tint: #dceeed; --dg-tint-stroke: #acd0cd; --dg-edge: #778c8a;
   }
 
   * { box-sizing: border-box; }
@@ -186,12 +218,12 @@
   .device-screen { position: relative; width: 100%; height: 100%; border-radius: 20px;
     overflow: hidden; background: #18181b; display: block; text-decoration: none; }
   .device-screen .glow { position: absolute; inset: 0;
-    background: radial-gradient(120% 90% at 50% 0%, rgba(193,102,62,.20), transparent 62%); }
+    background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 62%); }
   .device-screen .face { position: absolute; inset: 0; display: flex; align-items: center;
     justify-content: center; gap: 16px; color: var(--on-ink); font-weight: 600; font-size: 16px; }
   .device-screen .play { display: grid; place-items: center; width: 64px; height: 64px;
     border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 18px;
-    line-height: 1; flex: none; box-shadow: 0 0 0 0 rgba(193,102,62,.5);
+    line-height: 1; flex: none; box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent);
     transition: transform .2s var(--ease), background .2s var(--ease), box-shadow .3s var(--ease); }
   .device-badge { position: absolute; right: 14px; bottom: 14px; z-index: 2;
     background: rgba(0,0,0,.5); color: var(--on-ink); font-size: 11.5px; font-weight: 600;
@@ -203,7 +235,7 @@
   .profile-story { display: grid; grid-template-columns: 190px 1fr; gap: 16px; align-items: stretch; }
   .freelancer-photo { min-height: 150px; border-radius: 14px; overflow: hidden; position: relative;
     border: 1px solid var(--border-soft); background:
-      radial-gradient(circle at 62% 24%, rgba(224,138,92,.26), transparent 28%),
+      radial-gradient(circle at 62% 24%, color-mix(in srgb, var(--accent-on-ink) 26%, transparent), transparent 28%),
       linear-gradient(145deg, #e5ded1, #c9bba8); display: grid; place-items: center; }
   .freelancer-photo svg { width: 46%; max-width: 94px; color: rgba(63,52,43,.32); }
   .freelancer-photo span { position: absolute; left: 18px; bottom: 16px; font-size: 11px;
@@ -490,7 +522,7 @@
     position: relative; overflow: hidden; min-width: 0;
     transition: border-color .22s var(--ease), transform .22s var(--ease), box-shadow .22s var(--ease); }
   .plan-item::after { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, var(--accent-on-ink), rgba(224,138,92,.16));
+    background: linear-gradient(90deg, var(--accent-on-ink), color-mix(in srgb, var(--accent-on-ink) 16%, transparent));
     transform-origin: left center; }
   .plan-media { aspect-ratio: 16/10; overflow: hidden; background: #2d2925; }
   .plan-media img { width: 100%; height: 100%; display: block; object-fit: cover;
@@ -523,8 +555,9 @@
     border-radius: 999px; border: 1.5px solid var(--accent-on-ink); }
 
   /* ---------------- Report showcase ---------------- */
-  .showcase { display: grid; grid-template-columns: 290px 1fr; gap: 64px; align-items: center; }
-  @media (max-width: 760px) { .showcase { grid-template-columns: 1fr; gap: 44px; justify-items: center; text-align: center; } }
+  .showcase { display: grid; grid-template-columns: minmax(440px, 540px) minmax(0, 1fr); gap: 72px; align-items: center; }
+  @media (max-width: 960px) { .showcase { grid-template-columns: 1fr; gap: 44px; justify-items: center; text-align: center; }
+    .showcase-preview { width: min(540px, 100%); } }
   .showcase-preview { position: relative; padding: 7px; border: 1px solid rgba(117,105,88,.24);
     border-radius: 17px; background: linear-gradient(145deg, rgba(255,255,255,.82), rgba(218,207,188,.54));
     box-shadow: 0 32px 64px -36px rgba(28,23,18,.62), inset 0 1px 0 rgba(255,255,255,.88);
@@ -543,6 +576,7 @@
     letter-spacing: .06em; text-transform: uppercase; }
   .cover-face { display: block; width: 100%; }
   .cover-video { aspect-ratio: 4 / 5; object-fit: cover; object-position: top; background: var(--card); }
+  .audit-frame { height: 680px; border: 0; background: var(--card); }
   .showcase-copy .section-title { margin-bottom: 14px; }
   .showcase-copy p { font-size: 16px; color: var(--text-2); margin: 0 0 22px; line-height: 1.62;
     max-width: 42ch; text-wrap: pretty; }
@@ -608,7 +642,7 @@
      and sticks, leaving a card raised until the user taps elsewhere. */
   @media (hover: hover) and (pointer: fine) {
   .device-screen:hover .play { transform: scale(1.09); background: var(--accent-deep);
-    box-shadow: 0 0 0 16px rgba(193,102,62,.10); }
+    box-shadow: 0 0 0 16px color-mix(in srgb, var(--accent) 10%, transparent); }
   .fit-list li:hover { transform: translateY(-3px); border-color: var(--border);
     box-shadow: 0 18px 34px -24px rgba(28,23,18,.45); }
   .yt-card:hover { transform: translateY(-4px); }
@@ -618,7 +652,7 @@
   .proof-link:hover { transform: translateY(-2px); border-color: var(--border);
     box-shadow: 0 16px 30px -24px rgba(28,23,18,.45); }
   .proof-link:hover .arrow { transform: translateX(4px); }
-  .plan-item:hover { border-color: rgba(224,138,92,.4); transform: translateY(-3px);
+  .plan-item:hover { border-color: color-mix(in srgb, var(--accent-on-ink) 40%, transparent); transform: translateY(-3px);
     box-shadow: 0 20px 42px -28px rgba(0,0,0,.75); }
   .plan-item:hover .plan-media img { transform: scale(1.025); }
 
@@ -862,7 +896,7 @@
             <div class="audit-window-bar" aria-hidden="true">
               <span class="window-dots"><i></i><i></i><i></i></span>
               <span class="window-title">Example website audit</span>
-              <span class="window-status">Preview</span>
+              <span class="window-status">{{SHOWCASE_STATUS}}</span>
             </div>
             {{SHOWCASE_MEDIA}}
           </div>

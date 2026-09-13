@@ -131,6 +131,7 @@ class ProjectSkillsTest(unittest.TestCase):
         self.assertNotIn('the plan in days', command)
         self.assertIn('Get found`, `Build trust` and `Win enquiries', command)
         self.assertIn('Never substitute an archived or external report design', command)
+        self.assertIn('--showcase-html', command)
 
 
 if __name__ == '__main__':

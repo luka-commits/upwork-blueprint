@@ -167,6 +167,8 @@ class GenerateHelpersTest(unittest.TestCase):
         self.assertIn("if (!editing) { sel = [id]; render(id); return; }", diagram)
         self.assertIn("tabindex: 0, role: 'button'", diagram)
         self.assertIn("var queue = starts.map", diagram)
+        self.assertIn('function layoutByGroups()', diagram)
+        self.assertIn('if (layoutByGroups()) return;', diagram)
         self.assertIn('id="dg-status" role="status"', template)
         self.assertIn('var MIN_READABLE = 1;', diagram)
         self.assertNotIn('function noteCards()', diagram)

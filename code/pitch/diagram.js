@@ -181,12 +181,76 @@
   }
 
   /* ---------------------------------------------------------------- layout
-     Layered, left to right: a node's column is the longest path that reaches
-     it, and everything sharing a column is stacked and centred in it. An
-     implementation plan is a graph, not a chain, so the earlier index-based
-     placement collided the moment a branch appeared (a nurture step landed on
-     top of a service). Ranks cannot collide by construction. */
+     A grouped plan already names its client-facing reading order: the phases.
+     Make those phases the horizontal columns and stack their steps in
+     topological order. This keeps a four-phase plan readable in one view
+     instead of turning every implementation step into another tiny column. */
+  function layoutByGroups() {
+    var groups = state.groups || [];
+    if (!groups.length) return false;
+
+    var nodes = state.nodes, edges = state.edges || [], nodeIndex = {}, indegree = {}, out = {};
+    nodes.forEach(function (node, index) {
+      nodeIndex[node.id] = index; indegree[node.id] = 0; out[node.id] = [];
+    });
+    edges.forEach(function (edge) {
+      if (out[edge.from] && indegree[edge.to] != null) {
+        out[edge.from].push(edge.to); indegree[edge.to]++;
+      }
+    });
+
+    var queue = nodes.filter(function (node) { return indegree[node.id] === 0; }).map(function (node) { return node.id; });
+    var order = {}, oi = 0, head = 0;
+    while (head < queue.length) {
+      var id = queue[head++];
+      order[id] = oi++;
+      out[id].forEach(function (target) {
+        indegree[target]--;
+        if (indegree[target] === 0) queue.push(target);
+      });
+    }
+    // User edits can introduce a cycle. Keep those nodes stable instead of
+    // losing them when Tidy is pressed; playback separately explains the loop.
+    nodes.forEach(function (node) {
+      if (order[node.id] == null) order[node.id] = oi++;
+    });
+
+    var assigned = {}, columns = [];
+    groups.forEach(function (group) {
+      var members = (group.nodes || []).map(byId).filter(function (node) {
+        if (!node || assigned[node.id]) return false;
+        assigned[node.id] = true;
+        return true;
+      });
+      if (members.length) columns.push(members);
+    });
+    var ungrouped = nodes.filter(function (node) { return !assigned[node.id]; });
+    if (ungrouped.length) columns.push(ungrouped);
+    if (!columns.length) return false;
+
+    columns.forEach(function (column) {
+      column.sort(function (a, b) {
+        return order[a.id] - order[b.id] || nodeIndex[a.id] - nodeIndex[b.id];
+      });
+    });
+    var tallest = columns.reduce(function (n, column) { return Math.max(n, column.length); }, 1);
+    var rowHeight = NH + 44;
+    var xShift = ILLUSTRATION ? ILLUS_W + ILLUS_GAP : 0;
+    columns.forEach(function (column, columnIndex) {
+      var yOffset = (tallest - column.length) * rowHeight / 2;
+      column.forEach(function (node, rowIndex) {
+        node.x = xShift + columnIndex * (NW + GAPX);
+        node.y = yOffset + rowIndex * rowHeight;
+      });
+    });
+    return true;
+  }
+
+  /* Ungrouped plans keep the graph-native layout: a node's column is the
+     longest path that reaches it, and nodes sharing a rank stack vertically.
+     Ranks cannot collide by construction. */
   function autoLayout() {
+    if (layoutByGroups()) return;
     var nodes = state.nodes, edges = state.edges || [], i;
     var rank = {}, incoming = {}, out = {};
     nodes.forEach(function (d) { rank[d.id] = 0; incoming[d.id] = 0; out[d.id] = []; });

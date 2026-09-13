@@ -17,7 +17,7 @@ something the proof file does not hold.
         [--loom-url https://www.loom.com/share/...] [--video-length "3 minute"] \\
         [--hero-illustration path] [--live-artifact "Label|URL"] \\
         [--proof-link "Label|Detail|URL"] [--next-step "..."] \\
-        [--showcase "Title|Teaser|URL|CTA" --showcase-point "..." --showcase-image path]
+        [--showcase "Title|Teaser|URL|CTA" --showcase-point "..." --showcase-video path]
 
 Writes jobs/<job_id>/pitch.html. Exits 1 on anything missing or malformed: a half
 page with a silent gap is worse than a stop that names the cause.
@@ -79,12 +79,14 @@ def safe_job_title(text):
 def data_uri(path, mime=None):
     p = pathlib.Path(path)
     if not p.is_file():
-        abort(f'image "{p}" does not exist.')
+        abort(f'media "{p}" does not exist.')
     detected = {
         '.jpg': 'image/jpeg',
         '.jpeg': 'image/jpeg',
         '.png': 'image/png',
         '.webp': 'image/webp',
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
     }
     mime = mime or detected.get(p.suffix.lower(), 'application/octet-stream')
     return f'data:{mime};base64,{base64.b64encode(p.read_bytes()).decode("ascii")}'
@@ -384,6 +386,20 @@ def plan_cards(showcase, kickoff, updates, outcomes, images, job_title):
     return ''.join(cards)
 
 
+def showcase_media(video, image):
+    """Prefer a silent report walkthrough; retain the cover as a safe fallback."""
+    if video:
+        path = pathlib.Path(video)
+        mime = {'.mp4': 'video/mp4', '.webm': 'video/webm'}.get(path.suffix.lower())
+        if not mime:
+            abort('--showcase-video must be an MP4 or WebM file.')
+        return (f'<video class="cover-face cover-video" autoplay muted loop playsinline preload="metadata" '
+                f'aria-label="Short scroll through an example website audit">'
+                f'<source src="{data_uri(path, mime)}" type="{mime}"></video>')
+    return (f'<img class="cover-face" src="{data_uri(image, "image/jpeg")}" '
+            'alt="Cover of an example website audit">')
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('job_id')
@@ -406,6 +422,7 @@ def main(argv=None):
     ap.add_argument('--showcase', default='', help='"Title|Teaser|URL|CTA" for a sample of your work')
     ap.add_argument('--showcase-point', action='append', default=[])
     ap.add_argument('--showcase-image', default='')
+    ap.add_argument('--showcase-video', default='', help='silent MP4 or WebM scroll through an example audit')
     ap.add_argument('--max-reviews', type=int, default=3)
     ap.add_argument('--out')
     args = ap.parse_args(argv)
@@ -460,7 +477,7 @@ def main(argv=None):
     page = keep_or_strip(page, 'showcase', bool(args.showcase))
     showcase = split_label(args.showcase, 4, '--showcase') if args.showcase else ['', '', '', '']
     showcase_image = pathlib.Path(args.showcase_image) if args.showcase_image else REPORT_COVER
-    if args.showcase and not showcase_image.is_file():
+    if args.showcase and not args.showcase_video and not showcase_image.is_file():
         abort(f'lead magnet cover "{showcase_image}" does not exist.')
 
     js = DIAGRAM_JS.read_text(encoding='utf-8').replace(
@@ -488,7 +505,7 @@ def main(argv=None):
         '{{LEAD_MAGNET_URL}}': esc(showcase[2]),
         '{{LEAD_MAGNET_CTA}}': esc(showcase[3]),
         '{{SHOWCASE_POINTS}}': ''.join(f'<li>{esc(p)}</li>' for p in args.showcase_point),
-        '{{REPORT_COVER_SRC}}': data_uri(showcase_image, 'image/jpeg') if args.showcase else '',
+        '{{SHOWCASE_MEDIA}}': showcase_media(args.showcase_video, showcase_image) if args.showcase else '',
         '{{NEXT_STEP}}': esc(args.next_step),
         '{{PROFILE_URL}}': esc(url or '#'),
         '{{FOOTER_LINKS}}': '<span class="dot">·</span>'.join(footer),

@@ -48,7 +48,7 @@ Write the graph to `data/pitch-graph-<id>.json`:
   that serve one outcome and explain them in the node note. Avoid more than
   seven linked stages on the main path; branches are easier to read than one
   very long chain.
-- `nodes`: `id`, `label` (an everyday verb and outcome, ideally four words or fewer), `kind` (`source`, `step`, `sink`, `decision`, `datastore`, `service`, `actor`, `note`, `milestone`), `owner` (`you` builds it, `client` already runs it, `thirdparty` outside service), optional `logo` (a file name in `code/pitch/logos/`), `note` (what happens in this exact job) and `why` (the immediate business benefit). Keep each explanation to one short sentence. A reader must understand the label without opening it. Never use a generic automation explanation that would survive a different job title.
+- `nodes`: `id`, `label` (an everyday verb and outcome, ideally four words or fewer), `kind` (`source`, `step`, `sink`, `decision`, `datastore`, `service`, `actor`, `note`, `milestone`), `owner` (`you` builds it, `client` already runs it, `thirdparty` outside service), optional `logo` (a file name in `code/pitch/logos/`) and `note` (what happens in this exact job). The note is one short sentence that names the exact tool and action, such as "GoHighLevel Workflows sends the missed-call SMS." Never add a separate benefit field or a generic explanation that would survive a different job title. A reader must understand the label without opening it.
 - `edges`: `from`, `to`, optional `label`, optional `dashed` for later phases.
 - `groups`: `label` and `nodes`, one per sequential phase. Use two to five
   client-facing outcome labels, not technical buckets such as "Setup" or
@@ -84,6 +84,12 @@ python3 code/pitch/generate.py <id> --hook "..." \
   --plan-image jobs/<id>/plan-01.jpg (once per card)
 ```
 
+- **Copy hierarchy:** lead every section and card with the result the client
+  wants to feel: fewer lost leads, a calmer handoff, faster replies or clear
+  control. Put the tools, features and implementation mechanics in the short
+  description below. Never use a tool name or feature list as the headline.
+  Keep both layers specific to this job and supported by the posting or proof.
+
 - **Onboarding:** list only the access, content and decisions needed before the
   first build can start.
 - **Updates:** name a specific cadence and where updates will live. Use Upwork
@@ -93,7 +99,10 @@ python3 code/pitch/generate.py <id> --hook "..." \
   audit, onboarding, updates. Write one short, job-specific `--plan-outcome` for
   each card. Generate one matching landscape illustration per card and pass it
   with `--plan-image` in the same order. The three images must share one style,
-  show the client's industry and contain no text, logos or generic diagrams.
+  show the actual project inside the client's industry and contain no text,
+  logos or generic diagrams. Make the system, work or finished outcome the
+  subject. People may appear only as small context; never build the image around
+  a person looking at a screen, pointing at a board or posing beside the work.
 - Do not put a budget or speculative delivery timeline on the pitch page. The
   internal pricing guide remains in the cockpit for the member.
 - **Next step** (`--next-step`) points back to Upwork; the default asks them to send their website or current setup there.
@@ -102,21 +111,26 @@ python3 code/pitch/generate.py <id> --hook "..." \
   from your posting" are not accepted.
 - Optional: `--loom-url` once recorded, `--live-artifact "Label|URL"` for anything actually built and `--proof-link "Label|Detail|URL"` for past work with no contact details on it.
 - For a complex flow whose result is hard to picture, generate one 16:9
-  `--hero-illustration`: a scene from the client's industry with the finished
-  outcome visible, no text, logos or generic boxes and arrows. It always appears
+  `--hero-illustration`: show the project or finished outcome in the client's
+  industry, not a person presenting it. Use people only as small context. No
+  text, logos or generic boxes and arrows. It always appears
   in the hero directly below the headline, never inside the flow. Skip it only when the result is already an
   obvious short chain, and state that decision in the completion report.
 - When the job is tied to a local business website, offer the Pocket SEO V2
   lead magnet we actually send. Make the free upfront work explicit: the client
   sends the website, and the member returns the complete audit before the build.
+  Pocket SEO V2 and Pocket CEO are internal names and must never appear in
+  client-facing copy. Sell the useful outcome, then name what the audit contains.
   Use a headline of at most eight words, one sentence of at most 20 words and these three compact deliverables: a 25-point
   Google Maps grid, a full Google Business Profile review, and a 15-point
   website review with a prioritized action plan. Adapt the nouns to the job,
   but do not replace the deliverables with a vague custom audit. Use
   `--showcase "job-specific title|short delivery promise|#next|Send your website on Upwork"`
-  with three `--showcase-point` values of at most eight words each. The bundled
-  report cover is used automatically. Do not link to a contact page or promise
-  findings that have not been measured.
+  with three `--showcase-point` values of at most eight words each. When a safe
+  example report is available, record a short silent scroll through it and pass
+  the MP4 or WebM with `--showcase-video`; it lets the client see the deliverable.
+  The bundled report cover remains the fallback. Do not expose private client
+  data, link to a contact page or promise findings that have not been measured.
 - Your YouTube videos appear when `context/videos.json` lists them (`{"channel": url, "videos": [{"id", "title", "thumb"}]}`); the channel page itself must show no email or booking link.
 
 ## Step 6 · The Loom script

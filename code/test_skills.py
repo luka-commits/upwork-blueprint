@@ -117,6 +117,18 @@ class ProjectSkillsTest(unittest.TestCase):
         self.assertIn('Never publish', skill)
         self.assertIn('Upwork calls: 0', command)
 
+    def test_pitch_images_focus_on_the_project_instead_of_people(self):
+        skill = (ROOT / '.claude' / 'commands' / 'pitch-page.md').read_text(encoding='utf-8')
+        self.assertIn('Make the system, work or finished outcome the', skill)
+        self.assertIn('People may appear only as small context', skill)
+        self.assertIn('not a person presenting it', skill)
+
+    def test_pitch_copy_leads_with_benefits_and_explains_with_features(self):
+        command = (ROOT / '.claude' / 'commands' / 'pitch-page.md').read_text(encoding='utf-8')
+        self.assertIn('lead every section and card with the result', command)
+        self.assertIn('tools, features and implementation mechanics in the short', command)
+        self.assertIn('internal names and must never appear in', command)
+
 
 if __name__ == '__main__':
     unittest.main()

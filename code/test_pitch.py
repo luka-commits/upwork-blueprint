@@ -105,13 +105,12 @@ class GenerateHelpersTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             gen.build_graph('{"nodes":[{"id":"a","label":"x"}],"edges":[{"from":"a","to":"zz"}]}')
 
-    def test_graph_validates_job_specific_why_copy(self):
+    def test_graph_validates_job_specific_what_happens_copy(self):
         data, _ = gen.build_graph('{"nodes":[{"id":"a","label":"Roofing form",'
-                                  '"note":"New enquiries enter GHL.",'
-                                  '"why":"Roofing leads no longer wait in an inbox."}],"edges":[]}')
-        self.assertIn('Roofing leads', data)
+                                  '"note":"GoHighLevel Forms creates the roofing opportunity."}],"edges":[]}')
+        self.assertIn('GoHighLevel Forms', data)
         with self.assertRaises(SystemExit):
-            gen.build_graph('{"nodes":[{"id":"a","label":"Roofing form","why":""}],"edges":[]}')
+            gen.build_graph('{"nodes":[{"id":"a","label":"Roofing form","note":""}],"edges":[]}')
 
     def test_graph_rejects_malformed_structure_and_ambiguous_ids(self):
         bad_graphs = (
@@ -148,7 +147,7 @@ class GenerateHelpersTest(unittest.TestCase):
         graph = json.loads(data)
         self.assertEqual(len(graph['nodes']), 9)
         self.assertEqual(len(graph['edges']), 8)
-        self.assertTrue(all(node.get('why') for node in graph['nodes']))
+        self.assertTrue(all(node.get('note') for node in graph['nodes']))
         self.assertIn('Message storm-hit areas', fallback)
 
     def test_graph_rejects_more_than_twelve_client_level_steps(self):
@@ -172,15 +171,16 @@ class GenerateHelpersTest(unittest.TestCase):
         self.assertIn('data-dg="edit"', artifact_bar)
         self.assertIn('data-dg="full"', artifact_bar)
         self.assertIn('class="dg-inspector"', template)
-        self.assertIn('id="dg-roadmap"', template)
-        self.assertIn('id="dg-inspector-why"', template)
+        self.assertNotIn('id="dg-roadmap"', template)
+        self.assertNotIn('Why it helps', template)
+        self.assertIn('class="dg-inspector-mark"', template)
         self.assertIn('id="dg-inspector-form"', template)
         self.assertIn('.dg-foot[hidden] { display: none; }', template)
         self.assertIn("if (!editing) { sel = [id]; render(id); return; }", diagram)
         self.assertIn("tabindex: 0, role: 'button'", diagram)
         self.assertIn("var queue = starts.map", diagram)
         self.assertIn('function layoutByGroups()', diagram)
-        self.assertIn('function renderRoadmap()', diagram)
+        self.assertNotIn('function renderRoadmap()', diagram)
         self.assertIn('function saveInspectorForm()', diagram)
         self.assertIn('if (layoutByGroups()) return;', diagram)
         self.assertIn('id="dg-status" role="status"', template)
@@ -193,6 +193,14 @@ class GenerateHelpersTest(unittest.TestCase):
         self.assertIn('<div class="hero-art" data-settle>', generator)
         self.assertNotIn('ILLUSTRATION_SRC', diagram)
         self.assertIn("REPORT_COVER = HERE / 'report-cover-example.jpg'", generator)
+
+    def test_showcase_prefers_a_muted_video_and_keeps_the_cover_fallback(self):
+        generator = (CODE / 'pitch' / 'generate.py').read_text(encoding='utf-8')
+        template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')
+        self.assertIn("ap.add_argument('--showcase-video'", generator)
+        self.assertIn('autoplay muted loop playsinline', generator)
+        self.assertIn('{{SHOWCASE_MEDIA}}', template)
+        self.assertIn('Cover of an example website audit', generator)
 
     def test_proof_section_reserves_a_freelancer_photo(self):
         template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')

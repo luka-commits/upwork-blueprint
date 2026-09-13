@@ -76,55 +76,6 @@
     return -1;
   }
 
-  function phaseOutcome(group) {
-    var members = (group.nodes || []).map(byId).filter(Boolean);
-    if (!members.length) return '';
-    var memberIds = {};
-    members.forEach(function (node) { memberIds[node.id] = true; });
-    var internalTargets = {};
-    (state.edges || []).forEach(function (edge) {
-      if (memberIds[edge.from] && memberIds[edge.to]) internalTargets[edge.from] = true;
-    });
-    var outcomes = members.filter(function (node) { return !internalTargets[node.id]; });
-    return (outcomes[outcomes.length - 1] || members[members.length - 1]).label;
-  }
-
-  function renderRoadmap() {
-    var roadmap = document.getElementById('dg-roadmap');
-    var groups = state.groups || [];
-    if (!roadmap) return;
-    roadmap.textContent = '';
-    roadmap.hidden = !groups.length;
-    if (!groups.length) return;
-    roadmap.style.setProperty('--phase-count', groups.length);
-    var active = sel.length === 1 ? phaseIndexFor(sel[0]) : -1;
-    groups.forEach(function (group, index) {
-      var button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'dg-phase';
-      button.dataset.phase = index;
-      button.dataset.active = index === active ? 'true' : 'false';
-      button.setAttribute('aria-label', 'Phase ' + (index + 1) + ': ' + group.label + '. Output: ' + phaseOutcome(group));
-      var number = document.createElement('span');
-      number.className = 'dg-phase-num';
-      number.textContent = String(index + 1).padStart(2, '0');
-      var label = document.createElement('strong');
-      label.textContent = group.label;
-      var outcome = document.createElement('small');
-      outcome.textContent = 'Output: ' + phaseOutcome(group);
-      button.appendChild(number); button.appendChild(label); button.appendChild(outcome);
-      button.addEventListener('click', function () {
-        var members = (group.nodes || []).map(byId).filter(Boolean);
-        if (!members.length) return;
-        var target = members[members.length - 1];
-        sel = [target.id];
-        render(target.id);
-        announce('Phase ' + (index + 1) + ': ' + group.label + '.');
-      });
-      roadmap.appendChild(button);
-    });
-  }
-
   function announce(message, hold) {
     var status = document.getElementById('dg-status');
     if (!status) return;
@@ -200,19 +151,17 @@
     var kind = document.getElementById('dg-inspector-kind');
     var title = document.getElementById('dg-inspector-title');
     var note = document.getElementById('dg-inspector-note');
-    var why = document.getElementById('dg-inspector-why');
     var noteWrap = document.getElementById('dg-inspector-note-wrap');
-    var whyWrap = document.getElementById('dg-inspector-why-wrap');
     var inspectorView = document.getElementById('dg-inspector-view');
     var form = document.getElementById('dg-inspector-form');
     var tip = host.querySelector('.dg-inspector-tip');
-    if (!owner || !kind || !title || !note || !why || !inspectorView || !form) return;
+    if (!owner || !kind || !title || !note || !inspectorView || !form) return;
     form.hidden = !editing || !selected;
     inspectorView.hidden = editing && !!selected;
     if (!selected) {
       owner.textContent = 'Plan'; kind.textContent = 'Step details'; title.textContent = 'Choose a step';
-      note.textContent = ''; why.textContent = '';
-      noteWrap.hidden = true; whyWrap.hidden = true;
+      note.textContent = '';
+      noteWrap.hidden = true;
       if (tip && tip.dataset.active !== 'true') tip.textContent = 'Click a step or press Tab';
       return;
     }
@@ -221,9 +170,7 @@
     kind.textContent = selected.kind || 'step';
     title.textContent = selected.label;
     note.textContent = selected.note || '';
-    why.textContent = selected.why || '';
     noteWrap.hidden = !selected.note;
-    whyWrap.hidden = !selected.why;
     if (editing) populateInspectorForm(selected);
     if (tip && tip.dataset.active !== 'true') tip.textContent = editing ? 'Edit the selected step below' : 'Select another step';
   }
@@ -234,11 +181,9 @@
     var phaseName = document.getElementById('dg-edit-phase-name');
     var phaseNameWrap = document.getElementById('dg-edit-phase-name-wrap');
     var note = document.getElementById('dg-edit-note');
-    var why = document.getElementById('dg-edit-why');
-    if (!label || !phase || !phaseName || !phaseNameWrap || !note || !why) return;
+    if (!label || !phase || !phaseName || !phaseNameWrap || !note) return;
     label.value = selected.label || '';
     note.value = selected.note || '';
-    why.value = selected.why || '';
     phase.textContent = '';
     var none = document.createElement('option');
     none.value = '-1'; none.textContent = 'No phase'; phase.appendChild(none);
@@ -265,20 +210,18 @@
     var phase = document.getElementById('dg-edit-phase');
     var phaseName = document.getElementById('dg-edit-phase-name');
     var note = document.getElementById('dg-edit-note');
-    var why = document.getElementById('dg-edit-why');
     var nextLabel = label.value.trim();
     if (!nextLabel) { label.focus(); announce('Give this step a name.'); return; }
     var previousPhase = phaseIndexFor(selected.id);
     var nextPhase = Number(phase.value);
     var nextPhaseName = phaseName.value.trim();
     var changed = nextLabel !== selected.label || note.value.trim() !== (selected.note || '') ||
-      why.value.trim() !== (selected.why || '') || previousPhase !== nextPhase ||
+      previousPhase !== nextPhase ||
       (nextPhase >= 0 && state.groups[nextPhase] && nextPhaseName !== state.groups[nextPhase].label);
     if (!changed) { announce('No changes to save.'); return; }
     mark();
     selected.label = nextLabel;
     selected.note = note.value.trim();
-    selected.why = why.value.trim();
     if (nextPhase >= 0 && state.groups[nextPhase] && nextPhaseName) {
       state.groups[nextPhase].label = nextPhaseName;
     }
@@ -680,7 +623,6 @@
     applyView();
     drawMini();
     updateInspector();
-    renderRoadmap();
     syncControls();
     if (focusId) {
       var target = gNodes.querySelector('[data-id="' + focusId + '"]');

@@ -57,3 +57,11 @@ test('desktop corners use the compact control, panel and floating-surface scale'
   assert.match(lead, /\.lead-page \.panel\s*\{[^}]*border-radius: var\(--radius-panel\)/);
   assert.match(lead, /html\[data-input="keyboard"\] \.workspace-tabs::before \{ transition: none/);
 });
+
+test('not applied gives the job brief a balanced share of the workspace', () => {
+  const stages = readFileSync(new URL('../../components/stage-layout.css', import.meta.url), 'utf8');
+  assert.match(stages, /\.workspace-prepare \.stage-layout\.context-open\s*\{[^}]*grid-template-columns:\s*minmax\(390px, 1fr\) minmax\(520px, 1\.35fr\)/);
+  const lead = readFileSync(new URL('../../components/LeadPage.tsx', import.meta.url), 'utf8');
+  const details = lead.slice(lead.indexOf('function LeadDetails'), lead.indexOf('function ClientDetails'));
+  assert.ok(details.indexOf('<JobBrief job={j} />') < details.indexOf('<dl className="fields key-fields">'));
+});

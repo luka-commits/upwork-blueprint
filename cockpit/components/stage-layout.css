@@ -40,6 +40,10 @@
   grid-template-columns: minmax(240px, .72fr) minmax(520px, 2fr);
 }
 
+.workspace-prepare .stage-layout.context-open {
+  grid-template-columns: minmax(390px, 1fr) minmax(520px, 1.35fr);
+}
+
 .lead-page .stage-layout.tools-open {
   grid-template-columns: minmax(520px, 2fr) minmax(285px, .82fr);
 }

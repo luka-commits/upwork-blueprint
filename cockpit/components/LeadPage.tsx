@@ -186,16 +186,16 @@ function LeadDetails({ j, hasFlags }: { j: any; hasFlags: boolean }) {
   const clientSummary = [c.country, c.rating ? `${c.rating}★` : '', c.spent ? `${money(c.spent)} spent` : ''].filter(Boolean).join(' · ');
   return <section className="panel detail-panel">
     <h2>Job details</h2>
+    <JobBrief job={j} />
+    {j.rationale ? <Disclosure label="Why this job" summary={j.rationale}><p>{j.rationale}</p></Disclosure> : null}
+    {hasFlags ? <div className="lead-flags"><Flags j={j} /></div> : null}
     <dl className="fields key-fields">
       <Field label="Budget" value={budgetText(j)} />
       <Field label="Application" value={d.connects_cost != null ? `${d.connects_cost} Connects` : ''} />
       <Field label="Posted" value={j.posted_date ? `${day(j.posted_date)} (${ago(j.posted_date)})` : ''} />
       <Field label="Engagement" value={[j.engagement || d.engagement_type, d.experience_level && String(d.experience_level).toLowerCase()].filter(Boolean).join(' · ')} />
     </dl>
-    {hasFlags ? <div className="lead-flags"><Flags j={j} /></div> : null}
-    <JobBrief job={j} />
     {skillText ? <Disclosure label="Skills" summary={skillText}><p>{skillText}</p></Disclosure> : null}
-    {j.rationale ? <Disclosure label="Why this job" summary={j.rationale}><p>{j.rationale}</p></Disclosure> : null}
     <Disclosure label="Client" summary={clientSummary || 'Client details'}>
       <dl className="fields">
         <Field label="Rating" value={c.rating ? `${c.rating}★ from ${c.reviews ?? '?'} reviews` : ''} />

@@ -383,15 +383,7 @@ export default function ListPage({ space }: { space: SpaceName }) {
 
   if (!state) return null;
 
-  const tracker = state.tracker || {};
-
   return <div ref={rootRef}>
-    <div className="workspace-head"><h1>Your pipeline</h1>
-    {space === 'jobs' && tracker.goal ? <div className="daily-progress">
-      <div className="today"><span className="today-lbl">Applications today</span><span className="today-n"><b>{tracker.done}</b> <span>/ {tracker.goal}</span></span></div>
-      <div className="today-bar" role="progressbar" aria-label="Daily application target" aria-valuemin={0} aria-valuemax={tracker.goal} aria-valuenow={Math.min(tracker.goal, tracker.done)}><span style={{ width: `${Math.min(100, 100 * tracker.done / tracker.goal)}%` }} /></div>
-    </div> : null}</div>
-
     <div className="toolbar">
       {dueNow ? <button className="tool due-now" onClick={() => applyView(SPACES[space].presets.find(p => p.name === 'To do')!)}
         title="Follow-ups and tasks due today or earlier">{dueNow} due now</button> : null}

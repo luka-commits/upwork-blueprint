@@ -365,6 +365,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
     : syncMinutes < 1 ? 'synced just now' : syncMinutes < 60 ? `synced ${syncMinutes} min ago`
       : syncMinutes < 1440 ? `synced ${Math.round(syncMinutes / 60)} h ago` : `synced ${Math.round(syncMinutes / 1440)} d ago`;
   const syncing = runs.some(run => run.command === 'sync' && !run.done);
+  const tracker = state?.tracker || {};
 
   return (
     <CockpitContext.Provider value={value}>
@@ -376,6 +377,12 @@ export function CockpitProvider({ token, children }: { token: string; children: 
             <Link href="/analytics" aria-current={pathname === '/analytics' ? 'page' : undefined}>Analytics</Link>
             <Link href="/commands" aria-current={pathname === '/commands' ? 'page' : undefined}>Commands</Link>
           </nav>
+          {tracker.goal ? <div className="top-progress">
+            <span>Applications today</span>
+            <strong>{tracker.done}<small>/ {tracker.goal}</small></strong>
+            <i role="progressbar" aria-label="Daily application target" aria-valuemin={0} aria-valuemax={tracker.goal}
+              aria-valuenow={Math.min(tracker.goal, tracker.done)}><span style={{ width: `${Math.min(100, 100 * tracker.done / tracker.goal)}%` }} /></i>
+          </div> : null}
           <div className="top-actions">
             <span className={`stamp sync-stamp${syncMinutes == null || syncMinutes > 1440 ? ' stale' : ''}`}
               title={state?.sync ? `Last sync moved ${state.sync.moved?.length || 0}, added ${state.sync.added?.length || 0}, saved ${state.sync.threads || 0} threads` : undefined}>{syncText}</span>

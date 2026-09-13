@@ -228,6 +228,12 @@ class GenerateHelpersTest(unittest.TestCase):
             unsafe.write_text(current.read_text(encoding='utf-8') + '<img src="https://example.com/a.jpg">', encoding='utf-8')
             with self.assertRaises(SystemExit):
                 gen.showcase_media(unsafe, '', folder / 'missing.jpg')
+            unsafe.write_text(current.read_text(encoding='utf-8') + '<a href="tel:+10000000000">Call</a>', encoding='utf-8')
+            with self.assertRaises(SystemExit):
+                gen.showcase_media(unsafe, '', folder / 'missing.jpg')
+            bundled = folder / 'bundled.html'
+            bundled.write_text(current.read_text(encoding='utf-8') + '<script>const protocol = "tel:";</script>', encoding='utf-8')
+            self.assertIn('data:text/html;base64,', gen.showcase_media(bundled, '', folder / 'missing.jpg'))
             branded = folder / 'branded.html'
             branded.write_text(current.read_text(encoding='utf-8') + 'Pocket CEO', encoding='utf-8')
             with self.assertRaises(SystemExit):

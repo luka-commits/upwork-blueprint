@@ -400,7 +400,7 @@ def showcase_media(embed, video, image):
                     "connect-src 'none'")
         if not all(marker in source for marker in required):
             abort('--showcase-html must be the current debranded lead-magnet report.')
-        forbidden = re.search(r'<(?:iframe|form)\b|(?:src|href|action)\s*=\s*["\']https?://|mailto:|tel:|pocket\s+(?:ceo|seo)',
+        forbidden = re.search(r'<(?:iframe|form)\b|(?:src|href|action)\s*=\s*["\'](?:https?://|mailto:|tel:)|pocket\s+(?:ceo|seo)',
                               source, flags=re.I)
         if forbidden:
             abort(f'--showcase-html contains unsafe or internal content: {forbidden.group(0)!r}.')

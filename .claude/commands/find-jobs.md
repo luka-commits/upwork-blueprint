@@ -16,7 +16,7 @@ Read first: [references/upwork-rules.md](../../references/upwork-rules.md), the 
 
 ## Step 0 · Files, connector, window
 
-Run `python3 code/workspace.py`, then `list_accounts` (walk through connecting as `/audit` Step 0 does if the tools are missing). Then `python3 code/jobs.py window`: the hours to look back, at least 10, stretched to cover the gap since the last run.
+Run `python3 code/workspace.py` and `python3 code/pipeline.py prune`, then `list_accounts` (walk through connecting as `/audit` Step 0 does if the tools are missing). Then `python3 code/jobs.py window`: the hours to look back, at least 10, stretched to cover the gap since the newest saved lead, capped at 72 hours.
 
 ## Step 1 · Search, two directions
 

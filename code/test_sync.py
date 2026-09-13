@@ -116,7 +116,8 @@ class SyncTest(unittest.TestCase):
         history = imported['history']
 
         repaired = {'proposals': [{'job_id': '100099', 'status': 'Accepted',
-                                   'applied_at': '2026-01-05T11:30:00+01:00'}]}
+                                   'applied_at': '2026-01-05T11:30:00+01:00'}],
+                    'no_rooms': ['100099']}
         self.cli('sync.py', 'apply', '--file', '-', stdin=json.dumps(repaired))
         imported = self.status()['100099']
         self.assertEqual(imported['applied_at'], '2026-01-05T10:30:00+00:00')
@@ -161,6 +162,7 @@ class SyncTest(unittest.TestCase):
                 {'job_id': '100002', 'status': 'Accepted'},
                 {'job_id': '100003', 'status': 'Accepted'},
             ],
+            'no_rooms': ['100002', '100003'],
         }))
         self.assertEqual(result.returncode, 0, result.stderr)
         jobs = self.status()
@@ -168,6 +170,15 @@ class SyncTest(unittest.TestCase):
         self.assertIn('No client reply within 14 days.', jobs['100002']['notes'])
         self.assertEqual(jobs['100003']['status'], 'applied')
         self.assertIsNone(jobs['100003']['next_follow_up'])
+
+    def test_unchecked_old_application_does_not_expire(self):
+        today = datetime.datetime.now(datetime.timezone.utc).date()
+        old = f'{today - datetime.timedelta(days=30)}T00:00:00Z'
+        self.cli('pipeline.py', 'observe', '100002', 'applied', old,
+                 '--source', 'upwork-proposal', '--verified')
+        result = self.cli('sync.py', 'apply', '--file', '-', stdin='{}')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.status()['100002']['status'], 'applied')
 
     def test_client_reply_wins_over_expiration_on_day_14(self):
         today = datetime.datetime.now(datetime.timezone.utc).date()

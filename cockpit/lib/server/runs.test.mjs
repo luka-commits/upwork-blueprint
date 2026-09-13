@@ -54,6 +54,16 @@ test('application drafting owns the optional local Loom review', () => {
   assert.ok(RUNNABLE.apply.tools.includes('Bash(python3 code/*)'));
 });
 
+test('an error result without text never masquerades as finished', async () => {
+  const child = spawn(process.execPath, ['-e',
+    'console.log(JSON.stringify({type:"result",is_error:true,result:""}))']);
+  const id = track('find-jobs', null, child);
+  await new Promise(resolve => child.on('close', resolve));
+  const run = RUNS.get(id);
+  assert.equal(run.error, true);
+  assert.match(run.events.at(-1).text, /failed before it produced a report/);
+});
+
 test('the morning follow-up review can read but cannot send', () => {
   const tools = RUNNABLE['follow-up'].tools;
   assert.ok(tools.some(tool => tool.endsWith('__get_messages')));

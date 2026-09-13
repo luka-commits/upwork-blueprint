@@ -26,7 +26,7 @@ Use `list_accounts` for the `org_uid` once. Then, all read only:
    when their stage does not move during this sync.
 2. `list_offers` action `list_mine`, first page.
 3. `list_contracts` action `search` with `contract_statuses` `ACTIVE`, first page.
-4. For every job in `python3 code/pipeline.py list --status applied --limit 0` and `--status replied` and `--status offer` that has a proposal from step 1: `list_freelancer_proposals` action `get_room` with its proposal id. No room means the client has not written yet; move on. A room: `get_messages` action `list_messages`, newest 30 messages. Take `awaiting_reply_from` from the room card (`get_messages` action `list_rooms` once, limit 50, covers them all). Set `messages_complete` true only when the `list_messages` response's pagination metadata explicitly proves there is no older page. Missing or ambiguous pagination means false. Never infer completeness because fewer than 30 messages happened to return, and do not fetch extra pages for analytics.
+4. For every job in `python3 code/pipeline.py list --status applied --limit 0` and `--status replied` and `--status offer` that has a proposal from step 1: `list_freelancer_proposals` action `get_room` with its proposal id. When it explicitly returns no room, add that job id to `no_rooms`. Never add an unchecked job. A room: `get_messages` action `list_messages`, newest 30 messages. Take `awaiting_reply_from` from the room card (`get_messages` action `list_rooms` once, limit 50, covers them all). Set `messages_complete` true only when the `list_messages` response's pagination metadata explicitly proves there is no older page. Missing or ambiguous pagination means false. Never infer completeness because fewer than 30 messages happened to return, and do not fetch extra pages for analytics.
 
 Keep it that narrow: one first page for each proposal attempt, one page for
 offers and contracts, and threads only for jobs already in the pipeline. Reading
@@ -34,14 +34,15 @@ every room in the account is outside this member-started sync's scope.
 
 ## Step 2 · Apply
 
-Write one JSON object as the docstring of `code/sync.py` describes (proposals with `job_id`, `title`, `url`, `status`, and the Upwork creation time as `applied_at` when returned; offers with `state`; contracts with `status`; threads with `job_id`, `room_id`, `awaiting_reply_from`, `messages_complete`, and the messages as `from` client or me, `name`, `at`, `text`, oldest first), then:
+Write one JSON object as the docstring of `code/sync.py` describes (proposals with `job_id`, `title`, `url`, `status`, and the Upwork creation time as `applied_at` when returned; `no_rooms` with only job ids explicitly checked in this run; offers with `state`; contracts with `status`; threads with `job_id`, `room_id`, `awaiting_reply_from`, `messages_complete`, and the messages as `from` client or me, `name`, `at`, `text`, oldest first), then:
 
 `python3 code/sync.py apply --file -`
 
 It moves jobs only forward, adds proposals sent outside the cockpit, saves each
-thread for the cockpit's chat window, moves an unanswered application to Lost
-after 14 full days, turns a client waiting on you into a follow-up due today,
-and records the time of this sync. Then `python3 code/pipeline.py prune`.
+thread for the cockpit's chat window, moves an application to Lost after 14 full
+days only when this run verified that its proposal still has no room, turns a
+client waiting on you into a follow-up due today, and records the time of this
+sync. Then `python3 code/pipeline.py prune`.
 
 ## Step 3 · Report
 

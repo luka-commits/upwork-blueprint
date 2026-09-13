@@ -74,10 +74,10 @@ def load_json(path, default):
 
 
 def member_rate():
-    """Your hourly rate, from the profile /audit saved. 30 when there is none yet."""
+    """Your hourly rate from the saved profile, or None when it is unknown."""
     profile = load_json(DATA / 'profile.json', {})
     personal = profile.get('data', {}).get('personalData', {})
-    return money_value((personal.get('chargeRate') or {}).get('rawValue')) or 30.0
+    return money_value((personal.get('chargeRate') or {}).get('rawValue'))
 
 
 # --- window -----------------------------------------------------------------
@@ -193,7 +193,7 @@ def deal_points(job, rate):
     values = numbers(budget)
     if '/hr' in budget or (job.get('job_type') == 'hourly' and values):
         top = max(values) if values else None
-        base = 6 if top is None else 14 if top >= rate else 9 if top >= 0.6 * rate else 3
+        base = 6 if top is None or rate is None else 14 if top >= rate else 9 if top >= 0.6 * rate else 3
     elif values:
         top = max(values)
         base = 14 if top >= 1000 else 10 if top >= 300 else 5 if top >= 100 else 1

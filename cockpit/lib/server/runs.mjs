@@ -217,7 +217,9 @@ export function track(name, job, child) {
       }
       const failed = code !== 0 || !!result?.error || !sendConfirmed;
       const report = !sendConfirmed ? 'Send was not confirmed. Check Upwork before trying again.'
-        : code !== 0 ? `Run failed with exit code ${code}. ${result?.text || stderr.trim()}` : result?.text || 'Finished.';
+        : code !== 0 ? `Run failed with exit code ${code}. ${result?.text || stderr.trim()}`
+          : result?.error ? result.text || 'Run failed before it produced a report. Open the log for the last completed step, then retry.'
+            : result?.text || 'Finished.';
       run.events.push({ kind: 'done', text: report, error: failed });
     }
     const last = [...run.events].reverse().find(e => e.kind === 'done');

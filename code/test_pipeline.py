@@ -28,7 +28,9 @@ class PipelineTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.jobs = pathlib.Path(self.tmp.name) / 'jobs.json'
         self.jobdir = pathlib.Path(self.tmp.name) / 'jobfiles'
-        self.env = dict(os.environ, BLUEPRINT_JOBS=str(self.jobs), BLUEPRINT_JOBDIR=str(self.jobdir))
+        self.data_dir = pathlib.Path(self.tmp.name) / 'data'
+        self.env = dict(os.environ, BLUEPRINT_JOBS=str(self.jobs), BLUEPRINT_JOBDIR=str(self.jobdir),
+                        BLUEPRINT_DATA=str(self.data_dir))
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -359,10 +361,21 @@ class PipelineTest(unittest.TestCase):
             thread.write_text('{"messages": []}', encoding='utf-8')
             stamp = (datetime.datetime.now() - datetime.timedelta(hours=age)).timestamp()
             os.utime(thread, (stamp, stamp))
+        for relative, age in (('search/old.json', 30), ('search/fresh.json', 1),
+                              ('details/old.json', 30), ('candidates.json', 30)):
+            cache = self.data_dir / relative
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text('{"upwork": true}', encoding='utf-8')
+            stamp = (datetime.datetime.now() - datetime.timedelta(hours=age)).timestamp()
+            os.utime(cache, (stamp, stamp))
         r = self.run_cli('prune')
-        self.assertIn('1 jobs pruned, 3 cached fields removed, 1 saved threads deleted', r.stdout)
+        self.assertIn('1 jobs pruned, 3 cached fields removed, 1 saved threads and 3 raw cache files deleted', r.stdout)
         self.assertFalse((self.jobdir / 'OLD' / 'thread.json').exists())
         self.assertTrue((self.jobdir / 'FRESH' / 'thread.json').exists())
+        self.assertFalse((self.data_dir / 'search' / 'old.json').exists())
+        self.assertTrue((self.data_dir / 'search' / 'fresh.json').exists())
+        self.assertFalse((self.data_dir / 'details' / 'old.json').exists())
+        self.assertFalse((self.data_dir / 'candidates.json').exists())
         by_id = {j['id']: j for j in self.data()}
         self.assertNotIn('description', by_id['OLD'])
         self.assertNotIn('details', by_id['OLD'])

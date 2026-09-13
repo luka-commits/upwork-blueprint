@@ -170,7 +170,7 @@ function StageActions({ j, workspace, tab, setTab, move }: {
   return <section className="stage-actions" aria-label={isClient ? 'Next delivery step' : 'Next step'}>
     <NextStep key={`next-${j.id}`} j={j} materialsLabel="Preparation" salesLabel="Call and proposal"
       replyOpen={tab === 'conversation'} onReviewReply={() => setTab('conversation')} />
-    {!isClient && !CLOSED.includes(j.status) ? <DateChip j={j} label={workspace.mode === 'waiting' && !j.thread?.room_id ? 'Check again' : 'Follow up'} move={move} /> : null}
+    {!isClient && workspace.mode !== 'waiting' && !CLOSED.includes(j.status) ? <DateChip j={j} label="Follow up" move={move} /> : null}
     {!isClient ? <FollowUpPlan j={j} /> : null}
   </section>;
 }

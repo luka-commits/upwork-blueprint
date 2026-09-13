@@ -142,6 +142,7 @@ class JobsTest(unittest.TestCase):
                                             'hires': 10, 'posted_jobs': 12}), 30)
         self.assertLess(jobs.deal_points({'budget': '$20.00/hr', 'job_type': 'hourly',
                                           'engagement': 'FULL_TIME'}, 60), 5)
+        self.assertEqual(jobs.deal_points({'budget': '$20.00/hr', 'job_type': 'hourly'}, None), 9)
 
 
 if __name__ == '__main__':

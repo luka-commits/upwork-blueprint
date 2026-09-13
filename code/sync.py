@@ -13,6 +13,7 @@ thread is Upwork content, so `pipeline.py prune` deletes it after 24 hours.
 
 The snapshot, one JSON object (every list optional):
     {"proposals": [{"job_id", "title", "url", "status", "applied_at"}],
+     "no_rooms":  ["job_id"],
      "offers":    [{"job_id", "title", "state"}],
      "contracts": [{"job_id", "title", "status"}],
      "threads":   [{"job_id", "room_id", "awaiting_reply_from", "messages_complete", "messages":
@@ -215,12 +216,13 @@ def cmd_apply(args):
             if job.get('status') in ('replied', 'offer', 'won') and run_pipeline('set', jid, job['status'], '--follow-up', today):
                 waiting.append(jid)
 
-    # Applied proposals cannot be messaged first. Once 14 days pass without a
-    # client reply, remove them from the active pipeline instead of creating work.
+    # Expiration needs fresh evidence that this exact proposal was checked and
+    # still has no room. Absence from a limited proposal page proves nothing.
+    no_rooms = {str(jid) for jid in snapshot.get('no_rooms') or []}
     for job in pipeline.load():
         if job.get('status') == 'applied' and (job.get('next_follow_up') or job.get('follow_up_plan')):
             run_pipeline('follow-up', job['id'], 'clear', '--reason', 'Applied proposals cannot be followed up before the client replies.')
-        if applied_expired(job) and run_pipeline('set', job['id'], 'lost', '--note', 'No client reply within 14 days.'):
+        if job['id'] in no_rooms and applied_expired(job) and run_pipeline('set', job['id'], 'lost', '--note', 'No client reply within 14 days.'):
             moved.append({'id': job['id'], 'from': 'applied', 'to': 'lost'})
 
     record = {'synced_at': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),

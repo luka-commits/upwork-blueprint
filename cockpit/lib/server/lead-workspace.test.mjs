@@ -129,6 +129,7 @@ test('preparation chooses one of the two human steps', () => {
 test('lead list moves from apply to running, ready and open', () => {
   assert.equal(applicationListAction({ status: 'new', artifacts: [] }), 'apply');
   assert.equal(applicationListAction({ status: 'new', artifacts: [] }, true), 'running');
-  assert.equal(applicationListAction({ status: 'new', artifacts: [{ name: 'pitch.html' }] }), 'ready');
+  assert.equal(applicationListAction({ status: 'new', artifacts: [{ name: 'pitch.html' }] }), 'apply');
+  assert.equal(applicationListAction({ status: 'new', artifacts: [{ name: 'pitch.html' }, { name: 'loom-script.md' }] }), 'ready');
   assert.equal(applicationListAction({ status: 'applied', artifacts: [] }), 'open');
 });

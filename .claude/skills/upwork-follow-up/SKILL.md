@@ -19,7 +19,7 @@ If today's sync is missing or any relevant thread is older than 24 hours, follow
 `upwork-mcp` skill for those calls. Never poll or read every historical room.
 
 Review jobs in `replied`, `offer` and `won`. An `applied` proposal without a room
-cannot receive a message, so report its due re-check without drafting one.
+cannot receive a message, so leave it waiting without a task, reminder or draft.
 
 ## Decide from the conversation
 

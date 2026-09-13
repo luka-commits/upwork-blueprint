@@ -95,5 +95,5 @@ export function applicationListAction(job, pitchRunning = false) {
   const files = new Set((Array.isArray(job?.artifacts) ? job.artifacts : [])
     .map(file => typeof file === 'string' ? file : file?.name)
     .filter(Boolean));
-  return files.has('pitch.html') ? 'ready' : 'apply';
+  return files.has('pitch.html') && files.has('loom-script.md') ? 'ready' : 'apply';
 }

@@ -84,6 +84,11 @@ def jobs_dir():
     return pathlib.Path(os.environ.get('BLUEPRINT_JOBDIR') or ROOT / 'jobs')
 
 
+def data_dir():
+    """Where disposable connector caches live."""
+    return pathlib.Path(os.environ.get('BLUEPRINT_DATA') or ROOT / 'data')
+
+
 def abort(msg):
     print(f'ABORT: {msg}', file=sys.stderr)
     sys.exit(1)
@@ -750,15 +755,21 @@ def cmd_prune(args):
     # A saved client thread is Upwork's content as well, whatever job it belongs to.
     threads = [t for t in jobs_dir().glob('*/thread.json')
                if datetime.datetime.fromtimestamp(t.stat().st_mtime, datetime.timezone.utc) < cutoff]
+    raw_cache = [p for pattern in ('search/*.json', 'details/*.json', 'candidates.json')
+                 for p in data_dir().glob(pattern)
+                 if p.is_file() and datetime.datetime.fromtimestamp(p.stat().st_mtime, datetime.timezone.utc) < cutoff]
     if args.dry_run:
         print(f'DRY RUN: {hits} of {len(jobs)} jobs older than {args.hours}h, '
-              f'{fields} cached fields and {len(threads)} saved threads would be removed. Nothing changed.')
+              f'{fields} cached fields, {len(threads)} saved threads and {len(raw_cache)} raw cache files would be removed. Nothing changed.')
         return
     if hits:
         save(jobs)
     for t in threads:
         t.unlink()
-    print(f'{hits} jobs pruned, {fields} cached fields removed, {len(threads)} saved threads deleted.')
+    for item in raw_cache:
+        item.unlink()
+    print(f'{hits} jobs pruned, {fields} cached fields removed, {len(threads)} saved threads and '
+          f'{len(raw_cache)} raw cache files deleted.')
 
 
 def build_parser():

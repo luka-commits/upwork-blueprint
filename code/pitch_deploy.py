@@ -3,8 +3,8 @@
 
     python3 code/pitch_deploy.py <job id>
 
-The deployment contains only the generated pitch.html. Job drafts and member
-context never enter the upload directory.
+The deployment contains only checked pitch pages. Job drafts and member context
+never enter the upload directory. Each published job keeps a stable URL path.
 """
 import argparse
 import json
@@ -20,6 +20,7 @@ import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PROJECT_RE = re.compile(r'^[a-z0-9][a-z0-9-]{0,99}$')
+HOST_RE = re.compile(r'^[a-z0-9][a-z0-9.-]*\.vercel\.app$')
 URL_RE = re.compile(r'https://[a-z0-9][a-z0-9.-]*\.vercel\.app(?:/[^\s]*)?', re.IGNORECASE)
 
 
@@ -50,10 +51,14 @@ def deployment_config(env=None):
     project = env.get('VERCEL_PITCH_PROJECT', 'upwork-pitches').strip()
     if not PROJECT_RE.fullmatch(project):
         abort('VERCEL_PITCH_PROJECT must use lowercase letters, numbers and hyphens.')
+    domain = env.get('VERCEL_PITCH_DOMAIN', f'{project}.vercel.app').strip().lower()
+    if not HOST_RE.fullmatch(domain):
+        abort('VERCEL_PITCH_DOMAIN must be a vercel.app hostname without a path.')
     return {
         'token': env.get('VERCEL_TOKEN', '').strip(),
         'scope': env.get('VERCEL_SCOPE', '').strip(),
         'project': project,
+        'domain': domain,
         'env': env,
     }
 
@@ -75,9 +80,14 @@ def deployment_url(output, fallback=''):
     return urls[-1].rstrip('/')
 
 
-def write_site(folder, source):
+def write_site(folder, pages, current_id):
     folder.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, folder / 'index.html')
+    current = dict(pages)[current_id]
+    shutil.copy2(current, folder / 'index.html')
+    for job_id, source in pages:
+        target = folder / job_id
+        target.mkdir()
+        shutil.copy2(source, target / 'index.html')
     (folder / 'vercel.json').write_text(json.dumps({
         'cleanUrls': True,
         'trailingSlash': False,
@@ -93,39 +103,21 @@ def run(command, config, cwd=None):
     return result
 
 
-def verify_public(url):
+def verify_public(url, expected_title=''):
     request = urllib.request.Request(url, headers={'User-Agent': 'Automatable-Cockpit/1.0'})
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
             body = response.read(65536).lower()
             status = response.status
+            final_url = response.geturl()
     except Exception as error:
         abort(f'the deployment could not be opened publicly: {error}')
-    if status != 200 or b'<html' not in body:
+    final = urllib.parse.urlparse(final_url)
+    if final.hostname == 'vercel.com' or final.path.startswith('/login'):
+        abort('the production URL redirects to Vercel login instead of opening publicly.')
+    title = expected_title.encode('utf-8').lower() if expected_title else b''
+    if status != 200 or b'<html' not in body or (title and title not in body):
         abort(f'the public deployment returned HTTP {status} without the pitch page.')
-
-
-def make_project_public(config):
-    """Disable Vercel Authentication for the dedicated public pitch project."""
-    if not config['token']:
-        return
-    query = ''
-    if config['scope']:
-        key = 'teamId' if config['scope'].startswith('team_') else 'slug'
-        query = '?' + urllib.parse.urlencode({key: config['scope']})
-    url = f"https://api.vercel.com/v9/projects/{urllib.parse.quote(config['project'])}{query}"
-    request = urllib.request.Request(
-        url,
-        data=json.dumps({'ssoProtection': None}).encode('utf-8'),
-        headers={'Authorization': f"Bearer {config['token']}", 'Content-Type': 'application/json'},
-        method='PATCH',
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            if response.status != 200:
-                abort(f'Vercel could not make the pitch project public (HTTP {response.status}).')
-    except Exception as error:
-        abort(f'Vercel could not make the pitch project public: {error}')
 
 
 def publish(job_id):
@@ -141,6 +133,20 @@ def publish(job_id):
     if problems:
         abort('the pitch page failed its gate: ' + '; '.join(problems))
 
+    pages = {job_id: source}
+    try:
+        records = json.loads((ROOT / 'data' / 'jobs.json').read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError):
+        records = []
+    for record in records:
+        published_id = str(record.get('id') or '')
+        published = ROOT / 'jobs' / published_id / 'pitch.html'
+        if record.get('pitch_url') and published_id != job_id and published.is_file():
+            old_problems = pitch_check.check_page(published)
+            if old_problems:
+                abort(f'the previously published pitch {published_id} failed its gate: ' + '; '.join(old_problems))
+            pages[published_id] = published
+
     vercel = shutil.which('vercel')
     if not vercel:
         abort('install the Vercel CLI, then run the pitch again.')
@@ -153,16 +159,15 @@ def publish(job_id):
     )
     if inspect.returncode:
         run([vercel, 'project', 'add', config['project'], *options], config)
-    make_project_public(config)
-
     with tempfile.TemporaryDirectory(prefix='upwork-pitch-') as temp:
         stage = pathlib.Path(temp)
-        write_site(stage, source)
+        write_site(stage, sorted(pages.items()), job_id)
         run([vercel, 'link', '--yes', '--project', config['project'], '--cwd', str(stage), *options], config)
-        deployed = run([vercel, 'deploy', '--yes', '--prod', '--cwd', str(stage), *options], config)
-        url = deployment_url(deployed.stdout, deployed.stderr)
+        run([vercel, 'deploy', '--yes', '--prod', '--cwd', str(stage), *options], config)
+        url = f'https://{config["domain"]}/{job_id}'
 
-    verify_public(url)
+    title = re.search(r'<title>(.*?)</title>', source.read_text(encoding='utf-8'), re.I | re.S)
+    verify_public(url, title.group(1).strip() if title else '')
     run([sys.executable, str(ROOT / 'code' / 'pipeline.py'), 'pitch-url', job_id, url], config, ROOT)
     print(f'Published {url}')
     return url

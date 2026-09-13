@@ -46,6 +46,14 @@ test('installed interactive commands stay available as copy handoffs', () => {
   }
 });
 
+test('application drafting owns the optional local Loom review', () => {
+  const command = fs.readFileSync(new URL('../../../.claude/commands/apply.md', import.meta.url), 'utf8');
+  assert.match(command, /python3 code\/funnel\.py transcript loom <id>/);
+  assert.match(command, /jobs\/<id>\/loom-review\.md/);
+  assert.match(command, /python3 code\/pipeline\.py loom-score <id> <N>/);
+  assert.ok(RUNNABLE.apply.tools.includes('Bash(python3 code/*)'));
+});
+
 test('the morning follow-up review can read but cannot send', () => {
   const tools = RUNNABLE['follow-up'].tools;
   assert.ok(tools.some(tool => tool.endsWith('__get_messages')));

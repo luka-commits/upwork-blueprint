@@ -90,15 +90,47 @@ class FunnelAcceptanceTest(unittest.TestCase):
             self.assertIn('80 words', result.stdout)
         self.assertEqual(sorted(p.name for p in self.jobdir.joinpath('111111').iterdir()), ['thread.json'])
 
+    def test_loom_transcript_can_be_created_from_the_saved_video(self):
+        self.run_pipeline('video', '111111', 'https://www.loom.com/share/example')
+        tools = pathlib.Path(self.tmp.name) / 'tools'
+        tools.mkdir()
+        downloader = tools / 'yt-dlp'
+        downloader.write_text(
+            '#!/usr/bin/env python3\n'
+            'import pathlib, sys\n'
+            'template = sys.argv[sys.argv.index("--output") + 1]\n'
+            'pathlib.Path(template.replace("%(ext)s", "wav")).write_bytes(b"audio")\n',
+            encoding='utf-8')
+        whisper = tools / 'whisper'
+        whisper.write_text(
+            '#!/usr/bin/env python3\n'
+            'import pathlib, sys\n'
+            'folder = pathlib.Path(sys.argv[sys.argv.index("--output_dir") + 1])\n'
+            '(folder / "source.txt").write_text(" ".join(["recorded"] * 80), encoding="utf-8")\n',
+            encoding='utf-8')
+        downloader.chmod(0o755)
+        whisper.chmod(0o755)
+        self.env['PATH'] = f'{tools}{os.pathsep}{self.env.get("PATH", "")}'
+
+        result = self.run_funnel('transcript', 'loom', '111111')
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('80 words', result.stdout)
+        self.assertIn('jobs/111111/.loom-transcript.txt', result.stdout)
+        saved = self.jobdir / '111111' / '.loom-transcript.txt'
+        self.assertEqual(len(saved.read_text(encoding='utf-8').split()), 80)
+
     def test_every_funnel_artifact_contract_accepts_a_complete_fixture(self):
         folder = self.jobdir / '111111'
         for kind, (name, headings) in self.artifact_specs().items():
+            sections = [f'{heading}\n\n' + ('84/100' if heading == '## Score' else 'A concrete recorded fact.')
+                        for heading in headings]
             text = '\n'.join([
                 f'# {kind.replace("-", " ").title()}',
                 'Prepared Saturday 12 September 2026 from verified project evidence.',
                 '**Next:** review this with the client on Upwork.',
                 '',
-                *[f'{heading}\n\nA concrete recorded fact.' for heading in headings],
+                *sections,
                 '',
             ])
             (folder / name).write_text(text, encoding='utf-8')
@@ -127,6 +159,17 @@ class FunnelAcceptanceTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn('empty section: ## Boundaries', result.stderr)
 
+    def test_loom_review_requires_a_bounded_numeric_score(self):
+        headings = self.artifact_specs()['loom-review'][1]
+        sections = [f'{heading}\n\n' + ('Excellent' if heading == '## Score' else 'A concrete finding.')
+                    for heading in headings]
+        (self.jobdir / '111111' / 'loom-review.md').write_text('\n'.join([
+            '# Loom review', 'Reviewed today.', '**Next:** fix the recording.', '', *sections,
+        ]), encoding='utf-8')
+        result = self.run_funnel('check', 'loom-review', '111111')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('N/100', result.stderr)
+
     @staticmethod
     def artifact_specs():
         return {
@@ -134,7 +177,7 @@ class FunnelAcceptanceTest(unittest.TestCase):
                                            '## Questions to ask', '## Proof to use', '## Boundaries', '## Close')),
             'call-review': ('call-review.md', ('## Verdict', '## Client need', '## Agreed scope',
                                                '## Evidence and assumptions', '## Commitments', '## Risks', '## Next step')),
-            'loom-review': ('loom-review.md', ('## Verdict', '## Message', '## Accuracy', '## Structure',
+            'loom-review': ('loom-review.md', ('## Score', '## Verdict', '## Message', '## Accuracy', '## Structure',
                                                '## Delivery', '## Fix before sending')),
             'proposal': ('proposal.md', ('## Outcome', '## Scope', '## Not included', '## Milestones',
                                          '## Timing', '## Price and payment', '## Client inputs',

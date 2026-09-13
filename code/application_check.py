@@ -6,7 +6,7 @@
 Counts what can be counted, on the cover letter alone (screening answers after a
 "Screening answers" heading do not count toward its length):
 
-    at most 400 words            no padding to meet a minimum
+    at most 140 words            a compact pitch, not a method essay
     none of the generic phrases   the tells that mark a letter as a template
     no em-dashes                  the fastest tell of machine writing
     the saved Loom or YouTube URL the application links to the finished video
@@ -31,7 +31,7 @@ BANNED = ('i would love to', "i'm excited", 'i am excited', 'what stood out', 'p
 RISK = ("you don't pay", 'you do not pay', 'risk-free', 'risk free', 'full refund', 'only pay',
         'approve each', 'milestones, not', 'milestone')
 ASK = ('send me', 'reply with', 'when works', 'let me know', 'tell me', 'here on upwork')
-MAX_WORDS = 400
+MAX_WORDS = 140
 
 
 def has_video(text):

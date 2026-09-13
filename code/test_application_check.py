@@ -53,7 +53,7 @@ class ApplicationCheckTest(unittest.TestCase):
         text = GOOD + '\n\nScreening answers\n\n' + ' '.join(['answer'] * 500)
         _, _, _, words, has_screening = ac.check(text)
         self.assertTrue(has_screening)
-        self.assertLess(words, 400)
+        self.assertLess(words, 140)
 
     def test_short_specific_letter_needs_no_numeric_bullet_quota(self):
         text = 'Your checkout needs to assign the right membership after payment. I would first trace that handoff in a test account. Walkthrough: https://www.loom.com/share/demo'

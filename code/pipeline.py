@@ -20,6 +20,9 @@ Usage:
     python3 code/pipeline.py follow-up <job_id> clear --reason "..."
     python3 code/pipeline.py note <job_id> "what happened"
     python3 code/pipeline.py video <job_id> <loom or youtube link>|-
+    python3 code/pipeline.py recording-links <job_id> '<json list>'
+    python3 code/pipeline.py loom-review <job_id> on|off
+    python3 code/pipeline.py loom-score <job_id> <0..100>
     python3 code/pipeline.py task <job_id> add "what to do" [--due +2d|YYYY-MM-DD]
     python3 code/pipeline.py task <job_id> done|reopen|delete <task_number>
     python3 code/pipeline.py lead-magnet-source <job_id> <website> --location "City, Country" [--place-id ID]
@@ -503,6 +506,58 @@ def cmd_video(args):
     print(f'{args.job_id}: video linked.')
 
 
+def cmd_recording_links(args):
+    """Save optional tabs the member wants open while recording this job's Loom."""
+    try:
+        links = json.loads(args.links)
+    except json.JSONDecodeError:
+        abort('recording links must be a JSON list.')
+    if not isinstance(links, list) or len(links) > 8:
+        abort('recording links must be a list with at most 8 items.')
+    clean = []
+    for item in links:
+        if not isinstance(item, dict):
+            abort('each recording link needs a label and URL.')
+        label = ' '.join(str(item.get('label') or '').split())
+        url = str(item.get('url') or '').strip()
+        parsed = urlparse(url)
+        if not label or len(label) > 60:
+            abort('each recording link needs a label of 60 characters or fewer.')
+        if (len(url) > 500 or parsed.scheme != 'https' or not parsed.hostname
+                or parsed.username or parsed.password or any(c.isspace() for c in url)):
+            abort('each recording link must be a public HTTPS URL without credentials.')
+        clean.append({'label': label, 'url': url})
+    jobs = load()
+    job = find(jobs, args.job_id)
+    if clean:
+        job['recording_links'] = clean
+    else:
+        job.pop('recording_links', None)
+    save(jobs)
+    print(f'{args.job_id}: {len(clean)} recording link{"s" if len(clean) != 1 else ""} saved.')
+
+
+def cmd_loom_score(args):
+    """Save the internal recording-quality score for analytics."""
+    if not 0 <= args.score <= 100:
+        abort('the Loom review score must be between 0 and 100.')
+    jobs = load()
+    job = find(jobs, args.job_id)
+    job['loom_review_score'] = args.score
+    job['loom_reviewed_at'] = now_iso()
+    save(jobs)
+    print(f'{args.job_id}: Loom review score saved as {args.score}/100.')
+
+
+def cmd_loom_review(args):
+    """Choose whether this application's recording is reviewed before drafting."""
+    jobs = load()
+    job = find(jobs, args.job_id)
+    job['loom_review_enabled'] = args.state == 'on'
+    save(jobs)
+    print(f'{args.job_id}: Loom review {args.state}.')
+
+
 def cmd_task(args):
     """Tasks on a lead or a won client: add one, tick it off, reopen or delete it."""
     jobs = load()
@@ -754,6 +809,21 @@ def build_parser():
     p.add_argument('job_id')
     p.add_argument('url')
     p.set_defaults(func=cmd_video)
+
+    p = sub.add_parser('recording-links', help='Save optional tabs to open with the Loom recorder.')
+    p.add_argument('job_id')
+    p.add_argument('links', help='JSON list of objects with label and URL.')
+    p.set_defaults(func=cmd_recording_links)
+
+    p = sub.add_parser('loom-score', help='Save a checked Loom review score for analytics.')
+    p.add_argument('job_id')
+    p.add_argument('score', type=int)
+    p.set_defaults(func=cmd_loom_score)
+
+    p = sub.add_parser('loom-review', help='Turn the optional Loom review on or off for one application.')
+    p.add_argument('job_id')
+    p.add_argument('state', choices=('on', 'off'))
+    p.set_defaults(func=cmd_loom_review)
 
     p = sub.add_parser('task', help='Tasks on a lead or client.')
     p.add_argument('job_id')

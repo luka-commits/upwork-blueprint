@@ -24,11 +24,36 @@ or invalid, write nothing, make no preview and stop with
 `DRAFT / HELD`: tell the member to finish the Pitch page or add the Loom video
 link under Materials. Report zero Upwork calls.
 
-## Step 1 · The job, the posting, the pitch page
+## Step 1 · Review the recording locally
+
+Read `loom_review_enabled` from the Step 0 pipeline record. It defaults to true
+when absent. When it is false, skip this entire step and continue to Step 2.
+
+Before any Upwork call, run `python3 code/funnel.py transcript loom <id>` and
+read the transcript path it prints. Compare the recording with the job, pitch
+page, Loom script and verified proof:
+
+1. The first 20 seconds name the client's outcome and why the page exists.
+2. Every claim matches the posting, pitch page or `context/proof.md`.
+3. The explanation follows one clear path through the plan.
+4. It is concise and conversational.
+5. It ends with one next action on Upwork and no outside contact route.
+
+Score the recording out of 100: opening and relevance 20, accuracy 30,
+structure 20, delivery 15, and the Upwork next step 15. Write
+`jobs/<id>/loom-review.md` with exactly `## Score` containing `N/100`, then
+`## Verdict`, `## Message`, `## Accuracy`, `## Structure`, `## Delivery`, and
+`## Fix before sending`. Run `python3 code/funnel.py check loom-review <id>` and
+`python3 code/pipeline.py loom-score <id> <N>`. A serious unsupported
+claim, wrong client fact, contact-policy violation or missing next action is a
+hold: save the review and stop before creating the application or making any
+Upwork call. Small delivery roughness is advice, not a blocker.
+
+## Step 2 · The job, the posting, the pitch page
 
 Use the pipeline record from Step 0. The full posting is in `details.description`; missing, fetch it with `find_jobs` action `get` and `python3 code/jobs.py detail`. Read all of it: postings hide a mandatory opening phrase, questions to answer inside the letter, or requirements that decide fit before skill does. The letter points to the finished walkthrough and includes its saved Loom link.
 
-## Step 2 · What is true about you and the scope
+## Step 3 · What is true about you and the scope
 
 List the posting's hard requirements ("built at least 5 sub-accounts for trades", "A2P 10DLC is non-negotiable") and check each against `context/proof.md`. **A requirement your proof does not cover never becomes a claim.** If it is mandatory, ask the member whether they meet it and where that can be checked. Until resolved, save no client-facing draft and create no preview. If it is a preference, name the gap for the member and draft without claiming it. Lead with the strongest relevant proof by tier; never a badge or number the member does not hold.
 
@@ -38,17 +63,21 @@ acceptance boundary and payment structure from the posting, saved member policy
 or an explicit member decision. If one changes the bid, ask before creating the
 preview. Never convert an hourly profile rate into a fixed-price quote.
 
-## Step 3 · Write the letter
+## Step 4 · Write the letter
 
-Write the shortest complete letter the posting supports, usually 120 to 250
-words, in the member's voice, with no em-dashes:
+Write a compact pitch, normally 65 to 120 words and never more than 140 words,
+in the member's voice, with no em-dashes. Use four short blocks:
 
-1. **Open on their concrete outcome or constraint,** using the job title only when it reads naturally, then the one or two proof points most relevant to it.
-2. **Show the approach or deliverables at the job's level of detail.** Use bullets only when they improve scanning. Numbers come only from the posting, verified proof or member-approved scope.
-3. **The video line:** a walkthrough of the plan with the exact saved Loom link.
-4. **Reduce uncertainty honestly.** Name the first checkpoint, dependency or acceptance step only when the member has approved it. Never add a guarantee, refund, free work or delivery date as a sales device.
-5. **Answer every major requirement and screening question once.** A compact sentence often beats a separate heading.
-6. **End with one specific ask on Upwork,** such as the missing input needed to confirm scope.
+1. One sentence on why the member fits this exact job and outcome.
+2. One sentence inviting the client to watch the walkthrough, with the exact saved Loom link.
+3. One or two short, relevant examples from `context/proof.md`. Never stretch unrelated proof to fill space.
+4. One specific next question or ask on Upwork.
+
+Do not recap the posting, explain a long method, add generic praise, write a
+biography or pad the pitch. Never add a guarantee, refund, free work or delivery
+date as a sales device. Put answers to required screening questions in
+their separate fields, not in the cover letter, unless the posting explicitly
+requires the answer there.
 
 Save everything to `jobs/<id>/application.md` in this exact shape so the cockpit
 can present each field separately:
@@ -67,11 +96,11 @@ can present each field separately:
 
 Omit the Screening answers section when the job asks none.
 
-## Step 4 · The gate
+## Step 5 · The gate
 
 `python3 code/application_check.py jobs/<id>/application.md --job-title "<exact job title>"`. Exit 1 means fix it. Then read it once as the client would: does it answer their post, or could it sit under any other job?
 
-## Step 5 · The preview, never the send
+## Step 6 · The preview, never the send
 
 1. `list_freelancer_proposals` action `invitations`: an invitation for this job
    means stop before any proposal-management call. Prepare the fields below, open
@@ -87,7 +116,7 @@ Omit the Screening answers section when the job asks none.
    `manage_proposals` action is permitted in this command.
 4. Save what the preview knows, so the cockpit shows it next to the job: `python3 code/pipeline.py detail <id> --file -` with one JSON object holding `bid_amount` (the exact `charged_amount` used), `connects_cost`, `connects_balance`, `boost_available`, `boost_reason`, `boost_top_bids` (the list of `current_top_bids`, highest first, or `null` when `current_top_bids_available` is false), `boost_recommended` (`recommended_connects`), `boost_max` (`max_boost_connects`), `boost_note`, `boost_recommendation` and `screening_questions`. Leave out what the preview did not return; never estimate a bid.
 
-## Step 6 · Prepare the manual handoff
+## Step 7 · Prepare the manual handoff
 
 Present, in this order: the letter, the answers, the bid, **the Connects this costs and what is left**, any preferred qualification the member does not meet (advisory, it does not block), and the boost option with the real competing bids and the recommended amount (never offered when the preview says it is unavailable). State that no attachment or boost is selected by the Blueprint.
 
@@ -105,8 +134,8 @@ preview only when the changed field affects it and remind the member that a new
 preview replaces the previous pending one. Never buy Connects and never select
 a boost.
 
-## Step 7 · Report
+## Step 8 · Report
 
-Completion report as CLAUDE.md defines it, with today's count against the daily
-target. The next action is manual review and submission on Upwork. Upwork call
-count.
+Completion report as CLAUDE.md defines it, with the Loom verdict and today's
+count against the daily target. The next action is manual review and submission
+on Upwork. Upwork call count.

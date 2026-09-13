@@ -95,6 +95,24 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(self.run_cli('pitch-url', 'J1', 'https://example.com/pitch').returncode, 0)
         self.assertEqual(self.data()[0]['pitch_url'], 'https://example.com/pitch')
 
+    def test_loom_score_is_saved_as_owned_analytics_data(self):
+        self.add({'id': 'J1'})
+        result = self.run_cli('loom-score', 'J1', '86')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.data()[0]['loom_review_score'], 86)
+        self.assertTrue(self.data()[0]['loom_reviewed_at'])
+        before = self.jobs.read_bytes()
+        self.assertNotEqual(self.run_cli('loom-score', 'J1', '101').returncode, 0)
+        self.assertEqual(self.jobs.read_bytes(), before)
+
+    def test_loom_review_preference_is_explicit_and_defaults_outside_storage(self):
+        self.add({'id': 'J1'})
+        self.assertNotIn('loom_review_enabled', self.data()[0])
+        self.assertEqual(self.run_cli('loom-review', 'J1', 'off').returncode, 0)
+        self.assertFalse(self.data()[0]['loom_review_enabled'])
+        self.assertEqual(self.run_cli('loom-review', 'J1', 'on').returncode, 0)
+        self.assertTrue(self.data()[0]['loom_review_enabled'])
+
     def test_lead_magnet_source_is_explicit_local_business_data(self):
         self.add({'id': 'J1', 'status': 'replied'})
         invalid = self.run_cli('lead-magnet-source', 'J1', 'http://localhost:3000', '--location', 'Berlin, Germany')
@@ -293,6 +311,23 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(self.data()[0]['video'], 'https://www.loom.com/share/abc123')
         self.run_cli('video', 'J1', '-')
         self.assertNotIn('video', self.data()[0])
+
+    def test_recording_links_are_small_safe_and_owned(self):
+        self.add({'id': 'J1'})
+        links = [{'label': 'GHL workflow', 'url': 'https://app.gohighlevel.com/location/123/workflows'}]
+        result = self.run_cli('recording-links', 'J1', json.dumps(links))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.data()[0]['recording_links'], links)
+        before = self.jobs.read_bytes()
+        for invalid in (
+            'not json',
+            json.dumps([{'label': 'Bad', 'url': 'javascript:alert(1)'}]),
+            json.dumps([{'label': '', 'url': 'https://example.com'}]),
+        ):
+            self.assertNotEqual(self.run_cli('recording-links', 'J1', invalid).returncode, 0)
+            self.assertEqual(self.jobs.read_bytes(), before)
+        self.assertEqual(self.run_cli('recording-links', 'J1', '[]').returncode, 0)
+        self.assertNotIn('recording_links', self.data()[0])
 
     def test_prune_removes_upwork_content_keeps_own_work(self):
         old = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=30)).isoformat()

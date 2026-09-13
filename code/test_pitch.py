@@ -203,14 +203,28 @@ class GenerateHelpersTest(unittest.TestCase):
         self.assertIn("ap.add_argument('--showcase-video'", generator)
         self.assertIn('autoplay muted loop playsinline', generator)
         self.assertIn('{{SHOWCASE_MEDIA}}', template)
-        self.assertIn('height: min(800px, 78vh)', template)
-        self.assertIn('.showcase-copy { grid-row: 1;', template)
+        self.assertIn('grid-template-columns: minmax(250px, 310px) minmax(0, 1fr)', template)
+        self.assertIn('height: 548px', template)
+        self.assertIn('data-audit-expand', template)
+        self.assertIn('data-audit-dialog', template)
+        self.assertIn('source.cloneNode(true)', template)
+        self.assertIn('.audit-overlay .audit-window', template)
+        self.assertIn('.showcase-copy { grid-column: 2;', template)
         self.assertIn('data-theme="{{THEME}}"', template)
         self.assertIn("choices=('warm', 'steel', 'signal', 'growth', 'calm')", generator)
         self.assertIn('class="audit-window"', template)
         self.assertNotIn('cover-book', template)
         self.assertNotIn('cover-sheet', template)
         self.assertIn('Cover of an example website audit', generator)
+
+    def test_dither_can_use_job_specific_industry_art(self):
+        generator = (CODE / 'pitch' / 'generate.py').read_text(encoding='utf-8')
+        template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')
+        self.assertIn("ap.add_argument('--dither-source'", generator)
+        self.assertIn("'.svg': 'image/svg+xml'", generator)
+        self.assertIn("dither_fit = '1.05' if args.dither_source else ''", generator)
+        self.assertIn('data-fit="{{DITHER_FIT}}"', template)
+        self.assertIn("Number.isFinite(requestedFit)", template)
 
     def test_showcase_html_requires_the_current_safe_report(self):
         with tempfile.TemporaryDirectory() as raw:

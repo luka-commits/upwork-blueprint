@@ -17,7 +17,7 @@ something the proof file does not hold.
         [--loom-url https://www.loom.com/share/...] [--video-length "3 minute"] \\
         [--hero-illustration path] [--live-artifact "Label|URL"] \\
         [--proof-link "Label|Detail|URL"] [--next-step "..."] \\
-        [--theme warm|steel|signal|growth|calm] \\
+        [--theme warm|steel|signal|growth|calm] [--dither-source path] \\
         [--showcase "Title|Teaser|URL|CTA" --showcase-point "..." --showcase-html path]
 
 Writes jobs/<job_id>/pitch.html. Exits 1 on anything missing or malformed: a half
@@ -86,6 +86,7 @@ def data_uri(path, mime=None):
         '.jpeg': 'image/jpeg',
         '.png': 'image/png',
         '.webp': 'image/webp',
+        '.svg': 'image/svg+xml',
         '.mp4': 'video/mp4',
         '.webm': 'video/webm',
     }
@@ -437,6 +438,8 @@ def main(argv=None):
     ap.add_argument('--video-length', default='3 minute')
     ap.add_argument('--hero-illustration', default='')
     ap.add_argument('--theme', choices=('warm', 'steel', 'signal', 'growth', 'calm'), default='warm')
+    ap.add_argument('--dither-source', default='',
+                    help='high-contrast industry artwork used by the moving dither field')
     ap.add_argument('--live-artifact', action='append', default=[], help='"Label|URL" of something already built')
     ap.add_argument('--proof-link', default='', help='"Label|Detail|URL" of past work, no contact details on it')
     ap.add_argument('--next-step', default=DEFAULT_NEXT)
@@ -457,7 +460,11 @@ def main(argv=None):
     diagram_data, diagram_fallback = build_graph(args.graph)
     url = profile_url()
 
-    dither = data_uri(DITHER) if DITHER.is_file() else ''
+    dither_path = pathlib.Path(args.dither_source) if args.dither_source else DITHER
+    if args.dither_source and not dither_path.is_file():
+        abort(f'dither source "{dither_path}" does not exist.')
+    dither = data_uri(dither_path) if dither_path.is_file() else ''
+    dither_fit = '1.05' if args.dither_source else ''
     illustration_src = data_uri(args.hero_illustration) if args.hero_illustration else ''
     hero_art = (f'<div class="hero-art" data-settle><img src="{illustration_src}" '
                 f'alt="Illustration of the proposed outcome for {esc(safe_job_title(job.get("title")))}"></div>'
@@ -534,6 +541,7 @@ def main(argv=None):
         '{{PROFILE_URL}}': esc(url or '#'),
         '{{FOOTER_LINKS}}': '<span class="dot">·</span>'.join(footer),
         '{{DITHER_SRC_NEXT}}': dither, '{{DITHER_SRC}}': dither,
+        '{{DITHER_FIT}}': dither_fit,
         '{{DIAGRAM_FALLBACK}}': diagram_fallback,
     }
     for key, value in fills.items():

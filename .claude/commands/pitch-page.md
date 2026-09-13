@@ -128,6 +128,13 @@ python3 code/pitch/generate.py <id> --hook "..." \
   text, logos or generic boxes and arrows. It always appears
   in the hero directly below the headline, never inside the flow. Skip it only when the result is already an
   obvious short chain, and state that decision in the completion report.
+- Give the moving dither field a job-specific, high-contrast source through
+  `--dither-source`. It must remain identifiable after being reduced to dots:
+  use one simple industry object or scene, such as a roofline and ladder for a
+  roofing job, not a generic particle cloud and not a detailed stock image.
+  Prefer a small local SVG when simple geometry communicates the industry more
+  clearly than generated art. The source is embedded in the pitch and may not
+  load anything from the network.
 - When the job is tied to a local business website, offer the Pocket SEO V2
   lead magnet we actually send. Make the free upfront work explicit: the client
   sends the website, and the member returns the complete audit before the build.

@@ -15,7 +15,7 @@ something the proof file does not hold.
         --kickoff "..." --kickoff "..." \\
         --updates "Twice a week|Upwork, then the client's workspace" \\
         [--loom-url https://www.loom.com/share/...] [--video-length "3 minute"] \\
-        [--hero-illustration path] [--live-artifact "Label|URL"] \\
+        [--hero-illustration path] [--profile-image path] [--live-artifact "Label|URL"] \\
         [--proof-link "Label|Detail|URL"] [--next-step "..."] \\
         [--theme warm|steel|signal|growth|calm] [--dither-source path] \\
         [--showcase "Title|Teaser|URL|CTA" --showcase-point "..." --showcase-html path]
@@ -61,6 +61,21 @@ YT_PLAY = ('<svg viewBox="0 0 28 20" xmlns="http://www.w3.org/2000/svg" aria-hid
            'A3.51 3.51 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.51 3.51 0 0 0 2.5 2.5C5.3 20 14 20 14 20'
            's8.7 0 10.9-.6a3.51 3.51 0 0 0 2.5-2.5C28 14.7 28 10 28 10s0-4.7-.6-6.9z"/>'
            '<path fill="#ffffff" d="M11.2 14.29 18.5 10l-7.3-4.29z"/></svg>')
+
+CV_ICONS = (
+    '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 17l5-5 3 3 7-8"/>'
+    '<path d="M14 7h5v5"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"/>'
+    '<path d="M8 5V3m8 2V3M8 12l2.5 2.5L16 9"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.8 1-6.1-4.4-4.3 6.1-.9L12 3z"/></svg>',
+)
+
+EVIDENCE_ICON = ('<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">'
+                 '<path d="M7 12.5l3 3L17.5 8"/><circle cx="12" cy="12" r="9"/></svg>')
+BACKGROUND_ICON = ('<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">'
+                   '<path d="M4 7.5L12 4l8 3.5-8 3.5-8-3.5zM7 10v5.5c2.8 2 7.2 2 10 0V10"/></svg>')
+LANGUAGE_ICON = ('<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">'
+                 '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.7 5.5 3.7 9s-1.2 6.5-3.7 9M12 3c-2.5 2.5-3.7 5.5-3.7 9s1.2 6.5 3.7 9"/></svg>')
 
 
 def abort(msg):
@@ -129,26 +144,48 @@ def cv_block(proof_text, me_text):
     parts = []
     stats = []
     for line in bullets(record)[:1]:
-        for chunk in line.split(','):
+        for index, chunk in enumerate(line.split(',')):
             m = re.match(r'\s*(\$?[\d.,]+[KkMm]?\+?%?)\s+(.+)', chunk)
             if m:
-                stats.append(f'<div><strong>{esc(m.group(1))}</strong><span>{esc(m.group(2).strip())}</span></div>')
+                icon = CV_ICONS[min(index, len(CV_ICONS) - 1)]
+                stats.append('<article class="cv-stat">'
+                             f'<span class="cv-stat-icon">{icon}</span><div>'
+                             f'<strong>{esc(m.group(1))}</strong><span>{esc(m.group(2).strip())}</span>'
+                             '</div></article>')
     if stats:
         parts.append(f'<div class="cv-stats">{"".join(stats)}</div>')
     more = bullets(record)[1:]
     if more:
         parts.append('<p class="cv-sub">Track record</p><ul class="cv-list">'
-                     + ''.join(f'<li>{esc(b)}</li>' for b in more) + '</ul>')
+                     + ''.join(f'<li><span class="cv-list-icon">{EVIDENCE_ICON}</span>'
+                               f'<span>{esc(b)}</span></li>' for b in more) + '</ul>')
     if bullets(creds):
         parts.append('<p class="cv-sub">Background</p><ul class="cv-list">'
-                     + ''.join(f'<li>{esc(b)}</li>' for b in bullets(creds)) + '</ul>')
+                     + ''.join(f'<li><span class="cv-list-icon">{BACKGROUND_ICON}</span>'
+                               f'<span>{esc(b)}</span></li>' for b in bullets(creds)) + '</ul>')
     lang = re.search(r'\*\*Languages:\*\*\s*(.+)', me_text)
     if lang:
-        parts.append(f'<p class="cv-lang">{esc(lang.group(1).strip())}</p>')
+        parts.append(f'<p class="cv-lang"><span class="cv-list-icon">{LANGUAGE_ICON}</span>'
+                     f'<span>{esc(lang.group(1).strip())}</span></p>')
     if not parts:
         return ''
-    return ('<details class="cv"><summary>More about my background</summary>'
+    return ('<details class="cv" open><summary><span><small>Builder profile</small>'
+            '<strong>Proven experience behind your build</strong></span></summary>'
             f'<div class="cv-body">{"".join(parts)}</div></details>')
+
+
+def profile_media(path):
+    """Use a member-supplied action photo, or keep an explicit neutral fallback."""
+    if path:
+        return ('<figure class="freelancer-photo has-photo">'
+                f'<img src="{data_uri(path)}" alt="The freelancer working with a client team">'
+                '<figcaption><strong>The person behind the build</strong>'
+                '<span>Strategy, automation and QA</span></figcaption></figure>')
+    return ('<div class="freelancer-photo" aria-label="Freelancer photo placeholder">'
+            '<svg viewBox="0 0 160 190" fill="none" aria-hidden="true">'
+            '<circle cx="80" cy="58" r="39" fill="currentColor"/>'
+            '<path d="M22 174c4-43 25-67 58-67s54 24 58 67" fill="currentColor"/>'
+            '</svg><span>Freelancer photo</span></div>')
 
 
 def profile_url():
@@ -437,6 +474,7 @@ def main(argv=None):
     ap.add_argument('--loom-url', default='')
     ap.add_argument('--video-length', default='3 minute')
     ap.add_argument('--hero-illustration', default='')
+    ap.add_argument('--profile-image', default='', help='member-supplied action photo for the proof section')
     ap.add_argument('--theme', choices=('warm', 'steel', 'signal', 'growth', 'calm'), default='warm')
     ap.add_argument('--dither-source', default='',
                     help='high-contrast industry artwork used by the moving dither field')
@@ -521,6 +559,7 @@ def main(argv=None):
         '{{LOOM_URL}}': esc(args.loom_url or '#'),
         '{{VIDEO_LENGTH}}': esc(args.video_length),
         '{{FIT_POINTS}}': '\n        '.join(fit_html(p) for p in args.fit_point),
+        '{{PROFILE_MEDIA}}': profile_media(args.profile_image),
         '{{CV_BLOCK}}': cv_block(proof_text, me_text),
         '{{PLAN_CARDS}}': plan_cards(showcase, args.kickoff, args.updates,
                                      args.plan_outcome, args.plan_image, job.get('title')),

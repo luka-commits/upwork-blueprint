@@ -119,6 +119,11 @@ python3 code/pitch/generate.py <id> --hook "..." \
   source image before assembly, then inspect its actual crop on the finished
   page. Reject repeated compositions, fake readable UI, dominant people and any
   crop that hides the industry or the work.
+- **Member photo:** when a real member photo is available, use it as the identity
+  reference for one natural action portrait and pass the finished local asset
+  with `--profile-image`. Never invent a member's likeness without that
+  reference. The proof beside it still comes only from `context/proof.md` and
+  `context/me.md`.
 - Do not put a budget or speculative delivery timeline on the pitch page. The
   internal pricing guide remains in the cockpit for the member.
 - **Next step** (`--next-step`) points back to Upwork; the default asks them to send their website or current setup there.
@@ -147,6 +152,8 @@ python3 code/pitch/generate.py <id> --hook "..." \
   sends the website, and the member returns the complete audit before the build.
   Pocket SEO V2 and Pocket CEO are internal names and must never appear in
   client-facing copy. Sell the useful outcome, then name what the audit contains.
+  Name it as a free audit in the headline or CTA. Do not make the client decode
+  euphemisms such as review, insights or opportunity scan.
   Use a headline of at most eight words, one sentence of at most 20 words and these three compact deliverables: a 25-point
   Google Maps grid, a full Google Business Profile review, and a 15-point
   website review with a prioritized action plan. Adapt the nouns to the job,

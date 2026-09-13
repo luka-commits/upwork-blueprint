@@ -238,8 +238,11 @@ class GenerateHelpersTest(unittest.TestCase):
         template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')
         command = (CODE.parent / '.claude' / 'commands' / 'pitch-page.md').read_text(encoding='utf-8')
         self.assertNotIn('scaleY(-1)', template)
+        self.assertIn('.band-next .dither-next { position: absolute; inset: 0; width: 100%; height: 100%;', template)
+        self.assertIn('linear-gradient(180deg, #000 0%, #000 88%, transparent 100%)', template)
         self.assertIn('vertical flipping is not', command)
         self.assertIn('inspect its actual crop on the finished', command)
+        self.assertIn('Name it as a free audit', command)
 
     def test_capture_accepts_a_valid_preview_when_chrome_does_not_exit(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -289,8 +292,28 @@ class GenerateHelpersTest(unittest.TestCase):
     def test_proof_section_reserves_a_freelancer_photo(self):
         template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')
         self.assertIn('class="profile-story"', template)
-        self.assertIn('aria-label="Freelancer photo placeholder"', template)
-        self.assertLess(template.index('class="fit-list"'), template.index('class="freelancer-photo"'))
+        self.assertIn('{{PROFILE_MEDIA}}', template)
+        self.assertLess(template.index('class="fit-list"'), template.index('{{PROFILE_MEDIA}}'))
+        self.assertIn('aria-label="Freelancer photo placeholder"', gen.profile_media(''))
+
+    def test_profile_media_embeds_a_member_supplied_action_photo(self):
+        with tempfile.TemporaryDirectory() as td:
+            photo = pathlib.Path(td) / 'member.webp'
+            photo.write_bytes(b'photo')
+            media = gen.profile_media(photo)
+            self.assertIn('data:image/webp;base64,', media)
+            self.assertIn('class="freelancer-photo has-photo"', media)
+            self.assertIn('The person behind the build', media)
+
+    def test_cv_uses_icons_for_verified_achievements(self):
+        block = gen.cv_block(
+            '## Upwork track record\n\n- $10K+ earned, 19 completed jobs, 13 reviews\n'
+            '- Repeat clients\n\n## Credentials\n\n- MBA in Marketing and AI\n',
+            '**Languages:** German and English',
+        )
+        self.assertEqual(block.count('class="cv-stat"'), 3)
+        self.assertIn('class="cv-stat-icon"', block)
+        self.assertIn('Proven experience behind your build', block)
 
     def test_working_together_follows_the_lead_magnet_without_budget_or_timeline(self):
         template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')

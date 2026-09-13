@@ -30,9 +30,9 @@
 
   var NS = 'http://www.w3.org/2000/svg';
   var NW = 184, NH = 76, GRID = 20;
-  var COLS = 3, GAPX = 60, GAPY = 116;
+  var COLS = 3, GAPX = 48, GAPY = 116;
 
-  var ILLUS_W = 460, ILLUS_H = 0, ILLUS_GAP = 78;
+  var ILLUS_W = 300, ILLUS_H = 0, ILLUS_GAP = 52;
   var ILLUSTRATION = '{{ILLUSTRATION_SRC}}';
 
   // Vom Generator eingesetzt: slug -> innerer SVG-Inhalt der Marke.
@@ -74,6 +74,60 @@
     return null;
   }
   function uid(p) { return p + Math.random().toString(36).slice(2, 8); }
+  function phaseIndexFor(id) {
+    var groups = state.groups || [];
+    for (var i = 0; i < groups.length; i++) if ((groups[i].nodes || []).indexOf(id) >= 0) return i;
+    return -1;
+  }
+
+  function phaseOutcome(group) {
+    var members = (group.nodes || []).map(byId).filter(Boolean);
+    if (!members.length) return '';
+    var memberIds = {};
+    members.forEach(function (node) { memberIds[node.id] = true; });
+    var internalTargets = {};
+    (state.edges || []).forEach(function (edge) {
+      if (memberIds[edge.from] && memberIds[edge.to]) internalTargets[edge.from] = true;
+    });
+    var outcomes = members.filter(function (node) { return !internalTargets[node.id]; });
+    return (outcomes[outcomes.length - 1] || members[members.length - 1]).label;
+  }
+
+  function renderRoadmap() {
+    var roadmap = document.getElementById('dg-roadmap');
+    var groups = state.groups || [];
+    if (!roadmap) return;
+    roadmap.textContent = '';
+    roadmap.hidden = !groups.length;
+    if (!groups.length) return;
+    roadmap.style.setProperty('--phase-count', groups.length);
+    var active = sel.length === 1 ? phaseIndexFor(sel[0]) : -1;
+    groups.forEach(function (group, index) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'dg-phase';
+      button.dataset.phase = index;
+      button.dataset.active = index === active ? 'true' : 'false';
+      button.setAttribute('aria-label', 'Phase ' + (index + 1) + ': ' + group.label + '. Output: ' + phaseOutcome(group));
+      var number = document.createElement('span');
+      number.className = 'dg-phase-num';
+      number.textContent = String(index + 1).padStart(2, '0');
+      var label = document.createElement('strong');
+      label.textContent = group.label;
+      var outcome = document.createElement('small');
+      outcome.textContent = 'Output: ' + phaseOutcome(group);
+      button.appendChild(number); button.appendChild(label); button.appendChild(outcome);
+      button.addEventListener('click', function () {
+        var members = (group.nodes || []).map(byId).filter(Boolean);
+        if (!members.length) return;
+        var target = members[members.length - 1];
+        sel = [target.id];
+        render(target.id);
+        announce('Phase ' + (index + 1) + ': ' + group.label + '.');
+      });
+      roadmap.appendChild(button);
+    });
+  }
 
   function announce(message, hold) {
     var status = document.getElementById('dg-status');
@@ -150,11 +204,19 @@
     var kind = document.getElementById('dg-inspector-kind');
     var title = document.getElementById('dg-inspector-title');
     var note = document.getElementById('dg-inspector-note');
+    var why = document.getElementById('dg-inspector-why');
+    var noteWrap = document.getElementById('dg-inspector-note-wrap');
+    var whyWrap = document.getElementById('dg-inspector-why-wrap');
+    var inspectorView = document.getElementById('dg-inspector-view');
+    var form = document.getElementById('dg-inspector-form');
     var tip = host.querySelector('.dg-inspector-tip');
-    if (!owner || !kind || !title || !note) return;
+    if (!owner || !kind || !title || !note || !why || !inspectorView || !form) return;
+    form.hidden = !editing || !selected;
+    inspectorView.hidden = editing && !!selected;
     if (!selected) {
-      owner.textContent = 'Plan'; kind.textContent = 'Step details'; title.textContent = 'Select any step';
-      note.textContent = 'The explanation and ownership will appear here without crowding the canvas.';
+      owner.textContent = 'Plan'; kind.textContent = 'Step details'; title.textContent = 'Choose a step';
+      note.textContent = ''; why.textContent = '';
+      noteWrap.hidden = true; whyWrap.hidden = true;
       if (tip && tip.dataset.active !== 'true') tip.textContent = 'Click a step or press Tab';
       return;
     }
@@ -162,9 +224,86 @@
       : selected.owner === 'thirdparty' ? 'Third-party service' : 'Included in the build';
     kind.textContent = selected.kind || 'step';
     title.textContent = selected.label;
-    note.textContent = selected.note || 'This step is included in the proposed flow. The exact setup is confirmed before build.';
-    if (tip && tip.dataset.active !== 'true') tip.textContent = editing ? 'Drag to move or press Enter to rename' : 'Select another step';
+    note.textContent = selected.note || '';
+    why.textContent = selected.why || '';
+    noteWrap.hidden = !selected.note;
+    whyWrap.hidden = !selected.why;
+    if (editing) populateInspectorForm(selected);
+    if (tip && tip.dataset.active !== 'true') tip.textContent = editing ? 'Edit the selected step below' : 'Select another step';
   }
+
+  function populateInspectorForm(selected) {
+    var label = document.getElementById('dg-edit-label');
+    var phase = document.getElementById('dg-edit-phase');
+    var phaseName = document.getElementById('dg-edit-phase-name');
+    var phaseNameWrap = document.getElementById('dg-edit-phase-name-wrap');
+    var note = document.getElementById('dg-edit-note');
+    var why = document.getElementById('dg-edit-why');
+    if (!label || !phase || !phaseName || !phaseNameWrap || !note || !why) return;
+    label.value = selected.label || '';
+    note.value = selected.note || '';
+    why.value = selected.why || '';
+    phase.textContent = '';
+    var none = document.createElement('option');
+    none.value = '-1'; none.textContent = 'No phase'; phase.appendChild(none);
+    (state.groups || []).forEach(function (group, index) {
+      var option = document.createElement('option');
+      option.value = String(index); option.textContent = (index + 1) + '. ' + group.label;
+      phase.appendChild(option);
+    });
+    var current = phaseIndexFor(selected.id);
+    phase.value = String(current);
+    phaseName.value = current >= 0 ? state.groups[current].label : '';
+    phaseNameWrap.hidden = current < 0;
+    phase.onchange = function () {
+      var next = Number(phase.value);
+      phaseNameWrap.hidden = next < 0;
+      phaseName.value = next >= 0 && state.groups[next] ? state.groups[next].label : '';
+    };
+  }
+
+  function saveInspectorForm() {
+    var selected = sel.length === 1 ? byId(sel[0]) : null;
+    if (!selected) return;
+    var label = document.getElementById('dg-edit-label');
+    var phase = document.getElementById('dg-edit-phase');
+    var phaseName = document.getElementById('dg-edit-phase-name');
+    var note = document.getElementById('dg-edit-note');
+    var why = document.getElementById('dg-edit-why');
+    var nextLabel = label.value.trim();
+    if (!nextLabel) { label.focus(); announce('Give this step a name.'); return; }
+    var previousPhase = phaseIndexFor(selected.id);
+    var nextPhase = Number(phase.value);
+    var nextPhaseName = phaseName.value.trim();
+    var changed = nextLabel !== selected.label || note.value.trim() !== (selected.note || '') ||
+      why.value.trim() !== (selected.why || '') || previousPhase !== nextPhase ||
+      (nextPhase >= 0 && state.groups[nextPhase] && nextPhaseName !== state.groups[nextPhase].label);
+    if (!changed) { announce('No changes to save.'); return; }
+    mark();
+    selected.label = nextLabel;
+    selected.note = note.value.trim();
+    selected.why = why.value.trim();
+    if (nextPhase >= 0 && state.groups[nextPhase] && nextPhaseName) {
+      state.groups[nextPhase].label = nextPhaseName;
+    }
+    if (previousPhase !== nextPhase) {
+      (state.groups || []).forEach(function (group) {
+        group.nodes = (group.nodes || []).filter(function (id) { return id !== selected.id; });
+      });
+      if (nextPhase >= 0 && state.groups[nextPhase]) state.groups[nextPhase].nodes.push(selected.id);
+      state.groups = (state.groups || []).filter(function (group) { return (group.nodes || []).length; });
+    }
+    if (previousPhase !== nextPhase) autoLayout();
+    render(selected.id);
+    if (previousPhase !== nextPhase) fit();
+    announce('Step saved.');
+  }
+
+  var inspectorForm = document.getElementById('dg-inspector-form');
+  if (inspectorForm) inspectorForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    saveInspectorForm();
+  });
 
   function kindCue(d) {
     if (d.kind === 'source') return 'START';
@@ -460,7 +599,7 @@
        statt eine eigene gespeicherte Geometrie zu haben -- damit sitzt der
        Rahmen auch dann noch richtig, wenn der Leser einen Knoten
        herauszieht, und kann gar nicht veralten. */
-    (state.groups || []).forEach(function (grp) {
+    (state.groups || []).forEach(function (grp, groupIndex) {
       var mem = (grp.nodes || []).map(byId).filter(Boolean);
       if (!mem.length) return;
       var PADX = 22, PADT = 34, PADB = 20;
@@ -472,14 +611,12 @@
       var gg = el('g');
       gg.appendChild(el('rect', {
         x: x1 - PADX, y: y1 - PADT, width: (x2 - x1) + PADX * 2, height: (y2 - y1) + PADT + PADB,
-        rx: 16, fill: 'none', stroke: P.tintStroke, 'stroke-width': 1.4, 'stroke-dasharray': '2 6'
+        rx: 12, fill: groupIndex % 2 ? P.bgBand : P.card, 'fill-opacity': .72,
+        stroke: P.tintStroke, 'stroke-width': 1
       }));
-      var lw = (grp.label || '').length * 6.6 + 20;
-      gg.appendChild(el('rect', { x: x1 - PADX + 12, y: y1 - PADT - 10, width: lw, height: 21,
-        rx: 6, fill: P.tint, stroke: P.tintStroke, 'stroke-width': 1 }));
-      var lt = el('text', { x: x1 - PADX + 22, y: y1 - PADT + 5, fill: P.text,
-        'font-size': 11, 'font-weight': 600, 'font-family': MONO, 'letter-spacing': '.04em' });
-      lt.textContent = grp.label || '';
+      var lt = el('text', { x: x1 - PADX + 14, y: y1 - 12, fill: P.accent,
+        'font-size': 18, 'font-weight': 700, 'font-family': MONO, opacity: .42 });
+      lt.textContent = String(groupIndex + 1).padStart(2, '0');
       gg.appendChild(lt);
       gGroups.appendChild(gg);
     });
@@ -491,11 +628,12 @@
       var g = el('g', { class: 'dg-edge-hit' });
       g.dataset.edge = i;
       g.appendChild(el('path', { d: edgePath(a, b), fill: 'none', stroke: 'transparent', 'stroke-width': 14 }));
+      var crossesPhase = phaseIndexFor(e.from) !== phaseIndexFor(e.to);
       g.appendChild(el('path', {
-        d: edgePath(a, b), fill: 'none', stroke: on ? P.accent : P.edge,
-        'stroke-width': on ? HAIR_ON : 1.2,
+        d: edgePath(a, b), fill: 'none', stroke: on || crossesPhase ? P.accent : P.edge,
+        'stroke-width': on ? HAIR_ON : crossesPhase ? 1.55 : 1.15,
         'stroke-dasharray': e.dashed ? '5 4' : null,
-        'marker-end': 'url(#' + (on ? 'dgArrowSel' : 'dgArrow') + ')'
+        'marker-end': 'url(#' + (on || crossesPhase ? 'dgArrowSel' : 'dgArrow') + ')'
       }));
       /* The condition on the branch. Without it a fork is just two arrows and
          the reader cannot tell which case goes where, so the label was always
@@ -568,6 +706,7 @@
     applyView();
     drawMini();
     updateInspector();
+    renderRoadmap();
     syncControls();
     if (focusId) {
       var target = gNodes.querySelector('[data-id="' + focusId + '"]');
@@ -611,7 +750,7 @@
      that floor the view starts at the beginning of the flow instead, and the
      reader pans or zooms out deliberately. The minimap keeps the whole shape
      visible either way. */
-  var MIN_READABLE = 1;
+  var MIN_READABLE = .88;
   function fit() {
     var b = bounds(), w = stage.clientWidth || 800, h = stage.clientHeight || 380, m = 46;
     var k = Math.min((w - m * 2) / Math.max(1, b.x2 - b.x1), (h - m * 2) / Math.max(1, b.y2 - b.y1));
@@ -893,7 +1032,7 @@
   });
 
   document.addEventListener('keydown', function (e) {
-    if (/^(INPUT|TEXTAREA)$/.test((e.target.tagName || ''))) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ''))) return;
     var inView = host.contains(document.activeElement) || host.matches(':hover') ||
                  host.classList.contains('dg-full') || document.fullscreenElement === host;
     if (!inView) return;
@@ -1088,7 +1227,7 @@
     }
     if (a === 'edit') {
       editing = !editing; reflectMode(); updateInspector();
-      announce(editing ? 'Editing on. Select a step, then press Enter to rename it.' : 'Editing finished.');
+      announce(editing ? 'Editing on. Select a step and change its plan below.' : 'Editing finished.');
     }
     else if (a === 'in') { zoom(1.25); announce('Zoom ' + Math.round(view.k * 100) + '%.'); }
     else if (a === 'out') { zoom(1 / 1.25); announce('Zoom ' + Math.round(view.k * 100) + '%.'); }
@@ -1100,8 +1239,11 @@
     else if (a === 'tidy') { mark(); autoLayout(); render(); fit(); announce('Steps tidied into phases.'); }
     else if (a === 'png') { exportPNG(); announce('Preparing the PNG download.'); }
     else if (a === 'play') playFlow();
+    else if (a === 'cancel-step') { updateInspector(); announce('Changes discarded.'); }
     else if (a === 'reset') {
-      state = clone(base); autoLayout(); sel = []; undo = []; redo = [];
+      state = clone(base); autoLayout(); undo = []; redo = [];
+      var resetFirst = state.nodes.filter(function (d) { return d.kind === 'source'; })[0] || state.nodes[0];
+      sel = resetFirst ? [resetFirst.id] : [];
       edited = false; reflectEdited();
       var hint = document.getElementById('dg-hint');
       if (hint) hint.textContent = 'Drag steps, pull a dot to connect, double-click to rename.';

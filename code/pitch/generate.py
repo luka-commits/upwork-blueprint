@@ -9,6 +9,7 @@ something the proof file does not hold.
 
     python3 code/pitch/generate.py <job_id> \\
         --hook "..." \\
+        --build-lede "..." \\
         --fit-point "200%|more website leads|for local businesses" (three times) \\
         --graph data/pitch-graph-<job_id>.json \\
         --tool "GoHighLevel" --tool "n8n" \\
@@ -39,6 +40,7 @@ TEMPLATE = HERE / 'template.html'
 DIAGRAM_JS = HERE / 'diagram.js'
 LOGO_DIR = HERE / 'logos'
 DITHER = HERE / 'ink-plume.png'
+REPORT_COVER = HERE / 'report-cover-example.jpg'
 PIPELINE = ROOT / 'code' / 'pipeline.py'
 PROOF = ROOT / 'context' / 'proof.md'
 ME = ROOT / 'context' / 'me.md'
@@ -196,6 +198,10 @@ def build_graph(spec):
             abort(f'node "{n["id"]}" note must be non-empty text.')
         if len(n.get('note', '')) > 800:
             abort(f'node "{n["id"]}" note is over 800 characters.')
+        if 'why' in n and (not isinstance(n['why'], str) or not n['why'].strip()):
+            abort(f'node "{n["id"]}" why must be non-empty text.')
+        if len(n.get('why', '')) > 400:
+            abort(f'node "{n["id"]}" why is over 400 characters.')
         if 'logo' in n and (not isinstance(n['logo'], str) or not re.fullmatch(r'[a-z0-9-]+', n['logo'])):
             abort(f'node "{n["id"]}" logo must be a lowercase slug.')
         positioned = [axis in n for axis in ('x', 'y')]
@@ -351,6 +357,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('job_id')
     ap.add_argument('--hook', required=True, help='the one headline, unmistakably about this job')
+    ap.add_argument('--build-lede', required=True, help='one job-specific sentence explaining the proposed flow')
     ap.add_argument('--fit-point', action='append', required=True, help='"number|label|context", three times')
     ap.add_argument('--graph', required=True, help='the plan as JSON, or a path to it')
     ap.add_argument('--tool', action='append', required=True)
@@ -379,9 +386,11 @@ def main(argv=None):
     url = profile_url()
 
     dither = data_uri(DITHER) if DITHER.is_file() else ''
+    # The illustration belongs inside the plan canvas, beside the live flow.
+    # A second hero block above the page repeated the same idea without adding
+    # context, while the board placement makes the image part of the proposal.
+    illustration_src = data_uri(args.hero_illustration) if args.hero_illustration else ''
     hero_art = ''
-    if args.hero_illustration:
-        hero_art = f'<div class="hero-art" data-rise data-d="1"><img src="{data_uri(args.hero_illustration)}" alt=""></div>'
 
     live = ''
     if args.live_artifact:
@@ -418,14 +427,18 @@ def main(argv=None):
     page = keep_or_strip(page, 'videos', bool(videos))
     page = keep_or_strip(page, 'showcase', bool(args.showcase))
     showcase = split_label(args.showcase, 4, '--showcase') if args.showcase else ['', '', '', '']
+    showcase_image = pathlib.Path(args.showcase_image) if args.showcase_image else REPORT_COVER
+    if args.showcase and not showcase_image.is_file():
+        abort(f'lead magnet cover "{showcase_image}" does not exist.')
 
     js = (DIAGRAM_JS.read_text(encoding='utf-8')
           .replace('{{LOGOS_JSON}}', logos_json(json.loads(diagram_data)['nodes']))
-          .replace('{{ILLUSTRATION_SRC}}', ''))
+          .replace('{{ILLUSTRATION_SRC}}', illustration_src))
     fills = {
         '{{BODY_CLASS}}': '' if args.loom_url else 'no-video',
         '{{JOB_TITLE}}': esc(safe_job_title(job.get('title'))),
         '{{HOOK}}': esc(args.hook),
+        '{{BUILD_LEDE}}': esc(args.build_lede),
         '{{HERO_ART}}': hero_art,
         '{{LOOM_URL}}': esc(args.loom_url or '#'),
         '{{VIDEO_LENGTH}}': esc(args.video_length),
@@ -446,7 +459,7 @@ def main(argv=None):
         '{{LEAD_MAGNET_URL}}': esc(showcase[2]),
         '{{LEAD_MAGNET_CTA}}': esc(showcase[3]),
         '{{SHOWCASE_POINTS}}': ''.join(f'<li>{esc(p)}</li>' for p in args.showcase_point),
-        '{{REPORT_COVER_SRC}}': data_uri(args.showcase_image, 'image/jpeg') if args.showcase_image else '',
+        '{{REPORT_COVER_SRC}}': data_uri(showcase_image, 'image/jpeg') if args.showcase else '',
         '{{NEXT_STEP}}': esc(args.next_step),
         '{{PROFILE_URL}}': esc(url or '#'),
         '{{FOOTER_LINKS}}': '<span class="dot">·</span>'.join(footer),

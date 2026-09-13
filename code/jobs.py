@@ -101,28 +101,94 @@ def cmd_window(args):
     return 0
 
 
-def member_tracks():
+def member_search_themes():
     try:
         text = ME.read_text(encoding='utf-8')
     except OSError:
         return []
     match = re.search(r'(?ms)^## Job search tracks\s*\n(.*?)(?=^## |\Z)', text)
-    return [line[2:].strip() for line in match.group(1).splitlines()
-            if line.startswith('- ') and line[2:].strip()] if match else []
+    if not match:
+        return []
+    themes = []
+    for line in match.group(1).splitlines():
+        if not line.startswith('- ') or not line[2:].strip():
+            continue
+        item = line[2:].strip()
+        if ':' in item:
+            label, raw_terms = (part.strip() for part in item.split(':', 1))
+            terms = [term.strip() for term in re.split(r'\s*[·|]\s*', raw_terms) if term.strip()]
+        else:
+            label, terms = item, [item]
+        if label and terms:
+            slug = re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')
+            themes.append({'label': label, 'slug': slug, 'terms': terms, 'query': ', '.join(terms)})
+    return themes
+
+
+def member_tracks():
+    """Legacy label list retained for scripts that only need theme names."""
+    return [theme['label'] for theme in member_search_themes()]
+
+
+def source_matches_theme(source, theme):
+    """Match current query slugs and the older per-term search file names."""
+    source = str(source or '').lower()
+    if not source.startswith(('query-', 'title-', 'search-')):
+        return False
+    source = re.sub(r'^(?:query|title|search)-', '', source)
+    source_key = re.sub(r'[^a-z0-9]+', '', source)
+    keys = [theme.get('slug', '')] + theme.get('terms', [])
+    return source_key in {re.sub(r'[^a-z0-9]+', '', str(key).lower()) for key in keys}
+
+
+def query_performance(themes):
+    """Observed downstream outcomes for saved leads, grouped by search theme."""
+    jobs = load_json(jobs_file(), [])
+    performance = []
+    for theme in themes:
+        matched = [job for job in jobs if any(source_matches_theme(source, theme)
+                   for source in job.get('found_via', []))]
+        applied = [job for job in matched if job.get('applied_at') or
+                   job.get('status') in ('applied', 'replied', 'offer', 'won')]
+        conversations = [job for job in matched if job.get('status') in ('replied', 'offer', 'won')]
+        won = [job for job in matched if job.get('status') == 'won']
+        skipped = [job for job in matched if job.get('status') == 'skipped']
+        reasons = {}
+        for job in skipped:
+            for reason in re.findall(r'not a fit:\s*([^.]*(?:\.|$))', job.get('notes') or '', re.I):
+                reason = reason.strip().rstrip('.')
+                if reason:
+                    reasons[reason] = reasons.get(reason, 0) + 1
+        performance.append({
+            'label': theme['label'],
+            'saved': len(matched),
+            'applied': len(applied),
+            'conversations': len(conversations),
+            'won': len(won),
+            'skipped': len(skipped),
+            'not_fit_reasons': [{'reason': reason, 'count': count}
+                                for reason, count in sorted(reasons.items(), key=lambda item: (-item[1], item[0]))[:3]],
+        })
+    return performance
 
 
 def cmd_rules(args):
     """The live search and ranking contract, for people and the cockpit."""
+    themes = member_search_themes()
     print(json.dumps({
-        'tracks': member_tracks(),
+        'tracks': [theme['label'] for theme in themes],
+        'themes': themes,
+        'query_mode': 'Semantic match across the job title and description',
+        'performance': query_performance(themes),
+        'performance_scope': 'Downstream outcomes for saved leads only. Upwork retrieval totals are not retained.',
         'window_hours': search_window_hours(),
         'window_bounds': [MIN_WINDOW, MAX_WINDOW],
-        'sources': ['Upwork recommendations', 'Title search tracks'],
+        'sources': ['Upwork recommendations', 'Semantic search themes'],
         'filters': ['Already applied', 'Unverified payment', 'Outside the search window',
                     'Already in the pipeline'],
         'ranking': [
             {'label': 'Niche fit', 'points': 40,
-             'uses': 'Services, tools, verified proof and repeated Not a fit lessons.'},
+             'uses': 'Pocket CEO service fit, verified proof and repeated member decisions.'},
             {'label': 'Client trust', 'points': 30,
              'uses': 'Payment verification, rating, spend and hiring ratio.'},
             {'label': 'Deal quality', 'points': 20,

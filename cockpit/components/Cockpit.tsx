@@ -11,7 +11,7 @@ import { followRunStream, RECONNECTING_RUN, RUN_TRACKING_LOST } from '@/lib/run-
 import { revealContent, sectionIndex } from '@/lib/surface-motion.mjs';
 
 type Snapshot = { jobs: Set<string>; files: Set<string> };
-type RunMeta = { before: Snapshot | null; narrated: boolean; controller: AbortController };
+type RunMeta = { before: Snapshot | null; controller: AbortController };
 type StreamEvent = { kind: string; text?: string; detail?: string; error?: boolean; stopped?: boolean };
 
 const STARTING = 'Starting Claude. You can keep working, this runs on its own.';
@@ -161,7 +161,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
       made: [],
     };
     runsRef.current.set(id, run);
-    runMetaRef.current.set(id, { before: replay ? null : snapshot(stateRef.current, job), narrated: false, controller });
+    runMetaRef.current.set(id, { before: replay ? null : snapshot(stateRef.current, job), controller });
     publishRuns();
 
     const update = (change: (current: Run) => Run) => {
@@ -184,13 +184,12 @@ export function CockpitProvider({ token, children }: { token: string; children: 
         const text = `→ ${word}${event.detail ? ` · ${event.detail.slice(0, 90)}` : ''}`;
         update(current => ({
           ...current,
-          status: meta.narrated ? current.status : `${word}.`,
+          status: `${word}.`,
           log: [...current.log, { kind: 'tool', text }],
         }));
       } else if (event.kind === 'text') {
         const text = event.text || '';
         const line = lastLine(text);
-        if (line) meta.narrated = true;
         update(current => ({
           ...current,
           status: line || current.status,

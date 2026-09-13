@@ -16,6 +16,18 @@ type Command = {
   needsJob: boolean;
   search?: {
     tracks: string[];
+    themes: Array<{ label: string; slug: string; terms: string[]; query: string }>;
+    query_mode: string;
+    performance: Array<{
+      label: string;
+      saved: number;
+      applied: number;
+      conversations: number;
+      won: number;
+      skipped: number;
+      not_fit_reasons: Array<{ reason: string; count: number }>;
+    }>;
+    performance_scope: string;
     window_hours: number;
     window_bounds: [number, number];
     sources: string[];
@@ -251,10 +263,16 @@ export default function CommandsPage() {
               return <div className={`command-entry${expanded ? ' expanded' : ''}`} key={command.name}>
                 <div className="command-row">
                   <code className="command-name">/{command.name}</code>
-                  <span className="command-description" title={command.description}>{command.description || 'No description yet.'}</span>
+                  <div className="command-summary-copy">
+                    <span className="command-description">{command.description || 'No description yet.'}</span>
+                    {command.search ? <div className="command-query-preview" aria-label="Current search themes">
+                      <span>Searches</span>
+                      {command.search.themes.map(theme => <code key={theme.label}>{theme.label}</code>)}
+                    </div> : null}
+                  </div>
                   <div className="command-action">
                     {canExplain ? <button className="link command-how" aria-expanded={expanded}
-                      onClick={() => setExpandedCommand(expanded ? null : command.name)}>How it works <span aria-hidden="true">›</span></button> : null}
+                      onClick={() => setExpandedCommand(expanded ? null : command.name)}>{command.search ? 'Search setup' : 'How it works'} <span aria-hidden="true">›</span></button> : null}
                     {command.name === 'follow-up' ? <Link className="link" href="/follow-ups">View review</Link> : null}
                     {command.button && !command.needsJob ? (
                       <button onClick={() => runCommand(command.name)}>Run</button>
@@ -292,37 +310,75 @@ export default function CommandsPage() {
 function CommandExplanation({ command }: { command: Command }) {
   return <div className={`command-explanation${command.search ? ' search-explanation' : ''}`}>
     {command.search ? <SearchExplanation rules={command.search} /> : null}
-    {command.workflow.length ? <div className="command-workflow">
-      <span className="command-detail-label">Workflow</span>
-      <ol>{command.workflow.map((step, index) => <li key={`${step}-${index}`}><span>{index + 1}</span>{step}</li>)}</ol>
-    </div> : null}
+    {command.workflow.length ? command.search ? <details className="command-full-flow">
+      <summary>Full run flow <span>{command.workflow.length} steps</span></summary>
+      <CommandWorkflow steps={command.workflow} />
+    </details> : <CommandWorkflow steps={command.workflow} /> : null}
     <div className="command-context">
-      <span>{command.needsJob ? 'Runs with one selected lead' : command.button ? 'Runs locally from this page' : 'Continues in Claude Code'}</span>
+      <span className="command-detail-label">Starts</span>
+      <strong>{command.needsJob ? 'From one selected lead' : command.button ? 'Here in the cockpit' : 'In Claude Code'}</strong>
       {command.hint ? <code>{command.hint}</code> : null}
     </div>
   </div>;
 }
 
+function CommandWorkflow({ steps }: { steps: string[] }) {
+  return <div className="command-workflow">
+    <span className="command-detail-label">What happens</span>
+    <ol>{steps.map((step, index) => <li key={`${step}-${index}`}><span>{index + 1}</span><strong>{step}</strong></li>)}</ol>
+  </div>;
+}
+
 function SearchExplanation({ rules }: { rules: NonNullable<Command['search']> }) {
+  const performance = new Map((rules.performance || []).map(item => [item.label, item]));
   return <div className="search-rules">
     <div className="search-rule-head">
-      <div><span className="command-detail-label">Looking now</span>
-        <strong>{rules.sources.join(' + ')}</strong>
-        <p>Fresh jobs from the last {rules.window_hours} hours. Payment verified only.</p></div>
-      <div className="search-tracks" aria-label="Current title search tracks">
-        {rules.tracks.map(track => <span key={track}>{track}</span>)}
-      </div>
+      <div><span className="command-detail-label">Current search setup</span>
+        <strong>From Upwork to Leads</strong></div>
+      <span className="search-window">Last {rules.window_hours} hours</span>
+    </div>
+    <div className="search-stage-grid">
+      <section className="search-stage search-stage-queries">
+        <div className="search-stage-title"><span>1</span><strong>Find candidates</strong></div>
+        <div className="search-source"><b>Recommendations</b><span>Upwork matches for your profile</span></div>
+        <div className="search-source"><b>{rules.themes.length} personal searches</b><span>{rules.query_mode}</span></div>
+        <div className="search-themes" aria-label="Exact current search queries">
+          {rules.themes.map(theme => {
+            const result = performance.get(theme.label);
+            const signal = !result?.saved ? 'No saved leads yet'
+              : result.won ? `${result.won} won · ${result.conversations} conversations`
+                : result.conversations ? `${result.conversations} conversations · ${result.applied} applied`
+                  : `${result.applied} applied · ${result.skipped} not a fit`;
+            const reason = result?.not_fit_reasons?.[0];
+            const detail = reason ? ` Most common rejection: ${reason.reason} (${reason.count}).` : '';
+            return <div key={theme.label} title={`${signal}.${detail}`}>
+              <strong>{theme.label}</strong><code>{theme.query}</code><span>{signal}</span>
+            </div>;
+          })}
+        </div>
+        <p className="search-evidence-note">{rules.performance_scope}</p>
+      </section>
+      <section className="search-stage">
+        <div className="search-stage-title"><span>2</span><strong>Remove noise</strong></div>
+        <p>Keep fresh jobs from clients with verified payment.</p>
+        <ul className="search-filter-list">{rules.filters.map(filter => <li key={filter}>{filter}</li>)}</ul>
+      </section>
+      <section className="search-stage search-stage-score">
+        <div className="search-stage-title"><span>3</span><strong>Rank and save</strong></div>
+        <div className="score-strip" aria-label="Job score out of 100">
+          {rules.ranking.map((part, index) => <span className={`score-tone-${index + 1}`} style={{ flexBasis: `${part.points}%` }} title={`${part.label}: ${part.points} points`} key={part.label} />)}
+        </div>
+        <div className="ranking-legend">{rules.ranking.map((part, index) => <div key={part.label}>
+          <i className={`score-tone-${index + 1}`} /><strong>{part.points}</strong><span>{part.label}</span>
+        </div>)}</div>
+        <p>Save at <b>{rules.gate.score}+</b>, only when niche fit is <b>{rules.gate.fit}+</b>. Risky operator or full-time roles cannot score above <b>{rules.gate.trap_cap}</b>.</p>
+      </section>
     </div>
     <div className="ranking-rules">
-      <span className="command-detail-label">Ranking out of 100</span>
+      <span className="command-detail-label">What each score uses</span>
       <div>{rules.ranking.map(part => <div className="ranking-rule" key={part.label}>
-        <strong>{part.points}</strong><span><b>{part.label}</b>{part.uses}</span>
+        <strong>{part.label}</strong><span>{part.uses}</span>
       </div>)}</div>
-    </div>
-    <div className="search-gate">
-      <span><b>Saved to Leads</b> Fit {rules.gate.fit}+ and total {rules.gate.score}+</span>
-      <span><b>Dropped first</b> {rules.filters.join(', ')}</span>
-      <span><b>Trap cap</b> {rules.gate.trap_cap}/100 for disguised support, operator or full-time roles</span>
     </div>
   </div>;
 }

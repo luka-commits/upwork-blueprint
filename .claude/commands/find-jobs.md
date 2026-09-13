@@ -9,7 +9,7 @@ Fresh jobs are useful because the member can decide before spending Connects;
 whether applying earlier improves win rate is a practitioner hypothesis, not a
 measured rule in this repository. This looks at what was posted since the last
 run from two directions: Upwork's recommendations and the member's search
-tracks. Code counts client, budget and freshness signals; Claude judges fit.
+themes. Code counts client, budget and freshness signals; Claude judges fit.
 Runs only when the member runs it.
 
 Read first: [references/upwork-rules.md](../../references/upwork-rules.md), the jobs sections of [references/upwork-mcp.md](../../references/upwork-mcp.md), `context/me.md` and `context/proof.md`.
@@ -27,13 +27,27 @@ Save each response's `jobs` list to `data/search/<name>.json` as `{"jobs": [...]
    `most_recent`, `days_posted` the window in days rounded up and
    `verified_payment_only` true. The tool description calls this Upwork's
    profile recommendations and gives it a real date filter. Page with
-   `next_cursor` while `hasMore`, at most 5 pages. Save as
+   `next_cursor` while `hasMore`, at most 4 pages. Save as
    `recommended-1.json`, `recommended-2.json` and so on. If the action or
    documented response shape is absent, report that evidence gap and continue
-   with search tracks rather than guessing.
-2. **Your tracks:** the lines under "Job search tracks" in `context/me.md`. None there yet: propose three to six from your title, skills and proof (short tool or role words, 1 to 3 words each), write them into `context/me.md`, and say so in one line. For each track: `find_jobs` action `search`, `title` the track, `sort` `recency`, `verified_payment_only` true. Page with `cursor` while `hasNextPage` and the page's newest job is still inside the window, at most 4 pages. Save as `title-<track>.json`.
+   with search themes rather than guessing.
+2. **Your search themes:** run `python3 code/jobs.py rules`. Its `themes`
+   are the member's personal configuration from `context/me.md`. Each theme
+   groups useful variations and tool names into one semantic query. For every
+   theme, call `find_jobs` action `search`, `query` the emitted `query`, `sort`
+   `recency`, and `verified_payment_only` true. Page with `cursor` while
+   `hasNextPage` and the page's newest job is still inside the window, at most
+   2 pages. Save as `query-<slug>.json`, using the emitted `slug`. Never split
+   the terms into separate calls: the grouped query exists to cover variants
+   without wasting calls.
 
-Default to broad tracks and score after retrieval. Do not add a proposal-count
+   If there are no themes yet, propose three to six from the member's services,
+   profile skills and proof. Use `Theme: term · variant · tool` lines, write
+   them under "Job search tracks" in `context/me.md`, and say so in one line.
+   Do not add a service merely because a tool exists; the member must actually
+   want that work.
+
+Default to broad themes and score after retrieval. Do not add a proposal-count
 or budget filter unless `context/me.md` records that boundary as a member choice;
 filters remove jobs before anyone scores them.
 
@@ -52,6 +66,14 @@ but never invent a blanket exclusion or silently rewrite `context/me.md`. Only
 explicit member boundaries there may remove jobs before scoring. Automated
 "cannot apply" skips describe eligibility, not the member's taste.
 
+Also read `performance` from `python3 code/jobs.py rules`. It groups saved leads,
+applications, conversations, wins and disqualifications by search theme. Prefer
+themes that have produced conversations or wins when choosing which borderline
+jobs to open. Repeated disqualifications with the same reason lower fit for the
+same pattern. These are downstream outcomes for saved leads, not true search
+precision: raw Upwork retrieval totals are deliberately deleted after each run.
+Never disable or rewrite a theme without the member's explicit decision.
+
 Then give every candidate a niche fit from 0 to 40 against `context/me.md` and `context/proof.md`:
 
 - **35 to 40:** the center of what you sell, and your proof covers it.
@@ -59,7 +81,13 @@ Then give every candidate a niche fit from 0 to 40 against `context/me.md` and `
 - **20 to 24:** you could do it, your proof barely covers it.
 - **Under 20:** not your work. Never logged, whatever the client or budget.
 
-Signals that raise fit: a manual, repetitive process described step by step (automation in disguise, even without the word), your exact tools named, your niche named. Traps that look like a match and are not: support or ticket grinding sold as a project ("100% success rate", "hundreds of cases daily"), open-ended account-manager or operator roles instead of a build, a full-time employee disguised as a contract, and anything the member ruled out in `context/me.md`.
+Signals that raise fit: a local service business, local-search work, Google
+Business Profile, a conversion-focused local website, or lead-response work in
+GoHighLevel. Your exact tools and verified proof raise confidence, but never turn
+an unrelated job into a fit. Traps that look like a match and are not: bought
+backlinks, ranking guarantees, generic design without local-search or conversion
+scope, open-ended account-manager roles, a full-time employee disguised as a
+contract, and anything the member ruled out in `context/me.md`.
 
 Write `data/fit.json`: per job id `{"fit": 0-40, "rationale": "<what the score bets on, in one sentence>", "summary": "<what they want built and the one thing that makes this job distinctive, in two or three concrete sentences>", "trap": "<only when one applies>"}`. The rationale never repeats what the card already shows (budget, client rating). The summary must let a member explain the job without reopening the posting; never reduce a multi-part build to a category label.
 

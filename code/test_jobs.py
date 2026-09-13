@@ -35,7 +35,12 @@ class JobsTest(unittest.TestCase):
         self.dir = pathlib.Path(self.tmp.name)
         (self.dir / 'search').mkdir()
         self.me = self.dir / 'me.md'
-        self.me.write_text('# Member\n\n## Job search tracks\n\n- GoHighLevel\n- n8n\n', encoding='utf-8')
+        self.me.write_text(
+            '# Member\n\n## Job search tracks\n\n'
+            '- CRM: GoHighLevel · HighLevel · GHL\n'
+            '- n8n\n',
+            encoding='utf-8',
+        )
         self.env = dict(os.environ, BLUEPRINT_DATA=str(self.dir), BLUEPRINT_JOBS=str(self.dir / 'jobs.json'),
                         BLUEPRINT_ME=str(self.me))
 
@@ -64,10 +69,32 @@ class JobsTest(unittest.TestCase):
         r = self.run_jobs('rules')
         self.assertEqual(r.returncode, 0, r.stderr)
         rules = json.loads(r.stdout)
-        self.assertEqual(rules['tracks'], ['GoHighLevel', 'n8n'])
+        self.assertEqual(rules['tracks'], ['CRM', 'n8n'])
+        self.assertEqual(rules['themes'][0], {
+            'label': 'CRM',
+            'slug': 'crm',
+            'terms': ['GoHighLevel', 'HighLevel', 'GHL'],
+            'query': 'GoHighLevel, HighLevel, GHL',
+        })
+        self.assertEqual(rules['query_mode'], 'Semantic match across the job title and description')
         self.assertEqual(rules['window_hours'], 24)
         self.assertEqual([part['points'] for part in rules['ranking']], [40, 30, 20, 10])
         self.assertEqual(rules['gate'], {'fit': 20, 'score': 50, 'trap_cap': 60})
+
+    def test_rules_show_downstream_outcomes_for_each_search_theme(self):
+        (self.dir / 'jobs.json').write_text(json.dumps([
+            {'id': '1', 'status': 'won', 'found_via': ['query-crm'],
+             'applied_at': '2026-09-01T10:00:00Z'},
+            {'id': '2', 'status': 'skipped', 'found_via': ['title-GoHighLevel'],
+             'notes': 'not a fit: Ongoing support role.'},
+            {'id': '3', 'status': 'new', 'found_via': ['recommended-1']},
+        ]), encoding='utf-8')
+        rules = json.loads(self.run_jobs('rules').stdout)
+        crm = rules['performance'][0]
+        self.assertEqual({key: crm[key] for key in ('saved', 'applied', 'conversations', 'won', 'skipped')},
+                         {'saved': 2, 'applied': 1, 'conversations': 1, 'won': 1, 'skipped': 1})
+        self.assertEqual(crm['not_fit_reasons'], [{'reason': 'Ongoing support role', 'count': 1}])
+        self.assertEqual(rules['performance'][1]['saved'], 0)
 
     def test_score_gates_on_fit_and_logs(self):
         (self.dir / 'search' / 't.json').write_text(json.dumps({'jobs': [job('1', 1), job('2', 1)]}),

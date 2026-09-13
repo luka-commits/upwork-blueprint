@@ -48,11 +48,12 @@ Write the graph to `data/pitch-graph-<id>.json`:
   that serve one outcome and explain them in the node note. Avoid more than
   seven linked stages on the main path; branches are easier to read than one
   very long chain.
-- `nodes`: `id`, `label` (a few words), `kind` (`source`, `step`, `sink`, `decision`, `datastore`, `service`, `actor`, `note`, `milestone`), `owner` (`you` builds it, `client` already runs it, `thirdparty` outside service), optional `logo` (a file name in `code/pitch/logos/`), optional `note` (two to four plain sentences for a client outside your field; about half the nodes need one).
+- `nodes`: `id`, `label` (a few words), `kind` (`source`, `step`, `sink`, `decision`, `datastore`, `service`, `actor`, `note`, `milestone`), `owner` (`you` builds it, `client` already runs it, `thirdparty` outside service), optional `logo` (a file name in `code/pitch/logos/`), `note` (what happens in this exact job) and `why` (why this step matters for this exact client outcome). Keep both to one or two plain sentences. Never use a generic automation explanation that would survive a different job title.
 - `edges`: `from`, `to`, optional `label`, optional `dashed` for later phases.
-- `groups`: `label` and `nodes`, one per milestone. Make the first milestone the
-  smallest useful result. Give it a date only when dependencies and the member's
-  availability support that estimate.
+- `groups`: `label` and `nodes`, one per sequential phase. Use two to five
+  client-facing outcome labels, not technical buckets such as "Setup" or
+  "Automation". The first phase must be the smallest useful result. The board
+  turns each group's last connected step into its visible phase output.
 
 Estimate the member's effort from this same scope, not from the client's budget.
 Use a low, likely and high hour case; two to five roadmap milestones whose hours
@@ -75,6 +76,7 @@ commercial term.
 
 ```
 python3 code/pitch/generate.py <id> --hook "..." \
+  --build-lede "one job-specific sentence explaining the full flow" \
   --fit-point "number|label|context" (three times, numbers only from context/proof.md) \
   --graph data/pitch-graph-<id>.json --tool "..." (repeat) \
   --timeline "Day 1-2|what ships;;Day 3-5|what ships" --budget "..." --kickoff "..." (repeat)
@@ -85,7 +87,21 @@ python3 code/pitch/generate.py <id> --hook "..." \
   speed into a delivery guarantee.
 - **Budget:** an honest frame, no invented price. When the posting gives none, say what the quote depends on.
 - **Next step** (`--next-step`) points back to Upwork; the default asks them to send their website or current setup there.
-- Optional: `--loom-url` once recorded, `--hero-illustration` (a wide scene of their world with the problem solved, generated, no text in it), `--live-artifact "Label|URL"` for anything actually built, `--proof-link "Label|Detail|URL"` for past work with no contact details on it, `--showcase ...` for a real sample of your work.
+- **Build lede:** one sentence that names this job's trigger, useful outcome
+  and final handoff. It sits above the board. Generic claims such as "drawn
+  from your posting" are not accepted.
+- Optional: `--loom-url` once recorded, `--live-artifact "Label|URL"` for anything actually built and `--proof-link "Label|Detail|URL"` for past work with no contact details on it.
+- For a complex flow whose result is hard to picture, generate one 16:9
+  `--hero-illustration`: a scene from the client's industry with the finished
+  outcome visible, no text, logos or generic boxes and arrows. It is embedded
+  inside the board beside the flow. Skip it only when the result is already an
+  obvious short chain, and state that decision in the completion report.
+- When the job is tied to a business website, add the lead magnet block with
+  `--showcase "job-specific title|what the audit would reveal for this job|#next|Send your website on Upwork"`
+  and two or three `--showcase-point` findings the audit will check. The bundled
+  report cover is used automatically. The copy must name this job's industry,
+  acquisition path or build decision. Do not link to a contact page or promise
+  findings that have not been measured.
 - Your YouTube videos appear when `context/videos.json` lists them (`{"channel": url, "videos": [{"id", "title", "thumb"}]}`); the channel page itself must show no email or booking link.
 
 ## Step 6 · The Loom script

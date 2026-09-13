@@ -10,6 +10,7 @@ import { timelineView } from '@/lib/timeline.mjs';
 import { artifactUrl, artifactVersion, useArtifactText } from '@/lib/artifact-content.mjs';
 import { leadWorkspace } from '@/lib/lead-workspace.mjs';
 import { parseLoomReview, parseLoomScript } from '@/lib/loom-artifacts.mjs';
+import { priceView } from '@/lib/pricing.mjs';
 import { BoostBlock, NextStep, PitchPageButton, TasksBlock } from './JobParts';
 import JobBrief from './JobBrief';
 import {
@@ -261,6 +262,7 @@ function LeadDetails({ j, hasFlags }: { j: any; hasFlags: boolean }) {
       <Field label="Posted" value={j.posted_date ? `${day(j.posted_date)} (${ago(j.posted_date)})` : ''} />
       <Field label="Engagement" value={[j.engagement || d.engagement_type, d.experience_level && String(d.experience_level).toLowerCase()].filter(Boolean).join(' · ')} />
     </dl>
+    <PriceGuide value={d.price_estimate} />
     {skillText ? <Disclosure label="Skills" summary={skillText}><p>{skillText}</p></Disclosure> : null}
     <Disclosure label="Client" summary={clientSummary || 'Client details'}>
       <dl className="fields">
@@ -274,6 +276,28 @@ function LeadDetails({ j, hasFlags }: { j: any; hasFlags: boolean }) {
     </Disclosure>
     {d.description ? <Disclosure label="The full posting" summary="Original Upwork brief"><div className="posting">{d.description}</div></Disclosure> : null}
   </section>;
+}
+
+function PriceGuide({ value }: { value: any }) {
+  const guide = priceView(value);
+  if (!guide) return null;
+  return <Disclosure label="Price guide" summary={guide.summary}>
+    <div className="price-guide">
+      <div className="price-guide-top">
+        <div><span>Recommended</span><strong>{guide.recommended}</strong><small>{guide.basis}</small></div>
+        <div><span>Working range</span><strong>{guide.range}</strong><small>{guide.hours} · {guide.confidence} confidence</small></div>
+      </div>
+      {guide.roadmap.length ? <div className="price-guide-list"><span>Roadmap</span>
+        <ol>{guide.roadmap.map((item: any, index: number) => <li key={`${item.label}-${index}`}>
+          <b>{item.label}</b><span>{Number(item.hours).toLocaleString('en-US', { maximumFractionDigits: 1 })}h · {Number(item.amount).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}</span>
+        </li>)}</ol>
+      </div> : null}
+      {guide.assumptions.length ? <div className="price-guide-list"><span>Assumes</span>
+        <ul>{guide.assumptions.map((item: string, index: number) => <li key={`${item}-${index}`}>{item}</li>)}</ul>
+      </div> : null}
+      <p className="price-guide-note">Internal estimate. Review scope and approve the bid before Upwork.</p>
+    </div>
+  </Disclosure>;
 }
 
 function ClientDetails({ j }: { j: any }) {

@@ -68,6 +68,11 @@ acceptance boundary and payment structure from the posting, saved member policy
 or an explicit member decision. If one changes the bid, ask before creating the
 preview. Never convert an hourly profile rate into a fixed-price quote.
 
+When `details.price_estimate` exists, use it as the internal starting point:
+show the hour cases, profile rate, risk buffer, assumptions and roadmap together.
+It is an estimate, not approval. Recalculate it when the resolved scope changes,
+and get the member's explicit bid decision before the preview.
+
 ## Step 4 · Write the letter
 
 Write a compact pitch, normally 65 to 120 words and never more than 140 words,

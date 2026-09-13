@@ -198,6 +198,91 @@
   margin-top: 12px;
 }
 
+.price-guide {
+  display: grid;
+  gap: 13px;
+}
+
+.price-guide-top {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.price-guide-top > div {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface2);
+}
+
+.price-guide-top span,
+.price-guide-list > span {
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+.price-guide-top strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.price-guide-top small {
+  color: var(--text-3);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.price-guide-list ol,
+.price-guide-list ul {
+  display: grid;
+  gap: 5px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.price-guide-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-2);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.price-guide-list li b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.price-guide-list li span {
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.price-guide-list ul li {
+  justify-content: flex-start;
+}
+
+.price-guide-list ul li::before {
+  content: "·";
+  color: var(--brand);
+}
+
+.disclosure-body .price-guide-note {
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+  color: var(--text-3);
+  font-size: 10.5px;
+}
+
 .project-brief > span,
 .boost-slot > span,
 .material-other > span {

@@ -23,7 +23,20 @@ Read first: [references/upwork-rules.md](../../references/upwork-rules.md) (the 
 
 ## Step 3 · Understand the mechanism
 
-For every tool the posting names, check `context/tool-knowledge/<tool>.md`. Covered: use it. Not covered: research it now (official docs first), then add what you learned to that file with its source, so the next job does not pay for it again. A familiar category is never a reason to skip this: the specific combination is what the client is paying for.
+For every tool or delivery discipline the posting names, check
+`context/tool-knowledge/<tool>.md`. The shipped workspace already includes
+implementation references for GoHighLevel, SEO and Google Ads. Read only the
+ones this job uses. If a named system is not covered, research it now with
+official docs first, then add the implementation decisions to its file with
+sources so the next job does not pay for the same discovery again. A familiar
+category is not a reason to skip this: the specific combination is what the
+client is paying for.
+
+For SEO, choose the relevant lane from `context/tool-knowledge/seo.md` before
+drawing. For Google Ads, put verified conversion measurement before bidding and
+keep media spend separate from the implementation fee. These references guide
+the mechanism; they never supply proof about the member or facts about the
+client.
 
 ## Step 4 · Read the posting into a plan
 
@@ -31,11 +44,32 @@ Write down, before drawing: the trigger, the systems they already run, the manua
 
 Write the graph to `data/pitch-graph-<id>.json`:
 
+- Keep the client-level picture to 6 to 12 nodes. Combine technical internals
+  that serve one outcome and explain them in the node note. Avoid more than
+  seven linked stages on the main path; branches are easier to read than one
+  very long chain.
 - `nodes`: `id`, `label` (a few words), `kind` (`source`, `step`, `sink`, `decision`, `datastore`, `service`, `actor`, `note`, `milestone`), `owner` (`you` builds it, `client` already runs it, `thirdparty` outside service), optional `logo` (a file name in `code/pitch/logos/`), optional `note` (two to four plain sentences for a client outside your field; about half the nodes need one).
 - `edges`: `from`, `to`, optional `label`, optional `dashed` for later phases.
 - `groups`: `label` and `nodes`, one per milestone. Make the first milestone the
   smallest useful result. Give it a date only when dependencies and the member's
   availability support that estimate.
+
+Estimate the member's effort from this same scope, not from the client's budget.
+Use a low, likely and high hour case; two to five roadmap milestones whose hours
+sum to the likely case; a confidence level; and every assumption that could move
+the estimate. Then run:
+
+```
+python3 code/pricing.py <id> --hours <low> <likely> <high> \
+  --confidence high|medium|low --contract-type fixed|hourly|unknown \
+  --milestone "Foundation|hours" --milestone "Build and QA|hours" \
+  --assumption "one concrete scope boundary"
+```
+
+This is the internal price guide shown in the cockpit. It uses the current
+Upwork profile rate and a visible scope-risk buffer. It never becomes the bid,
+never appears on the client pitch page and never overrides a client-approved
+commercial term.
 
 ## Step 5 · Assemble
 

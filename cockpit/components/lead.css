@@ -368,8 +368,7 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
   flex: 1 1 230px;
 }
 
-.saved-application h3,
-.delivery-tasks h3 {
+.saved-application h3 {
   margin: 0 0 8px;
   font-size: 14px;
   font-weight: 600;
@@ -521,12 +520,6 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
 
 .sales-lead-magnet .lead-magnet-tool {
   margin: 0;
-}
-
-.delivery-tasks {
-  margin-bottom: 24px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--border);
 }
 
 .delivery-files .panel-heading h2 {
@@ -1336,6 +1329,13 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
   padding: 18px 22px 22px;
 }
 
+.set-task-current {
+  max-height: 210px;
+  overflow-y: auto;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
 .set-task-fields label {
   margin-top: 7px;
   font-size: 11.5px;
@@ -1782,10 +1782,6 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
 
 .client-video-panel .material-actions {
   justify-content: flex-start;
-}
-
-.client-page .tasks-panel {
-  border-top: 3px solid var(--brand);
 }
 
 .checkin-panel .date-chip-wrap {

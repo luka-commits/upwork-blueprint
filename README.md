@@ -45,6 +45,7 @@ The table is the product path. A stage is available only when its file exists in
 - An Upwork freelancer account
 - The official Upwork connector. `/audit` walks you through connecting it the first time
 - Python 3, and [Node.js](https://nodejs.org) (the LTS version) for the cockpit
+- The Vercel CLI and a Vercel login or `VERCEL_TOKEN` for public pitch pages
 
 ## What this will never do
 

@@ -22,7 +22,7 @@ const WORKSPACES = {
     mode: 'sales',
     label: 'Sales workspace',
     defaultView: 'conversation',
-    layout: { context: 'job', contextOpen: true, tools: true, toolsOpen: true },
+    layout: { context: 'job', contextOpen: false, tools: false, toolsOpen: false },
     tabs: [
       ['conversation', 'Conversation'],
       ['work', 'Call and proposal'],

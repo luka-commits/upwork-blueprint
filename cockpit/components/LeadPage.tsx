@@ -141,8 +141,6 @@ export default function LeadPage({ id }: { id: string }) {
       <div ref={centerRef} className="lead-center">
         {workspace.mode !== 'sales' && workspace.mode !== 'prepare' ? <StageActions j={j} workspace={workspace} tab={tab} setTab={setTab} move={move} /> : null}
         <WorkspacePanel j={j} workspace={workspace} tab={tab} setTab={setTab} note={note} setNote={setNote} noteRef={noteRef} addNote={addNote} />
-        {workspace.mode !== 'delivery' && workspace.mode !== 'sales' && workspace.mode !== 'prepare' && workspace.mode !== 'waiting'
-          ? <TasksPanel j={j} /> : null}
       </div>
 
       {workspace.layout.tools ? <aside id="lead-tools" className="lead-right" hidden={!toolsOpen} inert={!toolsOpen ? true : undefined}>
@@ -153,7 +151,6 @@ export default function LeadPage({ id }: { id: string }) {
             <FollowUpPlan j={j} />
           </section>
           {workspace.mode === 'sales' && tab !== 'work' ? <SalesSupport j={j} open={() => setTab('work')} /> : null}
-          <TasksPanel j={j} />
       </aside> : null}
     </div>
   </main>;
@@ -174,10 +171,6 @@ function StageActions({ j, workspace, tab, setTab, move }: {
     {!isClient && workspace.mode !== 'waiting' && !CLOSED.includes(j.status) ? <DateChip j={j} label="Follow up" move={move} /> : null}
     {!isClient ? <FollowUpPlan j={j} /> : null}
   </section>;
-}
-
-function TasksPanel({ j }: { j: any }) {
-  return <section className="panel tasks-panel"><h2>Tasks</h2><TasksBlock key={`tasks-${j.id}`} j={j} allowAdd={false} /></section>;
 }
 
 function SetTaskButton({ job }: { job: any }) {
@@ -229,6 +222,9 @@ function SetTaskDialog({ job, returnTo, onClose }: { job: any; returnTo: HTMLBut
     }}>
       <header><div><span>Next action</span><h2 id={titleId}>Set task</h2></div>
         <button type="button" aria-label="Close task dialog" disabled={busy} onClick={onClose}>×</button></header>
+      {(job.tasks || []).length ? <div className="set-task-current">
+        <TasksBlock key={`set-task-${job.id}`} j={job} allowAdd={false} />
+      </div> : null}
       <div className="set-task-fields">
         <label htmlFor={textId}>Task</label>
         <input id={textId} autoFocus value={text} disabled={busy} placeholder="What needs to happen?" onChange={event => setText(event.target.value)} />
@@ -375,7 +371,6 @@ function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, add
       </> : null}
       {workspace.mode === 'delivery' ? <>
         <WorkspaceHeading title="Deliver the project" hint="Keep the next commitment clear, report checked work and finish with a clean handover." />
-        <section className="delivery-tasks"><h3>Tasks</h3><TasksBlock key={`delivery-tasks-${j.id}`} j={j} allowAdd={false} /></section>
         <ClientFiles j={j} embedded />
       </> : null}
       </div>
@@ -622,7 +617,7 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
         <div className="material-actions">
           <a className="btn" href={artifactUrl(j.id, 'pitch.html', version('pitch.html'))} target="_blank" rel="noopener">Open local preview</a>
         </div>
-        <PitchUrlEditor j={j} post={post} copy={copy} />
+        <PitchUrlEditor j={j} copy={copy} />
         <div className="preparation-output">
           <span>Loom script</span>
           <LoomScriptView id={j.id} version={version('loom-script.md')} />
@@ -665,7 +660,7 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
         <div className="material-actions">
           <a className="btn" href={artifactUrl(j.id, 'pitch.html', version('pitch.html'))} target="_blank" rel="noopener">Open local preview</a>
         </div>
-        <PitchUrlEditor j={j} post={post} copy={copy} />
+        <PitchUrlEditor j={j} copy={copy} />
       </> : canRun('pitch-page') ? <PitchPageButton j={j} /> : <p className="material-note">Pitch page generation is unavailable.</p>}
     </MaterialRow>
 
@@ -729,36 +724,19 @@ function SalesMaterials({ j, files }: { j: any; files: string[] }) {
   </div>;
 }
 
-function PitchUrlEditor({ j, post, copy }: {
+function PitchUrlEditor({ j, copy }: {
   j: any;
-  post: (path: string, body: object) => Promise<boolean>;
   copy: (value: string) => void;
 }) {
-  const [url, setUrl] = useState(j.pitch_url || '');
-  const [editing, setEditing] = useState(!j.pitch_url);
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { setUrl(j.pitch_url || ''); setEditing(!j.pitch_url); }, [j.pitch_url]);
-  useEffect(() => { if (editing && j.pitch_url) inputRef.current?.focus(); }, [editing, j.pitch_url]);
-  const save = async () => {
-    const value = url.trim();
-    if (!value) return inputRef.current?.focus();
-    if (await post('/api/pitch', { id: j.id, url: value })) setEditing(false);
-  };
   return <div className="public-link">
     <div className="public-link-head">
-      <div><b>Public pitch URL</b><span>The client-ready link. The local preview above stays on this computer.</span></div>
-      {j.pitch_url && !editing ? <span className="public-link-ready">Ready</span> : null}
+      <div><b>Public page</b><span>{j.pitch_url ? 'Ready to share with the client.' : 'The pitch run has not published this page yet.'}</span></div>
+      {j.pitch_url ? <span className="public-link-ready">Ready</span> : null}
     </div>
-    {editing ? <div className="video-input">
-      <input ref={inputRef} type="url" placeholder="https://your-pitch-page.com" value={url} aria-label="Public pitch URL"
-        onChange={event => setUrl(event.target.value)}
-        onKeyDown={event => { if (event.key === 'Enter') void save(); if (event.key === 'Escape' && j.pitch_url) setEditing(false); }} />
-      <button onClick={save}>Save URL</button>
-    </div> : <div className="material-actions">
+    {j.pitch_url ? <div className="material-actions">
       <button className="primary" onClick={() => copy(j.pitch_url)}>Copy public link</button>
       <a className="btn" href={j.pitch_url} target="_blank" rel="noopener">Open public page</a>
-      <button className="link" onClick={() => setEditing(true)}>Change</button>
-    </div>}
+    </div> : null}
   </div>;
 }
 
@@ -825,8 +803,6 @@ function LoomScriptView({ id, version }: { id: string; version: string }) {
   return <>
     <div className="loom-script-handoff">
       <button ref={opener} className="primary" onClick={() => setOpen(true)}>View script</button>
-      <button onClick={copy}>Copy script</button>
-      <a className="btn" href={artifactUrl(id, 'loom-script.md', version)} target="_blank" rel="noopener">Open in new window</a>
     </div>
     {open ? <LoomScriptDialog script={script} fallback={content.text} url={artifactUrl(id, 'loom-script.md', version)}
       returnTo={opener.current} copy={copy} onClose={() => setOpen(false)} /> : null}

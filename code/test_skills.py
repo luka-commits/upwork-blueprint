@@ -67,11 +67,11 @@ class ProjectSkillsTest(unittest.TestCase):
             self.assertRegex(text, r'(Never|never)\s+retry blindly')
             self.assertIn('/inbox', text)
 
-    def test_pitch_page_can_remain_local_while_loom_is_shared(self):
+    def test_pitch_page_must_publish_only_the_checked_page(self):
         text = (ROOT / '.claude' / 'commands' / 'pitch-page.md').read_text(encoding='utf-8')
-        self.assertIn('local by default', text)
-        self.assertIn('The Loom recording is shareable', text)
-        self.assertRegex(text, r'Never publish or deploy as part of this\s+command')
+        self.assertIn('python3 code/pitch_deploy.py <id>', text)
+        self.assertIn('Publishing is part of this command', text)
+        self.assertIn('Never upload the job folder', text)
 
     def test_blank_profile_has_a_saved_handoff_instead_of_an_audit_loop(self):
         audit = (ROOT / '.claude' / 'commands' / 'audit.md').read_text(encoding='utf-8')

@@ -77,15 +77,20 @@ Keep it between 420 and 560 spoken words. Use casual spoken English, contraction
   then run `python3 code/pitch_capture.py <id> --clean`. Never call a page done
   unseen. The cleanup removes the temporary screenshot after the visual check.
 
-## Step 8 · Shareable link, only if wanted
+## Step 8 · Publish the client page
 
-The page is local by default and works as the backdrop for the Loom recording.
-The Loom recording is shareable; `localhost`, `127.0.0.1` and local file links
-are not. Put a page link in the application only when the member has chosen a
-host, the exact public `https://` URL is saved in the pipeline and the published
-page passes the contact-details gate. Never publish or deploy as part of this
-command, and never expose the whole job folder because it contains drafts.
+Run `python3 code/pitch_deploy.py <id>`. It deploys only the checked
+`jobs/<id>/pitch.html` to the member's `upwork-pitches` Vercel project, confirms
+that the page opens publicly, then saves the exact deployment URL through
+`code/pipeline.py`. Never upload the job folder because it contains drafts.
+
+Publishing is part of this command. A missing Vercel CLI or authentication is a
+blocker, not a completed pitch. The member can set `VERCEL_TOKEN`,
+`VERCEL_SCOPE` and `VERCEL_PITCH_PROJECT` in `.env`; an existing Vercel CLI
+login also works without a token.
 
 ## Step 9 · Report
 
-Completion report as CLAUDE.md defines it, with the page and the script linked, and whether the video is still missing. Next step: record the Loom, then `/apply <id>`. Upwork call count.
+Completion report as CLAUDE.md defines it, with the public page and the script
+linked, and whether the video is still missing. Next step: record the Loom,
+then `/apply <id>`. Upwork call count.

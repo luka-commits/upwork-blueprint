@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useCockpit, type Run, type State } from '@/lib/context';
 import { parseRunResult } from '@/lib/run-result.mjs';
+import { runPlan, runProgress } from '@/lib/run-progress.mjs';
 import RunResult from './RunResult';
 
 const DOCK_OPEN_EVENT = 'cockpit-dock-open';
@@ -119,6 +120,9 @@ export default function RunsDock() {
       <div className="dock-body">
         {newest.map(run => {
           const outcome = run.done && run.result ? parseRunResult(run.result) : null;
+          const plan = runPlan(run.command);
+          const step = Math.max(0, Math.min(run.step || 0, plan.length - 1));
+          const progress = runProgress(run.command, step, run.done && !run.error && !run.stopped);
           return (
           <div className={`runitem ${runClass(run)}`} key={run.id}>
             <div className="runitem-head">
@@ -128,12 +132,13 @@ export default function RunsDock() {
               <span className="stamp">{clock((run.t1 || now) - run.t0)}</span>
               {run.done ? <button className="link" onClick={() => dismissRun(run.id)} aria-label="Remove run">✕</button> : null}
             </div>
-            {!run.done ? <div className="run-progress" role="progressbar" aria-label={`${runTitle(run, state)} progress`}>
-              <span />
+            {!run.done ? <div className="run-progress" role="progressbar" aria-label={`${runTitle(run, state)} progress`}
+              aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+              <span style={{ width: `${progress}%` }} />
             </div> : null}
             {!run.showResult || !run.result ? <div className="runitem-status">
-              {!run.done ? <span className="runitem-status-label">Current step</span> : null}
-              {outcome?.headline || run.status}
+              {!run.done ? <span className="runitem-status-label">Step {step + 1} of {plan.length}</span> : null}
+              {outcome?.headline || (!run.done ? plan[step] : run.status)}
             </div> : null}
             {run.made.length ? (
               <div className="runitem-made">
@@ -150,17 +155,28 @@ export default function RunsDock() {
                 {run.showResult ? 'Hide result' : 'View result'}
               </button> : null}
               {run.log.length ? <button className="link" onClick={() => toggleRunLog(run.id)}>
-                {run.showLog ? 'Hide steps' : `Show steps · ${run.log.length}`}
+                {run.showLog ? 'Hide steps' : `Show steps · ${step + 1}/${plan.length}`}
               </button> : null}
               {!run.done ? <button className="link" onClick={() => stopRun(run.id)}>Stop</button> : null}
             </div> : null}
             {run.showResult && run.result ? <RunResult result={run.result} error={run.error} stopped={run.stopped} /> : null}
             {run.showLog ? (
-              <div className="run-log" ref={node => {
+              <div className="run-steps" ref={node => {
                 if (node) logRefs.current.set(run.id, node);
                 else logRefs.current.delete(run.id);
               }}>
-                {run.log.map((line, index) => <div className={line.kind} key={index}>{line.text}</div>)}
+                <ol>
+                  {plan.map((label, index) => <li className={index < step || (run.done && !run.error && !run.stopped) ? 'complete' : index === step ? 'current' : ''} key={label}>
+                    <span aria-hidden="true">{index < step || (run.done && !run.error && !run.stopped) ? '✓' : index + 1}</span>
+                    <strong>{label}</strong>
+                  </li>)}
+                </ol>
+                <details className="run-technical">
+                  <summary>Technical activity</summary>
+                  <div className="run-log">
+                    {run.log.map((line, index) => <div className={line.kind} key={index}>{line.text}</div>)}
+                  </div>
+                </details>
               </div>
             ) : null}
           </div>

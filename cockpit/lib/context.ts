@@ -12,6 +12,7 @@ export type Run = {
   id: string; command: string; job: string | null;
   t0: number; t1?: number;              // ms since epoch
   status: string;                       // the one line the dock shows
+  step: number;                         // current command-specific milestone
   log: RunLine[];
   result?: string;                      // final report, rendered as a result card
   done: boolean; error?: boolean; stopped?: boolean;

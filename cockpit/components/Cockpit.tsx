@@ -7,6 +7,7 @@ import Drawer from '@/components/Drawer';
 import RunsDock, { runTitle } from '@/components/RunsDock';
 import { CockpitContext, type CockpitApi, type Made, type Run, type State } from '@/lib/context';
 import { FILE_LABEL, TOOL_WORDS, todoBucket } from '@/lib/model';
+import { advanceRunStep } from '@/lib/run-progress.mjs';
 import { followRunStream, RECONNECTING_RUN, RUN_TRACKING_LOST } from '@/lib/run-stream.mjs';
 import { revealContent, sectionIndex } from '@/lib/surface-motion.mjs';
 
@@ -155,6 +156,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
       job,
       t0: started ? started * 1000 : Date.now(),
       status: STARTING,
+      step: 0,
       log: [],
       done: false,
       replay,
@@ -184,6 +186,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
         const text = `→ ${word}${event.detail ? ` · ${event.detail.slice(0, 90)}` : ''}`;
         update(current => ({
           ...current,
+          step: advanceRunStep(current.command, current.step, event),
           status: `${word}.`,
           log: [...current.log, { kind: 'tool', text }],
         }));

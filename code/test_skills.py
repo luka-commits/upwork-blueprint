@@ -69,6 +69,7 @@ class ProjectSkillsTest(unittest.TestCase):
 
     def test_pitch_page_must_publish_only_the_checked_page(self):
         text = (ROOT / '.claude' / 'commands' / 'pitch-page.md').read_text(encoding='utf-8')
+        self.assertIn('python3 code/preflight.py vercel', text)
         self.assertIn('python3 code/pitch_deploy.py <id>', text)
         self.assertIn('Publishing is part of this command', text)
         self.assertIn('Never upload the job folder', text)
@@ -108,13 +109,15 @@ class ProjectSkillsTest(unittest.TestCase):
         self.assertIn('including its video id', gate)
         self.assertIn('or invalid, write nothing', gate)
 
-    def test_lead_magnet_is_local_paid_and_never_sent(self):
+    def test_lead_magnet_preflights_publishes_and_never_sends(self):
         skill = (SKILLS / 'lead-magnet' / 'SKILL.md').read_text(encoding='utf-8')
         command = (ROOT / '.claude' / 'commands' / 'lead-magnet.md').read_text(encoding='utf-8')
         for service in ('Firecrawl', 'Apify', 'DataForSEO'):
             self.assertIn(service, skill)
         self.assertIn('never retry', skill.casefold())
-        self.assertIn('Never publish', skill)
+        self.assertIn('published automatically', skill)
+        self.assertIn('fail-closed preflight', command)
+        self.assertIn('Link the public audit', command)
         self.assertIn('Upwork calls: 0', command)
 
     def test_pitch_images_focus_on_the_project_instead_of_people(self):

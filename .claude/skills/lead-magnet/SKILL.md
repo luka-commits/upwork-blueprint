@@ -1,13 +1,13 @@
 ---
 name: lead-magnet
-description: Builds a private local SEO audit for an active Upwork conversation from live website, Google profile, search and map evidence. Creates a local report and never sends or publishes it.
+description: Builds and publishes a checked SEO audit for an active Upwork conversation from live website, Google profile, search and map evidence. It never sends the link or a message.
 ---
 
 # Lead magnet
 
 Build a three-part SEO audit: how the business is found in Local Maps, how its
 Google Business Profile builds trust, and how its website turns attention into
-an enquiry. The output is a private local report
+an enquiry. The output is a checked report
 for an existing Upwork conversation. It contains no price, external contact
 route, calendar or unsupported claim.
 
@@ -23,21 +23,30 @@ python3 .claude/skills/lead-magnet/scripts/build.py <job-id>
 The job must be In conversation or Offer and have a saved business website.
 The cockpit saves that source through `code/pipeline.py lead-magnet-source`.
 
-The engine uses the member's own keys from `.env`: Firecrawl for the rendered
+The engine uses the member's own keys from `.env`, with
+`~/.config/credentials.env` as the local fallback: Firecrawl for the rendered
 website, Apify for the exact public Google profile, and DataForSEO for search,
 competitors and the 25-point Local Maps grid. PageSpeed is used when configured;
 otherwise local Lighthouse must be installed. These calls cost money. The
 button click starts one run; never retry a failed paid pull automatically.
+
+Before the first paid call, the script runs a fail-closed preflight. It verifies
+the required credentials, provider access, measurable Firecrawl credits, Apify
+monthly-limit headroom, DataForSEO balance, the local browser runtime and the
+Vercel destination. An unknown balance or failed connection stops the run.
 
 On the first run, install missing local packages with
 `python3 -m pip install -r .claude/skills/lead-magnet/requirements.txt`, followed
 by `python3 -m playwright install chromium`.
 Never install anything or change credentials during an active paid run.
 
-The report remains at `jobs/<id>/lead-magnet.html`. Open and review it locally.
-Never publish it, add it to a message or send it from this skill. A public link
-needs a separately approved host and the same pre-contract contact-details gate
-as a pitch page.
+The report remains at `jobs/<id>/lead-magnet.html` and is published automatically
+to the stable URL saved as `lead_magnet_url`. Publication uses the same
+pre-contract contact-details gate as a pitch page. It creates the link but never
+adds it to a message or sends anything. If publication fails after a successful
+build, the next run reuses that exact current report and retries only the free
+Vercel step. Changing the saved website or location clears the old URL and
+requires a fresh audit.
 
 The renderer uses the bundled source-derived React template. Read
 `references/template-source.md` before changing its structure. After any

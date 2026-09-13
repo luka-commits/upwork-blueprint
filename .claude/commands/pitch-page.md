@@ -15,6 +15,10 @@ the Loom script you read while you scroll through it.
 
 Read first: [references/upwork-rules.md](../../references/upwork-rules.md) (the section on links before a contract), `context/me.md`, `context/proof.md`.
 
+Before research or assembly, run `python3 code/preflight.py vercel`. Stop if the
+publishing destination is unavailable; a pitch that cannot be published is not
+ready for the application flow.
+
 ## Step 1 · The job and its full posting
 
 `python3 code/pipeline.py get $ARGUMENTS`. The posting is in `details.description`. No posting there (older than a day, or never opened): `find_jobs` action `get` for this one job, then `python3 code/jobs.py detail <id> <file>` as `/find-jobs` Step 5 does. Never build from the summary: the diagram is drawn from the requirements, and the summary does not carry them.

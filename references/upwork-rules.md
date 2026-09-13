@@ -66,7 +66,7 @@ Checked 12 September 2026 against Upwork's help center, as quoted by the search 
 
 - **Contact information is banned until the contract starts.** Sharing it, or asking for it, "before a contract starts is against our Terms of Service, and may result in temporary restrictions, loss of talent badges, or permanent loss of account access." Contact information means any way to reach you outside Upwork. [Keeping your contact information safe](https://support.upwork.com/hc/en-us/articles/360051749534-How-to-keep-your-contact-information-safe-on-Upwork)
 - **A link to your work is allowed.** "You can share website portfolio links with potential clients, but just be sure to ask the client to only contact you through Upwork until the contract starts." Same article.
-- **So a linked page must carry no way to reach you.** No email, phone, WhatsApp, booking link, contact form or social profile. Every page this repo builds for a client before a contract, including pitch pages and SEO lead magnets, follows that and says "reply here on Upwork" instead.
+- **So a linked page must carry no way to reach you.** No email, phone, WhatsApp, booking link, contact form or social profile. Every page this repo builds for a client before a contract, including pitch pages and automatically published SEO audits, follows that and says "reply here on Upwork" instead. Publishing creates the link; it never sends it.
 - **Meetings run on Upwork's own video calls** until the contract starts. [Can I share my own communication tools?](https://support.upwork.com/hc/en-us/articles/40444093133331-Can-I-share-my-own-communication-tools-like-email-or-meeting-links)
 - **Exception:** if you or the client is on an Enterprise plan, contact details may be shared before a contract.
 

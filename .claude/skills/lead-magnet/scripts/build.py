@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build one private Pocket CEO SEO audit from a saved Upwork lead source."""
+"""Build and publish one checked SEO audit from a saved Upwork lead source."""
 
 from __future__ import annotations
 
@@ -19,7 +19,12 @@ from urllib.parse import urlparse
 SKILL = Path(__file__).resolve().parents[1]
 ROOT = Path(__file__).resolve().parents[4]
 ID = re.compile(r"^[0-9]{6,25}$")
-REQUIRED_KEYS = ("FIRECRAWL_API_KEY", "APIFY_API_TOKEN", "DATAFORSEO_LOGIN", "DATAFORSEO_PASSWORD")
+REQUIRED_KEYS = (
+    ("FIRECRAWL_API_KEY",),
+    ("APIFY_API_TOKEN_PAID", "APIFY_TOKEN", "APIFY_API_TOKEN"),
+    ("DATAFORSEO_LOGIN",),
+    ("DATAFORSEO_PASSWORD",),
+)
 
 
 def runtime_error(env: dict[str, str], *, find_spec=importlib.util.find_spec, which=shutil.which) -> str:
@@ -100,11 +105,39 @@ def jobs_dir(env: dict[str, str]) -> Path:
     return Path(env.get("BLUEPRINT_JOBDIR") or ROOT / "jobs")
 
 
+def missing_credentials(env: dict[str, str]) -> list[str]:
+    return [" or ".join(group) for group in REQUIRED_KEYS
+            if not any(str(env.get(name) or "").strip() for name in group)]
+
+
+def artifact_is_current(path: Path, source_updated_at: str) -> bool:
+    if not path.is_file() or not source_updated_at:
+        return False
+    try:
+        source_time = dt.datetime.fromisoformat(source_updated_at.replace("Z", "+00:00"))
+        return path.stat().st_mtime >= source_time.timestamp()
+    except (OSError, ValueError):
+        return False
+
+
+def publish(job_id: str, env: dict[str, str]) -> str:
+    output = command(
+        [sys.executable, str(ROOT / "code" / "lead_magnet_deploy.py"), job_id],
+        cwd=ROOT,
+        env=env,
+    )
+    match = re.search(r"Published (https://[^\s]+)", output)
+    if not match:
+        raise RuntimeError("The audit deploy finished without a public URL.")
+    return match.group(1)
+
+
 def run(job_id: str, *, dry_run: bool = False) -> Path | None:
     if not ID.fullmatch(job_id):
         raise RuntimeError("Use the numeric Upwork job ID.")
     env = dict(os.environ)
     load_env(ROOT / ".env", env)
+    load_env(Path.home() / ".config" / "credentials.env", env)
     env["SEO_BLUEPRINT_WORKSPACE"] = str(ROOT)
     job = get_job(job_id, env)
     if job.get("status") not in {"replied", "offer"}:
@@ -116,7 +149,7 @@ def run(job_id: str, *, dry_run: bool = False) -> Path | None:
     location = str(source.get("location") or "").strip()
     if not location:
         raise RuntimeError("Add the business city and country so local rankings use the right market.")
-    missing = [key for key in REQUIRED_KEYS if not env.get(key, "").strip()]
+    missing = missing_credentials(env)
     if dry_run:
         print(json.dumps({
             "job": job_id,
@@ -125,15 +158,25 @@ def run(job_id: str, *, dry_run: bool = False) -> Path | None:
             "paid_services": ["Firecrawl", "Apify", "DataForSEO"],
             "missing_credentials": missing,
             "would_send_or_publish": False,
+            "production_run_publishes": True,
         }))
         return None
+    folder = jobs_dir(env) / job_id
+    final = folder / "lead-magnet.html"
+    if not job.get("lead_magnet_url") and artifact_is_current(
+            final, str(job.get("lead_magnet_source_updated_at") or "")):
+        command([sys.executable, str(ROOT / "code" / "preflight.py"), "vercel"], cwd=ROOT, env=env)
+        public_url = publish(job_id, env)
+        print(json.dumps({"report": str(final), "published": True, "public_url": public_url,
+                          "reused_existing_audit": True, "sent": False}))
+        return final
     if missing:
         raise RuntimeError(f"Add {', '.join(missing)} to .env before starting the paid audit.")
     runtime_problem = runtime_error(env)
     if runtime_problem:
         raise RuntimeError(runtime_problem)
+    command([sys.executable, str(ROOT / "code" / "preflight.py"), "lead-magnet"], cwd=ROOT, env=env)
 
-    folder = jobs_dir(env) / job_id
     folder.mkdir(parents=True, exist_ok=True)
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     stage = folder / f".lead-magnet-build-{stamp}"
@@ -186,12 +229,13 @@ def run(job_id: str, *, dry_run: bool = False) -> Path | None:
     page = report_tmp.read_text(encoding="utf-8")
     if page.count('data-audit-section="') != 3 or "Reply here on Upwork." not in page:
         raise RuntimeError(f"Report validation failed. Evidence remains in {stage.name}.")
-    final = folder / "lead-magnet.html"
     report_tmp.replace(final)
     evidence_root = folder / "lead-magnet-data"
     evidence_root.mkdir(exist_ok=True)
     stage.rename(evidence_root / stamp)
-    print(json.dumps({"report": str(final), "evidence": str(evidence_root / stamp), "sent": False, "published": False}))
+    public_url = publish(job_id, env)
+    print(json.dumps({"report": str(final), "evidence": str(evidence_root / stamp), "sent": False,
+                      "published": True, "public_url": public_url}))
     return final
 
 

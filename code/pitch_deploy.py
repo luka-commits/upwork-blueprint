@@ -84,9 +84,9 @@ def write_site(folder, pages, current_id):
     folder.mkdir(parents=True, exist_ok=True)
     current = dict(pages)[current_id]
     shutil.copy2(current, folder / 'index.html')
-    for job_id, source in pages:
-        target = folder / job_id
-        target.mkdir()
+    for route, source in pages:
+        target = folder / route
+        target.mkdir(parents=True)
         shutil.copy2(source, target / 'index.html')
     (folder / 'vercel.json').write_text(json.dumps({
         'cleanUrls': True,
@@ -129,6 +129,7 @@ def publish(job_id):
 
     sys.path.insert(0, str(ROOT / 'code'))
     import pitch_check
+    import lead_magnet_check
     problems = pitch_check.check_page(source)
     if problems:
         abort('the pitch page failed its gate: ' + '; '.join(problems))
@@ -146,6 +147,12 @@ def publish(job_id):
             if old_problems:
                 abort(f'the previously published pitch {published_id} failed its gate: ' + '; '.join(old_problems))
             pages[published_id] = published
+        audit = ROOT / 'jobs' / published_id / 'lead-magnet.html'
+        if record.get('lead_magnet_url') and audit.is_file():
+            audit_problems = lead_magnet_check.check_page(audit)
+            if audit_problems:
+                abort(f'the previously published audit {published_id} failed its gate: ' + '; '.join(audit_problems))
+            pages[f'{published_id}/audit'] = audit
 
     vercel = shutil.which('vercel')
     if not vercel:

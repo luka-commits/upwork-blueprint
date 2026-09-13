@@ -26,7 +26,7 @@ Python: the commands call `python3`. On Windows, if that is not found, use `pyth
 5. `/pitch-page` - a one-page pitch site and Loom script for one job; record and link the Loom next, then `/loom-review` checks the recording when needed
 6. `/apply` - unlocked after the Pitch page and Loom video: cover letter, screening answers and bid, handed to you for manual submission on Upwork
 7. `/inbox`, `/reply` and `/follow-up` - client messages, reply drafts and the morning follow-up queue
-8. `/lead-magnet` when relevant, then `/call-prep` and `/call-review` - build a private local SEO audit, prepare the sales decision and confirm scope from the transcript
+8. `/lead-magnet` when relevant, then `/call-prep` and `/call-review` - build and publish a checked SEO audit, prepare the sales decision and confirm scope from the transcript
 9. `/proposal` - a scoped offer from the call record and member-approved commercial terms
 10. `/won` - a started Upwork contract becomes a checked client project
 11. `/delivery` - verified updates, handover and an earned review request
@@ -64,6 +64,7 @@ Read [references/upwork-rules.md](references/upwork-rules.md) before building or
 - **Read the full job post before writing for it.** Posts hide mandatory opening words and screening questions that the search results never show.
 - **Label confidence.** When advice rests on freelancer folklore rather than Upwork's own documentation or a measurement, say so.
 - **Test before you respond.** After any code change, run it. Never say "done" about something you did not run.
+- **Preflight before external work.** Verify required credentials, provider access, measurable credit or budget and the destination before a paid pull or deploy. Stop before the first paid call if any required check is unknown or fails.
 
 ## Every file a member opens stays legible (CRITICAL)
 

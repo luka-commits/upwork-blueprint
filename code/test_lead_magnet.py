@@ -229,6 +229,40 @@ class LeadMagnetRendererTest(unittest.TestCase):
         available = lambda _module: object()
         self.assertIn('PAGESPEED_API_KEY', builder.runtime_error(env, find_spec=available, which=lambda _name: None))
 
+    def test_paid_apify_token_alias_satisfies_credentials(self):
+        env = {
+            'FIRECRAWL_API_KEY': 'firecrawl',
+            'APIFY_API_TOKEN_PAID': 'apify',
+            'DATAFORSEO_LOGIN': 'login',
+            'DATAFORSEO_PASSWORD': 'password',
+        }
+        self.assertEqual(builder.missing_credentials(env), [])
+
+    def test_current_audit_without_url_retries_only_automatic_publish(self):
+        with tempfile.TemporaryDirectory() as raw:
+            folder = pathlib.Path(raw) / '123456'
+            folder.mkdir()
+            report = folder / 'lead-magnet.html'
+            report.write_text('<html></html>', encoding='utf-8')
+            job = {
+                'id': '123456',
+                'status': 'replied',
+                'lead_magnet_source': {
+                    'website': 'https://example.com',
+                    'location': 'Berlin, Germany',
+                },
+                'lead_magnet_source_updated_at': '2020-01-01T00:00:00+00:00',
+            }
+            commands = []
+            with mock.patch.object(builder, 'get_job', return_value=job), \
+                    mock.patch.object(builder, 'load_env'), \
+                    mock.patch.object(builder, 'jobs_dir', return_value=pathlib.Path(raw)), \
+                    mock.patch.object(builder, 'command', side_effect=lambda parts, **_kwargs: commands.append(parts) or ''), \
+                    mock.patch.object(builder, 'publish', return_value='https://upwork-pitches.vercel.app/123456/audit'):
+                self.assertEqual(builder.run('123456'), report)
+            self.assertEqual(len(commands), 1)
+            self.assertEqual(commands[0][-1], 'vercel')
+
     def test_site_evidence_requires_a_reachable_page(self):
         with tempfile.TemporaryDirectory() as raw:
             path = pathlib.Path(raw) / 'site.json'
@@ -301,6 +335,7 @@ class LeadMagnetRendererTest(unittest.TestCase):
             plan = json.loads(result.stdout)
             self.assertEqual(plan['paid_services'], ['Firecrawl', 'Apify', 'DataForSEO'])
             self.assertFalse(plan['would_send_or_publish'])
+            self.assertTrue(plan['production_run_publishes'])
             self.assertFalse((folder / 'jobs' / '123456' / 'lead-magnet.html').exists())
 
 

@@ -27,6 +27,7 @@ Usage:
     python3 code/pipeline.py task <job_id> add "what to do" [--due +2d|YYYY-MM-DD] [--time HH:MM]
     python3 code/pipeline.py task <job_id> done|reopen|delete <task_number>
     python3 code/pipeline.py lead-magnet-source <job_id> <website> --location "City, Country" [--place-id ID]
+    python3 code/pipeline.py lead-magnet-url <job_id> <public_url|->
     python3 code/pipeline.py get <job_id>
     python3 code/pipeline.py list [--status new] [--limit 25]
     python3 code/pipeline.py summary
@@ -678,9 +679,33 @@ def cmd_lead_magnet_source(args):
         'place_id': place_id,
         'language': args.language,
     }
+    job.pop('lead_magnet_url', None)
     job['lead_magnet_source_updated_at'] = now_iso()
     save(jobs)
     print(f'{args.job_id}: lead magnet source saved.')
+
+
+def cmd_lead_magnet_url(args):
+    """Save the stable public URL of the checked SEO audit."""
+    jobs = load()
+    job = find(jobs, args.job_id)
+    value = args.url.strip()
+    if value == '-':
+        job.pop('lead_magnet_url', None)
+    else:
+        parsed = urlparse(value)
+        host = (parsed.hostname or '').lower().rstrip('.')
+        import ipaddress
+        try:
+            private = not ipaddress.ip_address(host).is_global
+        except ValueError:
+            private = (host in ('localhost', '') or host.endswith(('.localhost', '.local', '.test', '.invalid'))
+                       or '.' not in host or bool(re.fullmatch(r'[\d.]+', host)))
+        if parsed.scheme != 'https' or private or parsed.username or parsed.password or any(c.isspace() for c in value):
+            abort('use the public HTTPS URL of the hosted SEO audit.')
+        job['lead_magnet_url'] = value
+    save(jobs)
+    print(f'{args.job_id}: audit link {"removed" if value == "-" else "saved"}.')
 
 
 def cmd_get(args):
@@ -901,6 +926,11 @@ def build_parser():
     p.add_argument('--place-id', default='')
     p.add_argument('--language', default='English', choices=('English', 'German'))
     p.set_defaults(func=cmd_lead_magnet_source)
+
+    p = sub.add_parser('lead-magnet-url', help='Save the public URL of a hosted SEO audit.')
+    p.add_argument('job_id')
+    p.add_argument('url', help='Public HTTPS URL, or "-" to remove it.')
+    p.set_defaults(func=cmd_lead_magnet_url)
 
     p = sub.add_parser('get', help='One record as JSON.')
     p.add_argument('job_id')

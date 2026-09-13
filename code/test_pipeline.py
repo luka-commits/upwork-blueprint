@@ -154,6 +154,16 @@ class PipelineTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn('lead_magnet_source', self.data()[0])
 
+    def test_lead_magnet_link_is_public_and_clears_when_the_source_changes(self):
+        self.add({'id': 'J1', 'status': 'replied'})
+        self.assertNotEqual(self.run_cli('lead-magnet-url', 'J1', 'http://localhost:4321/audit').returncode, 0)
+        saved = self.run_cli('lead-magnet-url', 'J1', 'https://example.com/123/audit')
+        self.assertEqual(saved.returncode, 0, saved.stderr)
+        self.assertEqual(self.data()[0]['lead_magnet_url'], 'https://example.com/123/audit')
+        changed = self.run_cli('lead-magnet-source', 'J1', 'https://example.org', '--location', 'Berlin, Germany')
+        self.assertEqual(changed.returncode, 0, changed.stderr)
+        self.assertNotIn('lead_magnet_url', self.data()[0])
+
     def test_check_writes_nothing(self):
         self.add({'id': 'J1'})
         before = self.jobs.read_text(encoding='utf-8')

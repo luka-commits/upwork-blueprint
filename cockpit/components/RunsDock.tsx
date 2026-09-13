@@ -13,6 +13,7 @@ const RUN_LABEL: Record<string, string> = {
   'pitch-page': 'Prepare pitch page',
   apply: 'Draft application',
   reply: 'Draft replies',
+  'lead-magnet': 'Build SEO audit',
   'follow-up': 'Review follow-ups',
   'send-reply': 'Send reply',
   inbox: 'Check Upwork inbox',

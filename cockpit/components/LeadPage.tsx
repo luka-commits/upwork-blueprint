@@ -356,11 +356,68 @@ function SalesSupport({ j, open }: { j: any; open: () => void }) {
   const files: string[] = j.artifacts || [];
   const saved = [['call-prep.md', 'Call prep'], ['call-review.md', 'Call review'], ['proposal.md', 'Proposal']];
   return <section className="panel sales-support">
-    <h2>Call and proposal</h2>
-    <p>{files.includes('call-prep.md') ? 'Your call notes and commercial work are one click away.' : 'Prepare the call around this job, your proof and the decision you need next.'}</p>
+    <h2>Sales tools</h2>
+    <LeadMagnetBuilder j={j} />
     <ul>{saved.map(([file, label]) => <li key={file}><span>{label}</span><span className={files.includes(file) ? 'ready' : ''}>{files.includes(file) ? 'Ready' : 'Not prepared'}</span></li>)}</ul>
     <button onClick={open}>Open sales workspace</button>
   </section>;
+}
+
+function LeadMagnetBuilder({ j }: { j: any }) {
+  const { state, post, runCommand, runs } = useCockpit();
+  const source = j.lead_magnet_source || {};
+  const ready = (j.artifacts || []).includes('lead-magnet.html');
+  const [editing, setEditing] = useState(!source.website);
+  const [website, setWebsite] = useState(source.website || '');
+  const [location, setLocation] = useState(source.location || '');
+  const [placeId, setPlaceId] = useState(source.place_id || '');
+  const [language, setLanguage] = useState(source.language === 'German' ? 'German' : 'English');
+  const running = runs.some(run => run.command === 'lead-magnet' && run.job === j.id && !run.done);
+  const available = !!state?.commands?.['lead-magnet'];
+  const valid = /^https:\/\/[^\s]+\.[^\s]+/.test(website.trim()) && !!location.trim();
+  useEffect(() => {
+    setWebsite(source.website || '');
+    setLocation(source.location || '');
+    setPlaceId(source.place_id || '');
+    setLanguage(source.language === 'German' ? 'German' : 'English');
+    if (source.website) setEditing(false);
+  }, [source.website, source.location, source.place_id, source.language]);
+  const start = async () => {
+    if (!valid || running) return;
+    const saved = await post('/api/lead-magnet-source', {
+      id: j.id,
+      website: website.trim(),
+      location: location.trim(),
+      place_id: placeId.trim(),
+      language,
+    });
+    if (saved) {
+      setEditing(false);
+      const target = website.trim().replace(/^https?:\/\/(?:www\.)?/, '').replace(/\/$/, '');
+      if (!window.confirm(`Start paid Firecrawl, Apify and DataForSEO calls for ${target}? Nothing will be sent or published.`)) return;
+      runCommand('lead-magnet', j.id);
+    }
+  };
+  return <div className="lead-magnet-tool">
+    <div className="lead-magnet-head">
+      <div><strong>Local visibility audit</strong></div>
+      <span className={ready ? 'ready' : ''}>{ready ? 'Ready' : 'Not created'}</span>
+    </div>
+    {ready && !editing ? <a className="btn lead-magnet-open" href={artifactUrl(j.id, 'lead-magnet.html', artifactVersion(j.files, 'lead-magnet.html'))} target="_blank" rel="noopener">Open private audit</a> : null}
+    {!editing && source.website ? <div className="lead-magnet-source">
+      <span>{source.website.replace(/^https?:\/\/(?:www\.)?/, '').replace(/\/$/, '')}</span>
+      <small>{source.location}</small>
+      <button className="link" onClick={() => setEditing(true)}>Change</button>
+    </div> : <div className="lead-magnet-fields">
+      <label>Business website<input type="url" value={website} placeholder="https://business.com" onChange={event => setWebsite(event.target.value)} /></label>
+      <label>City and country<input value={location} placeholder="Manchester, United Kingdom" onChange={event => setLocation(event.target.value)} /></label>
+      <details><summary>Exact profile or language</summary><label>Google place ID<input value={placeId} placeholder="Optional unless locations are ambiguous" onChange={event => setPlaceId(event.target.value)} /></label>
+        <label>Search language<select value={language} onChange={event => setLanguage(event.target.value)}><option>English</option><option>German</option></select></label></details>
+    </div>}
+    <p className="paid-note"><strong>Costs apply:</strong> Firecrawl, Apify and DataForSEO. Nothing is sent or published.</p>
+    {available ? <button className={ready ? undefined : 'primary'} disabled={!valid || running} onClick={() => void start()}>{running ? 'Building audit...' : ready ? 'Rebuild audit' : 'Create SEO audit'}</button>
+      : <p className="material-note">SEO audit creation is unavailable.</p>}
+  </div>;
 }
 
 function ReplyDrafts({ j }: { j: any }) {
@@ -537,6 +594,7 @@ function SalesMaterials({ j, files }: { j: any; files: string[] }) {
   const { state, runCommand } = useCockpit();
   const prepared = files.includes('call-prep.md'), reviewed = files.includes('call-review.md'), proposed = files.includes('proposal.md');
   return <div className="materials sales-materials">
+    <div className="sales-lead-magnet"><LeadMagnetBuilder j={j} /></div>
     <MaterialRow label="Call prep" ready={prepared} defaultOpen={!reviewed && !proposed}>
       {prepared ? <MaterialDocument id={j.id} file="call-prep.md" version={artifactVersion(j.files, 'call-prep.md')} /> : <>
         <p className="material-note">A focused agenda, discovery questions, relevant proof and the decision to reach. Use Upwork's meeting tools before a contract starts.</p>

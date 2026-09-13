@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 // The course order from CLAUDE.md, then anything else alphabetically.
-const PATH = ['audit', 'benchmark', 'profile', 'find-jobs', 'pitch-page', 'loom-review', 'apply', 'inbox', 'reply', 'follow-up', 'call-prep', 'call-review', 'proposal', 'won', 'delivery', 'status', 'sync', 'cockpit'];
+const PATH = ['audit', 'benchmark', 'profile', 'find-jobs', 'pitch-page', 'loom-review', 'apply', 'inbox', 'reply', 'lead-magnet', 'follow-up', 'call-prep', 'call-review', 'proposal', 'won', 'delivery', 'status', 'sync', 'cockpit'];
 
 export async function GET(req: Request) {
   const refused = guard(req);

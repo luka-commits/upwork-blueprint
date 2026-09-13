@@ -26,6 +26,7 @@ export const FILE_LABEL: Record<string, string> = {
   'call-review.md': 'Call review',
   'loom-review.md': 'Loom review',
   'proposal.md': 'Proposal',
+  'lead-magnet.html': 'SEO audit',
   'project.md': 'Project brief',
   'delivery.md': 'Delivery update',
   'client-handover.md': 'Client handover',

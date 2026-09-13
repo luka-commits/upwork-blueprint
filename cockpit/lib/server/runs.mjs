@@ -29,6 +29,8 @@ export const RUNNABLE = {
   apply: { prompt: '/apply {job}', job: true,
     tools: [...FILES, ...UPWORK_READ, 'mcp__upwork__upwork__list_freelancer_proposals', 'mcp__upwork__upwork__manage_proposals'] },
   reply: { prompt: '/reply {job}', job: true, tools: [...FILES] },
+  'lead-magnet': { prompt: '/lead-magnet {job}', job: true,
+    tools: ['Read', 'Bash(python3 .claude/skills/lead-magnet/scripts/build.py*)'] },
   'call-prep': { prompt: '/call-prep {job}', job: true, tools: [...FILES, ...UPWORK_READ] },
   inbox: { prompt: '/inbox {job}', job: false, optionalJob: true, tools: [...FILES, 'mcp__upwork__upwork__list_accounts',
     'mcp__upwork__upwork__get_messages', 'mcp__upwork__upwork__list_freelancer_proposals',

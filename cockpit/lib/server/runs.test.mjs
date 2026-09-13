@@ -53,6 +53,13 @@ test('the morning follow-up review can read but cannot send', () => {
   assert.ok(!tools.some(tool => tool.endsWith('__confirm_preview')));
 });
 
+test('lead magnet runs the local audit without Upwork or sending tools', () => {
+  const spec = RUNNABLE['lead-magnet'];
+  assert.equal(spec.job, true);
+  assert.ok(spec.tools.includes('Bash(python3 .claude/skills/lead-magnet/scripts/build.py*)'));
+  assert.ok(!spec.tools.some(tool => /mcp__upwork|send_message|confirm_preview/.test(tool)));
+});
+
 test('application drafting waits for the pitch page and Loom video', () => {
   assert.match(applicationPrerequisiteError({ files: [] }), /finish the Pitch page.*add a valid Loom or YouTube video link/);
   assert.match(applicationPrerequisiteError({ files: [{ name: 'pitch.html' }] }), /add a valid Loom or YouTube video link/);

@@ -194,11 +194,17 @@ class GenerateHelpersTest(unittest.TestCase):
         self.assertNotIn('ILLUSTRATION_SRC', diagram)
         self.assertIn("REPORT_COVER = HERE / 'report-cover-example.jpg'", generator)
 
+    def test_proof_section_reserves_a_freelancer_photo(self):
+        template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')
+        self.assertIn('class="profile-story"', template)
+        self.assertIn('aria-label="Freelancer photo placeholder"', template)
+        self.assertLess(template.index('class="fit-list"'), template.index('class="freelancer-photo"'))
+
     def test_working_together_follows_the_lead_magnet_without_budget_or_timeline(self):
         template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')
         self.assertLess(template.index('id="proof"'), template.index('id="plan"'))
-        self.assertIn('<span class="plan-step">02</span>', template)
-        self.assertIn('<span class="plan-step">03</span>', template)
+        self.assertIn('{{PLAN_CARDS}}', template)
+        self.assertIn('Three clear steps from the first audit to a working system.', template)
         self.assertNotIn('<p class="plan-label">Budget</p>', template)
         self.assertNotIn('<p class="plan-label">Timeline</p>', template)
         self.assertEqual(
@@ -206,6 +212,29 @@ class GenerateHelpersTest(unittest.TestCase):
             '<dl class="work-details"><div><dt>Cadence</dt><dd>Twice a week</dd></div>'
             '<div><dt>Platform</dt><dd>Upwork, then ClickUp</dd></div></dl>',
         )
+
+    def test_working_together_repeats_the_upfront_audit_as_step_one(self):
+        showcase = ['Your free roofing SEO audit', 'Send the site. I will audit it upfront.', '#next', 'Send it']
+        cards = gen.plan_cards(
+            showcase,
+            ['GoHighLevel access', 'Roofing pipeline rules'],
+            'Twice a week|Upwork, then ClickUp',
+            ['See where roofing leads drop', 'Start with one build plan', 'Know what happens next'],
+            [],
+            'Roofing CRM',
+        )
+        self.assertEqual(cards.count('class="plan-item"'), 3)
+        self.assertIn('<span class="plan-step">01</span>', cards)
+        self.assertIn('Send the site. I will audit it upfront.', cards)
+        self.assertIn('See where roofing leads drop', cards)
+        self.assertLess(cards.index('Upfront audit'), cards.index('Onboarding'))
+
+    def test_plan_cards_need_one_outcome_and_image_per_card(self):
+        showcase = ['Audit', 'Audit it upfront.', '#next', 'Send it']
+        with self.assertRaises(SystemExit):
+            gen.plan_cards(showcase, ['Access'], 'Weekly|Upwork', ['Only one'], [], 'Roofing CRM')
+        with self.assertRaises(SystemExit):
+            gen.plan_cards(showcase, ['Access'], 'Weekly|Upwork', [], ['one.png'], 'Roofing CRM')
 
 
 if __name__ == '__main__':

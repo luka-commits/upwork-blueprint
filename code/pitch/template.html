@@ -200,6 +200,14 @@
   /* ---------------- Fit points ---------------- */
   .fit-list { list-style: none; margin: clamp(34px, 5vw, 52px) 0 0; padding: 0;
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .profile-story { display: grid; grid-template-columns: 190px 1fr; gap: 16px; align-items: stretch; }
+  .freelancer-photo { min-height: 150px; border-radius: 14px; overflow: hidden; position: relative;
+    border: 1px solid var(--border-soft); background:
+      radial-gradient(circle at 62% 24%, rgba(224,138,92,.26), transparent 28%),
+      linear-gradient(145deg, #e5ded1, #c9bba8); display: grid; place-items: center; }
+  .freelancer-photo svg { width: 46%; max-width: 94px; color: rgba(63,52,43,.32); }
+  .freelancer-photo span { position: absolute; left: 18px; bottom: 16px; font-size: 11px;
+    letter-spacing: .09em; text-transform: uppercase; color: rgba(52,43,36,.62); font-weight: 700; }
   .fit-list li { background: var(--card); border: 1px solid var(--border-soft); border-radius: 14px;
     padding: 24px 22px 26px; font-size: 15.5px; color: var(--text); line-height: 1.55;
     display: flex; flex-direction: column; gap: 14px; text-wrap: pretty;
@@ -219,6 +227,8 @@
   .fit-label { margin-top: 10px; font-size: 15px; font-weight: 600; color: var(--text);
     line-height: 1.35; }
   .fit-ctx { margin-top: 8px; font-size: 13.5px; color: var(--text-2); line-height: 1.5; }
+  @media (max-width: 760px) { .profile-story { grid-template-columns: 1fr; }
+    .freelancer-photo { min-height: 230px; } }
   @media (max-width: 680px) { .fit-list { grid-template-columns: 1fr; gap: 12px; }
     .fit-list li { flex-direction: row; align-items: flex-start; gap: 14px; padding: 20px; }
     .fit-list .icon { width: 28px; height: 28px; } }
@@ -501,16 +511,27 @@
   /* ---------------- The plan (ink band) ---------------- */
   .band-ink .section-title { color: var(--on-ink); }
   .band-ink .section-lede { color: var(--on-ink-2); }
-  .plan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .plan-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px;
+    margin-top: 38px; }
+  .plan-grid:has(.plan-item:nth-child(2):last-child) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   @media (max-width: 680px) { .plan-grid { grid-template-columns: 1fr; } }
-  .plan-item { background: var(--ink-raised); border: 1px solid var(--border-ink); border-radius: 16px;
-    padding: 26px 26px 28px; position: relative; overflow: hidden;
-    transition: border-color .22s var(--ease), transform .22s var(--ease); }
-  .plan-item::after { content: ""; position: absolute; top: 0; left: 26px; width: 44px; height: 2px;
-    background: var(--accent-on-ink); transform-origin: left center; }
-  .plan-step { display: block; margin: 0 0 22px; font-family: Georgia, ui-serif, serif;
-    font-size: 34px; line-height: 1; color: var(--accent-on-ink); }
-  .plan-label { font-size: 15.5px; font-weight: 600; color: var(--on-ink); margin: 0 0 12px; }
+  .plan-item { background: var(--ink-raised); border: 1px solid var(--border-ink); border-radius: 11px;
+    position: relative; overflow: hidden; min-width: 0;
+    transition: border-color .22s var(--ease), transform .22s var(--ease), box-shadow .22s var(--ease); }
+  .plan-item::after { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--accent-on-ink), rgba(224,138,92,.16));
+    transform-origin: left center; }
+  .plan-media { aspect-ratio: 16/10; overflow: hidden; background: #2d2925; }
+  .plan-media img { width: 100%; height: 100%; display: block; object-fit: cover;
+    transition: transform .55s var(--ease); }
+  .plan-copy { padding: 24px 24px 26px; }
+  .plan-step { display: block; margin: 0 0 16px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px; line-height: 1; letter-spacing: .12em; color: var(--accent-on-ink); }
+  .plan-outcome { margin: 0 0 16px; color: var(--on-ink); font-family: Georgia, ui-serif, serif;
+    font-size: clamp(20px, 1.7vw, 25px); line-height: 1.13; text-wrap: balance; }
+  .plan-label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+    font-weight: 700; color: var(--accent-on-ink); margin: 0 0 10px; }
+  .plan-description { margin: 0; color: var(--on-ink-2); font-size: 14.5px; line-height: 1.6; }
   .work-details { display: grid; gap: 16px; margin: 0; }
   .work-details div { padding-top: 15px; border-top: 1px solid var(--border-ink); }
   .work-details dt { margin: 0 0 5px; color: var(--accent-on-ink); font-size: 11px;
@@ -628,7 +649,9 @@
   .proof-link:hover { transform: translateY(-2px); border-color: var(--border);
     box-shadow: 0 16px 30px -24px rgba(28,23,18,.45); }
   .proof-link:hover .arrow { transform: translateX(4px); }
-  .plan-item:hover { border-color: rgba(224,138,92,.4); transform: translateY(-3px); }
+  .plan-item:hover { border-color: rgba(224,138,92,.4); transform: translateY(-3px);
+    box-shadow: 0 20px 42px -28px rgba(0,0,0,.75); }
+  .plan-item:hover .plan-media img { transform: scale(1.025); }
 
   .cover-book:hover { transform: rotateY(-6deg) rotateX(1deg) rotateZ(0deg) translateY(-6px);
     filter: drop-shadow(0 40px 56px rgba(28,23,18,.40)); }
@@ -739,7 +762,16 @@
 
   <section class="band band-plain band-tight band-tight-b">
     <div class="inner">
-      {{CV_BLOCK}}
+      <div class="profile-story">
+        <div class="freelancer-photo" aria-label="Freelancer photo placeholder">
+          <svg viewBox="0 0 160 190" fill="none" aria-hidden="true">
+            <circle cx="80" cy="58" r="39" fill="currentColor"/>
+            <path d="M22 174c4-43 25-67 58-67s54 24 58 67" fill="currentColor"/>
+          </svg>
+          <span>Freelancer photo</span>
+        </div>
+        {{CV_BLOCK}}
+      </div>
     </div>
   </section>
 
@@ -882,21 +914,10 @@
     <div class="inner-wide">
       <div class="center">
         <h2 class="serif section-title" data-rise>Then we get to work</h2>
-        <p class="section-lede" data-rise data-d="1">One onboarding. One place for updates.</p>
+        <p class="section-lede" data-rise data-d="1">Three clear steps from the first audit to a working system.</p>
       </div>
       <div class="plan-grid">
-        <div class="plan-item">
-          <span class="plan-step">02</span>
-          <p class="plan-label">Onboarding</p>
-          <ul class="scope-list">
-            {{KICKOFF_ITEMS}}
-          </ul>
-        </div>
-        <div class="plan-item">
-          <span class="plan-step">03</span>
-          <p class="plan-label">Updates</p>
-          {{UPDATES_BLOCK}}
-        </div>
+        {{PLAN_CARDS}}
       </div>
     </div>
   </section>

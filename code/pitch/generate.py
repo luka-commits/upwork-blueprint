@@ -80,7 +80,13 @@ def data_uri(path, mime=None):
     p = pathlib.Path(path)
     if not p.is_file():
         abort(f'image "{p}" does not exist.')
-    mime = mime or ('image/jpeg' if p.suffix.lower() in ('.jpg', '.jpeg') else 'image/png')
+    detected = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.webp': 'image/webp',
+    }
+    mime = mime or detected.get(p.suffix.lower(), 'application/octet-stream')
     return f'data:{mime};base64,{base64.b64encode(p.read_bytes()).decode("ascii")}'
 
 
@@ -342,6 +348,42 @@ def updates_html(text):
             '</dl>')
 
 
+def plan_cards(showcase, kickoff, updates, outcomes, images, job_title):
+    """Render the short client journey after the detailed lead-magnet preview."""
+    has_audit = bool(showcase and showcase[0])
+    labels = (['Upfront audit'] if has_audit else []) + ['Onboarding', 'Updates']
+    defaults = ((['See what needs fixing first'] if has_audit else [])
+                + ['Turn the scope into one build plan', 'Always know what is done and next'])
+    outcomes = outcomes or defaults
+    if len(outcomes) != len(labels):
+        abort(f'exactly {len(labels)} --plan-outcome values expected, got {len(outcomes)}.')
+    if images and len(images) != len(labels):
+        abort(f'exactly {len(labels)} --plan-image values expected, got {len(images)}.')
+
+    bodies = []
+    if has_audit:
+        bodies.append(f'<p class="plan-description">{esc(showcase[1])}</p>')
+    bodies.append('<ul class="scope-list">'
+                  + ''.join(f'<li>{esc(item)}</li>' for item in kickoff)
+                  + '</ul>')
+    bodies.append(updates_html(updates))
+
+    cards = []
+    for index, (label, outcome, body) in enumerate(zip(labels, outcomes, bodies), 1):
+        media = ''
+        if images:
+            src = data_uri(images[index - 1])
+            media = (f'<div class="plan-media"><img src="{src}" '
+                     f'alt="{esc(label)} for {esc(safe_job_title(job_title))}"></div>')
+        cards.append(
+            '<article class="plan-item">'
+            f'{media}<div class="plan-copy"><span class="plan-step">{index:02d}</span>'
+            f'<p class="plan-outcome">{esc(outcome)}</p>'
+            f'<p class="plan-label">{esc(label)}</p>{body}</div></article>'
+        )
+    return ''.join(cards)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('job_id')
@@ -351,6 +393,10 @@ def main(argv=None):
     ap.add_argument('--graph', required=True, help='the plan as JSON, or a path to it')
     ap.add_argument('--kickoff', action='append', required=True)
     ap.add_argument('--updates', required=True, help='"cadence|platform" for client updates')
+    ap.add_argument('--plan-outcome', action='append', default=[],
+                    help='job-specific benefit headline for each working-together card')
+    ap.add_argument('--plan-image', action='append', default=[],
+                    help='job-specific image for each working-together card')
     ap.add_argument('--loom-url', default='')
     ap.add_argument('--video-length', default='3 minute')
     ap.add_argument('--hero-illustration', default='')
@@ -429,8 +475,8 @@ def main(argv=None):
         '{{VIDEO_LENGTH}}': esc(args.video_length),
         '{{FIT_POINTS}}': '\n        '.join(fit_html(p) for p in args.fit_point),
         '{{CV_BLOCK}}': cv_block(proof_text, me_text),
-        '{{KICKOFF_ITEMS}}': '\n            '.join(f'<li>{esc(k)}</li>' for k in args.kickoff),
-        '{{UPDATES_BLOCK}}': updates_html(args.updates),
+        '{{PLAN_CARDS}}': plan_cards(showcase, args.kickoff, args.updates,
+                                     args.plan_outcome, args.plan_image, job.get('title')),
         '{{LIVE_ARTIFACTS}}': live,
         '{{PROOF_LINK}}': proof_link,
         '{{TESTIMONIALS_BLOCK}}': reviews_html,

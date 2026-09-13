@@ -79,13 +79,21 @@ python3 code/pitch/generate.py <id> --hook "..." \
   --build-lede "one job-specific sentence explaining the full flow" \
   --fit-point "number|label|context" (three times, numbers only from context/proof.md) \
   --graph data/pitch-graph-<id>.json --kickoff "..." (repeat) \
-  --updates "cadence|platform"
+  --updates "cadence|platform" \
+  --plan-outcome "job-specific client benefit" (once per card) \
+  --plan-image jobs/<id>/plan-01.jpg (once per card)
 ```
 
 - **Onboarding:** list only the access, content and decisions needed before the
   first build can start.
 - **Updates:** name a specific cadence and where updates will live. Use Upwork
   before a contract. After hire, prefer the client's existing workspace.
+- **Working together:** lead with the client outcome, then show how it happens.
+  When the lead magnet is present, repeat it as Step 01 so the sequence reads
+  audit, onboarding, updates. Write one short, job-specific `--plan-outcome` for
+  each card. Generate one matching landscape illustration per card and pass it
+  with `--plan-image` in the same order. The three images must share one style,
+  show the client's industry and contain no text, logos or generic diagrams.
 - Do not put a budget or speculative delivery timeline on the pitch page. The
   internal pricing guide remains in the cockpit for the member.
 - **Next step** (`--next-step`) points back to Upwork; the default asks them to send their website or current setup there.
@@ -99,8 +107,9 @@ python3 code/pitch/generate.py <id> --hook "..." \
   in the hero directly below the headline, never inside the flow. Skip it only when the result is already an
   obvious short chain, and state that decision in the completion report.
 - When the job is tied to a local business website, offer the Pocket SEO V2
-  lead magnet we actually send. Use a headline of at most eight words, one
-  sentence of at most 20 words and these three compact deliverables: a 25-point
+  lead magnet we actually send. Make the free upfront work explicit: the client
+  sends the website, and the member returns the complete audit before the build.
+  Use a headline of at most eight words, one sentence of at most 20 words and these three compact deliverables: a 25-point
   Google Maps grid, a full Google Business Profile review, and a 15-point
   website review with a prioritized action plan. Adapt the nouns to the job,
   but do not replace the deliverables with a vague custom audit. Use

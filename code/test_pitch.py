@@ -199,11 +199,12 @@ class GenerateHelpersTest(unittest.TestCase):
         template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')
         self.assertIn("ap.add_argument('--showcase-html'", generator)
         self.assertIn('class="cover-face audit-frame"', generator)
-        self.assertIn('sandbox loading="lazy"', generator)
+        self.assertIn('sandbox="allow-scripts" loading="lazy"', generator)
         self.assertIn("ap.add_argument('--showcase-video'", generator)
         self.assertIn('autoplay muted loop playsinline', generator)
         self.assertIn('{{SHOWCASE_MEDIA}}', template)
-        self.assertIn('height: 680px', template)
+        self.assertIn('height: min(800px, 78vh)', template)
+        self.assertIn('.showcase-copy { grid-row: 1;', template)
         self.assertIn('data-theme="{{THEME}}"', template)
         self.assertIn("choices=('warm', 'steel', 'signal', 'growth', 'calm')", generator)
         self.assertIn('class="audit-window"', template)
@@ -215,14 +216,16 @@ class GenerateHelpersTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             folder = pathlib.Path(raw)
             current = folder / 'current.html'
-            current.write_text('<details data-audit-section="maps">Get found</details>'
+            current.write_text('<meta name="lead-magnet-template" content="upwork-lead-magnet-v1">'
+                               '<meta http-equiv="Content-Security-Policy" content="connect-src \'none\'">'
+                               '<details data-audit-section="maps">Get found</details>'
                                '<details data-audit-section="profile">Build trust</details>'
                                '<details data-audit-section="website">Win enquiries</details>', encoding='utf-8')
             media = gen.showcase_media(current, '', folder / 'missing.jpg')
             self.assertIn('data:text/html;base64,', media)
             self.assertIn('Interactive example website audit', media)
             unsafe = folder / 'unsafe.html'
-            unsafe.write_text(current.read_text(encoding='utf-8') + '<script></script>', encoding='utf-8')
+            unsafe.write_text(current.read_text(encoding='utf-8') + '<img src="https://example.com/a.jpg">', encoding='utf-8')
             with self.assertRaises(SystemExit):
                 gen.showcase_media(unsafe, '', folder / 'missing.jpg')
             branded = folder / 'branded.html'

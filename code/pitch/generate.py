@@ -394,17 +394,19 @@ def showcase_media(embed, video, image):
         if path.suffix.lower() not in {'.html', '.htm'} or not path.is_file():
             abort('--showcase-html must be an existing HTML file.')
         source = path.read_text(encoding='utf-8')
-        required = ('data-audit-section="maps"', 'data-audit-section="profile"',
-                    'data-audit-section="website"', 'Get found', 'Build trust', 'Win enquiries')
+        required = ('name="lead-magnet-template" content="upwork-lead-magnet-v1"',
+                    'data-audit-section="maps"', 'data-audit-section="profile"',
+                    'data-audit-section="website"', 'Get found', 'Build trust', 'Win enquiries',
+                    "connect-src 'none'")
         if not all(marker in source for marker in required):
-            abort('--showcase-html must be a current three-part lead-magnet report.')
-        forbidden = re.search(r'<(?:script|iframe|form)\b|https?://|mailto:|tel:|\son\w+\s*=|pocket\s+(?:ceo|seo)',
+            abort('--showcase-html must be the current debranded lead-magnet report.')
+        forbidden = re.search(r'<(?:iframe|form)\b|(?:src|href|action)\s*=\s*["\']https?://|mailto:|tel:|pocket\s+(?:ceo|seo)',
                               source, flags=re.I)
         if forbidden:
             abort(f'--showcase-html contains unsafe or internal content: {forbidden.group(0)!r}.')
         encoded = base64.b64encode(source.encode('utf-8')).decode('ascii')
         return (f'<iframe class="cover-face audit-frame" src="data:text/html;base64,{encoded}" '
-                'title="Interactive example website audit" sandbox loading="lazy" '
+                'title="Interactive example website audit" sandbox="allow-scripts" loading="lazy" '
                 'referrerpolicy="no-referrer"></iframe>')
     if video:
         path = pathlib.Path(video)

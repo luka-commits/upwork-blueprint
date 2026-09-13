@@ -555,9 +555,9 @@
     border-radius: 999px; border: 1.5px solid var(--accent-on-ink); }
 
   /* ---------------- Report showcase ---------------- */
-  .showcase { display: grid; grid-template-columns: minmax(440px, 540px) minmax(0, 1fr); gap: 72px; align-items: center; }
-  @media (max-width: 960px) { .showcase { grid-template-columns: 1fr; gap: 44px; justify-items: center; text-align: center; }
-    .showcase-preview { width: min(540px, 100%); } }
+  .showcase { display: grid; grid-template-columns: 1fr; gap: 30px; }
+  .showcase-copy { grid-row: 1; max-width: 760px; }
+  .showcase-preview { grid-row: 2; width: 100%; }
   .showcase-preview { position: relative; padding: 7px; border: 1px solid rgba(117,105,88,.24);
     border-radius: 17px; background: linear-gradient(145deg, rgba(255,255,255,.82), rgba(218,207,188,.54));
     box-shadow: 0 32px 64px -36px rgba(28,23,18,.62), inset 0 1px 0 rgba(255,255,255,.88);
@@ -576,7 +576,7 @@
     letter-spacing: .06em; text-transform: uppercase; }
   .cover-face { display: block; width: 100%; }
   .cover-video { aspect-ratio: 4 / 5; object-fit: cover; object-position: top; background: var(--card); }
-  .audit-frame { height: 680px; border: 0; background: var(--card); }
+  .audit-frame { height: min(800px, 78vh); border: 0; background: var(--card); }
   .showcase-copy .section-title { margin-bottom: 14px; }
   .showcase-copy p { font-size: 16px; color: var(--text-2); margin: 0 0 22px; line-height: 1.62;
     max-width: 42ch; text-wrap: pretty; }

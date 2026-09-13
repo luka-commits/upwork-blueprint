@@ -128,6 +128,7 @@ class ProjectSkillsTest(unittest.TestCase):
         self.assertIn('lead every section and card with the result', command)
         self.assertIn('tools, features and implementation mechanics in the short', command)
         self.assertIn('internal names and must never appear in', command)
+        self.assertNotIn('the plan in days', command)
 
 
 if __name__ == '__main__':

@@ -8,7 +8,10 @@ argument-hint: "<job id>"
 Use the project-local `upwork-copy` skill for the page and Loom script. The
 member described in `context/me.md` is the sender.
 
-One page that makes a client stop scrolling: a headline about their job, your walkthrough video, three proofs, their system drawn as a diagram they can drag and edit, the plan in days, and the next step on Upwork. Plus the Loom script you read while you scroll through it.
+One page that makes a client stop scrolling: a headline about their job, your
+walkthrough video, three proofs, their system drawn as a diagram they can drag
+and edit, the short working-together sequence and the next step on Upwork. Plus
+the Loom script you read while you scroll through it.
 
 Read first: [references/upwork-rules.md](../../references/upwork-rules.md) (the section on links before a contract), `context/me.md`, `context/proof.md`.
 
@@ -143,7 +146,7 @@ Use beats for:
 2. Why the member fits, using only proof that is visible on the page and verified in `context/proof.md`.
 3. `What I'd build`: follow the diagram's groups and connections in visual order. Explain the useful path instead of reading every node aloud.
 4. The proof, sample or background sections that are actually present.
-5. `How this would work`: the first milestone, timeline, client inputs and scope boundaries shown on the page.
+5. `Then we get to work`: the upfront audit, client inputs and update cadence shown on the page.
 6. `The next step`: the specific future state you see for this job, then say that the goal is to exceed expectations and become a long-term partner. For jobs tied to a business website, ask them to send the website URL here on Upwork so you can run a useful audit upfront. When a website is irrelevant, ask for the closest existing setup or screenshot instead.
 
 Keep it between 420 and 560 spoken words. Use casual spoken English, contractions and short explanations, like a capable person walking a colleague through an idea. Warm, direct and likeable. One understated joke or self-aware aside is welcome when the job gives you a natural opening, but never force a punchline and never joke at the client's expense. No greetings, generic praise, inflated claims, contact details or em-dashes. End on the Upwork CTA, with nothing after it.

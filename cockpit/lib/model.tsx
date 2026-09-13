@@ -47,8 +47,20 @@ export function money(n: any) { n = Number(n); if (!n) return ''; return n >= 10
 export function firstNum(s: any): number | null { const m = String(s ?? '').replace(/,/g, '').match(/\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; }
 // Lost and skipped jobs are over. A won job is a client: its check-in date still counts.
 export const ENDED = ['lost', 'skipped'];
-export const isDue = (j: any) => !!j.next_follow_up && j.next_follow_up <= todayIso() && !ENDED.includes(j.status);
+export const isDue = (j: any) => !!j.next_follow_up && j.next_follow_up <= todayIso() && j.status !== 'new' && !ENDED.includes(j.status);
 export const openTasks = (j: any): any[] => (j.tasks || []).filter((t: any) => !t.done_at);
+export const taskDueKey = (task: any): string => task?.due ? `${task.due}T${task.due_time || '00:00'}` : '9999';
+export function taskIsDue(task: any, now = new Date()): boolean {
+  if (!task?.due) return false;
+  const today = todayIso(now);
+  if (task.due !== today) return task.due < today;
+  if (!task.due_time) return true;
+  const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  return task.due_time <= time;
+}
+export const taskDueLabel = (task: any): string => task?.due
+  ? `${short(task.due)}${task.due_time ? `, ${task.due_time}` : ''}`
+  : '';
 export const wonAt = (j: any): string | undefined => ((j.history || []).filter((h: any) => h.status === 'won').pop() || {}).at;
 export function ageBucket(iso?: string) { if (!iso) return 'Unknown'; const h = (Date.now() - +new Date(iso)) / 36e5; return h < 24 ? 'Last 24 hours' : h < 72 ? '1 to 3 days' : 'Older'; }
 export function dueBucket(j: any) { const t = todayIso(); return !j.next_follow_up || ENDED.includes(j.status) ? 'No follow-up' : j.next_follow_up < t ? 'Overdue' : j.next_follow_up === t ? 'Today' : 'Later'; }
@@ -88,7 +100,7 @@ export function Score({ j }: { j: any }) {
 }
 
 export function DueChip({ j }: { j: any }) {
-  if (!j.next_follow_up || ENDED.includes(j.status)) return null;
+  if (!j.next_follow_up || j.status === 'new' || ENDED.includes(j.status)) return null;
   const days = Math.round((+new Date(j.next_follow_up) - +new Date(todayIso())) / 864e5);
   const txt = days < 0 ? `${-days}d overdue` : days === 0 ? 'due today' : `in ${days} days`;
   return <span className="uw-due-inline"><span className={`uw-duechip ${days <= 0 ? 'over' : 'soon'}`}>{txt}</span></span>;
@@ -135,10 +147,10 @@ export function JobCell({ j }: { j: any }) {
 }
 
 export function TasksCell({ j }: { j: any }) {
-  const open = openTasks(j).sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')));
+  const open = openTasks(j).sort((a, b) => taskDueKey(a).localeCompare(taskDueKey(b)));
   if (!open.length) return <Dash />;
   const t = open[0];
-  return <>{t.text}{t.due ? <span className="uw-sub" style={t.due < todayIso() ? { color: 'var(--red-deep)' } : undefined}>{short(t.due)}</span> : null}
+  return <>{t.text}{t.due ? <span className="uw-sub" style={taskIsDue(t) ? { color: 'var(--red-deep)' } : undefined}>{taskDueLabel(t)}</span> : null}
     {open.length > 1 ? <span className="uw-sub">+{open.length - 1} more</span> : null}</>;
 }
 
@@ -164,6 +176,7 @@ export type Col = {
 export const COLS: Record<string, Col> = {
   score: { label: 'Score', w: 92, cell: j => <Score j={j} />, sort: j => j.score ?? -1, filter: 'range', value: j => j.score },
   job: { label: 'Job', w: 440, fixed: true, asc: true, cell: j => <JobCell j={j} />, sort: j => (j.title || '').toLowerCase() },
+  action: { label: 'Action', w: 154, cell: () => null, sort: j => j.status === 'new' ? 0 : 1 },
   client: { label: 'Client', w: 150, unit: 'rating', cell: j => clientText(j) || <Dash />, sort: j => (j.client || {}).rating ?? -1, filter: 'range', value: j => (j.client || {}).rating },
   comp: { label: 'Competition', w: 124, cell: j => <Comp j={j} />, sort: j => firstNum(j.proposals) ?? -1, filter: 'multi', value: j => j.proposals == null ? 'Unknown' : `${j.proposals} bids` },
   budget: { label: 'Budget', w: 150, cell: j => <>{budgetText(j)}{(j.details || {}).connects_cost != null ? <span className="uw-sub">{j.details.connects_cost} connects</span> : null}</>,
@@ -171,8 +184,8 @@ export const COLS: Record<string, Col> = {
   posted: { label: 'Posted', w: 100, cell: j => ago(j.posted_date), sort: j => j.posted_date || '', filter: 'multi', value: j => ageBucket(j.posted_date) },
   stage: { label: 'Stage', w: 178, asc: true, cell: j => <><StageSelect j={j} /><DueChip j={j} /></>, sort: j => ORDER.indexOf(j.status), filter: 'multi', value: j => LABEL[j.status] || j.status },
   followup: { label: 'Follow-up', w: 130, asc: true, cell: j => j.next_follow_up && !ENDED.includes(j.status) ? <DueChip j={j} /> : <Dash />, sort: j => j.next_follow_up || '9999', filter: 'multi', value: dueBucket },
-  tasks: { label: 'Next task', w: 210, asc: true, cell: j => <TasksCell j={j} />, sort: j => openTasks(j).map(t => t.due || '9999').sort()[0] || '99999',
-    filter: 'multi', value: j => openTasks(j).some(t => t.due && t.due <= todayIso()) ? 'Task due' : openTasks(j).length ? 'Open tasks' : 'No open tasks' },
+  tasks: { label: 'Next task', w: 210, asc: true, cell: j => <TasksCell j={j} />, sort: j => openTasks(j).map(taskDueKey).sort()[0] || '99999',
+    filter: 'multi', value: j => openTasks(j).some(task => taskIsDue(task)) ? 'Task due' : openTasks(j).length ? 'Open tasks' : 'No open tasks' },
   connects: { label: 'Connects', w: 96, cell: j => (j.details || {}).connects_cost ?? <Dash />, sort: j => (j.details || {}).connects_cost ?? -1, filter: 'range', value: j => (j.details || {}).connects_cost },
   boost: { label: 'Top slot', w: 110, cell: j => (j.details || {}).boost_recommended != null ? `+${j.details.boost_recommended} connects` : <Dash />,
     sort: j => (j.details || {}).boost_recommended ?? -1, filter: 'range', value: j => (j.details || {}).boost_recommended },
@@ -187,9 +200,18 @@ export const COLS: Record<string, Col> = {
 };
 
 /** The next thing to do on a job: its follow-up or its earliest dated task, whichever comes first. */
-export function nextTodo(j: any): { text: string; due: string | null } | null {
+export function nextTodo(j: any): { text: string; due: string | null; due_time?: string | null } | null {
   if (j.status === 'offer') return { text: 'Review the offer', due: null };
-  const items: { text: string; due: string | null }[] = openTasks(j).map(t => ({ text: t.text, due: t.due || null }));
+  if (j.status === 'new') {
+    const files = new Set(j.artifacts || []);
+    const text = !files.has('pitch.html') || !files.has('loom-script.md')
+      ? 'Apply or disqualify'
+      : !validVideoUrl(j.video) ? 'Open application'
+        : !files.has('application.md') ? 'Prepare application' : 'Submit on Upwork';
+    return { text, due: null };
+  }
+  const items: { text: string; due: string | null; due_time?: string | null }[] = openTasks(j)
+    .map(t => ({ text: t.text, due: t.due || null, due_time: t.due_time || null }));
   if (j.next_follow_up && !ENDED.includes(j.status)) {
     const plan = j.follow_up_plan;
     const lane = typeof plan?.lane === 'string' ? plan.lane.replace('-', ' ') : '';
@@ -201,25 +223,26 @@ export function nextTodo(j: any): { text: string; due: string | null } | null {
   const clientMessages = (j.thread?.messages || []).filter((message: any) => message?.kind !== 'event' && message?.from !== 'me');
   const clientWaiting = !!j.thread?.room_id && j.thread?.awaiting_reply_from === 'you' && clientMessages.length > 0;
   const callMentioned = clientMessages.some((message: any) => /\b(call|meeting|meet|zoom|interview|chat)\b/i.test(String(message.text || '')));
-  const stageAction = j.status === 'new'
-    ? !files.has('pitch.html') || !files.has('loom-script.md') ? 'Make pitch page' : !validVideoUrl(j.video) ? 'Record Loom' : !files.has('application.md') ? 'Prepare application' : 'Submit on Upwork'
-    : j.status === 'applied' ? 'Check for a reply'
+  const stageAction = j.status === 'applied' ? 'Check for a reply'
       : j.status === 'replied' ? clientWaiting ? 'Reply to the client' : !files.has('call-prep.md') ? callMentioned ? 'Prepare for the call' : 'Check latest messages' : !files.has('call-review.md') ? 'Review the call' : !files.has('proposal.md') ? 'Draft proposal' : 'Send proposal on Upwork'
         : j.status === 'won' ? !files.has('project.md') ? 'Set up the project' : 'Add next delivery task'
             : '';
   if (stageAction) items.push({ text: stageAction, due: null });
-  items.sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')));
+  items.sort((a, b) => taskDueKey(a).localeCompare(taskDueKey(b)));
   return items[0] || null;
 }
 export const todoBucket = (j: any) => {
   const next = nextTodo(j);
-  return !next ? 'Nothing planned' : next.due && next.due <= todayIso() ? 'Due now' : 'Planned';
+  return !next ? 'Nothing planned' : taskIsDue(next) ? 'Due now' : 'Planned';
 };
 export function TodoCell({ j }: { j: any }) {
   const next = nextTodo(j);
   if (!next) return <Dash />;
-  const late = next.due && next.due <= todayIso();
-  return <>{next.text}{next.due ? <span className="uw-sub" style={late ? { color: 'var(--red-deep)', fontWeight: 600 } : undefined}>{next.due === todayIso() ? 'today' : short(next.due)}</span> : null}</>;
+  const late = taskIsDue(next);
+  const label = next.due === todayIso()
+    ? `today${next.due_time ? `, ${next.due_time}` : ''}`
+    : taskDueLabel(next);
+  return <>{next.text}{next.due ? <span className="uw-sub" style={late ? { color: 'var(--red-deep)', fontWeight: 600 } : undefined}>{label}</span> : null}</>;
 }
 COLS.todo = { label: 'Next action', w: 190, asc: true, cell: j => <TodoCell j={j} />, sort: j => nextTodo(j)?.due || '9999', filter: 'multi', value: todoBucket };
 
@@ -237,10 +260,10 @@ export const SPACES: Record<'jobs', Space> = {
     title: 'Jobs', board: true, base: () => true,
     cols: Object.keys(COLS),
     presets: [
-      view('All open', { filters: { stage: { kind: 'multi', values: OPEN_LABELS } }, cols: ['score', 'job', 'client', 'comp', 'budget', 'todo', 'stage'] }),
+      view('All open', { filters: { stage: { kind: 'multi', values: OPEN_LABELS } }, cols: ['score', 'job', 'action', 'client', 'comp', 'budget', 'stage'] }),
       view('To do', { filters: { todo: { kind: 'multi', values: ['Due now'] } }, cols: ['score', 'job', 'client', 'todo', 'stage'], sort: { id: 'todo', desc: false } }),
       view('To apply', { filters: { stage: { kind: 'multi', values: ['Not applied'] }, score: { kind: 'range', min: 60, max: null } },
-        cols: ['score', 'job', 'client', 'comp', 'budget', 'boost', 'posted'], sort: { id: 'score', desc: true } }),
+        cols: ['score', 'job', 'action', 'client', 'comp', 'budget', 'boost', 'posted'], sort: { id: 'score', desc: true } }),
       view('In play', { filters: { stage: { kind: 'multi', values: ['Applied', 'In conversation', 'Offer'] } }, cols: ['score', 'job', 'client', 'budget', 'todo', 'stage'] }),
       view('Clients', { filters: { stage: { kind: 'multi', values: ['Won'] } }, cols: ['job', 'client', 'won', 'todo', 'files'], sort: { id: 'won', desc: true } }),
       view('Closed', { filters: { stage: { kind: 'multi', values: ['Lost', 'Skipped'] } }, cols: ['score', 'job', 'client', 'found', 'stage'], sort: { id: 'found', desc: true } }),
@@ -249,7 +272,7 @@ export const SPACES: Record<'jobs', Space> = {
 };
 
 export const GROUPS = [
-  { title: 'Job', cols: ['score', 'job', 'stage', 'todo', 'followup', 'tasks', 'files', 'posted', 'found', 'won'] },
+  { title: 'Job', cols: ['score', 'job', 'action', 'stage', 'todo', 'followup', 'tasks', 'files', 'posted', 'found', 'won'] },
   { title: 'Client', cols: ['client', 'country', 'spent'] },
   { title: 'Deal', cols: ['budget', 'comp', 'connects', 'boost', 'engagement', 'fit'] },
 ];

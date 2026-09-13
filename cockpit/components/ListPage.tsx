@@ -12,6 +12,7 @@ import { useCockpit } from '@/lib/context';
 import { jobPreview } from '@/lib/job-brief.mjs';
 import { clampColumnWidth, columnWidthForKey, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH } from '@/lib/column-width.mjs';
 import { revealContent } from '@/lib/surface-motion.mjs';
+import { applicationListAction } from '@/lib/lead-workspace.mjs';
 import { DisqualifyButton } from './DisqualifyLead';
 
 type SpaceName = 'jobs';
@@ -28,6 +29,13 @@ function S(spaces: SpacesState, space: SpaceName): SpaceState {
   const v = st.view;
   v.cols = (v.cols || []).filter(c => sp.cols.includes(c));
   if (!v.cols.includes('job')) v.cols.splice(1, 0, 'job');
+  const legacyAllOpen = ['score', 'job', 'client', 'comp', 'budget', 'todo', 'stage'];
+  if (v.name === 'All open' && JSON.stringify(v.cols) === JSON.stringify(legacyAllOpen)) {
+    v.cols = clone(sp.presets.find(item => item.name === 'All open')!.cols);
+  }
+  if (['All open', 'To apply'].includes(v.name) && !v.cols.includes('action')) {
+    v.cols.splice(v.cols.indexOf('job') + 1, 0, 'action');
+  }
   v.filters = Object.fromEntries(Object.entries(v.filters || {}).filter(([k]) => COLS[k] && COLS[k].filter));
   v.widths = v.widths || {};
   if (!sp.board) v.layout = 'list';
@@ -615,12 +623,26 @@ function Table({ jobs, st, drawerId, selected, setSelected, menu, colFilter, ope
         <td className="sel-cell"><input type="checkbox" checked={selected.has(id)} onChange={e => setSelected(current => {
           const next = new Set(current); e.target.checked ? next.add(id) : next.delete(id); return next;
         })} aria-label={`Select ${j.title}`} /></td>
-        {st.view.cols.map(colId => <td key={colId} data-column={colId}>{COLS[colId].cell(j)}{colId === 'job'
-          ? <><Link className="row-open" href={`/job/${id}`} aria-label={`Open ${j.title} on its full page`} title="Open full page" onClick={e => e.stopPropagation()}>↗</Link>
-            {STAGES.some(stage => stage.key === j.status) ? <DisqualifyButton job={j} compact /> : null}</> : null}</td>)}
+        {st.view.cols.map(colId => <td key={colId} data-column={colId}>{colId === 'action' ? <ApplicationActionCell job={j} /> : COLS[colId].cell(j)}{colId === 'job'
+          ? <Link className="row-open" href={`/job/${id}`} aria-label={`Open ${j.title} on its full page`} title="Open full page" onClick={e => e.stopPropagation()}>↗</Link> : null}</td>)}
       </tr>;
     })}</tbody>
   </table></div></div>;
+}
+
+function ApplicationActionCell({ job }: { job: any }) {
+  const { state, runCommand, runs } = useCockpit();
+  const running = runs.some(run => run.command === 'pitch-page' && run.job === job.id && !run.done);
+  const action = applicationListAction(job, running);
+  if (action === 'open') return <Link className="lead-action-open" href={`/job/${job.id}`}>Open</Link>;
+  if (action === 'ready') return <div className="lead-action-ready"><span aria-label="Pitch ready">✓</span><Link href={`/job/${job.id}`}>Open</Link></div>;
+  return <div className="lead-action">
+    <button className="primary" disabled={action === 'running' || !state?.commands?.['pitch-page']}
+      title="Creates the pitch page and Loom script" onClick={() => runCommand('pitch-page', job.id)}>
+      {action === 'running' ? 'Preparing...' : 'Apply'}
+    </button>
+    {action !== 'running' ? <DisqualifyButton job={job} /> : null}
+  </div>;
 }
 
 function Board({ jobs, drawerId, openDrawer, closeDrawer, move, dropStage, setDropStage }: {

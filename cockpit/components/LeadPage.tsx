@@ -136,15 +136,12 @@ export default function LeadPage({ id }: { id: string }) {
         {isClient
           ? <><ClientDetails j={j} /><section className="panel checkin-panel"><h2>Next check-in</h2><DateChip j={j} label="Next check-in" move={move} /><FollowUpPlan j={j} /></section></>
           : <LeadDetails j={j} hasFlags={hasFlags} />}
-        {workspace.mode === 'prepare' ? <section className="lead-reminder" aria-label="Reminder">
-          <DateChip j={j} label="Review" move={move} /><FollowUpPlan j={j} />
-        </section> : null}
       </aside>
 
       <div ref={centerRef} className="lead-center">
         {workspace.mode !== 'sales' && workspace.mode !== 'prepare' ? <StageActions j={j} workspace={workspace} tab={tab} setTab={setTab} move={move} /> : null}
         <WorkspacePanel j={j} workspace={workspace} tab={tab} setTab={setTab} note={note} setNote={setNote} noteRef={noteRef} addNote={addNote} />
-        {workspace.mode !== 'delivery' && workspace.mode !== 'sales' ? <TasksPanel j={j} /> : null}
+        {workspace.mode !== 'delivery' && workspace.mode !== 'sales' && workspace.mode !== 'prepare' ? <TasksPanel j={j} /> : null}
       </div>
 
       {workspace.layout.tools ? <aside id="lead-tools" className="lead-right" hidden={!toolsOpen} inert={!toolsOpen ? true : undefined}>
@@ -197,6 +194,7 @@ function SetTaskDialog({ job, returnTo, onClose }: { job: any; returnTo: HTMLBut
   const textId = useId();
   const [text, setText] = useState('');
   const [due, setDue] = useState('');
+  const [time, setTime] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const saving = useRef(false);
@@ -219,7 +217,7 @@ function SetTaskDialog({ job, returnTo, onClose }: { job: any; returnTo: HTMLBut
       setBusy(true);
       setError('');
       try {
-        if (await post('/api/task', { id: job.id, action: 'add', text: value, ...(due ? { due } : {}) })) onClose();
+        if (await post('/api/task', { id: job.id, action: 'add', text: value, ...(due ? { due, ...(time ? { time } : {}) } : {}) })) onClose();
         else setError('Could not save this task.');
       } catch {
         setError('Could not save this task.');
@@ -233,8 +231,15 @@ function SetTaskDialog({ job, returnTo, onClose }: { job: any; returnTo: HTMLBut
       <div className="set-task-fields">
         <label htmlFor={textId}>Task</label>
         <input id={textId} autoFocus value={text} disabled={busy} placeholder="What needs to happen?" onChange={event => setText(event.target.value)} />
-        <label htmlFor={`${textId}-due`}>Due date <span>(optional)</span></label>
-        <input id={`${textId}-due`} type="date" value={due} disabled={busy} onChange={event => setDue(event.target.value)} />
+        <div className="set-task-schedule">
+          <label htmlFor={`${textId}-due`}><span className="set-task-label">Due date <small>(optional)</small></span>
+            <input id={`${textId}-due`} type="date" value={due} disabled={busy}
+              onChange={event => { setDue(event.target.value); if (!event.target.value) setTime(''); }} />
+          </label>
+          <label htmlFor={`${textId}-time`}><span className="set-task-label">Time <small>(optional)</small></span>
+            <input id={`${textId}-time`} type="time" value={time} disabled={busy || !due} onChange={event => setTime(event.target.value)} />
+          </label>
+        </div>
         {error ? <p role="alert">{error}</p> : null}
       </div>
       <footer><button type="button" disabled={busy} onClick={onClose}>Cancel</button>
@@ -360,7 +365,6 @@ function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, add
       </div> : null}
       <div hidden={tab !== 'work'}>
       {workspace.mode === 'prepare' ? <>
-        <WorkspaceHeading title="Your application" />
         <Materials j={j} files={files} />
       </> : null}
       {workspace.mode === 'waiting' ? <ApplicationStatus j={j} open={setTab} /> : null}
@@ -606,7 +610,7 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
   const applicationRunning = runs.some(run => run.command === 'apply' && run.job === j.id && !run.done);
 
   if (j.status === 'new') return <div className="materials preparation-materials">
-    <MaterialRow label="1. Pitch page and Loom script" ready={pitchReady && scriptReady} defaultOpen={!pitchReady || !scriptReady}>
+    <MaterialRow label="1. Build your pitch" ready={pitchReady && scriptReady} defaultOpen={!pitchReady || !scriptReady}>
       {pitchReady && scriptReady ? <>
         <div className="preview"><iframe src={artifactUrl(j.id, 'pitch.html', version('pitch.html'))} title="Pitch page preview" loading="lazy" /></div>
         <div className="material-actions">
@@ -622,25 +626,25 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
         : <p className="material-note">Pitch generation is unavailable.</p>}
     </MaterialRow>
 
-    <MaterialRow label="2. Loom video and application" ready={videoReady && applicationReady} defaultOpen={pitchReady && scriptReady && !applicationReady}
+    <MaterialRow label="2. Record and apply" ready={videoReady && applicationReady} defaultOpen={pitchReady && scriptReady && !(videoReady && applicationReady)}
       status={!pitchReady || !scriptReady ? 'Locked' : applicationRunning ? 'Working' : undefined}>
       {!pitchReady || !scriptReady ? <p className="material-note material-blocker">Generate the pitch page first.</p> : <>
         <RecordingLauncher j={j} post={post} />
         <LoomReviewToggle j={j} post={post} />
         <VideoEditor j={j} post={post} copy={copy}
           saveLabel="Save and prepare" onSaved={() => runCommand('apply', j.id)} />
-        {applicationRunning ? <p className="material-note">Reviewing the recording and preparing the application.</p> : null}
+        {videoReady && applicationRunning ? <p className="material-note">Reviewing the recording and preparing the application.</p> : null}
         {videoReady && !applicationReady && !applicationRunning && canRun('apply')
           ? <button className="primary" onClick={() => runCommand('apply', j.id)}>Review and prepare application</button> : null}
-        {files.includes('loom-review.md') ? <div className="preparation-output">
+        {videoReady && files.includes('loom-review.md') ? <div className="preparation-output">
           <span>Loom review</span>
           <LoomReviewView id={j.id} version={version('loom-review.md')} />
         </div> : null}
-        {applicationReady ? <div className="preparation-output">
+        {videoReady && applicationReady ? <div className="preparation-output">
           <span>Application</span>
           <ApplicationReview j={j} />
         </div> : null}
-        {(d.boost_available === false || d.boost_recommended != null || d.boost_top_bids !== undefined)
+        {videoReady && (d.boost_available === false || d.boost_recommended != null || d.boost_top_bids !== undefined)
           ? <div className="boost-slot"><span>Boost bids</span><BoostBlock d={d} /></div> : null}
       </>}
     </MaterialRow>
@@ -923,7 +927,6 @@ function RecordingLauncher({ j, post }: {
   return <div className="recording-launcher">
     <div className="recording-launcher-main">
       <button className="primary" onClick={openTabs}>Record Loom now</button>
-      <span>Opens Loom, the pitch page and Upwork.</span>
     </div>
     <details>
       <summary>Recording tabs <span>{builtIn.length + links.length}</span></summary>

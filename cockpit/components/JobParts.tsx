@@ -8,8 +8,9 @@ import {
   day,
   isDue,
   money,
-  short,
-  todayIso,
+  taskDueKey,
+  taskDueLabel,
+  taskIsDue,
   validVideoUrl,
   wonAt,
 } from '@/lib/model';
@@ -146,11 +147,12 @@ export function TasksBlock({ j, allowAdd = true }: { j: any; allowAdd?: boolean 
   const { post } = useCockpit();
   const [text, setText] = useState('');
   const [due, setDue] = useState('');
+  const [time, setTime] = useState('');
   const [adding, setAdding] = useState(false);
   const textRef = useRef<HTMLInputElement>(null);
   const tasks = (j.tasks || []).slice();
   const open = tasks.filter((task: any) => !task.done_at)
-    .sort((a: any, b: any) => String(a.due || '9999').localeCompare(String(b.due || '9999')));
+    .sort((a: any, b: any) => taskDueKey(a).localeCompare(taskDueKey(b)));
   const done = tasks.filter((task: any) => !!task.done_at)
     .sort((a: any, b: any) => String(b.done_at).localeCompare(String(a.done_at)));
   useEffect(() => { if (adding) textRef.current?.focus(); }, [adding]);
@@ -158,8 +160,8 @@ export function TasksBlock({ j, allowAdd = true }: { j: any; allowAdd?: boolean 
   const add = async () => {
     const value = text.trim();
     if (!value) return textRef.current?.focus();
-    const ok = await post('/api/task', { id: j.id, action: 'add', text: value, ...(due ? { due } : {}) });
-    if (ok) { setText(''); setDue(''); setAdding(false); }
+    const ok = await post('/api/task', { id: j.id, action: 'add', text: value, ...(due ? { due, ...(time ? { time } : {}) } : {}) });
+    if (ok) { setText(''); setDue(''); setTime(''); setAdding(false); }
   };
 
   const task = (t: any) => <li className={t.done_at ? 'done' : ''} key={t.id}>
@@ -170,7 +172,7 @@ export function TasksBlock({ j, allowAdd = true }: { j: any; allowAdd?: boolean 
       aria-label={t.done_at ? `Reopen ${t.text}` : `Complete ${t.text}`}
     />
     <span>{t.text}</span>
-    <time className={`when${!t.done_at && t.due && t.due < todayIso() ? ' over' : ''}`}>{t.due ? short(t.due) : ''}</time>
+    <time className={`when${!t.done_at && taskIsDue(t) ? ' over' : ''}`}>{taskDueLabel(t)}</time>
   </li>;
 
   return <div className="tasks-block">
@@ -190,7 +192,8 @@ export function TasksBlock({ j, allowAdd = true }: { j: any; allowAdd?: boolean 
         onChange={e => setText(e.target.value)}
         onKeyDown={e => { if (e.key === 'Escape') setAdding(false); }}
       />
-      <input type="date" aria-label="Due date (optional)" value={due} onChange={e => setDue(e.target.value)} />
+      <input type="date" aria-label="Due date (optional)" value={due} onChange={e => { setDue(e.target.value); if (!e.target.value) setTime(''); }} />
+      <input type="time" aria-label="Time (optional)" value={time} disabled={!due} onChange={e => setTime(e.target.value)} />
       <button type="submit">Add</button>
     </form>)}
   </div>;

@@ -225,6 +225,10 @@
   padding: 0;
 }
 
+.workspace-prepare .workspace-panel {
+  min-height: 0;
+}
+
 .lead-page .workspace-panel.is-conversation {
   min-height: clamp(520px, calc(100vh - 190px), 760px);
 }
@@ -945,7 +949,7 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
 
 .tasks-block .task-add {
   display: grid;
-  grid-template-columns: minmax(100px, 1fr) 116px auto;
+  grid-template-columns: minmax(100px, 1fr) 116px 92px auto;
   gap: 5px;
   margin-top: 7px;
 }
@@ -958,6 +962,10 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
 
 .tasks-block .task-add input[type="date"] {
   width: 116px;
+}
+
+.tasks-block .task-add input[type="time"] {
+  width: 92px;
 }
 
 .tasks-block .task-add button {
@@ -1337,7 +1345,12 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
 .set-task-fields label:first-child { margin-top: 0; }
 .set-task-fields label span { color: var(--text-3); font-weight: 500; }
 .set-task-fields input { width: 100%; min-height: 36px; }
-.set-task-fields input[type="date"] { width: 154px; }
+.set-task-schedule { display: grid; grid-template-columns: minmax(0, 1fr) 122px; gap: 10px; }
+.set-task-schedule label { display: grid; gap: 6px; }
+.set-task-fields .set-task-label { color: var(--text); font-weight: 650; }
+.set-task-fields .set-task-label small { color: var(--text-3); font-size: inherit; font-weight: 500; }
+.set-task-fields input[type="date"],
+.set-task-fields input[type="time"] { width: 100%; }
 .set-task-fields [role="alert"] { margin: 4px 0 0; color: var(--red-deep); font-size: 11.5px; }
 
 .loom-script-intro {
@@ -1875,10 +1888,13 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .tasks-block .task-add input[type="date"] {
+  .tasks-block .task-add input[type="date"],
+  .tasks-block .task-add input[type="time"] {
     grid-row: 2;
-    width: 132px;
+    width: 100%;
   }
+
+  .set-task-schedule { grid-template-columns: 1fr; }
 
   .material-body {
     padding-left: 9px;

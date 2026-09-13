@@ -64,7 +64,7 @@ export function DisqualifyButton({ job, compact = false }: { job: any; compact?:
   return <>
     <button className={compact ? 'row-open row-disqualify' : undefined}
       aria-label={`Not a fit: ${job.title}`} title="Not a fit" onClick={e => { e.stopPropagation(); setOpener(e.currentTarget); }}>
-      {compact ? <span aria-hidden="true">×</span> : 'Not a fit'}
+      {compact ? <span aria-hidden="true">×</span> : 'Disqualify'}
     </button>
     {opener ? <DisqualifyDialog job={job} returnTo={opener} onClose={() => setOpener(null)} /> : null}
   </>;

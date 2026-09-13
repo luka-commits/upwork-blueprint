@@ -54,7 +54,7 @@
   button.link { border: 0; background: none; padding: 0; color: var(--text-3); font-size: 12px; font-weight: 600; }
   button.link:hover { color: var(--text); }
   input, select, textarea { font: inherit; color: var(--text); }
-  input[type="text"], input[type="search"], input[type="number"], input[type="date"], input:not([type]) {
+  input[type="text"], input[type="search"], input[type="number"], input[type="date"], input[type="time"], input:not([type]) {
     border: 1px solid var(--border-strong); border-radius: var(--radius-control); padding: 6px 10px; font-size: 13px; background: var(--card); }
 
   header.top { position: relative; z-index: 30; background: #f2f6fc; border-bottom: 1px solid var(--glass-line); box-shadow: 0 1px 0 #aebfd526; }
@@ -88,6 +88,14 @@
   .row-open:hover { color: var(--brand); border-color: var(--brand); text-decoration: none; }
   .row-disqualify { top: 38px; padding: 0; font-size: 18px; }
   .row-disqualify:hover { color: var(--red-deep); border-color: var(--red-deep); }
+  .lead-action { display: flex; align-items: center; gap: 7px; }
+  .lead-action > button { min-height: 30px; padding: 5px 9px; font-size: 11.5px; }
+  .lead-action > button:not(.primary) { border-color: transparent; background: transparent; color: var(--text-3); padding-inline: 3px; }
+  .lead-action > button:not(.primary):hover { color: var(--red-deep); }
+  .lead-action-ready { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .lead-action-ready > span { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--ok-soft); color: var(--ok); font-weight: 800; }
+  .lead-action-ready > a,
+  .lead-action-open { color: var(--text-2); font-size: 12px; font-weight: 650; }
   .decision-dialog { width: min(440px, calc(100vw - 48px)); padding: 24px; color: var(--text); background: var(--card); border: 1px solid var(--glass-line); border-radius: var(--radius-float, 12px); box-shadow: var(--glass-shadow); }
   .decision-dialog::backdrop { background: #15263b33; backdrop-filter: blur(3px); }
   .decision-dialog h2 { margin: 0; font-size: 18px; letter-spacing: -.02em; }

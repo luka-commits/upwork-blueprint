@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { leadWorkspace, nextPreparationMaterial, preparationProgress } from '../lead-workspace.mjs';
+import { applicationListAction, leadWorkspace, nextPreparationMaterial, preparationProgress } from '../lead-workspace.mjs';
 
 const cases = {
   new: {
@@ -124,4 +124,11 @@ test('preparation chooses one of the two human steps', () => {
   assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md', 'application.md'], false), 'application');
   assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md'], true), 'application');
   assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md', 'application.md'], true), 'application');
+});
+
+test('lead list moves from apply to running, ready and open', () => {
+  assert.equal(applicationListAction({ status: 'new', artifacts: [] }), 'apply');
+  assert.equal(applicationListAction({ status: 'new', artifacts: [] }, true), 'running');
+  assert.equal(applicationListAction({ status: 'new', artifacts: [{ name: 'pitch.html' }] }), 'ready');
+  assert.equal(applicationListAction({ status: 'applied', artifacts: [] }), 'open');
 });

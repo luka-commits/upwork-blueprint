@@ -88,3 +88,12 @@ export function preparationProgress(files, hasValidVideo) {
 export function nextPreparationMaterial(files, hasValidVideo) {
   return preparationProgress(files, hasValidVideo).items.find(item => !item.ready)?.key || 'application';
 }
+
+export function applicationListAction(job, pitchRunning = false) {
+  if (job?.status !== 'new') return 'open';
+  if (pitchRunning) return 'running';
+  const files = new Set((Array.isArray(job?.artifacts) ? job.artifacts : [])
+    .map(file => typeof file === 'string' ? file : file?.name)
+    .filter(Boolean));
+  return files.has('pitch.html') ? 'ready' : 'apply';
+}

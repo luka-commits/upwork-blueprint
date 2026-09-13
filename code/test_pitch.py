@@ -314,6 +314,8 @@ class GenerateHelpersTest(unittest.TestCase):
         self.assertEqual(block.count('class="cv-stat"'), 3)
         self.assertIn('class="cv-stat-icon"', block)
         self.assertIn('Proven experience behind your build', block)
+        self.assertNotIn('<details', block)
+        self.assertNotIn('<summary', block)
 
     def test_working_together_follows_the_lead_magnet_without_budget_or_timeline(self):
         template = (CODE / 'pitch' / 'template.html').read_text(encoding='utf-8')

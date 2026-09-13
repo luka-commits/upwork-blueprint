@@ -271,18 +271,10 @@
 
   /* ---------------- CV ---------------- */
   .cv { border: 1px solid var(--border); border-radius: 16px; background: var(--card); padding: 2px 28px; }
-  .cv summary { cursor: pointer; padding: 23px 0; font-weight: 600; font-size: 15px; color: var(--text);
-    list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .cv summary > span { display: grid; gap: 5px; }
-  .cv summary small { color: var(--accent); font-size: 10.5px; line-height: 1; letter-spacing: .12em;
+  .cv-heading { padding: 23px 0; display: grid; gap: 5px; color: var(--text); }
+  .cv-heading small { color: var(--accent); font-size: 10.5px; line-height: 1; letter-spacing: .12em;
     text-transform: uppercase; font-weight: 700; }
-  .cv summary strong { font-size: 17px; line-height: 1.2; }
-  .cv summary::-webkit-details-marker { display: none; }
-  .cv summary::after { content: "+"; font-size: 22px; color: var(--accent); font-weight: 400; flex: none;
-    transition: transform .35s var(--ease); }
-  .cv[open] summary::after { transform: rotate(45deg); }
-  .cv summary:focus { outline: none; }
-  .cv summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 7px; border-radius: 4px; }
+  .cv-heading strong { font-size: 17px; line-height: 1.2; }
   .cv-body { padding: 6px 0 26px; border-top: 1px solid var(--border-soft); }
   .cv-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
     margin: 22px 0 28px; }
@@ -718,7 +710,6 @@
     box-shadow: 0 16px 28px -12px rgba(28,23,18,.6); }
   .btn-on-ink:hover { box-shadow: 0 18px 32px -14px rgba(0,0,0,.75); }
   .btn:hover .arrow { transform: translateX(4px); }
-  .cv summary:hover { color: var(--accent); }
   .topbar-cta:hover { background: var(--accent-deep); }
   .topbar-cta:hover .arrow { transform: translateX(3px); }
   }
@@ -726,7 +717,6 @@
   /* Press states are never gated behind the hover query: a tap has to be
      answered on touch too, and faster than the hover it replaces. */
   .yt-card:active, .device-screen:active { transform: scale(.985); transition-duration: .1s; }
-  .cv summary:active { transform: scale(.99); }
 
   /* ------------------------------------------------------------------
      MOTION. Opt-in at runtime: JS adds .anim, so a no-JS or headless

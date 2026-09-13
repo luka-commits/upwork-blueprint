@@ -169,9 +169,10 @@ def cv_block(proof_text, me_text):
                      f'<span>{esc(lang.group(1).strip())}</span></p>')
     if not parts:
         return ''
-    return ('<details class="cv" open><summary><span><small>Builder profile</small>'
-            '<strong>Proven experience behind your build</strong></span></summary>'
-            f'<div class="cv-body">{"".join(parts)}</div></details>')
+    return ('<section class="cv" aria-label="Builder profile">'
+            '<div class="cv-heading"><small>Builder profile</small>'
+            '<strong>Proven experience behind your build</strong></div>'
+            f'<div class="cv-body">{"".join(parts)}</div></section>')
 
 
 def profile_media(path):

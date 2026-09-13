@@ -312,7 +312,7 @@ function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, add
       </> : null}
       </div>
     </div>
-    <div className="composer">
+    {j.status !== 'new' ? <div className="composer">
       <div className="composer-row">
         <input
           ref={noteRef}
@@ -324,7 +324,7 @@ function WorkspacePanel({ j, workspace, tab, setTab, note, setNote, noteRef, add
         />
         <button onClick={addNote}>Add note</button>
       </div>
-    </div>
+    </div> : null}
   </section>;
 }
 

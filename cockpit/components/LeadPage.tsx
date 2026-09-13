@@ -461,19 +461,17 @@ function LeadMagnetBuilder({ j }: { j: any }) {
   const publicUrl = typeof j.lead_magnet_url === 'string' ? j.lead_magnet_url : '';
   const [editing, setEditing] = useState(!source.website);
   const [website, setWebsite] = useState(source.website || '');
-  const [location, setLocation] = useState(source.location || '');
   const [placeId, setPlaceId] = useState(source.place_id || '');
   const [language, setLanguage] = useState(source.language === 'German' ? 'German' : 'English');
   const running = runs.some(run => run.command === 'lead-magnet' && run.job === j.id && !run.done);
   const available = !!state?.commands?.['lead-magnet'];
-  const valid = /^https:\/\/[^\s]+\.[^\s]+/.test(website.trim()) && !!location.trim();
+  const valid = /^https:\/\/[^\s]+\.[^\s]+/.test(website.trim());
   useEffect(() => {
     setWebsite(source.website || '');
-    setLocation(source.location || '');
     setPlaceId(source.place_id || '');
     setLanguage(source.language === 'German' ? 'German' : 'English');
     if (source.website) setEditing(false);
-  }, [source.website, source.location, source.place_id, source.language]);
+  }, [source.website, source.place_id, source.language]);
   const start = async () => {
     if (!valid || running) return;
     const sourceWasEdited = editing || !source.website;
@@ -481,7 +479,6 @@ function LeadMagnetBuilder({ j }: { j: any }) {
       const saved = await post('/api/lead-magnet-source', {
         id: j.id,
         website: website.trim(),
-        location: location.trim(),
         place_id: placeId.trim(),
         language,
       });
@@ -512,11 +509,9 @@ function LeadMagnetBuilder({ j }: { j: any }) {
     {ready && !editing && !publicUrl ? <a className="btn lead-magnet-open" href={artifactUrl(j.id, 'lead-magnet.html', artifactVersion(j.files, 'lead-magnet.html'))} target="_blank" rel="noopener">Open local audit</a> : null}
     {!editing && source.website ? <div className="lead-magnet-source">
       <span>{source.website.replace(/^https?:\/\/(?:www\.)?/, '').replace(/\/$/, '')}</span>
-      <small>{source.location}</small>
       <button className="link" onClick={() => setEditing(true)}>Change</button>
     </div> : <div className="lead-magnet-fields">
       <label>Business website<input type="url" value={website} placeholder="https://business.com" onChange={event => setWebsite(event.target.value)} /></label>
-      <label>City and country<input value={location} placeholder="Manchester, United Kingdom" onChange={event => setLocation(event.target.value)} /></label>
       <details><summary>Exact profile or language</summary><label>Google place ID<input value={placeId} placeholder="Optional unless locations are ambiguous" onChange={event => setPlaceId(event.target.value)} /></label>
         <label>Search language<select value={language} onChange={event => setLanguage(event.target.value)}><option>English</option><option>German</option></select></label></details>
     </div>}

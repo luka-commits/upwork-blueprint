@@ -130,17 +130,16 @@ class PipelineTest(unittest.TestCase):
 
     def test_lead_magnet_source_is_explicit_local_business_data(self):
         self.add({'id': 'J1', 'status': 'replied'})
-        invalid = self.run_cli('lead-magnet-source', 'J1', 'http://localhost:3000', '--location', 'Berlin, Germany')
+        invalid = self.run_cli('lead-magnet-source', 'J1', 'http://localhost:3000')
         self.assertNotEqual(invalid.returncode, 0)
         result = self.run_cli(
             'lead-magnet-source', 'J1', 'https://example.com',
-            '--location', 'Berlin, Germany', '--place-id', 'ChIJ-example', '--language', 'English',
+            '--place-id', 'ChIJ-example', '--language', 'English',
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         source = self.data()[0]['lead_magnet_source']
         self.assertEqual(source, {
             'website': 'https://example.com',
-            'location': 'Berlin, Germany',
             'place_id': 'ChIJ-example',
             'language': 'English',
         })
@@ -150,7 +149,7 @@ class PipelineTest(unittest.TestCase):
 
     def test_lead_magnet_source_is_not_available_before_a_conversation(self):
         self.add({'id': 'J1', 'status': 'new'})
-        result = self.run_cli('lead-magnet-source', 'J1', 'https://example.com', '--location', 'Berlin, Germany')
+        result = self.run_cli('lead-magnet-source', 'J1', 'https://example.com')
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn('lead_magnet_source', self.data()[0])
 
@@ -160,7 +159,7 @@ class PipelineTest(unittest.TestCase):
         saved = self.run_cli('lead-magnet-url', 'J1', 'https://example.com/123/audit')
         self.assertEqual(saved.returncode, 0, saved.stderr)
         self.assertEqual(self.data()[0]['lead_magnet_url'], 'https://example.com/123/audit')
-        changed = self.run_cli('lead-magnet-source', 'J1', 'https://example.org', '--location', 'Berlin, Germany')
+        changed = self.run_cli('lead-magnet-source', 'J1', 'https://example.org')
         self.assertEqual(changed.returncode, 0, changed.stderr)
         self.assertNotIn('lead_magnet_url', self.data()[0])
 

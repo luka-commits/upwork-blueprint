@@ -155,7 +155,7 @@ def discover_by_website(domain: str, api_token: str, *, location: str = "", busi
         matches = located
     if len(matches) > 1:
         labels = "; ".join(f"{item.get('title') or 'Unnamed'} - {item.get('address') or item.get('city') or 'location unknown'}" for item in matches[:5])
-        raise RuntimeError(f"Multiple Google profiles use {expected}; pass a location or confirmed place ID. Matches: {labels}")
+        raise RuntimeError(f"Multiple Google profiles use {expected}; pass the confirmed place ID. Matches: {labels}")
     return merge({}, matches[0])
 
 
@@ -275,6 +275,7 @@ def merge(profile: dict, raw: dict) -> dict:
         "service_area_business": ("isServiceAreaBusiness", "serviceArea", "serviceAreas"),
         "address": ("address",),
         "city": ("city",),
+        "country": ("country",),
         "country_code": ("countryCode",),
         "coordinate": ("location",),
         "opening_hours": ("openingHours",),
@@ -307,6 +308,7 @@ def merge(profile: dict, raw: dict) -> dict:
         "service_area_business": bool(raw.get("isServiceAreaBusiness") or raw.get("serviceArea") or raw.get("serviceAreas") or profile.get("service_area_business")),
         "address": raw.get("address") or profile.get("address"),
         "city": raw.get("city") or profile.get("city"),
+        "country": raw.get("country") or profile.get("country"),
         "country_code": raw.get("countryCode") or profile.get("country_code"),
         "coordinate": coordinate,
         "hours": "available" if raw.get("openingHours") else profile.get("hours"),

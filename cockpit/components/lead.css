@@ -505,8 +505,7 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
   font-size: 13px;
 }
 
-.lead-magnet-head span,
-.lead-magnet-source small {
+.lead-magnet-head span {
   color: var(--text-3);
   font-size: 10.5px;
 }
@@ -541,13 +540,9 @@ html[data-input="keyboard"] .workspace-tabs::before { transition: none; }
   white-space: nowrap;
 }
 
-.lead-magnet-source small {
-  grid-column: 1;
-}
-
 .lead-magnet-source button {
   grid-column: 2;
-  grid-row: 1 / span 2;
+  grid-row: 1;
 }
 
 .lead-magnet-fields {

@@ -71,6 +71,21 @@ class LeadMagnetRendererTest(unittest.TestCase):
         self.assertEqual(renderer.website_score(self.cro)[0], 0.5)
         self.assertEqual(renderer.overall_score([0.5, None, 1.0]), 0.75)
 
+    def test_builder_derives_location_from_confirmed_google_profile(self):
+        self.assertEqual(
+            builder.profile_location({'city': 'Berlin', 'country': 'Germany'}),
+            'Berlin, Germany',
+        )
+        self.assertEqual(
+            builder.profile_location({
+                'city': 'Manchester',
+                'address': '1 Example Road, Manchester, United Kingdom',
+            }),
+            'Manchester, United Kingdom',
+        )
+        with self.assertRaisesRegex(RuntimeError, 'did not provide a city and country'):
+            builder.profile_location({'coordinate': '52.5,13.4'})
+
     def test_report_has_exactly_three_sections_and_no_outbound_route(self):
         page = renderer.render('Example & Sons', self.cro, self.search, '2026-09-13', site=self.site)
         self.assertEqual(page.count('data-audit-section="'), 3)
@@ -322,8 +337,7 @@ class LeadMagnetRendererTest(unittest.TestCase):
             )
             self.assertEqual(added.returncode, 0, added.stderr)
             saved = subprocess.run(
-                [sys.executable, str(PIPELINE), 'lead-magnet-source', '123456', 'https://example.com',
-                 '--location', 'Berlin, Germany'],
+                [sys.executable, str(PIPELINE), 'lead-magnet-source', '123456', 'https://example.com'],
                 text=True, capture_output=True, env=env,
             )
             self.assertEqual(saved.returncode, 0, saved.stderr)
@@ -334,6 +348,7 @@ class LeadMagnetRendererTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             plan = json.loads(result.stdout)
             self.assertEqual(plan['paid_services'], ['Firecrawl', 'Apify', 'DataForSEO'])
+            self.assertEqual(plan['location'], 'derived from the confirmed Google profile')
             self.assertFalse(plan['would_send_or_publish'])
             self.assertTrue(plan['production_run_publishes'])
             self.assertFalse((folder / 'jobs' / '123456' / 'lead-magnet.html').exists())

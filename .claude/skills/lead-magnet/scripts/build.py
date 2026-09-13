@@ -101,6 +101,21 @@ def validate_site(path: Path) -> dict:
     return site
 
 
+def profile_location(profile: dict) -> str:
+    city = str(profile.get("city") or "").strip()
+    country = str(profile.get("country") or "").strip()
+    address = str(profile.get("address") or "").strip()
+    if not country and address:
+        parts = [part.strip() for part in address.split(",") if part.strip()]
+        if len(parts) > 1:
+            country = parts[-1]
+    if not city or not country:
+        raise RuntimeError(
+            "The confirmed Google profile did not provide a city and country. Save its exact place ID or check the profile."
+        )
+    return f"{city}, {country}"
+
+
 def jobs_dir(env: dict[str, str]) -> Path:
     return Path(env.get("BLUEPRINT_JOBDIR") or ROOT / "jobs")
 
@@ -144,17 +159,15 @@ def run(job_id: str, *, dry_run: bool = False) -> Path | None:
         raise RuntimeError("Lead magnets are available only for In conversation or Offer leads.")
     source = job.get("lead_magnet_source")
     if not isinstance(source, dict):
-        raise RuntimeError("Save the business website and location in the cockpit first.")
+        raise RuntimeError("Save the business website in the cockpit first.")
     website, domain = normalise_website(str(source.get("website") or ""))
-    location = str(source.get("location") or "").strip()
-    if not location:
-        raise RuntimeError("Add the business city and country so local rankings use the right market.")
+    saved_location = str(source.get("location") or "").strip()
     missing = missing_credentials(env)
     if dry_run:
         print(json.dumps({
             "job": job_id,
             "website": website,
-            "location": location,
+            "location": "derived from the confirmed Google profile",
             "paid_services": ["Firecrawl", "Apify", "DataForSEO"],
             "missing_credentials": missing,
             "would_send_or_publish": False,
@@ -188,10 +201,13 @@ def run(job_id: str, *, dry_run: bool = False) -> Path | None:
     if place_id:
         profile_args.extend(["--place-id", place_id])
     else:
-        profile_args.extend(["--discover-domain", domain, "--location", location])
+        profile_args.extend(["--discover-domain", domain])
+        if saved_location:
+            profile_args.extend(["--location", saved_location])
     command(profile_args, cwd=SKILL, env=env, stdout=profile_file)
     profile = json.loads(profile_file.read_text(encoding="utf-8"))
     validate_profile(profile, domain)
+    location = profile_location(profile)
 
     collect_args = [
         sys.executable, str(SKILL / "scripts" / "collect.py"),

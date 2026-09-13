@@ -22,6 +22,9 @@ python3 .claude/skills/lead-magnet/scripts/build.py <job-id>
 
 The job must be In conversation or Offer and have a saved business website.
 The cockpit saves that source through `code/pipeline.py lead-magnet-source`.
+The audit resolves the exact Google profile by its website and derives the city,
+country and map coordinate from that confirmed profile. The member supplies a
+place ID only when more than one profile uses the same website.
 
 The engine uses the member's own keys from `.env`, with
 `~/.config/credentials.env` as the local fallback: Firecrawl for the rendered
@@ -45,7 +48,7 @@ to the stable URL saved as `lead_magnet_url`. Publication uses the same
 pre-contract contact-details gate as a pitch page. It creates the link but never
 adds it to a message or sends anything. If publication fails after a successful
 build, the next run reuses that exact current report and retries only the free
-Vercel step. Changing the saved website or location clears the old URL and
+Vercel step. Changing the saved website or exact profile clears the old URL and
 requires a fresh audit.
 
 The renderer uses the bundled source-derived React template. Read

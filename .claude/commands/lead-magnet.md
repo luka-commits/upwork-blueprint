@@ -10,7 +10,7 @@ Upwork or sends a message. A successful run publishes the checked audit.
 
 ROADMAP
 
-1. Check the saved business website, provider access, balances and Vercel destination.
+1. Check the website, resolve its exact Google profile, then verify providers, balances and Vercel.
 2. Measure the rendered website, search visibility and 25-point Maps grid.
 3. Build, validate, publish and open the audit for review.
 

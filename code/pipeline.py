@@ -26,7 +26,7 @@ Usage:
     python3 code/pipeline.py loom-score <job_id> <0..100>
     python3 code/pipeline.py task <job_id> add "what to do" [--due +2d|YYYY-MM-DD] [--time HH:MM]
     python3 code/pipeline.py task <job_id> done|reopen|delete <task_number>
-    python3 code/pipeline.py lead-magnet-source <job_id> <website> --location "City, Country" [--place-id ID]
+    python3 code/pipeline.py lead-magnet-source <job_id> <website> [--place-id ID]
     python3 code/pipeline.py lead-magnet-url <job_id> <public_url|->
     python3 code/pipeline.py get <job_id>
     python3 code/pipeline.py list [--status new] [--limit 25]
@@ -657,7 +657,6 @@ def cmd_lead_magnet_source(args):
     if job.get('status') not in ('replied', 'offer'):
         abort('lead magnets are available only for replied or offer leads.')
     website = args.website.strip()
-    location = args.location.strip()
     place_id = args.place_id.strip()
     parsed = urlparse(website)
     host = (parsed.hostname or '').lower().rstrip('.')
@@ -669,13 +668,10 @@ def cmd_lead_magnet_source(args):
                    or '.' not in host or bool(re.fullmatch(r'[\d.]+', host)))
     if parsed.scheme != 'https' or private or parsed.username or parsed.password or any(c.isspace() for c in website):
         abort("use the business's public HTTPS website.")
-    if not location or len(location) > 160:
-        abort('location must name the business city and country in 160 characters or fewer.')
     if len(place_id) > 220 or any(c in place_id for c in '\r\n\t'):
         abort('place ID is not valid.')
     job['lead_magnet_source'] = {
         'website': website,
-        'location': location,
         'place_id': place_id,
         'language': args.language,
     }
@@ -922,7 +918,6 @@ def build_parser():
     p = sub.add_parser('lead-magnet-source', help='Save the confirmed local business used by the SEO audit.')
     p.add_argument('job_id')
     p.add_argument('website')
-    p.add_argument('--location', required=True)
     p.add_argument('--place-id', default='')
     p.add_argument('--language', default='English', choices=('English', 'German'))
     p.set_defaults(func=cmd_lead_magnet_source)

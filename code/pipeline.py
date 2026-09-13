@@ -31,6 +31,7 @@ Usage:
     python3 code/pipeline.py get <job_id>
     python3 code/pipeline.py list [--status new] [--limit 25]
     python3 code/pipeline.py summary
+    python3 code/pipeline.py reset-search [--dry-run]
     python3 code/pipeline.py prune [--hours 24] [--dry-run]
 
 Exits 1 when a job id does not exist: a silent no-op would be worse than an
@@ -827,6 +828,49 @@ def cmd_prune(args):
           f'{len(raw_cache)} raw cache files and {len(previews)} pitch previews deleted.')
 
 
+def cmd_reset_search(args):
+    """Remove never-applied search leads while preserving real funnel history."""
+    jobs = load()
+
+    def searched(job):
+        return any(str(source).lower().startswith(('recommended', 'query-', 'title-', 'search-'))
+                   for source in job.get('found_via', []))
+
+    def applied(job):
+        if job.get('applied_at') or job.get('application_date_unknown'):
+            return True
+        return any(event.get('status') in ('applied', 'replied', 'offer', 'won')
+                   for event in job.get('history', []) if isinstance(event, dict))
+
+    removed = [job for job in jobs if job.get('status') in ('new', 'skipped')
+               and searched(job) and not applied(job)]
+    if args.dry_run:
+        print(f'DRY RUN: {len(removed)} never-applied search leads would be removed. '
+              f'{len(jobs) - len(removed)} applied leads, conversations and clients would stay. Nothing changed.')
+        return
+    if not removed:
+        print(f'0 search leads removed. {len(jobs)} applied leads, conversations and clients kept.')
+        return
+
+    stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    archive = data_dir() / 'search-resets' / stamp
+    archive.mkdir(parents=True, exist_ok=False)
+    (archive / 'jobs.json').write_text(json.dumps(removed, indent=2, ensure_ascii=False), encoding='utf-8')
+    save([job for job in jobs if job not in removed])
+
+    import shutil
+    archived_workspaces = 0
+    for job in removed:
+        source = jobs_dir() / str(job.get('id'))
+        if source.is_dir():
+            target = archive / 'jobs' / source.name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(source), str(target))
+            archived_workspaces += 1
+    print(f'{len(removed)} never-applied search leads removed; {archived_workspaces} job workspaces archived. '
+          f'{len(jobs) - len(removed)} applied leads, conversations and clients kept. Backup: {archive}')
+
+
 def build_parser():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='cmd', required=True)
@@ -938,6 +982,10 @@ def build_parser():
 
     p = sub.add_parser('summary', help='The pipeline in about twenty lines.')
     p.set_defaults(func=cmd_summary)
+
+    p = sub.add_parser('reset-search', help='Remove never-applied search leads and archive their files.')
+    p.add_argument('--dry-run', action='store_true')
+    p.set_defaults(func=cmd_reset_search)
 
     p = sub.add_parser('prune', help="Drop Upwork content older than 24h (Upwork's caching rule).")
     p.add_argument('--hours', type=int, default=24)

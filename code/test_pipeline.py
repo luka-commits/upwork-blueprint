@@ -439,6 +439,27 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(self.run_cli('set', 'NOFIT', 'skipped', '--note', 'not a fit').returncode, 0)
         self.assertEqual(self.data()[0]['notes'], 'not a fit')
 
+    def test_reset_search_removes_only_never_applied_search_leads_and_archives_files(self):
+        self.add({'id': 'NEW', 'found_via': ['query-local-seo']})
+        self.add({'id': 'SKIP', 'status': 'skipped', 'found_via': ['recommended-1']})
+        self.add({'id': 'APPLIED', 'status': 'applied', 'found_via': ['query-local-seo']})
+        self.add({'id': 'CLIENT', 'status': 'won', 'found_via': ['messages']})
+        folder = self.jobdir / 'NEW'
+        folder.mkdir(parents=True)
+        (folder / 'pitch.html').write_text('draft', encoding='utf-8')
+
+        dry = self.run_cli('reset-search', '--dry-run')
+        self.assertIn('2 never-applied search leads would be removed', dry.stdout)
+        self.assertEqual(len(self.data()), 4)
+
+        result = self.run_cli('reset-search')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([job['id'] for job in self.data()], ['APPLIED', 'CLIENT'])
+        backups = list((self.data_dir / 'search-resets').glob('*/jobs.json'))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual({job['id'] for job in json.loads(backups[0].read_text(encoding='utf-8'))}, {'NEW', 'SKIP'})
+        self.assertTrue((backups[0].parent / 'jobs' / 'NEW' / 'pitch.html').is_file())
+
     def test_trim_keeps_live_pipeline(self):
         pipeline = load_module('pipeline')
         jobs = [{'id': f'OLD-{i}', 'status': 'new', 'found_at': f'2020-01-01T00:00:{i:02d}+00:00'}

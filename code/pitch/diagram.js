@@ -536,6 +536,12 @@
         'font-size': 18, 'font-weight': 700, 'font-family': MONO, opacity: .42 });
       lt.textContent = String(groupIndex + 1).padStart(2, '0');
       gg.appendChild(lt);
+      var phaseLabel = String(grp.label || '');
+      if (phaseLabel.length > 28) phaseLabel = phaseLabel.slice(0, 27).trimEnd() + '…';
+      var label = el('text', { x: x1 - PADX + 48, y: y1 - 14, fill: P.text2,
+        'font-size': 11, 'font-weight': 650, 'letter-spacing': '.01em' });
+      label.textContent = phaseLabel;
+      gg.appendChild(label);
       gGroups.appendChild(gg);
     });
 

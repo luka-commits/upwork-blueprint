@@ -15,7 +15,7 @@ something the proof file does not hold.
         --kickoff "..." --kickoff "..." \\
         --updates "Twice a week|Upwork, then the client's workspace" \\
         [--loom-url https://www.loom.com/share/...] [--video-length "3 minute"] \\
-        [--hero-illustration path] [--profile-image path] [--live-artifact "Label|URL"] \\
+        --hero-illustration path [--profile-image path] [--live-artifact "Label|URL"] \\
         [--proof-link "Label|Detail|URL"] [--next-step "..."] \\
         [--theme warm|steel|signal|growth|calm] [--dither-source path] \\
         [--showcase "Title|Teaser|URL|CTA" --showcase-point "..." --showcase-html path]
@@ -480,7 +480,8 @@ def main(argv=None):
                     help='job-specific image for each working-together card')
     ap.add_argument('--loom-url', default='')
     ap.add_argument('--video-length', default='3 minute')
-    ap.add_argument('--hero-illustration', default='')
+    ap.add_argument('--hero-illustration', required=True,
+                    help='required 16:9 image of the project or finished outcome')
     ap.add_argument('--profile-image', default='', help='member-supplied action photo for the proof section')
     ap.add_argument('--theme', choices=('warm', 'steel', 'signal', 'growth', 'calm'), default='warm')
     ap.add_argument('--dither-source', default='',
@@ -510,10 +511,12 @@ def main(argv=None):
         abort(f'dither source "{dither_path}" does not exist.')
     dither = data_uri(dither_path) if dither_path.is_file() else ''
     dither_fit = '1.05' if args.dither_source else ''
-    illustration_src = data_uri(args.hero_illustration) if args.hero_illustration else ''
+    illustration_path = pathlib.Path(args.hero_illustration)
+    if not illustration_path.is_file():
+        abort(f'hero illustration "{illustration_path}" does not exist.')
+    illustration_src = data_uri(illustration_path)
     hero_art = (f'<div class="hero-art" data-settle><img src="{illustration_src}" '
-                f'alt="Illustration of the proposed outcome for {esc(safe_job_title(job.get("title")))}"></div>'
-                if illustration_src else '')
+                f'alt="Illustration of the proposed outcome for {esc(safe_job_title(job.get("title")))}"></div>')
 
     live = ''
     if args.live_artifact:

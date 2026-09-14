@@ -40,10 +40,12 @@ category is not a reason to skip this: the specific combination is what the
 client is paying for.
 
 For SEO, choose the relevant lane from `context/tool-knowledge/seo.md` before
-drawing. For Google Ads, put verified conversion measurement before bidding and
-keep media spend separate from the implementation fee. These references guide
-the mechanism; they never supply proof about the member or facts about the
-client.
+drawing. Its five-stage client roadmap is the default for SEO website work. Put
+the posting's plugins, badges, privacy rules and performance targets inside the
+relevant stage notes instead of turning each requirement into another box. For
+Google Ads, put verified conversion measurement before bidding and keep media
+spend separate from the implementation fee. These references guide the
+mechanism; they never supply proof about the member or facts about the client.
 
 ## Step 4 · Read the posting into a plan
 
@@ -61,6 +63,11 @@ Write the graph to `data/pitch-graph-<id>.json`:
   client-facing outcome labels, not technical buckets such as "Setup" or
   "Automation". The first phase must be the smallest useful result. The board
   turns each group's last connected step into its visible phase output.
+- **SEO website jobs:** use the five stages in
+  `context/tool-knowledge/seo.md` as the main path. Keep it to five or six
+  connected nodes, one phase per left-to-right column. A plugin, badge, schema
+  type, speed target or privacy constraint belongs in a stage note unless it
+  changes the order or creates a real branch.
 
 Estimate the member's effort from this same scope, not from the client's budget.
 Use a low, likely and high hour case; two to five roadmap milestones whose hours
@@ -88,7 +95,8 @@ python3 code/pitch/generate.py <id> --hook "..." \
   --graph data/pitch-graph-<id>.json --kickoff "..." (repeat) \
   --updates "cadence|platform" \
   --plan-outcome "job-specific client benefit" (once per card) \
-  --plan-image jobs/<id>/plan-01.jpg (once per card)
+  --plan-image jobs/<id>/plan-01.jpg (once per card) \
+  --hero-illustration jobs/<id>/hero.jpg
 ```
 
 - **Industry treatment:** choose one restrained `--theme` and keep it for the
@@ -135,12 +143,11 @@ python3 code/pitch/generate.py <id> --hook "..." \
   and final handoff. It sits above the board. Generic claims such as "drawn
   from your posting" are not accepted.
 - Optional: `--loom-url` once recorded, `--live-artifact "Label|URL"` for anything actually built and `--proof-link "Label|Detail|URL"` for past work with no contact details on it.
-- For a complex flow whose result is hard to picture, generate one 16:9
-  `--hero-illustration`: show the project or finished outcome in the client's
-  industry, not a person presenting it. Use people only as small context. No
-  text, logos or generic boxes and arrows. It always appears
-  in the hero directly below the headline, never inside the flow. Skip it only when the result is already an
-  obvious short chain, and state that decision in the completion report.
+- Generate one 16:9 `--hero-illustration` for every pitch. Show the project or
+  finished outcome in the client's industry, not a person presenting it. Use
+  people only as small context. No text, logos or generic boxes and arrows. It
+  appears in the hero directly below the headline, never inside the flow. The
+  generator and publish gate stop when the image is absent.
 - Give the moving dither field a job-specific, high-contrast source through
   `--dither-source`. It must remain identifiable after being reduced to dots:
   use one simple industry object or scene, such as a roofline and ladder for a

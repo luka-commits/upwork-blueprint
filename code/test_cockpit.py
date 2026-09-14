@@ -33,7 +33,9 @@ class CockpitTest(unittest.TestCase):
         cls.data = pathlib.Path(cls.tmp.name) / 'data'
         cls.data.mkdir()
         (cls.jobdir / '111111').mkdir(parents=True)
-        (cls.jobdir / '111111' / 'pitch.html').write_text('<h1>pitch</h1>', encoding='utf-8')
+        (cls.jobdir / '111111' / 'pitch.html').write_text(
+            '<h1>pitch</h1><div class="hero-art"><img src="data:image/png;base64,AA=="></div>',
+            encoding='utf-8')
         (cls.jobdir / '111111' / 'thread.json').write_text(
             json.dumps({'messages': [{'from': 'client', 'text': 'Hi'}]}), encoding='utf-8')
         (cls.jobdir / '111111' / 'replies.json').write_text(

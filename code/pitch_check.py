@@ -39,7 +39,7 @@ def links(page):
     return [h for h in re.findall(r'href="([^"]*)"', page) if not h.startswith(('#', 'data:'))]
 
 
-def check_page(path):
+def check_page(path, *, require_hero=True):
     page = pathlib.Path(path).read_text(encoding='utf-8')
     problems = []
     for h in links(page):
@@ -58,6 +58,9 @@ def check_page(path):
     left = re.findall(r'\{\{[A-Z_]+\}\}', page)
     if left:
         problems.append(f'unfilled placeholders: {", ".join(sorted(set(left)))}')
+    hero = re.search(r'<div class="hero-art"[^>]*>\s*<img\s+[^>]*src="data:image/', page, re.I)
+    if require_hero and not hero:
+        problems.append('the hero image is missing or is not embedded')
     return problems
 
 

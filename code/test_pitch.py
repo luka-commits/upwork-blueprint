@@ -51,8 +51,13 @@ class PitchCheckTest(unittest.TestCase):
     def test_clean_page_passes(self):
         page = ('<html><style>a{color:red}</style><body><h1>Your CRM, rebuilt</h1>'
                 '<a href="https://www.upwork.com/freelancers/~01abc">Upwork profile</a>'
-                '<img src="data:image/png;base64,AAAA"><script>var x = "mailto:no@no.io";</script></body></html>')
+                '<div class="hero-art"><img src="data:image/png;base64,AAAA"></div>'
+                '<script>var x = "mailto:no@no.io";</script></body></html>')
         self.assertEqual(self.check(page), [])
+
+    def test_missing_hero_image_fails(self):
+        problems = self.check('<html><body><h1>Useful pitch</h1></body></html>')
+        self.assertIn('the hero image is missing or is not embedded', problems)
 
     def test_contact_channels_fail(self):
         for bad in ('<a href="mailto:me@site.com">x</a>', '<a href="https://calendly.com/me">x</a>',
@@ -185,6 +190,7 @@ class GenerateHelpersTest(unittest.TestCase):
         self.assertIn("tabindex: 0, role: 'button'", diagram)
         self.assertIn("var queue = starts.map", diagram)
         self.assertIn('function layoutByGroups()', diagram)
+        self.assertIn("phaseLabel = String(grp.label || '')", diagram)
         self.assertNotIn('function renderRoadmap()', diagram)
         self.assertIn('function saveInspectorForm()', diagram)
         self.assertIn('if (layoutByGroups()) return;', diagram)
@@ -196,6 +202,7 @@ class GenerateHelpersTest(unittest.TestCase):
         generator = (CODE / 'pitch' / 'generate.py').read_text(encoding='utf-8')
         diagram = (CODE / 'pitch' / 'diagram.js').read_text(encoding='utf-8')
         self.assertIn('<div class="hero-art" data-settle>', generator)
+        self.assertIn("add_argument('--hero-illustration', required=True", generator)
         self.assertNotIn('ILLUSTRATION_SRC', diagram)
         self.assertIn("REPORT_COVER = HERE / 'report-cover-example.jpg'", generator)
 

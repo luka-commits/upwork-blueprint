@@ -11,7 +11,7 @@ import pitch_check
 def check_page(path):
     source = pathlib.Path(path)
     page = source.read_text(encoding='utf-8')
-    problems = list(pitch_check.check_page(source))
+    problems = list(pitch_check.check_page(source, require_hero=False))
     if page.count('data-audit-section="') != 3:
         problems.append('does not contain the three checked audit sections')
     if 'name="lead-magnet-template" content="upwork-lead-magnet-v1"' not in page:

@@ -90,8 +90,8 @@ test('preparation progress starts at zero', () => {
     ready: 0,
     total: 2,
     items: [
-      { key: 'pitch', label: 'Pitch page and Loom script', ready: false },
-      { key: 'application', label: 'Loom video and application', ready: false },
+      { key: 'pitch', label: 'Pitch page', ready: false },
+      { key: 'application', label: 'Record Loom and apply', ready: false },
     ],
   });
 });
@@ -119,7 +119,7 @@ test('preparation reaches two only when both human steps are complete', () => {
 
 test('preparation chooses one of the two human steps', () => {
   assert.equal(nextPreparationMaterial([], false), 'pitch');
-  assert.equal(nextPreparationMaterial(['pitch.html'], false), 'pitch');
+  assert.equal(nextPreparationMaterial(['pitch.html'], false), 'application');
   assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md'], false), 'application');
   assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md', 'application.md'], false), 'application');
   assert.equal(nextPreparationMaterial(['pitch.html', 'loom-script.md'], true), 'application');

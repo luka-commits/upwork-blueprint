@@ -78,8 +78,8 @@ export function preparationProgress(files, hasValidVideo) {
     .map(file => typeof file === 'string' ? file : file?.name)
     .filter(Boolean));
   const items = [
-    { key: 'pitch', label: 'Pitch page and Loom script', ready: names.has('pitch.html') && names.has('loom-script.md') },
-    { key: 'application', label: 'Loom video and application', ready: hasValidVideo === true && names.has('application.md') },
+    { key: 'pitch', label: 'Pitch page', ready: names.has('pitch.html') },
+    { key: 'application', label: 'Record Loom and apply', ready: names.has('loom-script.md') && hasValidVideo === true && names.has('application.md') },
   ];
   return { ready: items.filter(item => item.ready).length, total: 2, items };
 }

@@ -645,26 +645,30 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
   const applicationRunning = runs.some(run => run.command === 'apply' && run.job === j.id && !run.done);
 
   if (j.status === 'new') return <div className="materials preparation-materials">
-    <MaterialRow label="1. Build your pitch" ready={pitchReady && scriptReady} defaultOpen={!pitchReady || !scriptReady}>
-      {pitchReady && scriptReady ? <>
+    <MaterialRow label="1. Build your pitch" ready={pitchReady} defaultOpen={!pitchReady}>
+      {pitchReady ? <>
         <div className="preview"><iframe src={artifactUrl(j.id, 'pitch.html', version('pitch.html'))} title="Pitch page preview" loading="lazy" /></div>
         <div className="material-actions">
           <a className="btn" href={artifactUrl(j.id, 'pitch.html', version('pitch.html'))} target="_blank" rel="noopener">Open local preview</a>
         </div>
         <PitchUrlEditor j={j} copy={copy} />
-        <div className="preparation-output">
-          <span>Loom script</span>
-          <LoomScriptView id={j.id} version={version('loom-script.md')} />
-        </div>
       </> : canRun('pitch-page')
         ? <><PitchPageButton j={j} primary />
           {invalid['pitch.html'] || invalid['loom-script.md'] ? <p className="material-note material-blocker">The saved pitch output failed its gate. Generate it again.</p> : null}</>
         : <p className="material-note">Pitch generation is unavailable.</p>}
     </MaterialRow>
 
-    <MaterialRow label="2. Record and apply" ready={videoReady && applicationReady} defaultOpen={pitchReady && scriptReady && !(videoReady && applicationReady)}
-      status={!pitchReady || !scriptReady ? 'Locked' : applicationRunning ? 'Working' : undefined}>
-      {!pitchReady || !scriptReady ? <p className="material-note material-blocker">Generate the pitch page first.</p> : <>
+    <MaterialRow label="2. Record and apply" ready={videoReady && applicationReady} defaultOpen={pitchReady && !(videoReady && applicationReady)}
+      status={!pitchReady ? 'Locked' : !scriptReady ? 'Missing script' : applicationRunning ? 'Working' : undefined}>
+      {!pitchReady ? <p className="material-note material-blocker">Generate the pitch page first.</p> : <>
+        {scriptReady ? <div className="preparation-output">
+          <span>Loom script</span>
+          <LoomScriptView id={j.id} version={version('loom-script.md')} />
+        </div> : canRun('pitch-page')
+          ? <><PitchPageButton j={j} idleLabel="Generate Loom script" />
+            {invalid['loom-script.md'] ? <p className="material-note material-blocker">The saved Loom script failed its gate. Generate it again.</p> : null}</>
+          : <p className="material-note material-blocker">The Loom script is unavailable.</p>}
+        {scriptReady ? <>
         <RecordingLauncher j={j} post={post} />
         <LoomReviewToggle j={j} post={post} />
         <VideoEditor j={j} post={post} copy={copy}
@@ -683,6 +687,7 @@ function Materials({ j, files, includeSales = true }: { j: any; files: string[];
         </div> : null}
         {videoReady && (d.boost_available === false || d.boost_recommended != null || d.boost_top_bids !== undefined)
           ? <div className="boost-slot"><span>Boost bids</span><BoostBlock d={d} /></div> : null}
+        </> : null}
       </>}
     </MaterialRow>
   </div>;

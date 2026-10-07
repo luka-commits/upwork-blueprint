@@ -45,7 +45,7 @@ Claude Code session. `RESEARCH.md` is background reading; no command uses it.
 | Step | Command | What it does |
 |------|---------|--------------|
 | 1 | `/about-me` | Your work history, your offer, your terms and every result you can prove |
-| 2 | `/profile` | Measures your live profile, then writes the version that fixes it |
+| 2 | `/profile` | Writes your profile from your facts and top examples, and puts it live after one yes |
 | 3 | `/find-jobs` | Ten leads a day worth applying to, scored against what you sell, straight into your cockpit |
 | 4 | `/proposal` | A one-page pitch site plus the cover letter and bid you submit with your Loom |
 | 5 | `/brief` | Your morning: what changed on Upwork, where every lead stands, and the messages that are due |

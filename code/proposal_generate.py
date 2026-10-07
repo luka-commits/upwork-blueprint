@@ -123,14 +123,14 @@ def poster(job_id):
 
 
 def video(raw, job_id):
-    """The most important part of the page. Without a link it says so instead of pretending."""
+    """Optional. Without a link the card is left out and the page opens on the problem."""
     raw = raw or {}
     href = https(raw.get('href'), 'video.href')
+    if not href:
+        return ''
     length = str(raw.get('length') or '').strip()
     inner = (poster(job_id) + '<i class="play"></i>'
              f'<div><b>{value(raw.get("title"))}</b><span>{value(raw.get("note"))}</span></div>')
-    if not href:
-        return f'<div class="video">{inner}<span class="len">no link yet: {OPEN}</span></div>'
     return (f'<a class="video" href="{esc(href)}">{inner}'
             + (f'<span class="len">{esc(length)}</span>' if length else '') + '</a>')
 

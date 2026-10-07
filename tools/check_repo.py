@@ -862,7 +862,8 @@ def fixture_pipeline():
     assert first_reply['status'] == 'replied' and first_reply['last_activity_at'] == sent
     assert first_reply['history'][-1]['at'] > first_reply['last_activity_at']
     assert first_reply['follow_up_source'] == 'waiting'
-    assert first_reply['next_follow_up'] == now.date().isoformat()
+    # The pipeline dates follow-ups on the member's own calendar, not UTC's.
+    assert first_reply['next_follow_up'] == datetime.date.today().isoformat()
     assert pipeline.find(saved, '730001')['next_follow_up'] == '2030-01-02'
     imported = next(row for row in saved if row.get('contract_id') == 'contract-fixture')
     assert imported['status'] == 'won' and imported['imported'] is True
@@ -934,7 +935,7 @@ def fixture_pipeline():
                 'problem': 'Fixture problem', 'cost': {'text': 'Fixture cost', 'note': 'Fixture split'}}
     run(['730001', '--file', '-'], proposal, script='proposal_generate.py')
     page = (ROOT / 'jobs' / '730001' / 'proposal.html').read_text(encoding='utf-8')
-    assert '{{' not in page and 'class="missing"' in page and '<a class="video"' not in page
+    assert '{{' not in page and 'class="missing"' in page and 'class="video"' not in page
     assert 'member' not in page.lower() and 'class="cta"' not in page
     assert 'href=""' not in page and 'href="#"' not in page and '<small>Fixture split</small>' in page
     run(['730001', '--file', '-'], dict(proposal, video={'href': 'https://www.loom.com/share/x', 'length': '1:10'},

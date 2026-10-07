@@ -116,12 +116,12 @@ and funded milestone. Mark each ready, thin or missing and put gaps in the repor
 ## Step 5 · Build the page
 
 The markdown is what the member pastes into Upwork chat. The page is the one pager a
-client reads twice: **the video on top, then eight short parts, one line each.** If it runs
+client reads twice: **an optional video on top, then eight short parts, one line each.** If it runs
 past one page, cut. `headline` names the build ("Missed-call text-back"), not the client.
 
-- `video` `{href, title, note, length}`: the most important part. A custom Loom for this
+- `video` `{href, title, note, length}`: when there is one, it leads. A custom Loom for this
   client when the member has time, otherwise their reusable walkthrough. Title speaks to the
-  client ("Sarah, watch this first"), note says what it covers. No link renders it open.
+  client ("Sarah, watch this first"), note says what it covers. Optional: no link, no card.
 - `problem`: their pain in their numbers. `deliverable`: what they get, as a working state.
 - `worth`: only a figure the client gave on the call, else open. `timeline`: start, demo, live.
 - `cost`: the approved price; `{text, note}` puts the milestone split in the note.

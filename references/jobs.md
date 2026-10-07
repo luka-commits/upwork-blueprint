@@ -164,11 +164,9 @@ Costs no Upwork call, because it reads the files the run already saved.
 
 ## Ready-made tracks
 
-A first run does not have to invent terms from nothing. `/about-me` records which of the five
-branches in [templates/profile/lanes.md](../templates/profile/lanes.md) the member picked, and
-each branch has its starting terms below, split across the four angles. Offer the terms of every
-branch they picked, let them cut what they cannot deliver, and treat the rest as the exploration
-set: the ones that produce nothing twice still get dropped. A custom direction has no set here;
+`/about-me` writes the `Search:` line of each picked branch in
+[templates/profile/lanes.md](../templates/profile/lanes.md) into `context/me.md` as the member's tracks,
+and `/find-jobs` runs them in the same run without asking. A custom direction has no line there;
 build it from the catalog above.
 
 **1. GoHighLevel CRM automations**
@@ -223,13 +221,8 @@ ten rows worth reading.
 experience, and the wrong figure is expensive in both directions: an established member
 floored at a hundred dollars takes work that pays worse than their afternoon, and a
 beginner floored too high finds nothing.
-`/find-jobs` therefore opens by showing these numbers with a recommendation for that
-person, and whatever they answer is written into `context/me.md` and read from there on
-every later run. Three tiers: **no reviews yet** puts the fixed floor near 100, because
-the first two reviews are worth more than the first two hundred dollars, and halves the
-hourly floor, since the rate is still a hope. **A rate and a few finished contracts** fits
-the figures below. **A high rate with proof and a narrow niche** raises the hourly floor
-toward 80 percent, and their honest day is three good leads rather than ten.
+`/find-jobs` applies the defaults below and asks nothing; a member who wants other figures
+writes them into `context/me.md`, and every later run reads them there.
 
 | Limit | Default | Filter | Why this number |
 |---|---|---|---|

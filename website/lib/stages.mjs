@@ -1,5 +1,5 @@
 // The eight stages a lead moves through, in pipeline order. code/pipeline.py
-// STATUSES owns the keys; the labels are fixed (cockpit/PRINCIPLES.md).
+// STATUSES owns the keys; the labels are fixed (website/PRINCIPLES.md).
 export const ORDER = ['new', 'applied', 'replied', 'call', 'offer', 'won', 'lost', 'skipped'];
 export const LABEL = {
   new: 'Not applied', applied: 'Applied', replied: 'In conversation', call: 'Call',

@@ -2,13 +2,13 @@
 description: Opens the cockpit: your leads as a list or board with the next command to copy into Claude Code, plus an Analytics tab with today's applications and the funnel. It never runs a command and sends nothing.
 ---
 
-# /cockpit
+# /dashboard
 
 Open with a two-line ROADMAP: check for an existing cockpit, start it if needed,
 then open it. The cockpit never runs a command. First start may need Node.js and a short install/build.
 
 1. Check whether this repo's cockpit is already running. Reuse it, unless the
-   repo changed since it started (a `git pull` or an edit under `cockpit/`): then
+   repo changed since it started (a `git pull` or an edit under `website/`): then
    stop it and start it again, or it keeps showing the old build. Never start a
    second copy. An occupied port alone does not prove this cockpit owns it.
 2. Otherwise run `python3 code/cockpit.py --no-open` in the background. The first

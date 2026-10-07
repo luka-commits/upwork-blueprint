@@ -46,7 +46,7 @@ pipeline; it sends nothing.
    Upwork calls that answer the question and never poll in the background.
 
 The cockpit applies these principles to the interface in
-[`cockpit/PRINCIPLES.md`](cockpit/PRINCIPLES.md).
+[`website/PRINCIPLES.md`](website/PRINCIPLES.md).
 
 ## What success looks like
 

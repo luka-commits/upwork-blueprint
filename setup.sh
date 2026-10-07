@@ -34,7 +34,7 @@ if not env.get('VERCEL_PITCH_PROJECT'):
     lines.append(f'VERCEL_PITCH_PROJECT=upwork-pitches-{suffix}')
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 PY
-echo "Vercel is required for /pitch-page and /lead-magnet; vercel login connects it, and the project is created on the first publish."
+echo "Vercel is required for /proposal and /lead-magnet; vercel login connects it, and the project is created on the first publish."
 
 # The commands read .env first and ~/.config/credentials.env after it, so a key kept
 # centrally is a key the run will find. Checking only .env reported gaps that were not
@@ -68,14 +68,14 @@ if python3 -c 'import sys; sys.path.insert(0, "code"); import lead_magnet_render
       note "the audit report template did not build: /lead-magnet cannot render a report until it does. Run 'cd templates/lead-magnet && npm install && npm run build' and read npm's own error. Everything else below still applies."
     fi
   else
-    note "Node.js is missing: /lead-magnet cannot render its report and /cockpit will not start. Install it from https://nodejs.org, then run this again."
+    note "Node.js is missing: /lead-magnet cannot render its report and /dashboard will not start. Install it from https://nodejs.org, then run this again."
   fi
 fi
 
 echo
 echo "What each command still needs from you:"
 
-command -v node >/dev/null || note "node: /cockpit needs it. https://nodejs.org"
+command -v node >/dev/null || note "node: /dashboard needs it. https://nodejs.org"
 
 # The first real run of /lead-magnet stopped here, not on a key: its fail-closed
 # preflight wants a browser it can drive, and that is two installs, not one.
@@ -90,15 +90,15 @@ fi
 
 if ! command -v google-chrome >/dev/null && ! command -v chromium >/dev/null \
    && [ ! -d "/Applications/Google Chrome.app" ] && ! env_has CHROME_BIN; then
-  note "Google Chrome: /pitch-page checks the finished page on a phone screen with it, and /proposal draws its sketch with it. Install it from google.com/chrome, or put the path in CHROME_BIN."
+  note "Google Chrome: /proposal checks the finished page on a phone screen with it, and /sales-call-proposal draws its sketch with it. Install it from google.com/chrome, or put the path in CHROME_BIN."
 fi
 
-if [ ! -d cockpit/node_modules ] && command -v npm >/dev/null; then
-  note "the cockpit installs its own packages on the first /cockpit run, which takes a few minutes once. Run 'cd cockpit && npm install' now if you would rather wait for it here."
+if [ ! -d website/node_modules ] && command -v npm >/dev/null; then
+  note "the cockpit installs its own packages on the first /dashboard run, which takes a few minutes once. Run 'cd website && npm install' now if you would rather wait for it here."
 fi
 
 if ! command -v vercel >/dev/null; then
-  note "vercel: /pitch-page and /lead-magnet require it to publish. Install with 'npm i -g vercel', then 'vercel login'."
+  note "vercel: /proposal and /lead-magnet require it to publish. Install with 'npm i -g vercel', then 'vercel login'."
 elif ! vercel whoami >/dev/null 2>&1 && ! env_has VERCEL_TOKEN; then
   note "vercel is installed but not signed in. Run 'vercel login', or put a VERCEL_TOKEN in .env."
 fi
@@ -107,7 +107,7 @@ env_has FIRECRAWL_API_KEY || note "FIRECRAWL_API_KEY in .env: /lead-magnet reads
 env_has APIFY_API_TOKEN || note "APIFY_API_TOKEN in .env: /lead-magnet reads the Google Business Profile with it. apify.com"
 env_has DATAFORSEO_LOGIN || note "DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD in .env: /lead-magnet reads rankings with them. dataforseo.com, one dollar of free credit, no card"
 env_has PAGESPEED_API_KEY || command -v lighthouse >/dev/null || note "PAGESPEED_API_KEY in .env, or Lighthouse installed locally: /lead-magnet measures how fast the client's page loads with one of them. pagespeed is free from Google Cloud"
-env_has KIE_AI_API_KEY || note "KIE_AI_API_KEY in .env: lets /proposal draw the plan for the client's trade without leaving the terminal. kie.ai. Skip it if you already have an image model: /proposal prints the prompt for you to paste anywhere, and the page picks the picture up from jobs/<id>/proposal-sketch.png whoever drew it."
+env_has KIE_AI_API_KEY || note "KIE_AI_API_KEY in .env: lets /sales-call-proposal draw the plan for the client's trade without leaving the terminal. kie.ai. Skip it if you already have an image model: /sales-call-proposal prints the prompt for you to paste anywhere, and the page picks the picture up from jobs/<id>/proposal-sketch.png whoever drew it."
 env_has OPENAI_API_KEY || note "OPENAI_API_KEY in .env: /lead-magnet adds two chapters with it, whether AI search names the business and what its worst reviews complain about. Without it both say 'not measured' and the rest of the report is unaffected. platform.openai.com"
 
 [ "$missing" -eq 0 ] && echo "  nothing is missing. This checks that a key exists, never that it still

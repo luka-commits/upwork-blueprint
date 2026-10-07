@@ -47,11 +47,10 @@ Claude Code session. `RESEARCH.md` is background reading; no command uses it.
 | 1 | `/about-me` | Your work history, your offer, your terms and every result you can prove |
 | 2 | `/profile` | Measures your live profile, then writes the version that fixes it |
 | 3 | `/find-jobs` | Ten leads a day worth applying to, scored against what you sell, straight into your cockpit |
-| 4 | `/pitch-page` | A one-page pitch site plus the cover letter and bid you submit with your Loom |
+| 4 | `/proposal` | A one-page pitch site plus the cover letter and bid you submit with your Loom |
 | 5 | `/brief` | Your morning: what changed on Upwork, where every lead stands, and the messages that are due |
-| 6 | `/lead-magnet` | A checked SEO audit once a local business sends its website |
-| 7 | `/proposal` | Turns your sales call into the proposal you send, and says whether it is ready to start a project on |
-| 8 | `/won` | Turns a started contract into the handover brief and the onboarding. Run it again after delivery to record what came out of it |
+| 6 | `/sales-call-proposal` | Turns your sales call into the proposal you send, and says whether it is ready to start a project on |
+| 7 | `/onboarding` | Turns a started contract into the handover brief and the onboarding. Run it again after delivery to record what came out of it |
 
 /about-me also works before connecting or creating a public Upwork profile. Run it
 first: every later command writes from it, and `/find-jobs` on an empty `me.md`
@@ -61,7 +60,7 @@ For a local business in conversation, `/lead-magnet <job id> <website>` builds a
 SEO audit from Firecrawl, Apify and DataForSEO evidence after you approve its cost.
 Review it before publishing. Audits and pitches share your Vercel project.
 
-One helper: `/cockpit` shows your leads with the next command to copy. A lead you
+One helper: `/dashboard` shows your leads with the next command to copy. A lead you
 will not apply to leaves the list with `/find-jobs skip <job id> <reason>`, which
 searches nothing, costs no Connects and keeps the reason the next search learns
 from.
@@ -76,7 +75,9 @@ from.
   make a virtual environment first: `python3 -m venv .venv && source .venv/bin/activate`
   Activate it with `source .venv/bin/activate` in every new terminal before `claude`.
 - [Node.js](https://nodejs.org) 20.19+ (20.x) or 22.12+ for the cockpit and report template
-- Google Chrome, which `/pitch-page` uses to check the page on a phone screen
+- Google Chrome, which `/proposal` uses to check the page on a phone screen
+- Optional: Claude's Google Drive and Gmail connectors. `/about-me` can then look
+  for old CVs, results and client messages, read only and only after your yes.
 - Vercel CLI: `npm i -g vercel`, then `vercel login` (or set `VERCEL_TOKEN`).
   If that install fails with EACCES, use `npm i -g --prefix "$HOME/.local" vercel`
   and add `export PATH="$HOME/.local/bin:$PATH"` to your shell startup file.

@@ -103,7 +103,7 @@ function TheJob({ job }: { job: any }) {
       : pastApplied ? <p className="drawer-note">{job.url
         ? <a href={job.url} target="_blank" rel="noopener">Read the posting on Upwork</a>
         : 'The saved summary is shown above.'}</p>
-        : <p className="drawer-note">Full posting comes with /pitch-page.</p>}
+        : <p className="drawer-note">Full posting comes with /proposal.</p>}
   </section>;
 }
 

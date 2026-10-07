@@ -7,7 +7,7 @@ import Drawer from '@/components/Drawer';
 import { CockpitContext, type CockpitApi, type State } from '@/lib/context';
 import { revealContent } from '@/lib/surface-motion.mjs';
 
-const CONNECTION_LOST = 'The cockpit lost its connection. Start it again with /cockpit, then reload.';
+const CONNECTION_LOST = 'The cockpit lost its connection. Start it again with /dashboard, then reload.';
 
 function syncText(syncedAt?: string) {
   if (!syncedAt) return { text: 'never synced with Upwork', stale: true };

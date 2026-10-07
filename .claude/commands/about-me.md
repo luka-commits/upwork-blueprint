@@ -47,7 +47,7 @@ Call `list_accounts`. With no answer, walk the member through connecting the con
 
 ## Step 1 · Background, the whole working life
 
-**Offer first, then wait for the yes.** The first message is one question with three answers: paste the text of a CV, old portfolio page or LinkedIn profile; name a file; or say yes and you look through their computer for CVs, portfolios and similar files. Until they answer, open nothing outside this repository (no listing, globbing or grepping). After a yes, or a scope like "my Documents", search it, list what you found by name only, and read only what they confirm.
+**Offer first, then wait for the yes.** The first message is one question with four answers: paste the text of a CV, old portfolio page or LinkedIn profile; name a file; say yes and you look through their computer for CVs, portfolios and similar files; or say yes to their Google Drive and Gmail, which you search last (below). Until they answer, open nothing outside this repository (no listing, globbing or grepping). After a yes, or a scope like "my Documents", search it, list what you found by name only, and read only what they confirm.
 
 A URL: fetch once; LinkedIn and login pages return nothing, so ask for the paste. Never invent an employer, title or year.
 
@@ -58,6 +58,18 @@ Open the block and say why: a profession outside freelancing is usually a new pr
 If a CV was read, list its jobs back for a yes or no and ask only about gaps; otherwise ask: **1. Every job you have held**, with years and what you did. No filter. Follow up on gaps, then ask only what the answer left out: 2. what you were good at, in their words; 3. education, certificates and languages with the year; 4. what you built or delivered for someone, paid or not, on or off Upwork.
 
 Then say in two lines which parts transfer to the work they want and which are only biography.
+
+### Google Drive and Gmail, the last source
+
+Reasoned, not measured. Both hold years of junk: old drafts, other people's documents, newsletters, threads the member was only copied on. So they fill gaps and never correct anything.
+
+- **Only after their yes, and only when the Google connector answers.** Without it, say in one line that Drive and Gmail can be connected in Claude's connector settings, and carry on.
+- **Last in line.** Read the member's answers, the live profile and every CV or file they gave first. Then search only for what is still open: a missing employer or year here, a number or a client's own words for a project in Step 4.
+- **Search for the gap, never browse.** A few searches, each naming the thing: a client, a project, "CV", "case study", "report", "testimonial". List the hits by name and date and read only what the member confirms.
+- **Read only.** Search and open. Never send, draft, reply, label, share, move or delete anything.
+- **It loses every conflict.** Where a file or email disagrees with what the member said, their profile or the CV they handed over, the other source stands. Mention the difference in one line only when a number or a year depends on it.
+- **Everything from it is pending**, recorded as "Google Drive, <file name>, <date>" or "Gmail, <subject>, <date>". It becomes verified only when the member confirms it is theirs and still true; the file or email is then where it can be checked. A document in their Drive is not proof they wrote it.
+- **Take the member's own facts, leave the rest.** Nothing about another person and no private detail beyond the result itself goes into `context/me.md`.
 
 ## Step 2 · The offer
 
@@ -100,13 +112,13 @@ Every entry carries **where it can be checked**, the date and a status:
   place is vague.
 - **pending** for estimates and anything vague. A pending claim with a concrete figure may appear as the member's own claim; one without a figure stays out.
 
-**Nothing on the ladder?** Help: look together for a system built for the current job, an unpaid build for a friend, a study or course project with a result, volunteer work, or a process improved at work. Record what it proves as pending with its source. If still empty, write "Nothing recorded yet" and move on; `/profile` then leads with the offer and background.
+**Nothing on the ladder?** With their yes from Step 1, search Drive and Gmail for that project first, under the rules of the last source. Then help: look together for a system built for the current job, an unpaid build for a friend, a study or course project with a result, volunteer work, or a process improved at work. Record what it proves as pending with its source. If still empty, write "Nothing recorded yet" and move on; `/profile` then leads with the offer and background.
 
 Never write or round up a number the member did not give; an invented number fails at the first client call.
 
 ## Step 5 · Write the file
 
-Keep the starter's shape, replace every "not answered yet" you have an answer for, leave the rest. At the top: what it is, the date in words, the one next action. No tables, raw JSON or ids. Add the background as its own section: one block per job with the years and one line on what transfers (`/pitch-page` reads it for postings in an industry the member has worked in).
+Keep the starter's shape, replace every "not answered yet" you have an answer for, leave the rest. At the top: what it is, the date in words, the one next action. No tables, raw JSON or ids. Add the background as its own section: one block per job with the years and one line on what transfers (`/proposal` reads it for postings in an industry the member has worked in).
 
 ## Step 6 · The gate
 

@@ -28,7 +28,7 @@ __pycache__/
 *.pyc
 *.log
 node_modules/
-/cockpit/.next/
+/website/.next/
 /templates/lead-magnet/dist/
 *.tsbuildinfo
 /tools/leaks.txt

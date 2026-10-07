@@ -209,4 +209,4 @@ When the member turns one down, name the next one in the same breath, so the lis
    measured from each `connects_cost`. Call `get_freelancer_dashboard` action `check`
    once for the Connects balance, and include this call in `Upwork calls: N`. One
 line, no advice unless the balance runs out before the ten do.
-6. Use the compact completion report from `CLAUDE.md`. Next step: `/pitch-page <id>` for the first lead on the list, or the cockpit. Every lead shown has its full posting saved. End with `Upwork calls: N`, measured, never an estimated range.
+6. Use the compact completion report from `CLAUDE.md`. Next step: `/proposal <id>` for the first lead on the list, or the cockpit. Every lead shown has its full posting saved. End with `Upwork calls: N`, measured, never an estimated range.

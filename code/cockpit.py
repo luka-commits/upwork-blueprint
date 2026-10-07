@@ -5,7 +5,7 @@
     python3 code/cockpit.py state                         the list data as JSON
     python3 code/cockpit.py job <id>                      one job in full as JSON
 
-The page itself is a small Next.js app in cockpit/. This script starts it, and it
+The page itself is a small Next.js app in website/. This script starts it, and it
 is also where the app reads its data from, so the page reads the
 same tested Python data as everything else. The app runs on this computer only
 (127.0.0.1). Every status change goes through code/pipeline.py.
@@ -32,7 +32,7 @@ import pipeline  # noqa: E402  (read-only use: load, jobs_dir)
 import application_check  # noqa: E402
 import pitch_check  # noqa: E402
 
-APP = ROOT / 'cockpit'
+APP = ROOT / 'website'
 JOBS_DIR = pipeline.jobs_dir()
 
 

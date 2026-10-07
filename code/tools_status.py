@@ -75,18 +75,18 @@ def rows(env):
          '/profile, /find-jobs, /brief', 'nothing replaces it, and only you can connect it'),
         ('Node.js', shutil.which('node') is not None, 'optional',
          'runs the cockpit and builds the report template',
-         '/cockpit, /lead-magnet', 'install from nodejs.org, or work from the chat'),
+         '/dashboard, /lead-magnet', 'install from nodejs.org, or work from the chat'),
         ('Python packages', python_packages(), 'optional',
          'opens a client page the way their customer sees it',
-         '/lead-magnet, /pitch-page',
+         '/lead-magnet, /proposal',
          "pip install -r requirements.txt, then playwright install chromium. The audit "
          "cannot start without them"),
         ('Google Chrome', chrome(env), 'optional',
          'screenshots a page before you send it',
-         '/pitch-page, /proposal', 'without it you check the page by eye'),
+         '/proposal, /sales-call-proposal', 'without it you check the page by eye'),
         ('Vercel', vercel_signed_in() or has_key(env, 'VERCEL_TOKEN'), 'required',
          'puts your pitch page and audit on a link a client can open',
-         '/pitch-page, /lead-magnet',
+         '/proposal, /lead-magnet',
          "npm i -g vercel, then vercel login. Without it you still get the cover letter "
          "and the bid, with no page to link, and /lead-magnet cannot publish an audit at all"),
         ('Firecrawl', has_key(env, 'FIRECRAWL_API_KEY'), 'optional',
@@ -107,7 +107,7 @@ def rows(env):
          '/lead-magnet', 'without it those two say "not measured" and the rest is unaffected'),
         ('kie.ai', has_key(env, 'KIE_AI_API_KEY'), 'optional',
          'draws the sketch on the proposal page',
-         '/proposal', 'without it the command prints the prompt for any image model you have'),
+         '/sales-call-proposal', 'without it the command prints the prompt for any image model you have'),
     ]
 
 

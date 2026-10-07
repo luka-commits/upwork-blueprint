@@ -3,7 +3,7 @@ description: Turns a started Upwork contract into a checked handover brief for d
 argument-hint: "<job id>"
 ---
 
-# /won
+# /onboarding
 
 Turn a real contract into the brief the work starts from, and the onboarding around it.
 This command never accepts an offer, starts a contract or sends a message.

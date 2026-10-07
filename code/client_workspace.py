@@ -116,7 +116,7 @@ def cmd_new(args):
     if result.returncode:
         abort(result.stderr.strip())
     if folder.exists():
-        # /won runs a second time after delivery, so an existing folder is the normal
+        # /onboarding runs a second time after delivery, so an existing folder is the normal
         # case then, not a collision. Opening it again would duplicate the client.
         print(f'clients/{slug} is already open. Nothing changed. '
               f'Pass --slug only when this really is a second engagement.')
@@ -131,7 +131,7 @@ def cmd_new(args):
         (folder / 'brief.md').write_text(brief.read_text(encoding='utf-8'), encoding='utf-8')
         copied = 'brief.md copied from the job folder'
     else:
-        copied = 'no project.md yet: run /won first, then copy the brief in'
+        copied = 'no project.md yet: run /onboarding first, then copy the brief in'
 
     pipeline.main(['note', str(args.job_id), f'client workspace clients/{slug}'])
     print(f'clients/{slug} opened with context.md and {", ".join(FOLDERS)}. {copied}.')

@@ -96,7 +96,7 @@ Name the moment, because it decides the next command:
   invitation or a "spoke yesterday" all count; a vague "happy to jump on a call"
   does not. When the thread names a date, add `--call-at <YYYY-MM-DD>`: until that
   day the lead is left alone, and from the day after, its task is the one-pager,
-  `/proposal <id> <transcript path or notes>`.
+  `/sales-call-proposal <id> <transcript path or notes>`.
 - **Nothing was scheduled and the client owes an answer:** unless its sequence finished or stopped, the cockpit asks every two days from `last_activity_at`; recording the send resets the count. Use `--follow-up` only for a date the conversation gives, such as "call me after the 12th".
 - **The client sent their website:** the pitch page promised the free audit. The drafts
   thank them and say the audit follows; the next step is `/lead-magnet <id> <website>`.

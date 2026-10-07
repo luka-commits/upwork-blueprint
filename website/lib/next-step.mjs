@@ -5,7 +5,7 @@
 // files exist, then the member submits by hand, and `/find-jobs skip <id>
 // <reason>` stays available on every new lead. `applied` waits. `replied`, `call` and `offer`
 // answer a waiting client first and a due follow-up second, where due means
-// `next_follow_up <= today`; a future date stays Waiting. `/proposal` is offered
+// `next_follow_up <= today`; a future date stays Waiting. `/sales-call-proposal` is offered
 // in conversation, after the call, or at offer when no proposal exists. `won`
 // writes the handover and records the result once. `lost` and `skipped` carry
 // no task even when a date is set and a client is waiting.
@@ -70,8 +70,8 @@ export function nextStep(job, today = todayIso()) {
     case 'new': {
       const skip = [`/find-jobs skip ${id} <reason>`];
       return has(job, 'pitch.html') && has(job, 'application.md')
-        ? step('Finish Loom', `Record the Loom and return its URL to /pitch-page ${id} for ready page and application checks and republishing. Then submit on Upwork and run /pitch-page ${id} submitted.`, null, skip)
-        : step('Build pitch page', 'Builds the pitch page and the application.', `/pitch-page ${id}`, skip);
+        ? step('Finish Loom', `Record the Loom and return its URL to /proposal ${id} for ready page and application checks and republishing. Then submit on Upwork and run /proposal ${id} submitted.`, null, skip)
+        : step('Build pitch page', 'Builds the pitch page and the application.', `/proposal ${id}`, skip);
     }
     case 'applied':
       return step('Waiting', WAITING);
@@ -81,7 +81,7 @@ export function nextStep(job, today = todayIso()) {
       // The audit costs money, so it is offered once. A saved website is not asked
       // for again, and a published audit is not rebuilt.
       const audit = job.lead_magnet_url ? [] : [job.lead_magnet_source ? `/lead-magnet ${id}` : `/lead-magnet ${id} <website>`];
-      const proposal = `/proposal ${id} <transcript path or notes>`;
+      const proposal = `/sales-call-proposal ${id} <transcript path or notes>`;
       const extras = [...(job.status === 'replied' || (job.status === 'offer' && !has(job, 'proposal.md')) ? [proposal] : []), ...audit];
       if (job.client_waiting) return step('Reply', 'The client is waiting. Draft a reply; approve one message or send it on Upwork.', `/brief ${id}`, extras);
       if (job.next_follow_up && job.next_follow_up <= today) return step('Follow up', 'A follow-up is due. Draft a nudge; approve one message or send it on Upwork.', `/brief ${id}`, extras);
@@ -106,10 +106,10 @@ export function nextStep(job, today = todayIso()) {
     }
     case 'won': {
       // A won lead used to show nothing at all, which reads as finished when the work has
-      // not started. The second /won pass is the one step nobody else owns: it records what
+      // not started. The second /onboarding pass is the one step nobody else owns: it records what
       // was delivered, and that is what makes the next proposal provable.
       if (job.client_waiting) return step('Reply', 'The client is waiting. Draft a reply; approve one message or send it on Upwork.', `/brief ${id}`);
-      if (has(job, 'project.md') && !job.result_recorded_at) return step('Record the result', 'After delivery: what came out of it, with a number and where it can be checked.', `/won ${id}`);
+      if (has(job, 'project.md') && !job.result_recorded_at) return step('Record the result', 'After delivery: what came out of it, with a number and where it can be checked.', `/onboarding ${id}`);
       if (job.follow_up_plan?.lane === 'reactivation') {
         return job.next_follow_up && job.next_follow_up <= today
           ? step('Follow up', 'Draft a message; approve one message or send it on Upwork.', `/brief ${id}`)
@@ -118,7 +118,7 @@ export function nextStep(job, today = todayIso()) {
       if (parked(job)) return step('Parked', 'The follow-up sequence has stopped. Wait for the client to return.');
       if (has(job, 'project.md')) return { ...NOTHING, extras: [] };
       return job.imported ? { ...NOTHING, extras: [] }
-        : step('Write handover', 'Turns the contract into the handover brief and the onboarding.', `/won ${id}`);
+        : step('Write handover', 'Turns the contract into the handover brief and the onboarding.', `/onboarding ${id}`);
     }
     default:
       return { ...NOTHING, extras: [] };

@@ -115,24 +115,23 @@ and funded milestone. Mark each ready, thin or missing and put gaps in the repor
 
 ## Step 5 · Build the page
 
-The markdown is what the member pastes into Upwork chat. The page is what a client reads
-twice, and it is the same content in a shape that shows the plan instead of describing it.
+The markdown is what the member pastes into Upwork chat. The page is the one pager a
+client reads twice: **the video on top, then eight short parts, one line each.** If it runs
+past one page, cut. `headline` names the build ("Missed-call text-back"), not the client.
 
-**Optional drawing first:** the page embeds `jobs/<id>/proposal-sketch.png` when present.
-Get its client-specific prompt without a call:
+- `video` `{href, title, note, length}`: the most important part. A custom Loom for this
+  client when the member has time, otherwise their reusable walkthrough. Title speaks to the
+  client ("Sarah, watch this first"), note says what it covers. No link renders it open.
+- `problem`: their pain in their numbers. `deliverable`: what they get, as a working state.
+- `worth`: only a figure the client gave on the call, else open. `timeline`: start, demo, live.
+- `cost`: the approved price; `{text, note}` puts the milestone split in the note.
+- `tools`: what it runs on, and on whose accounts. `proof`: one line from the evidence
+  sections of `context/me.md`, else open. `next_steps`: at most three things the client does.
 
-`python3 code/proposal_illustrate.py <id> --niche "<their trade>" --outcome "<what remains>" --scene "<everyday objects>" --dry-run`
-
-The member uses any image model they already have and saves a portrait sketch there.
-Without `--dry-run`, kie.ai needs `KIE_AI_API_KEY`, checks it and reports the cost.
-A missing sketch blocks nothing. It carries no text or numbers; the member reviews it.
-
-Write JSON fields: `member`, `client`, `headline`, `summary`, `date`, `price`, `price_note`,
-`stones_note`, `call_notes` (array of `{said, means}`), `cta`, `cta_href`, `fine` (array),
-`included` (strings or `{label, note}`), `milestones` (array of `{label, amount}`), `weeks` (number),
-`rows` (array of `{label, from, to, kind, colour}`), and optional `labels` (state, plan, stones, included).
+Also `member`, `client`, `date`, `cta`, `cta_href`, `fine` (array), optional `labels`.
 Run `python3 code/proposal_generate.py <id> --file -` for `jobs/<id>/proposal.html`.
-A missing duration renders the plan as open. Provide a real HTTPS `cta_href` or omit the CTA.
+Provide a real HTTPS `cta_href` or omit the CTA. An optional sketch at
+`jobs/<id>/proposal-sketch.png` (`code/proposal_illustrate.py`, no text) dims behind the video.
 The member delivers the page on Upwork themselves; nothing hosts or sends it.
 
 **Every value the call did not settle renders as a visible "open" marker.** Never write a

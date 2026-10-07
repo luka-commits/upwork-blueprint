@@ -8,73 +8,59 @@
 <style>
   :root {
     --bg: #ece5d7; --paper: #fbf9f4; --ink: #1c1712; --text: #2a231b; --muted: #6f6656;
-    --faint: #9a9081; --accent: #c1663e; --accent-deep: #a24f2e; --rule: #e6ded0;
-    --open: #b08968; --bar-1: #c1663e; --bar-2: #7d8a6a; --bar-3: #8a7a5c;
+    --faint: #9a9081; --accent: #c1663e; --rule: #e6ded0; --open: #b08968;
+    --screen: #231d17; --screen-text: #f6f1e7; --screen-muted: #b7ab98;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); padding: 24px 12px 56px;
-         font: 12.5px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+         font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
          -webkit-font-smoothing: antialiased; }
-  .sheet { width: 210mm; min-height: 297mm; max-width: 100%; margin: 0 auto; background: var(--paper);
-           box-shadow: 0 20px 54px rgba(28,23,18,.12); padding: 20mm 18mm 16mm; }
-
-  /* One rhythm for every block: label, then content. Nothing else competes. */
-  .block { margin: 0 0 10mm; padding-top: 5mm; border-top: 1px solid var(--rule); }
-  .block:first-of-type { border-top: 0; padding-top: 0; }
-  .label { display: flex; align-items: baseline; gap: 3mm; font-size: 10px; letter-spacing: .12em;
-           text-transform: uppercase; color: var(--muted); margin: 0 0 4mm; font-weight: 600; }
-  .label .n { font-family: "Tiempos Text", Georgia, serif; font-size: 15px; letter-spacing: 0; color: var(--accent);
-              font-weight: 400; line-height: 1; }
   p { margin: 0; }
 
-  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8mm;
-         border-bottom: 1px solid var(--rule); padding-bottom: 6mm; margin-bottom: 8mm; }
-  .who { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
-         margin: 0 0 3mm; }
-  h1 { font-family: "Tiempos Text", Georgia, "Iowan Old Style", ui-serif, serif; font-weight: 500; color: var(--ink);
-       font-size: 22px; line-height: 1.2; margin: 0 0 2mm; max-width: 108mm; }
-  .sub { color: var(--muted); font-size: 12px; }
-  .money { margin: 4mm 0 0; display: flex; align-items: baseline; gap: 3mm; flex-wrap: wrap; }
-  .money b { font-family: "Tiempos Text", Georgia, serif; font-size: 21px; font-weight: 400; color: var(--ink);
-             font-variant-numeric: tabular-nums; }
-  .money span { font-size: 11px; color: var(--muted); }
+  /* One page. If the content runs past it, the content gets cut, not the page made longer. */
+  .sheet { width: 210mm; min-height: 297mm; max-width: 100%; margin: 0 auto; background: var(--paper);
+           box-shadow: 0 20px 54px rgba(28,23,18,.12); padding: 18mm 20mm 14mm;
+           display: flex; flex-direction: column; }
 
-  .sketch { width: 58mm; height: 36mm; object-fit: cover; object-position: 50% 45%;
-            border-radius: 1.5mm; flex: none; align-self: center; }
-  .lead { font-size: 13px; line-height: 1.55; color: var(--text); max-width: 150mm; margin: 0 0 5mm; }
-  .notes { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm 10mm; }
-  .note-pair { }
-  .note-pair .said { font-family: "Tiempos Text", Georgia, serif; font-size: 12.5px; line-height: 1.45; color: var(--ink);
-                     border-left: 1.5px solid var(--accent); padding-left: 3mm; }
-  .note-pair .means { font-size: 10.5px; color: var(--muted); padding-left: 3mm; margin-top: 1mm; }
+  .head { border-bottom: 1.5px solid var(--ink); padding-bottom: 4mm; margin-bottom: 7mm; }
+  h1 { font-family: "Tiempos Text", Georgia, "Iowan Old Style", ui-serif, serif; font-weight: 500;
+       color: var(--ink); font-size: 26px; line-height: 1.15; margin: 0 0 1.5mm; }
+  .sub { color: var(--muted); font-size: 11.5px; }
 
-  .gantt { display: grid; gap: 2.4mm 0; align-items: center; font-size: 10.5px; }
-  .gantt .wk { font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
-               text-align: center; }
-  .row-label { color: var(--text); padding-right: 3mm; display: flex; align-items: center; gap: 2mm;
-               line-height: 1.25; }
-  .swatch { width: 2px; height: 3.6mm; border-radius: 1px; flex: none; }
-  .bar { height: 2.6mm; border-radius: 1.5px; }
-  .bar.b1 { background: var(--bar-1); } .bar.b2 { background: var(--bar-2); } .bar.b3 { background: var(--bar-3); }
-  .dot { width: 2.8mm; height: 2.8mm; border-radius: 50%; background: var(--ink); margin: 0 auto; }
-  .kind { font-size: 9.5px; color: var(--faint); text-align: right; }
+  /* The video goes first: it is the part the client actually takes in. */
+  .video { position: relative; display: flex; align-items: center; gap: 6mm; overflow: hidden;
+           background: var(--screen); color: var(--screen-text); text-decoration: none;
+           border-radius: 2.5mm; padding: 7mm 8mm; margin-bottom: 7mm; min-height: 34mm;
+           box-shadow: 0 0 0 1.2mm rgba(193,102,62,.16); }
+  .video .poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+                   opacity: .22; filter: grayscale(.3); }
+  .video > *:not(.poster) { position: relative; }
+  .play { width: 15mm; height: 15mm; border-radius: 50%; background: var(--accent); flex: none;
+          display: grid; place-items: center; }
+  .play::before { content: ""; margin-left: 1.2mm; border-style: solid; border-color: transparent;
+                  border-left-color: #fff; border-width: 2.6mm 0 2.6mm 4.2mm; }
+  .video b { display: block; font-size: 15px; font-weight: 600; margin-bottom: 1mm; }
+  .video span { font-size: 11.5px; color: var(--screen-muted); }
+  .video .len { position: absolute; right: 5mm; bottom: 4mm; font: 600 10.5px/1 ui-monospace, Menlo, monospace;
+                color: var(--screen-muted); }
+  .video .missing { color: #d9b48f; }
 
-  .stones { display: grid; grid-template-columns: repeat(auto-fit, minmax(38mm, 52mm)); gap: 4mm;
-            margin-top: 5mm; justify-content: start; }
-  .stone { border: 1px solid var(--rule); border-radius: 2mm; padding: 3mm 3.5mm; }
-  .stone span { display: block; font-size: 10.5px; color: var(--muted); margin-bottom: 1mm; }
-  .stone b { font-family: "Tiempos Text", Georgia, serif; font-size: 16px; font-weight: 400; color: var(--ink);
-             font-variant-numeric: tabular-nums; }
-  .stone.sel { border-color: var(--accent); }
-  .stones-note { font-size: 10.5px; color: var(--muted); margin-top: 3mm; }
+  /* Eight short parts, one rhythm: a small label, one line under it. */
+  .parts { flex: 1; }
+  .part { display: grid; grid-template-columns: 34mm 1fr; gap: 6mm; align-items: baseline;
+          padding: 3.4mm 0; border-top: 1px solid var(--rule); }
+  .part:first-child { border-top: 0; padding-top: 0; }
+  .part .k { font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint);
+             font-weight: 600; }
+  .part .v { font-size: 13px; color: var(--ink); line-height: 1.45; }
+  .part .v small { display: block; font-size: 11px; color: var(--muted); margin-top: .8mm; }
+  .part ol { margin: 0; padding-left: 4.5mm; }
+  .part ol li { padding-left: 1mm; }
+  .part ol li + li { margin-top: .8mm; }
+  .part.cost .v strong { font-family: "Tiempos Text", Georgia, serif; font-weight: 500; font-size: 15px;
+                         font-variant-numeric: tabular-nums; }
 
-  .benefits { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 10mm; }
-  .benefit { display: grid; grid-template-columns: 3.5mm 1fr; gap: 2mm; }
-  .tick { color: var(--accent); font-size: 11px; line-height: 1.4; }
-  .benefit b { display: block; font-size: 11px; font-weight: 600; color: var(--ink); }
-  .benefit span { font-size: 10.5px; color: var(--muted); }
-
-  .foot { border-top: 1px solid var(--rule); padding-top: 5mm; display: flex;
+  .foot { border-top: 1px solid var(--rule); padding-top: 5mm; margin-top: 4mm; display: flex;
           justify-content: space-between; align-items: flex-end; gap: 10mm; }
   .fine { font-size: 9.5px; color: var(--faint); }
   .fine p { margin: 0 0 1mm; }
@@ -85,14 +71,16 @@
 
   @media (max-width: 800px) {
     body { padding: 10px 8px 36px; }
-    .sheet { padding: 10mm 7mm; min-height: 0; }
-    .top, .foot { flex-direction: column; align-items: flex-start; gap: 5mm; }
-    .sketch { width: 100%; height: 36mm; }
-    .notes, .benefits, .stones { grid-template-columns: 1fr; }
+    .sheet { padding: 9mm 6mm; min-height: 0; }
+    .video { padding: 6mm 5mm 9mm; gap: 4mm; }
+    .play { width: 12mm; height: 12mm; }
+    .part { grid-template-columns: 1fr; gap: 1mm; }
+    .foot { flex-direction: column; align-items: flex-start; gap: 5mm; }
   }
   @media print {
     body { padding: 0; background: #fff; }
     .sheet { box-shadow: none; width: auto; min-height: 0; padding: 0; }
+    .video { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     @page { size: A4 portrait; margin: 14mm; }
   }
 </style>
@@ -100,37 +88,26 @@
 <body>
 <div class="sheet">
 
-  <div class="top">
-    <div>
-      <p class="who">{{MEMBER}} · for {{CLIENT}} · {{DATE}}</p>
-      <h1>{{HEADLINE}}</h1>
-    </div>
-    {{SKETCH}}
+  <div class="head">
+    <h1>{{HEADLINE}}</h1>
+    <p class="sub">Proposal for {{CLIENT}} · {{DATE}}</p>
   </div>
 
-  <div class="block">
-    <p class="label"><span class="n">1</span>{{L_STATE}}</p>
-    <p class="lead">{{SUMMARY}}</p>
-    <div class="notes">{{FACTS}}</div>
-  </div>
+  {{VIDEO}}
 
-  <div class="block">
-    <p class="label"><span class="n">2</span>{{L_PLAN}}</p>
-    {{PLAN}}
-    <p class="money"><b>{{PRICE}}</b> <span>{{PRICE_NOTE}}</span></p>
-    <div class="stones">
-      {{MILESTONES}}
-    </div>
-    <p class="stones-note">{{STONES_NOTE}}</p>
-  </div>
-
-  <div class="block">
-    <p class="label"><span class="n">3</span>{{L_INCLUDED}}</p>
-    <div class="benefits">{{INCLUDED}}</div>
+  <div class="parts">
+    <div class="part"><p class="k">{{L_PROBLEM}}</p><div class="v">{{PROBLEM}}</div></div>
+    <div class="part"><p class="k">{{L_DELIVERABLE}}</p><div class="v">{{DELIVERABLE}}</div></div>
+    <div class="part"><p class="k">{{L_WORTH}}</p><div class="v">{{WORTH}}</div></div>
+    <div class="part"><p class="k">{{L_TIMELINE}}</p><div class="v">{{TIMELINE}}</div></div>
+    <div class="part cost"><p class="k">{{L_COST}}</p><div class="v">{{COST}}</div></div>
+    <div class="part"><p class="k">{{L_TOOLS}}</p><div class="v">{{TOOLS}}</div></div>
+    <div class="part"><p class="k">{{L_PROOF}}</p><div class="v">{{PROOF}}</div></div>
+    <div class="part"><p class="k">{{L_NEXT}}</p><div class="v">{{NEXT}}</div></div>
   </div>
 
   <div class="foot">
-    <div class="fine">{{FINE}}</div>
+    <div class="fine">{{MEMBER}}<br>{{FINE}}</div>
     <a class="cta" href="{{CTA_HREF}}">{{CTA}}</a>
   </div>
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The one page a client reads after the call, as a page rather than a wall of text.
+"""The one page a client reads after the call: the video first, then eight short parts.
 
     python3 code/proposal_generate.py <job id> --file proposal.json
     python3 code/proposal_generate.py <job id> --file -        # JSON on stdin
@@ -14,12 +14,15 @@ the first milestone exposes.
 
 The JSON, all strings unless noted:
 
-    member, client, headline, summary, date, price, price_note, stones_note,
-    call_notes (array of {said, means}),
-    cta, cta_href, fine (array), included (array),
-    milestones (array of {label, amount}), weeks (number),
-    rows (array of {label, from, to, kind, colour}),
-    labels (object, optional, overrides the four section labels)
+    member, client, headline, date,
+    video (object: href, title, note, length),
+    problem, deliverable, worth, timeline, cost, tools, proof,
+    next_steps (array, at most three),
+    cta, cta_href, fine (array),
+    labels (object, optional, overrides the eight part labels)
+
+Each part is one line. A part may also be {text, note} when one short line under it
+carries something the client needs, like the milestone split under the cost.
 """
 import argparse
 import base64
@@ -34,12 +37,16 @@ from pipeline import jobs_dir, shown
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / 'templates' / 'proposal' / 'template.html'
 OPEN = '<span class="missing">open</span>'
-BARS = ('b1', 'b2', 'b3')
+PARTS = ('problem', 'deliverable', 'worth', 'timeline', 'cost', 'tools', 'proof', 'next')
 DEFAULT_LABELS = {
-    'state': 'What you said, and what it changed',
-    'plan': 'The plan, week by week',
-    'stones': 'What you pay, and when',
-    'included': 'How this runs',
+    'problem': 'The problem',
+    'deliverable': 'What you get',
+    'worth': "What it's worth",
+    'timeline': 'Timeline',
+    'cost': 'Cost',
+    'tools': 'Tools',
+    'proof': 'Proof',
+    'next': 'Next steps',
 }
 
 
@@ -58,63 +65,40 @@ def value(raw):
     return esc(text) if text else OPEN
 
 
-def week_heads(weeks):
-    return ''.join(f'<span class="wk">WK {i + 1}</span>' for i in range(weeks)) + '<span></span>'
+def https(href, field):
+    href = str(href or '').strip()
+    if not href:
+        return ''
+    parsed = urlparse(href)
+    if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or any(c.isspace() for c in href):
+        abort(f'{field} needs a real HTTPS URL, or leave it empty.')
+    return href
 
 
-def gantt_rows(rows, weeks):
-    out = []
-    for index, row in enumerate(rows):
-        kind = str(row.get('kind') or 'one-off')
-        colour = row.get('colour') or BARS[index % len(BARS)]
-        start, end = int(row.get('from', 1)), int(row.get('to', 1))
-        if not 1 <= start <= end <= weeks:
-            abort(f'row "{row.get("label")}" spans week {start} to {end}, outside 1 to {weeks}.')
-        swatch = 'var(--ink)' if kind == 'milestone' else f'var(--bar-{colour[-1]})'
-        cells = [f'<span class="row-label"><i class="swatch" style="background:{swatch}"></i>'
-                 f'{value(row.get("label"))}</span>']
-        if kind == 'milestone':
-            cells += ['<span></span>'] * (start - 1) + ['<span class="dot"></span>']
-            cells += ['<span></span>'] * (weeks - start)
-        else:
-            cells += ['<span></span>'] * (start - 1)
-            cells.append(f'<span class="bar {colour}" style="grid-column: {start + 1} / {end + 2}"></span>')
-            cells += ['<span></span>'] * (weeks - end)
-        # 'one-off' on every row is noise: only a kind that differs earns the column
-        cells.append(f'<span class="kind">{esc(kind)}</span>' if kind != 'one-off' else '<span></span>')
-        out.append('\n      '.join(cells))
-    return '\n      '.join(out)
+def part(raw, strong=False):
+    """One line, and at most one short line under it."""
+    if isinstance(raw, dict):
+        text, note = raw.get('text'), str(raw.get('note') or '').strip()
+    else:
+        text, note = raw, ''
+    line = value(text)
+    if strong and 'missing' not in line:
+        line = f'<strong>{line}</strong>'
+    return line + (f'<small>{esc(note)}</small>' if note else '')
 
 
-def call_notes(items):
-    """What they said, and what it changed. Their words on the left, never ours."""
+def next_steps(items):
+    """The things the client does to start. Three at most, or it is not a next step."""
+    items = [i for i in (items or []) if str(i or '').strip()]
     if not items:
-        return f'<div class="note-pair"><p class="said">{OPEN}</p></div>'
-    out = []
-    for item in items:
-        out.append('<div class="note-pair">'
-                   f'<p class="said">{value(item.get("said"))}</p>'
-                   f'<p class="means">{value(item.get("means"))}</p></div>')
-    return ''.join(out)
+        return OPEN
+    if len(items) > 3:
+        abort(f'next_steps has {len(items)} items; the client gets three at most.')
+    return '<ol>' + ''.join(f'<li>{esc(i)}</li>' for i in items) + '</ol>'
 
 
-def benefits(items):
-    """Every line a label the client remembers plus the sentence that makes it true."""
-    if not items:
-        return f'<div class="benefit"><i class="tick">+</i><div><b>{OPEN}</b></div></div>'
-    out = []
-    for item in items:
-        if isinstance(item, str):
-            label, note = item, ''
-        else:
-            label, note = item.get('label'), item.get('note')
-        body = f'<b>{value(label)}</b>' + (f'<span>{esc(note)}</span>' if note else '')
-        out.append(f'<div class="benefit"><i class="tick">+</i><div>{body}</div></div>')
-    return ''.join(out)
-
-
-def sketch(job_id):
-    """The illustrated sheet, inlined so the page travels as one file. Absent is fine."""
+def poster(job_id):
+    """The illustrated sheet, dimmed behind the video card. Absent is fine."""
     path = jobs_dir() / job_id / 'proposal-sketch.png'
     if not path.is_file():
         return ''
@@ -123,36 +107,32 @@ def sketch(job_id):
         import io
         image = Image.open(path).convert('RGB')
         # The model likes to draw a sheet lying on a table. Trim that border away so the
-        # thumbnail shows the drawing and not the desk it was photographed on.
+        # card shows the drawing and not the desk it was photographed on.
         width, height = image.size
         if width > 400 and height > 400:
             image = image.crop((int(width * .09), int(height * .22), int(width * .91), int(height * .78)))
-        image.thumbnail((1500, 1500))
+        image.thumbnail((1200, 1200))
         buffer = io.BytesIO()
-        image.save(buffer, 'JPEG', quality=86)
+        image.save(buffer, 'JPEG', quality=80)
         payload, mime = base64.b64encode(buffer.getvalue()).decode(), 'image/jpeg'
     except (ImportError, OSError):
         # No Pillow, or a file the drawing step left half written: the page still ships,
         # with the bytes as they are. A proposal never fails on its illustration.
         payload, mime = base64.b64encode(path.read_bytes()).decode(), 'image/png'
-    return f'<img class="sketch" alt="The plan as one drawing" src="data:{mime};base64,{payload}">'
+    return f'<img class="poster" alt="" src="data:{mime};base64,{payload}">'
 
 
-def listing(items, wrapper='ul'):
-    if not items:
-        return f'<{wrapper}><li>{OPEN}</li></{wrapper}>'
-    return f'<{wrapper}>' + ''.join(f'<li>{value(i)}</li>' for i in items) + f'</{wrapper}>'
-
-
-def milestones(items):
-    if not items:
-        return f'<div class="stone"><span>{OPEN}</span><b>{OPEN}</b></div>'
-    out = []
-    for index, stone in enumerate(items):
-        selected = ' sel' if index == 0 else ''
-        out.append(f'<div class="stone{selected}"><span>{value(stone.get("label"))}</span>'
-                   f'<b>{value(stone.get("amount"))}</b></div>')
-    return '\n      '.join(out)
+def video(raw, job_id):
+    """The most important part of the page. Without a link it says so instead of pretending."""
+    raw = raw or {}
+    href = https(raw.get('href'), 'video.href')
+    length = str(raw.get('length') or '').strip()
+    inner = (poster(job_id) + '<i class="play"></i>'
+             f'<div><b>{value(raw.get("title"))}</b><span>{value(raw.get("note"))}</span></div>')
+    if not href:
+        return f'<div class="video">{inner}<span class="len">no link yet: {OPEN}</span></div>'
+    return (f'<a class="video" href="{esc(href)}">{inner}'
+            + (f'<span class="len">{esc(length)}</span>' if length else '') + '</a>')
 
 
 def main(argv=None):
@@ -171,28 +151,13 @@ def main(argv=None):
     if not TEMPLATE.is_file():
         abort(f'template missing: {TEMPLATE}')
 
-    # No default. A delivery schedule is a commitment, and six weeks nobody agreed to
-    # is the kind of invented number a client holds the member to on the first call.
-    weeks = data.get('weeks')
-    if weeks not in (None, ''):
-        if isinstance(weeks, bool) or not isinstance(weeks, int) or not 1 <= weeks <= 12:
-            abort(f'weeks is {weeks}; a post-call plan runs 1 to 12 whole weeks.')
-    else:
-        weeks = None
     labels = {**DEFAULT_LABELS, **(data.get('labels') or {})}
     today = datetime.date.today().strftime('%d %B %Y')
 
     page = TEMPLATE.read_text(encoding='utf-8')
-    href = str(data.get('cta_href') or '').strip()
-    if href:
-        parsed = urlparse(href)
-        if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or any(c.isspace() for c in href):
-            abort('cta_href needs a real HTTPS URL, or leave it empty for manual delivery.')
-    else:
+    href = https(data.get('cta_href'), 'cta_href')
+    if not href:
         page = page.replace('<a class="cta" href="{{CTA_HREF}}">{{CTA}}</a>', '')
-    plan = (f'<div class="gantt" style="grid-template-columns: 42mm repeat({weeks}, 1fr) 18mm">'
-            f'<span></span>{week_heads(weeks)}{gantt_rows(data.get("rows") or [], weeks)}</div>'
-            if weeks else f'<p>{OPEN}</p>')
     fields = {
         '{{LANG}}': esc(args.lang),
         '{{TITLE}}': value(data.get('headline')),
@@ -202,22 +167,16 @@ def main(argv=None):
         # or not the call settled anything, so this one keeps its default.
         '{{DATE}}': esc(data.get('date') or today),
         '{{HEADLINE}}': value(data.get('headline')),
-        '{{PRICE}}': value(data.get('price')),
-        '{{PRICE_NOTE}}': value(data.get('price_note')),
-        '{{SKETCH}}': sketch(args.job_id),
-        '{{PLAN}}': plan,
-        '{{SUMMARY}}': value(data.get('summary')),
-        '{{FACTS}}': call_notes(data.get('call_notes')),
-        '{{INCLUDED}}': benefits(data.get('included')),
-        '{{MILESTONES}}': milestones(data.get('milestones')),
-        '{{STONES_NOTE}}': value(data.get('stones_note')),
-        '{{FINE}}': ''.join(f'<p>{value(line)}</p>' for line in (data.get('fine') or [''])),
+        '{{VIDEO}}': video(data.get('video'), args.job_id),
+        '{{NEXT}}': next_steps(data.get('next_steps')),
+        '{{FINE}}': '<br>'.join(value(line) for line in (data.get('fine') or [''])),
         '{{CTA}}': value(data.get('cta')),
         '{{CTA_HREF}}': esc(href),
     }
-    for key, label in (('L_STATE', 'state'), ('L_PLAN', 'plan'),
-                       ('L_INCLUDED', 'included'), ('L_STONES', 'stones')):
-        fields['{{' + key + '}}'] = esc(labels[label])
+    for name in PARTS[:-1]:
+        fields['{{' + name.upper() + '}}'] = part(data.get(name), strong=name == 'cost')
+    for name in PARTS:
+        fields['{{L_' + name.upper() + '}}'] = esc(labels[name])
 
     for marker, replacement in fields.items():
         page = page.replace(marker, replacement)

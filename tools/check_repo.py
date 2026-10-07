@@ -931,16 +931,18 @@ def fixture_pipeline():
             assert pipeline.chat_keep_hours() == 0
 
     proposal = {'member': 'Fixture Freelancer', 'client': 'Fixture Client', 'headline': 'Fixture plan',
-                'summary': 'Fixture summary', 'call_notes': [{'said': 'Fixture words', 'means': 'Fixture work'}]}
+                'problem': 'Fixture problem', 'cost': {'text': 'Fixture cost', 'note': 'Fixture split'}}
     run(['730001', '--file', '-'], proposal, script='proposal_generate.py')
     page = (ROOT / 'jobs' / '730001' / 'proposal.html').read_text(encoding='utf-8')
-    assert '{{' not in page and 'class="missing"' in page and 'class="gantt" style=' not in page
+    assert '{{' not in page and 'class="missing"' in page and '<a class="video"' not in page
     assert 'member' not in page.lower() and 'class="cta"' not in page
-    assert 'href=""' not in page and 'href="#"' not in page
-    run(['730001', '--file', '-'], dict(proposal, weeks=3, cta_href='https://www.upwork.com'), script='proposal_generate.py')
+    assert 'href=""' not in page and 'href="#"' not in page and '<small>Fixture split</small>' in page
+    run(['730001', '--file', '-'], dict(proposal, video={'href': 'https://www.loom.com/share/x', 'length': '1:10'},
+                                        cta_href='https://www.upwork.com'), script='proposal_generate.py')
     page = (ROOT / 'jobs' / '730001' / 'proposal.html').read_text(encoding='utf-8')
-    assert 'WK 3' in page and 'href="https://www.upwork.com"' in page
-    run(['730001', '--file', '-'], dict(proposal, weeks=0), success=False, script='proposal_generate.py')
+    assert 'href="https://www.loom.com/share/x"' in page and 'href="https://www.upwork.com"' in page
+    run(['730001', '--file', '-'], dict(proposal, video={'href': 'loom.com/x'}), success=False, script='proposal_generate.py')
+    run(['730001', '--file', '-'], dict(proposal, next_steps=['a', 'b', 'c', 'd']), success=False, script='proposal_generate.py')
     run(['730001', '--file', '-'], dict(proposal, cta_href='#'), success=False, script='proposal_generate.py')
     node = subprocess.run(['node', str(ROOT / 'tools' / 'fixtures' / 'pipeline.mjs')],
                           input=json.dumps({'before': before, 'acted': acted, 'complete': complete, 'hired': hired}),

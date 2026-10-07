@@ -7,8 +7,8 @@ The full product goal and review standard are in [VISION.md](VISION.md).
 ## Quick start
 
 Before you clone: `/about-me` runs on a Claude plan alone. Every Upwork command
-needs the free Upwork connector. Publishing a pitch page or audit needs a free
-Vercel account, and only `/lead-magnet` needs paid keys. Details are in
+needs the free Upwork connector. Publishing a pitch page needs a free
+Vercel account. Details are in
 [Requirements](#requirements) and [What it costs to run](#what-it-costs-to-run).
 
 1. Clone it anywhere on your computer:
@@ -56,10 +56,6 @@ Claude Code session. `RESEARCH.md` is background reading; no command uses it.
 first: every later command writes from it, and `/find-jobs` on an empty `me.md`
 has nothing to score leads against.
 
-For a local business in conversation, `/lead-magnet <job id> <website>` builds an
-SEO audit from Firecrawl, Apify and DataForSEO evidence after you approve its cost.
-Review it before publishing. Audits and pitches share your Vercel project.
-
 One helper: `/dashboard` shows your leads with the next command to copy. A lead you
 will not apply to leaves the list with `/find-jobs skip <job id> <reason>`, which
 searches nothing, costs no Connects and keeps the reason the next search learns
@@ -70,8 +66,7 @@ from.
 - macOS or Linux. On Windows, use WSL; native Windows is unsupported.
 - [Claude Code](https://claude.com/claude-code) and an Upwork freelancer account
 - Python 3.10 or newer: `python3 -m pip install -r requirements.txt`, then
-  `python3 -m playwright install chromium`. `/lead-magnet` stops before its first
-  paid call without them. If pip refuses because the system Python is managed,
+  `python3 -m playwright install chromium`. The page checks stop without them. If pip refuses because the system Python is managed,
   make a virtual environment first: `python3 -m venv .venv && source .venv/bin/activate`
   Activate it with `source .venv/bin/activate` in every new terminal before `claude`.
 - [Node.js](https://nodejs.org) 20.19+ (20.x) or 22.12+ for the cockpit and report template

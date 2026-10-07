@@ -98,8 +98,7 @@ Name the moment, because it decides the next command:
   day the lead is left alone, and from the day after, its task is the one-pager,
   `/sales-call-proposal <id> <transcript path or notes>`.
 - **Nothing was scheduled and the client owes an answer:** unless its sequence finished or stopped, the cockpit asks every two days from `last_activity_at`; recording the send resets the count. Use `--follow-up` only for a date the conversation gives, such as "call me after the 12th".
-- **The client sent their website:** the pitch page promised the free audit. The drafts
-  thank them and say the audit follows; the next step is `/lead-magnet <id> <website>`.
+- **The client sent their website:** the drafts thank them and say you will look at it.
 - **A call is requested:** the drafts confirm a time on Upwork.
 - **An offer arrived:** the drafts answer open questions only; the member reviews the offer terms on Upwork. **Read `jobs/<id>/proposal.md` when it exists**; a draft must not contradict the scope, price and milestones already sent.
 - **The audit is finished:** `lead_magnet_url` is set, so the drafts hand over the link, say in one line what it found that matters most, and name the next step.

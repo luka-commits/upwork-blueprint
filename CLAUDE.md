@@ -112,5 +112,3 @@ hand. The commands call `python3`; Windows requires WSL.
   orientation · `website/` the read-only dashboard · `starters/` the empties
 - `RESEARCH.md` is what we know about Upwork and do not act on. Nothing reads it, and no
   command should start to.
-- `tools/check_repo.py` is the release gate, including a shared line budget for commands
-  and references, so a new rule costs an old one. There is no test suite.

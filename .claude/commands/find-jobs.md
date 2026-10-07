@@ -36,9 +36,9 @@ Look at `context/me.md` under "Job search tracks". **No tracks means the first r
 it finds which searches are alive instead of hunting the best ten.
 Saved tracks mean a later run even before any application. Name the mode in one line.
 
-**The first run explores.** If what the member sells matches a ready-made lane in [references/jobs.md](../../references/jobs.md), offer that lane's terms and let them cut what they cannot deliver. Otherwise build ten to twelve candidate terms from `context/me.md` across the four branches: tools, roles clients hire for, problem words, industries worked in. One lane at a time, never two. One call per term, `limit` 10, `sort` `recency`, and **no window filter**, since the point is density. Measure with Step 3a and report per term its Connects cost, what postings pay against the member's own rate in `context/me.md`, and how many ask for entry level.
+**The first run explores.** Offer the ready-made terms in [references/jobs.md](../../references/jobs.md) for every branch the member picked in `context/me.md`, plus each branch's industry line, and let them cut what they cannot deliver. A custom direction gets candidate terms from `context/me.md` across the four angles: tools, roles clients hire for, problem words, industries worked in. Ten to twelve terms in total, however many branches. One call per term, `limit` 10, `sort` `recency`, and **no window filter**, since the point is density. Measure with Step 3a and report per term its Connects cost, what postings pay against the member's own rate in `context/me.md`, and how many ask for entry level.
 
-Close the first run by saving three to five surviving terms under "Job search tracks" in `context/me.md` as `- Theme: term · term`, with verdicts and dates in prose outside that list. Name the lane the evidence supports, run `python3 code/pipeline.py prune` and `python3 code/jobs.py clean`, report the measured terms and `Upwork calls: N`, name `/find-jobs` next, and stop. With no surviving terms, name `/about-me offer` next.
+Close the first run by saving three to five surviving terms under "Job search tracks" in `context/me.md` as `- Theme: term · term`, with verdicts and dates in prose outside that list. Name the branch the evidence supports, run `python3 code/pipeline.py prune` and `python3 code/jobs.py clean`, report the measured terms and `Upwork calls: N`, name `/find-jobs` next, and stop. With no surviving terms, name `/about-me offer` next.
 
 **Every later run exploits.** It runs the kept tracks, pages the dense ones, applies the
 lessons from Step 3b, honours the window from Step 0, and tests at most one new candidate
@@ -57,7 +57,7 @@ Save each response's `jobs` list to `data/search/<name>.json` as `{"jobs": [...]
 
    Save the answers in `context/me.md` as `**Maximum proposals on a job:**` and `**Lowest share of your rate:**`, so the next run reads them instead of asking. Never ask for a smallest project. A limit whose figure is unknown prints as `LIMIT OFF` in the candidate step: name it out loud.
 
-**When the member sells something the catalog does not cover**, build the list with them from the four branches, then harvest Upwork's own wording from one broad search (method in [references/jobs.md](../../references/jobs.md)). Save what they confirm under "Job search tracks" in `context/me.md`.
+**When the member sells something the catalog does not cover**, build the list with them from the four angles, then harvest Upwork's own wording from one broad search (method in [references/jobs.md](../../references/jobs.md)). Save what they confirm under "Job search tracks" in `context/me.md`.
 
 1. **Upwork's recommendations:** when the connector exposes it, use the documented but untested `find_jobs` action `smart_search`, `mode` `most_recent`, `days_posted` the window in days rounded up and `verified_payment_only` true. Page with `cursor` set to the previous `pageInfo.endCursor` while `pageInfo.hasNextPage` is true, at most 4 pages. Save as `recommended-1.json`, `recommended-2.json` and so on. If the action or documented response shape is absent, report that evidence gap and continue with search themes rather than guessing.
 2. **Your search themes:** run `python3 code/jobs.py rules`. Its `themes`
@@ -204,7 +204,7 @@ list's one-sentence headline `python3 code/pipeline.py headline <id> "<sentence>
    here, and never chased. A lead the member rejects later takes the same route through
    `/find-jobs skip <id> <reason>`.
 When the member turns one down, name the next one in the same breath, so the list is ten again before they ask, while the bench holds. **The bench floor is the gate itself**: a lead below the gate is never offered as a refill. The bench is good for today only, since tomorrow's window disqualifies it. The complete scored list lives in the cockpit.
-4. **Say it when ten is not there.** Fewer than ten at a 7 or better is a result, not a failure to hide: report how many there are and the cause (too few dense tracks, limits too tight, a quiet day, or a member with empty evidence sections, where a direction still two lanes wide scores honest fits at 7 and 8 and the gate eats them). Never pad the ten with leads the score turned down, and never lower the gate to fill a row.
+4. **Say it when ten is not there.** Fewer than ten at a 7 or better is a result, not a failure to hide: report how many there are and the cause (too few dense tracks, limits too tight, a quiet day, or a member with empty evidence sections, where a direction still two branches wide scores honest fits at 7 and 8 and the gate eats them). Never pad the ten with leads the score turned down, and never lower the gate to fill a row.
 5. **Name the day's Connects bill once.** Ten applications cost what the ten jobs cost,
    measured from each `connects_cost`. Call `get_freelancer_dashboard` action `check`
    once for the Connects balance, and include this call in `Upwork calls: N`. One

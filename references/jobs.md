@@ -4,7 +4,7 @@ The operating half, state of 28 September 2026. `/find-jobs` reads the search st
 client rules. Market figures are not copied here, because a number copied goes stale and nobody
 notices; the two pages at the bottom carry them with their sample sizes and caveats.
 
-## The four branches of search terms
+## The four angles of search terms
 
 Every term comes from one of these four, and a run that uses only one is a run in the crowd.
 
@@ -19,10 +19,10 @@ Every term comes from one of these four, and a run that uses only one is a run i
 - **The client's industry, same logic.** A dental practice, a gym, a law firm, an HVAC company, a
   Shopify store or a clinic writes about its own trade, never about automation. The industry plus
   "booking", "leads", "follow-up" or "no-shows" reaches those postings before any freelancer who
-  searched only their own tool stack. A career changer owns this branch: the industry they already
+  searched only their own tool stack. A career changer owns this angle: the industry they already
   worked in is the one whose language they speak.
 
-**The split inside the tools branch is the actual trick.** The low and no-code platforms (Make,
+**The split inside the tools angle is the actual trick.** The low and no-code platforms (Make,
 n8n, Zapier) are where freelancers who do automation search for themselves. Everything the client
 already runs (Shopify, Salesforce, Monday, Zoho, GoHighLevel, Google Calendar, Gmail) is where
 nobody looks, and it is full of postings that are automation work without saying so. One client
@@ -50,7 +50,7 @@ own target.
 A menu for a first run, so nobody stares at a blank page. **Every term here is
 unmeasured until this account measures it**, and one page of results settles it: how
 many of the ten are real work for this member, and over how many hours they spread.
-A term that fails twice is removed with a line saying so. The four branches are the
+A term that fails twice is removed with a line saying so. The four angles are the
 columns; a field the member does not sell is a field to skip.
 
 **Local search and paid search**
@@ -128,7 +128,7 @@ roles     analytics implementation specialist · tracking consultant
 problems  conversions not tracked · duplicate events · reporting dashboard · attribution
 ```
 
-**The client's own systems**, the branch nobody searches. A trade business writes the
+**The client's own systems**, the angle nobody searches. A trade business writes the
 name of the software it runs, never the name of your discipline.
 ```
 home services   Housecall Pro · Jobber · ServiceTitan
@@ -140,7 +140,7 @@ back office     QuickBooks · Wave · Airtable
 Measured 28 September 2026, and the measurement is the point: **"Housecall Pro" returned
 ten postings over seven days with three worth applying to**, among them a GoHighLevel
 role for an agency running 200 local clients. **"Mindbody" returned exactly one posting
-in total**, `hasMore: false`. Two neighbouring terms from the same branch, one a track
+in total**, `hasMore: false`. Two neighbouring terms from the same angle, one a track
 and one a dead end, and nothing but a call could tell them apart.
 
 **The industry line always carries the service word.** Measured 28 September 2026:
@@ -164,39 +164,54 @@ Costs no Upwork call, because it reads the files the run already saved.
 
 ## Ready-made tracks
 
-A first run does not have to invent terms from nothing. Two lanes are written out below, each
-already split across the four branches. Offer the matching lane, let the member cut what they
-cannot deliver, and treat the rest as the exploration set: the ones that produce nothing twice
-still get dropped.
+A first run does not have to invent terms from nothing. `/about-me` records which of the five
+branches in [templates/profile/lanes.md](../templates/profile/lanes.md) the member picked, and
+each branch has its starting terms below, split across the four angles. Offer the terms of every
+branch they picked, let them cut what they cannot deliver, and treat the rest as the exploration
+set: the ones that produce nothing twice still get dropped. A custom direction has no set here;
+build it from the catalog above.
 
-**Lane A, getting found and getting enquiries.** SEO, Google Ads and the website that carries
-them. One buyer, a local business owner who wants the phone to ring, and the lane this repo
-already delivers for: the lead magnet is a local SEO audit and both roadmap templates are SEO
-and Google Ads.
-
-```
-- Local SEO: Google Business Profile · Google Maps ranking · local SEO
-- SEO problem: not showing on Google · organic traffic · keyword research
-- Google Ads: Google Ads · Performance Max · conversion tracking
-- Ads problem: wasted ad spend · cost per lead · Google Ads audit
-- Website: Webflow · WordPress · Elementor · landing page
-- Industry: dentist SEO · plumber leads · law firm marketing · med spa ads
-```
-
-**Lane B, what happens to an enquiry after it arrives.** CRM, follow-up and booking, sold to
-agencies and to owners who already have traffic. A different promise from lane A, so it is a
-lane of its own rather than three more terms.
-
+**1. GoHighLevel CRM automations**
 ```
 - GoHighLevel: GoHighLevel · GHL · HighLevel snapshot
 - CRM problem: missed call text back · appointment booking · CRM setup
 - Role: GoHighLevel expert · marketing automation specialist
 ```
 
-**One lane at a time.** Every track is one search call per page, so six tracks cost twelve of a
-run's roughly two dozen calls. Two lanes at once buys twice the coverage at half the depth per
-term, which is how a run stops finding the fresh postings that are the whole point. The rotating
-slot for a new candidate term is the place to test across lanes, not a second lane.
+**2. Website building**
+```
+- Website: WordPress · Elementor · landing page
+- Website problem: website redesign · site speed · mobile friendly
+```
+
+**3. SEO**
+```
+- Local SEO: Google Business Profile · Google Maps ranking · local SEO
+- SEO problem: not showing on Google · organic traffic · keyword research
+```
+
+**4. Google Ads**
+```
+- Google Ads: Google Ads · Performance Max · conversion tracking
+- Ads problem: wasted ad spend · cost per lead · Google Ads audit
+```
+
+**5. Automations**
+```
+- Automation: Make · n8n · Zapier
+- Automation problem: manual data entry · connect two tools · API integration
+- AI: AI chatbot · voice agent · OpenAI API
+```
+
+Every picked branch adds one industry line from the member's industries in `context/me.md`,
+the trade plus that branch's service word (`gym SEO`, `gym Google Ads`, `gym website`).
+
+**Several branches, one budget of terms.** A member with two or three branches gets terms from
+each on the first run, ten to twelve in total, so every branch is measured. What stays is three
+to five tracks, whichever branches they come from: every track is one search call per page, and
+more tracks buy coverage at the cost of depth per term, which is how a run stops finding the
+fresh postings that are the whole point. The rotating slot for a new candidate term retests a
+picked branch whose terms did not survive.
 
 ## The member's limits, sent with the query
 

@@ -26,7 +26,6 @@ import webbrowser
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import context_check
 sys.path.insert(0, str(ROOT / 'code'))
 import pipeline  # noqa: E402  (read-only use: load, jobs_dir)
 import application_check  # noqa: E402
@@ -68,9 +67,6 @@ def artifact_health(job):
     """Return gate-backed readiness without hiding saved drafts from the member."""
     folder = JOBS_DIR / str(job.get('id') or '')
     valid, errors = [], {}
-    proof_path = pathlib.Path(os.environ.get('BLUEPRINT_CONTEXT') or ROOT / 'context') / 'me.md'
-    proof = (context_check.client_proof(proof_path.read_text(encoding='utf-8'))
-             if proof_path.is_file() else '')
     for name in artifacts(str(job.get('id') or '')):
         path = folder / name
         problems = None
@@ -82,11 +78,11 @@ def artifact_health(job):
                 problems = pitch_check.check_page(path)
             elif name == 'application.md':
                 problems, _, _, _, _ = application_check.check(
-                    path.read_text(encoding='utf-8'), str(job.get('title') or ''), proof)
+                    path.read_text(encoding='utf-8'), str(job.get('title') or ''))
             elif name in ('proposal.md', 'project.md'):
                 import document_check  # noqa: E402  (same folder, imported where it is used)
                 kind = 'proposal' if name == 'proposal.md' else 'project'
-                problems = document_check.validate_artifact(kind, path.read_text(encoding='utf-8'), proof)
+                problems = document_check.validate_artifact(kind, path.read_text(encoding='utf-8'))
         except (OSError, UnicodeError):
             problems = ['file could not be read']
         if problems is None or not problems:

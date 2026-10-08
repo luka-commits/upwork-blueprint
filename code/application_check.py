@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The gate for an Upwork application before the member reads it.
 
-    python3 code/application_check.py jobs/<id>/application.md [--job-title "..."] [--proof context/me.md]
+    python3 code/application_check.py jobs/<id>/application.md [--job-title "..."] [--ready]
 
 Counts what can be counted, on the cover letter alone (screening answers after a
 "Screening answers" heading do not count toward its length):
@@ -15,7 +15,6 @@ A video link counts only on an exact host, loom.com or youtube.com with or witho
 www., and a non-empty path. "loom.com.example.test" is somebody else's domain.
 The client's screening question is the client's wording, not the member's, so the
 phrase and em-dash checks read the answer lines only.
-    unsupported past numbers     also checked in screening answers
 
 Job specificity, commitments and the ask are reported for a human eye, not scored: no pattern
 can tell a real risk reversal from a sentence that contains the word "refund",
@@ -28,11 +27,8 @@ import sys
 from urllib.parse import urlparse, parse_qs
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import profile_checks as pc  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import context_check
 BANNED = ('i would love to', "i'm excited", 'i am excited', 'what stood out', 'passionate',
           'results-driven', 'i want in', 'rockstar', 'ninja', 'i hope this finds you')
 RISK = ("you don't pay", 'you do not pay', 'risk-free', 'risk free', 'full refund', 'only pay',
@@ -98,7 +94,7 @@ def pc_contacts(text):
     return problems
 
 
-def check(text, job_title='', proof_text='', ready=False):
+def check(text, job_title='', ready=False):
     letter, screening = split_letter(text)
     letter = letter_body(letter)
     low = letter.lower()
@@ -137,15 +133,6 @@ def check(text, job_title='', proof_text='', ready=False):
         if own and not any(w in card for w in own):
             notes.append(f'none of this job\'s own words appear in the first {CARD_WORDS} words, '
                          'which is all the client sees before deciding to open it')
-    import profile_draft  # noqa: E402
-    # This catches suspect numbers, not fabricated qualitative claims or a number
-    # copied from unrelated proof. The member must verify claim-to-proof relevance.
-    for sentence in re.split(r'(?<=[.!?])\s+|\n', text):
-        if not re.search(r'\b(got|saved|raised|increased|built|delivered|rebuilt|contacted|helped|grew|cut|worked|managed|generated|achieved|have|has)\b', sentence, re.I):
-            continue
-        missing = profile_draft.unproven_numbers({'title': '', 'overview': sentence, 'portfolio': None}, proof_text)
-        for number in missing:
-            fails.append(f'"{number}" reads as a past result but is not in the evidence sections of context/me.md')
     notes.append('human review: match each claim to relevant proof, and confirm scope, rate and commitments')
     eye = [('risk reversal', any(r in low for r in RISK)), ('a specific ask', any(a in low for a in ASK))]
     return fails, notes, eye, words, screening is not None
@@ -155,16 +142,11 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('draft')
     ap.add_argument('--job-title', default='')
-    ap.add_argument('--proof', default=str(ROOT / 'context' / 'me.md'))
     ap.add_argument('--ready', action='store_true',
                     help='check the letter as it will be pasted: the Loom placeholder is then a failure')
     args = ap.parse_args(argv)
     text = pathlib.Path(args.draft).read_text(encoding='utf-8')
-    proof = pathlib.Path(args.proof)
-    fails, notes, eye, words, has_screening = check(
-        text, args.job_title,
-        context_check.client_proof(proof.read_text(encoding='utf-8')) if proof.is_file() else '',
-        ready=args.ready)
+    fails, notes, eye, words, has_screening = check(text, args.job_title, ready=args.ready)
     for n in notes:
         print(f'note  {n}')
     for f in fails:

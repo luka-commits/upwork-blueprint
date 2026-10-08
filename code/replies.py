@@ -7,15 +7,10 @@
     python3 code/replies.py skipped <job_id>
 
 The model chooses the words. This script checks the fixed contract around them:
-valid JSON, two or three labeled non-empty options, distinct text, no em-dashes,
-no number the evidence sections of context/me.md cannot back, and no way of
-reaching the member off Upwork. It never sends: `sendable` is the guard before a
-send, `sent` records one, `skipped` holds the drafts for today.
-
-A draft is the one client-facing artifact that leaves this repo as a message, and
-it used to be the only one with no gate on its content: the cover letter and the
-pitch page were both scanned for unproven numbers and contact details while the
-reply, which goes straight into a client's inbox, was checked for shape alone.
+valid JSON, two or three labeled non-empty options, distinct text, no em-dashes
+and no way of reaching the member off Upwork. Numbers are not checked: the member's
+figures are theirs. It never sends: `sendable` is the guard before a send, `sent`
+records one, `skipped` holds the drafts for today.
 """
 import argparse
 import datetime
@@ -33,17 +28,6 @@ import threads  # noqa: E402  (atomic writes of the thread and the drafts)
 ID = re.compile(r'^[0-9]{6,25}$')
 
 
-def unbacked_numbers(text, proof_text):
-    """Every result number in a draft that the member's evidence does not carry."""
-    import profile_checks as pc  # noqa: E402  (same folder, imported where it is used)
-    missing = set()
-    for hit in pc.RESULT_NUMBER.finditer(text):
-        core = re.search(r'\d[\d.,]*', hit.group(0)).group(0).rstrip('.,')
-        if not re.search(r'(?<![\d.,])' + re.escape(core) + r'(?!\d)', proof_text):
-            missing.add(hit.group(0).strip())
-    return sorted(missing)
-
-
 def off_upwork(text):
     """Contact details and invitations to move the conversation, as the letter gate reads them."""
     import application_check  # noqa: E402  (same folder, imported where it is used)
@@ -51,35 +35,7 @@ def off_upwork(text):
             for problem in application_check.pc_contacts(text)]
 
 
-def proof_text():
-    """The evidence sections of the member's own file, and nothing else from it."""
-    import context_check  # noqa: E402  (same folder, imported where it is used)
-    me = ROOT / 'context' / 'me.md'
-    return context_check.client_proof(me.read_text(encoding='utf-8')) if me.is_file() else ''
-
-
-def already_told(job_id):
-    """What this client already has from the member: the proposal sent and the member's own messages.
-
-    A follow-up that repeats the price of the proposal on the table makes no new claim,
-    so the number gate must not strip it out of the proposal reminder.
-    """
-    folder = pipeline.jobs_dir() / job_id
-    parts = []
-    try:
-        parts.append((folder / 'proposal.md').read_text(encoding='utf-8'))
-    except OSError:
-        pass
-    try:
-        thread = json.loads((folder / 'thread.json').read_text(encoding='utf-8'))
-        parts += [str(m.get('text') or '') for m in thread.get('messages') or []
-                  if isinstance(m, dict) and m.get('from') == 'me']
-    except (OSError, json.JSONDecodeError):
-        pass
-    return '\n'.join(parts)
-
-
-def validate(value, proof=None):
+def validate(value):
     problems = []
     if not isinstance(value, dict):
         return ['the root must be an object']
@@ -103,9 +59,6 @@ def validate(value, proof=None):
             problems.append(f'draft {index} contains an em-dash')
         else:
             texts.append(text.strip())
-            for number in unbacked_numbers(text, proof if proof is not None else proof_text()):
-                problems.append(f'draft {index} claims "{number}", which the evidence sections of '
-                                f'context/me.md do not carry: omit it or record where it can be checked')
             for problem in off_upwork(text):
                 problems.append(f'draft {index}: {problem}')
     if len(texts) != len(set(texts)):
@@ -126,7 +79,7 @@ def cmd_check(args):
     except json.JSONDecodeError as exc:
         print(f'ABORT: replies.json is not valid JSON at line {exc.lineno}.', file=sys.stderr)
         return 1
-    problems = validate(value, proof_text() + '\n' + already_told(args.job_id))
+    problems = validate(value)
     if problems:
         for problem in problems:
             print(f'FAIL: {problem}', file=sys.stderr)
@@ -173,7 +126,7 @@ def cmd_sendable(args):
               else 'the room does not wait on you' if thread.get('awaiting_reply_from') != 'you'
               else 'your message is the last one in the room' if real and real[-1].get('from') == 'me'
               else '')
-    problems = [] if reason else validate(value, proof_text() + '\n' + already_told(args.job_id))
+    problems = [] if reason else validate(value)
     if reason or problems:
         print(f'HOLD: {reason or problems[0]}', file=sys.stderr)
         return 1

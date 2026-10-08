@@ -18,7 +18,6 @@ names where it can be checked.
 import argparse
 import pathlib
 import re
-import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ME = ROOT / 'context' / 'me.md'
@@ -207,16 +206,6 @@ def client_proof(text):
 def verified_proof(text):
     """Entries the member stated or confirmed: everything not still waiting for their yes."""
     return '\n\n'.join(proof_entries(client_proof(text)))
-
-
-def usable_proof(text):
-    """Entries a client may see that carry a concrete figure.
-
-    A client-facing profile carries the member's own numbers as they gave them.
-    Entries with no figure, entries still awaiting a yes, and the starter's
-    instructions stay out.
-    """
-    return '\n\n'.join(block for block in proof_entries(client_proof(text)) if re.search(r'\d', block))
 
 
 def status(text):

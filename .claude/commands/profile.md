@@ -23,7 +23,7 @@ Read first [references/profile.md](../../references/profile.md), the profile sec
 
 Run `python3 code/context_check.py --gate profile` first. A `STOP` line ends the run, and the command it names is the member's next step: the empty starter sends them to `/about-me`, an open proof interview question to `/about-me proof` (a question answered "none" is answered). Then run `python3 code/context_check.py`: open questions never stop you, draft from what exists and list every gap under "# Decide first" atop `profile.md`.
 
-**Use the member's own concrete figures, with or without a place to check, worded as their claim; invent none.** An entry still marked pending was pulled from elsewhere and waits for their yes. The gate checks every number against `context/me.md`. A claim without a figure stays out. With no usable result, lead with offer and background (normal for a first profile).
+**Use the member's own concrete figures, with or without a place to check, worded as their claim; invent none.** An entry still marked pending was pulled from elsewhere and waits for their yes. A claim without a figure stays out. With no usable result, lead with offer and background (normal for a first profile).
 
 ## Step 2 · What is live, if anything
 
@@ -82,7 +82,7 @@ Then these sections with these exact headings (the gate reads `## Title`, `## Ov
 
 ## Step 5 · The gate
 
-Run `python3 code/profile_draft.py check profile.md`: it re-checks Upwork's limits, the `## Reference averages` ceiling, and every number against the evidence sections of `context/me.md`, video script included. It does not check the portfolio count. With `video` focus add `--only video`. Exit 1: fix and rerun. Never loosen claims or add a number to pass; those sections change only with the member's word or the connector's.
+Run `python3 code/profile_draft.py check profile.md`: it re-checks Upwork's limits, the `## Reference averages` ceiling and the em-dash, video script included; it does not check numbers. It does not check the portfolio count. With `video` focus add `--only video`. Exit 1: fix and rerun. Never loosen claims or add a number to pass; those sections change only with the member's word or the connector's.
 
 When the gate passes, **always print the video script in full in the chat**, as a quote the member can read aloud, with the recording steps below it (record it, upload as a public YouTube video, send the link). Never only point to the file. Do the same for the title and the overview in the preview message.
 

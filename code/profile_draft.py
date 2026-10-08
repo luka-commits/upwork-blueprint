@@ -69,20 +69,6 @@ def parse(text):
     }
 
 
-def unproven_numbers(draft, proof_text):
-    """Every result number in title, overview and portfolio titles the evidence lacks."""
-    missing = set()
-    proof_text = context_check.usable_proof(proof_text)
-    proven = {re.search(r'\d[\d.,]*', match.group(0)).group(0).rstrip('.,')
-              for match in pc.RESULT_NUMBER.finditer(proof_text)}
-    for text in [draft['title'], draft['overview'], draft.get('video', '')] + (draft['portfolio'] or []):
-        for m in pc.RESULT_NUMBER.finditer(text):
-            core = re.search(r'\d[\d.,]*', m.group(0)).group(0).rstrip('.,')
-            if core not in proven:
-                missing.add(m.group(0).strip())
-    return sorted(missing)
-
-
 def problems(draft, proof_text):
     found = []
     if not draft['title']:
@@ -128,8 +114,6 @@ def problems(draft, proof_text):
         if chr(0x2014) in draft[field]:  # the em-dash, written so this file carries none
             found.append(f'{field} has an em-dash')
 
-    for n in unproven_numbers(draft, proof_text):
-        found.append(f'"{n}" is not in the evidence sections of context/me.md: prove it there or cut it')
 
     return found
 
@@ -150,8 +134,6 @@ def cmd_check(args):
         else:
             if chr(0x2014) in draft['video']:
                 found.append('video script has an em-dash')
-            for n in unproven_numbers(dict(draft, title='', overview='', portfolio=None), proof_text):
-                found.append(f'"{n}" is not in the evidence sections of context/me.md: prove it there or cut it')
         for f in found:
             print(f'FAIL  {f}')
         print(f'\n{"PASS" if not found else f"{len(found)} problem(s)."}  video script {len(draft["video"].split())} words')

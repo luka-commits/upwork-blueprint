@@ -37,41 +37,6 @@ def abort(message):
     return 1
 
 
-def proof_text():
-    """The evidence sections of the member's own file, and nothing else from it."""
-    import context_check  # noqa: E402  (same folder, imported where it is used)
-    me = ROOT / 'context' / 'me.md'
-    return context_check.client_proof(me.read_text(encoding='utf-8')) if me.is_file() else ''
-
-
-def unbacked(text, proof):
-    """Result numbers the evidence sections do not carry, in the sentences that claim them.
-
-    The proposal is the document with the price in it and the one a client is sent to
-    read twice, and it was the only client-facing artifact with no check of this kind:
-    the cover letter and the chat draft both had one. A number in a scope line or a
-    milestone is a commitment, not a claim, so only sentences that read as a past result
-    are examined.
-    """
-    import profile_draft  # noqa: E402  (same folder, imported where it is used)
-    claims = []
-    # A promise with a number in it is the more dangerous half and read as harmless
-    # because it is not in the past tense: "you will be in the top three in eight weeks"
-    # is a guarantee, and this is the document a client holds the member to.
-    promise = re.compile(r'\b(will|expect|guarantee|guaranteed|within \d+|in \d+ (weeks|months)|'
-                         r'by (week|month) \d+|up to \d)\b', re.I)
-    for sentence in re.split(r'(?<=[.!?])\s+|\n', text):
-        if promise.search(sentence) and re.search(r'\d', sentence) and '%' in sentence:
-            claims.append(f'"{sentence.strip()[:90]}" promises a number: a proposal states scope '
-                          f'and price, never a result the member cannot control')
-        if not re.search(r'\b(got|saved|raised|increased|built|delivered|rebuilt|grew|cut|generated|achieved)\b',
-                         sentence, re.I):
-            continue
-        for number in profile_draft.unproven_numbers({'title': '', 'overview': sentence, 'portfolio': None}, proof):
-            claims.append(f'"{number}" reads as a past result but is not in the evidence sections of context/me.md')
-    return claims
-
-
 def off_upwork(text):
     """Contact details and invitations to move the conversation, as the letter gate reads them.
 
@@ -83,7 +48,7 @@ def off_upwork(text):
             for problem in application_check.pc_contacts(text)]
 
 
-def validate_artifact(kind, text, proof=None):
+def validate_artifact(kind, text):
     _, required = ARTIFACTS[kind]
     problems = []
     lines = text.splitlines()
@@ -112,7 +77,6 @@ def validate_artifact(kind, text, proof=None):
     if PLACEHOLDER.search(text):
         problems.append('contains a placeholder')
     if kind == 'proposal':
-        problems.extend(unbacked(text, proof if proof is not None else proof_text()))
         problems.extend(off_upwork(text))
     return problems
 

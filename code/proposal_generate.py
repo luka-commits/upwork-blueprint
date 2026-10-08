@@ -19,8 +19,12 @@ The JSON, all strings unless noted:
     member, client, headline, date,
     photo (optional: the member's photo, a local file or an HTTPS URL; else their initials),
     video (object: href, title, note, length),
+    summary (two or three sentences: what the client described, what was agreed; it opens
+        the page, and problem stands in for it only when it is missing),
     flow (array, optional, three to five short steps of how it works),
-    problem, deliverable, worth, timeline, cost, tools, proof,
+    problem, deliverable, worth, timeline, cost, tools, proof, acceptance,
+    scope (array, at most five), excluded (array, at most four, optional),
+    inputs (array, at most four, optional: what the client provides),
     next_steps (array, at most three),
     cta, cta_href, fine (array),
     labels (object, optional, overrides the eight part labels)
@@ -56,7 +60,7 @@ DEFAULT_LABELS = {
     'worth': "What it's worth",
     'timeline': 'Timeline',
     'cost': 'Investment',
-    'tools': 'Tools',
+    'tools': 'Runs on',
     'proof': 'Proof',
     'next': 'Next steps',
 }
@@ -123,8 +127,8 @@ def flow(raw, label):
         return ''
     if not 3 <= len(steps) <= 5:
         abort(f'flow has {len(steps)} steps; it draws three to five.')
-    return (f'<section class="sec flow"><p class="k">{esc(label)}</p><div class="v"><ol>'
-            + ''.join(f'<li><span>{esc(s)}</span></li>' for s in steps) + '</ol></div></section>')
+    return (f'<div class="flow"><p class="sub">{esc(label)}</p><ol>'
+            + ''.join(f'<li><span>{esc(s)}</span></li>' for s in steps) + '</ol></div>')
 
 
 def cost(raw):
@@ -165,7 +169,8 @@ def pdf(page):
         abort('Chrome produced no PDF of the proposal page.')
     pages = len(re.findall(rb'/Type\s*/Page[^s]', out.read_bytes()))
     if pages != 1:
-        abort(f'{shown(out)} runs to {pages} pages. Cut the content until it fits one.')
+        out.unlink()
+        abort(f'the page runs to {pages} pages as a PDF, so none was kept. Cut the content until it fits one.')
     return out
 
 
@@ -186,6 +191,8 @@ def plan(data, labels):
                 + section(labels['cost'], cost(raw) + worth))
     if len(items) > 4:
         abort(f'cost has {len(items)} milestones; the plan shows four at most.')
+    if isinstance(data.get('timeline'), list):
+        abort('the milestones carry their own `when`; give timeline as one sentence for what starts the clock.')
     phases = ''.join(
         f'<li><i></i><b>Milestone {n} · {value(i.get("when"))}</b><span>{value(i.get("label"))}</span>'
         f'<em>{value(i.get("amount"))}</em></li>' for n, i in enumerate(items, 1))
@@ -194,6 +201,32 @@ def plan(data, labels):
     total = (f'<div class="sum"><small>{notes}</small>'
              f'<p><span>Total</span><strong>{value(raw.get("text"))}</strong></p></div>')
     return section(labels.get('plan', 'Plan and investment'), f'<ol class="phases">{phases}</ol>{total}{worth}', 'plan')
+
+
+def items(raw, field, most):
+    rows = [str(i).strip() for i in (raw or []) if str(i or '').strip()]
+    if len(rows) > most:
+        abort(f'{field} has {len(rows)} lines; the page holds {most} at most.')
+    return rows
+
+
+def bullets(rows, kind=''):
+    return f'<ul class="{kind}">' + ''.join(f'<li>{esc(r)}</li>' for r in rows) + '</ul>'
+
+
+def scope(data, labels):
+    """What is in and what is out, side by side: the boundary a scope dispute is settled on."""
+    inside = items(data.get('scope'), 'scope', 5)
+    outside = items(data.get('excluded'), 'excluded', 4)
+    body = (f'<div class="cols"><div><p class="sub">Included</p>{bullets(inside, "in") if inside else OPEN}</div>'
+            + (f'<div><p class="sub">Not included</p>{bullets(outside, "out")}</div>' if outside else '') + '</div>')
+    return section(labels.get('scope', 'Scope'), body, 'scope')
+
+
+def inputs(data, labels):
+    """What the client provides. None needed, no section."""
+    rows = items(data.get('inputs'), 'inputs', 4)
+    return section(labels.get('inputs', 'What we need from you'), bullets(rows, 'need')) if rows else ''
 
 
 def proof(raw, label):
@@ -306,6 +339,12 @@ def main(argv=None):
         fields['{{' + name.upper() + '}}'] = part(data.get(name), strong=name == 'cost')
     fields['{{PLAN}}'] = plan(data, labels)
     fields['{{PROOF}}'] = proof(data.get('proof'), labels['proof'])
+    # The call summary opens the page; the problem line stands in only when there is none.
+    fields['{{SUMMARY}}'] = f'<div class="summary">{part(data.get("summary") or data.get("problem"))}</div>'
+    fields['{{RUNS_ON}}'] = f'<p class="runs"><span>{esc(labels["tools"])}</span>{part(data.get("tools"))}</p>'
+    fields['{{SCOPE}}'] = scope(data, labels)
+    fields['{{INPUTS}}'] = inputs(data, labels)
+    fields['{{ACCEPTANCE}}'] = section(labels.get('acceptance', 'How we sign off'), part(data.get('acceptance')))
     fields['{{PHOTO}}'] = photo(data.get('photo'), data.get('member'))
     fields['{{FLOW}}'] = flow(data.get('flow'), labels.get('flow', 'How it works'))
     for name in PARTS:

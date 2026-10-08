@@ -37,7 +37,7 @@ At offer with an existing proposal, `/brief` owns the thread.
 The call transcript is required; notes or a summary from memory are not. Read the file the
 second argument names (txt, md, vtt, srt or pdf) and save its full text
 as `jobs/<id>/call-transcript.md`, unchanged. Without a file, ask for the transcript export
-from the recorder (Upwork, Zoom, Meet, Fathom) and stop. `proposal_generate.py` refuses to
+of the call, which runs on Upwork's own video calls before a contract, and stop. `proposal_generate.py` refuses to
 build the page without that file or when it reads like notes, so a page never rests on less.
 
 Read the whole call. Separate what both sides agreed from what the client wished
@@ -135,14 +135,20 @@ If it runs past one page, cut. `headline` names the build ("Missed-call text-bac
 - `video` `{href, title, note, length}`: when there is one, it leads. A custom Loom for this
   client when the member has time, otherwise their reusable walkthrough. Title speaks to the
   client ("Sarah, watch this first"), note says what it covers. Optional: no link, no card.
-- `problem`: their pain in their numbers. `deliverable`: what they get, as a working state.
-- `flow`: three to five short steps of how the build works, drawn as a chain. Optional.
+- `summary`: two or three sentences under the headline, the same call summary the markdown
+  opens with. `problem` (their pain in their numbers) stands in only when it is missing.
+- `deliverable`: what they get, as a working state. `flow`: three to five short steps of how
+  the build works, drawn as a chain under it. Optional.
+- `scope` (at most five) and `excluded` (at most four): the deliverables and the boundary
+  from `## Scope` and `## Not included`, side by side.
+- `inputs` (at most four): from `## Client inputs`, each with its due point; none, no section.
+- `acceptance`: from `## Acceptance`, `{text, note}` with the review window in the note.
 - `cost` `{text, note, items}`: `text` is the approved total, each item one milestone
   `{when, label, amount}` ("Days 1–5", "Setup and a working demo", "$600"). Items with a
   `when` draw timeline and price as one plan; `timeline` is then one sentence for what starts
   the clock. Without items, `timeline` and `cost` stand apart as before.
 - `worth`: only a figure the client gave on the call, else leave it empty and the line is left out.
-- `tools`: what it runs on, and on whose accounts. `proof`: one line from the evidence
+- `tools`: what it runs on, and on whose accounts, one line under the deliverable. `proof`: one line from the evidence
   sections of `context/me.md`, else leave it empty and the section is left out.
 - `next_steps`: at most three things the client does.
 

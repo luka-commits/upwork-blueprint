@@ -47,7 +47,7 @@ def artifacts(job_id):
 # What a member is looking at when they open a lead: the thing a client reads, the thing
 # they still have to send, and the raw material behind both. A flat list of eleven files
 # hides the first two behind the third.
-CLIENT_FACING = {'pitch.html', 'proposal.html'}
+CLIENT_FACING = {'pitch.html', 'proposal.html', 'proposal.pdf'}
 TO_SEND = {'application.md', 'proposal.md', 'project.md'}
 
 
@@ -76,6 +76,9 @@ def artifact_health(job):
             # a green proposal as a checked proposal.
             if name in ('pitch.html', 'proposal.html'):
                 problems = pitch_check.check_page(path)
+            elif name == 'proposal.pdf':
+                # Printed from proposal.html by proposal_generate.py, so that page's gate is its gate.
+                problems = pitch_check.check_page(folder / 'proposal.html')
             elif name == 'application.md':
                 problems, _, _, _, _ = application_check.check(
                     path.read_text(encoding='utf-8'), str(job.get('title') or ''))

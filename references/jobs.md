@@ -165,14 +165,15 @@ Costs no Upwork call, because it reads the files the run already saved.
 ## Ready-made tracks
 
 The `Search:` line of each branch in [templates/profile/lanes.md](../templates/profile/lanes.md)
-is that branch's track, and the only place its terms live. `/find-jobs` reads
-`**Branches you picked:**` in `context/me.md`, writes one track per picked branch with the
-branch name as its label, and runs them in the same run without asking. A custom direction
+is that branch's track, and the only place its terms live. `jobs.py rules` reads
+`**Branches you picked:**` in `context/me.md` and builds one track per picked branch with the
+branch name as its label, every run, writing nothing; a member's own line of the same name
+under "Job search tracks" replaces it. A custom direction
 has no line there: its terms come from its services, tools and roles in `context/me.md`,
 worded the way the catalog above words them.
 
-An industry the member prefers adds one track, the trade plus each picked branch's service
-word (`gym SEO`, `gym Google Ads`, `gym website`), only while there is room.
+An industry search is the member's own line, the trade plus each picked branch's service
+word (`gym SEO`, `gym Google Ads`, `gym website`), counted within the five; never added unasked.
 
 **At most five tracks.** Every term is one title search per page, every track adds one `query`
 page and every run one page of Upwork's recommendations, and a run stops at 25 pages, so

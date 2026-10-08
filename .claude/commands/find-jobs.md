@@ -13,7 +13,7 @@ Read first: [references/upwork.md](../../references/upwork.md), [references/jobs
 
 `skip <job id> <reason>` does only that: no Upwork tool, no search, `Upwork calls: 0`, and it never continues into Step 1.
 
-Run `python3 code/pipeline.py get <job id>`. Only a Not applied lead (status `new`) can be skipped; a lead further along moves through `/brief`, so say that and stop. Without a reason, ask for one line: it names the fact that rules the job out (budget, scope, tool, client), never a mood. Then run:
+Run `python3 code/pipeline.py get <job id>`. Only a Not applied lead (status `new`) can be skipped; a lead further along moves through `/brief`, so say that and stop. Without a reason, ask for it as one pick: budget, scope, tool or client (a typed answer names another fact, never a mood). Then run:
 
 `python3 code/pipeline.py set <job id> skipped --note "not a fit: <reason>"`
 
@@ -25,14 +25,11 @@ Keep the prefix: `python3 code/jobs.py rules` counts a reason only when the note
 2. `python3 code/workspace.py`, `python3 code/pipeline.py prune`, then `python3 code/pipeline.py reset-search` (yesterday's unused leads expire, skip reasons kept).
 3. `list_accounts`. If the Upwork tools are missing, walk the member through connecting as `CLAUDE.md` says and stop.
 4. `python3 code/jobs.py window` starts the run and prints the hours to look back, at most twelve; keep the number as `<window>`. A second line `gap: N hours` goes into the report as the hours this run did not search. `jobs.py clean` in Step 7 saves the time of this run, so a run must finish for the next window to narrow.
-5. **Tracks.** Read `context/me.md` under "Job search tracks" (lines like `- Theme: term · term`, written by an earlier run). If there are none, build them now without asking:
-   - Read `**Branches you picked:**` in `context/me.md`, the names joined by ` · ` in the member's order. When the line is missing or still reads "not answered yet", take the branches named under "What you do".
-   - Each name that matches a heading in [templates/profile/lanes.md](../../templates/profile/lanes.md) (the heading without its number) becomes one theme: that name as label, its `Search:` line as terms (`- GoHighLevel CRM automations: GoHighLevel · GHL · CRM automation · sales funnel`).
-   - A name with no heading is a custom direction: draw its terms from its services, tools and roles in `context/me.md`, worded the way the catalog in [references/jobs.md](../../references/jobs.md) words them, the broad one first.
-   - If `context/me.md` names an industry the member prefers (in "What you do" or their strengths), add one theme for it: the trade plus each picked branch's service word (`- Gyms: gym SEO · gym Google Ads` for SEO and Google Ads). Without one, skip it.
-   - Keep at most five themes: branches in the line's order first, industry themes only while there is room; name any branch left out in the report. Write the lines under "Job search tracks" in `context/me.md` (each starting with `- `, the only lines `jobs.py rules` reads), tell the member in one line that these are the searches and that they can change them, and continue in this run.
+5. **Tracks.** Run `python3 code/jobs.py rules`: its `themes` are what you search, at most five. It builds one per name on `**Branches you picked:**` from that branch's `Search:` line in [templates/profile/lanes.md](../../templates/profile/lanes.md), writing nothing, and adds the member's own lines under "Job search tracks" in `context/me.md` (`- Theme: term · term`; a line named like a branch replaces that branch's terms).
+   - **No theme comes back** when the branch line is missing or still reads "not answered yet", or names a custom direction. Then draft the lines yourself: a branch named under "What you do" takes its `Search:` line, a custom direction takes terms from its services, tools and roles in `context/me.md`, worded the way the catalog in [references/jobs.md](../../references/jobs.md) words them, the broad one first. Show them, and write them under "Job search tracks" only after one pick ("Search with these" or "Not now"); "Not now" ends the run with `Upwork calls: 1`.
+   - An industry search exists only as the member's own line: never add one unasked.
 
-   Then run `python3 code/jobs.py rules`: its `themes` are what you search. Limits keep their script defaults unless the member set them in `context/me.md`; ask about none.
+   Limits keep their script defaults unless the member set them in `context/me.md`; ask about none.
 
 ## Step 2 · Search
 
@@ -53,7 +50,7 @@ Go in rounds, branches in the line's order, so every branch gets its core before
 
 Every term gets its first page, even when earlier terms returned the same jobs: that page is the term's only measurement. When the 25 pages run out, stop wherever the rounds stand and name what was left: terms never searched (the last branch's go first, which only happens with four or five branches) and first terms that did not reach the window's start. Save every page's `jobs` list as returned, as `{"jobs": [...]}`: recommendations to `data/search/recommended.json`, a term to `data/search/title-<slug>--<term>.json` (the theme's `slug` from `jobs.py rules`, the term in lowercase with dashes, its pages appended to the same file), a `query` page to `data/search/query-<slug>.json`. The file name becomes the job's "found via", so `learn.py` counts outcomes per branch, per term and per kind of search.
 
-Never remove a term yourself: Step 7 measures every term, and one it marks "propose dropping" goes into the report as a proposal, deleted only on a yes.
+Never remove a term yourself: Step 7 measures every term, and one it marks "propose dropping" goes into the report as a proposal. On a yes, write the theme's line without it under "Job search tracks", which then replaces the branch's terms.
 
 **Never disqualify a client on a thin signal** (no spending history, low average spend, few reviews; see references/jobs.md). Only the posting's own text fixing a low budget and a deadline together disqualifies.
 
@@ -107,5 +104,5 @@ Then `python3 code/jobs.py detail <id> data/details/<id>.json`. Only a new job w
 1. Take the balance from one `get_freelancer_dashboard` action `check`.
 2. When `data/search/` holds files, `python3 code/tracks.py measure data/search/*.json --log` keeps per term how many postings it found and how many no other search found (`data/terms.jsonl`, counts only); a term that found nothing another term had not, in three runs, is marked "propose dropping". Then, as separate commands, `python3 code/pipeline.py prune` and `python3 code/jobs.py clean --calls <N>` with every Upwork call of this run, the balance check included (deletes this run's raw responses, writes the stamp and logs calls and minutes to `data/runs.jsonl`, the record of what a run can safely do).
 3. Show the target number of leads, numbered, one line each: who wants what, the grade, the Connects cost. The other leads that passed the gate wait as the bench (`python3 code/pipeline.py list --status new`). Fewer than ten at 7 or better is a result: report the count and the cause (quiet day, few dense tracks, thin evidence in `context/me.md`). Never pad or lower the gate. Name the day's Connects bill once from the `connects_cost` values, with the balance. Never buy Connects.
-4. Add one optional line: "Any of these a no, and why?" Never block on it or ask again. Record each answer with `python3 code/pipeline.py set <id> skipped --note "not a fit: <reason>"` and when they answer on their next turn, offer the next lead from the bench by its line (today only; a lead below the gate is never a refill). It is not opened here: the run is closed, and `/proposal` reads its full posting before writing.
+4. Add one optional line: "Any of these a no? Reply with its number." A number gets the reason as one pick (budget, scope, tool or client). Never block on it or ask again. Record each answer with `python3 code/pipeline.py set <id> skipped --note "not a fit: <reason>"` and when they answer on their next turn, offer the next lead from the bench by its line (today only; a lead below the gate is never a refill). It is not opened here: the run is closed, and `/proposal` reads its full posting before writing.
 5. Use the completion report from `CLAUDE.md`, with any `gap` line from Step 1. Next step: `/proposal <id>` for the first lead, or the dashboard. End with `Upwork calls: N`, counted, including the dashboard check.

@@ -38,6 +38,7 @@ LAST_SEARCH = DATA / 'last-search.json'
 LESSONS = DATA / 'lessons.json'
 PIPELINE = ROOT / 'code' / 'pipeline.py'
 ME = pathlib.Path(os.environ.get('BLUEPRINT_ME') or ROOT / 'context' / 'me.md')
+LANES = ROOT / 'templates' / 'profile' / 'lanes.md'
 TAG = re.compile(r'</?untrusted_participant_content>')
 MIN_WINDOW, MAX_WINDOW = 10, 12
 RUN_FLOOR = 2          # the smallest window a repeat run asks for, in hours
@@ -221,16 +222,47 @@ def cmd_pause(args):
     return 0
 
 
+def theme(label, terms):
+    slug = re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')
+    return {'label': label, 'slug': slug, 'terms': terms, 'query': ', '.join(terms)}
+
+
+def branch_themes(text):
+    """One theme per picked branch, straight from its Search line in lanes.md.
+
+    Nothing is written to the member's file for this: the branches are their answer,
+    the terms are ours, and a run rebuilds them every time. Only what the member
+    adds themselves (a custom direction, an industry) lives under "Job search tracks".
+    """
+    match = re.search(r'^\*\*Branches you picked:\*\*[ \t]*(.*)$', text, re.M | re.I)
+    if not match or 'not answered yet' in match.group(1).lower():
+        return []
+    try:
+        lanes = LANES.read_text(encoding='utf-8')
+    except OSError:
+        return []
+    search = {}
+    for block in re.split(r'(?m)^## ', lanes)[1:]:
+        heading = re.sub(r'^\d+\.\s*', '', block.splitlines()[0]).strip()
+        line = re.search(r'(?m)^Search:\s*(.+)$', block)
+        if line:
+            search[heading.lower()] = (heading, [t.strip() for t in re.split(r'\s*·\s*', line.group(1)) if t.strip()])
+    themes = []
+    for name in re.split(r'\s*[·|]\s*', match.group(1)):
+        found = search.get(re.sub(r'^\d+\.\s*', '', name.strip()).lower())
+        if found:
+            themes.append(theme(*found))
+    return themes
+
+
 def member_search_themes():
     try:
         text = ME.read_text(encoding='utf-8')
     except OSError:
         return []
     match = re.search(r'(?ms)^## Job search tracks\s*\n(.*?)(?=^## |\Z)', text)
-    if not match:
-        return []
     themes = []
-    for line in match.group(1).splitlines():
+    for line in (match.group(1).splitlines() if match else []):
         if not line.startswith('- ') or not line[2:].strip():
             continue
         item = line[2:].strip()
@@ -243,9 +275,12 @@ def member_search_themes():
         else:
             label, terms = item, [item]
         if label and terms:
-            slug = re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')
-            themes.append({'label': label, 'slug': slug, 'terms': terms, 'query': ', '.join(terms)})
-    return themes
+            themes.append(theme(label, terms))
+    # The member's own lines win over a branch theme of the same name; the branches
+    # come first in their order, then whatever the member added, five at most.
+    own = {t['slug']: t for t in themes}
+    merged = [own.pop(t['slug'], t) for t in branch_themes(text)]
+    return (merged + list(own.values()))[:5]
 
 
 def source_matches_theme(source, theme):

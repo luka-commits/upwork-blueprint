@@ -56,7 +56,7 @@ decision easy, use concrete commitments, and never pressure the client.
 
 ## Job search tracks
 
-Not set yet. /find-jobs builds them from the branches you picked the first time it runs. One short line each, a tool or role a client would put in a job title.
+Your branches' searches come from the Search lines of your branches every run. Add a line here only for a search of your own, as "- Name: term · term": a line named like one of your branches replaces its terms.
 
 ## Proof interview
 

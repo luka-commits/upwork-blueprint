@@ -1,9 +1,14 @@
 ---
 description: Prepares the one-pager for the member's Loom and writes the application text for one job: cover letter and screening answers.
-argument-hint: "<job id> [more job ids] | <job id> submitted"
+argument-hint: "<job id> [more job ids] | <job id> own | <job id> submitted | samples [branch]"
 ---
 
 # /proposal
+
+**`/proposal <id>`** sends the branch's sample Loom: the letter carries its URL from
+`## Sample Looms` in `context/me.md`, and Step 2 is skipped. **`/proposal <id> own`**, or a
+branch without a sample, builds the tailored one-pager in Step 2 for a personal Loom and
+keeps `[LOOM LINK]` in the letter.
 
 **`/proposal <id> submitted`:** only run `python3 code/pipeline.py set <id> applied`
 and report `Upwork calls: 0`, then stop before any other step. It records the member's submission.
@@ -19,13 +24,40 @@ this command prepares that page and writes the application text.
 
 Read first: [references/upwork.md](../../references/upwork.md) (hard constraint 8, no contact route before a contract), `context/me.md`.
 
+## `/proposal samples` · one Loom per branch, recorded once
+
+Runs no Upwork call. One sample per name on `**Branches you picked:**` in `context/me.md`,
+at most five; with no branch recorded, send the member to `/about-me` and stop.
+`/proposal samples <branch>` redoes one. The branch picks its template from the Step 2
+table, saved as `context/samples/<template name>.html` (`seo`, `google-ads`, `website`,
+`gohighlevel`, `automations`).
+
+1. **The page, for no client in particular.** Build it as Step 2 does, with the template's
+   own graph for GoHighLevel and Automations, then fill every blank from `context/me.md`.
+   The h1 is the outcome this branch's usual client wants, no row carries an `asked` tag,
+   and nothing names a client, a place or a posting. `python3 code/pitch_check.py page
+   <file>` must pass, then open it.
+2. **The script, 45 seconds.** Save it to `context/samples/<template name>.md` in a fenced
+   `text` block and print it in full in the chat. It follows the intro video's flow
+   (`/profile`, Video script) with the page on screen: your name and who you help, then
+   down the page phase by phase with one proof from the evidence sections where it fits,
+   then one small invitation to reply here on Upwork. About 100 words, warm and plain,
+   numbers as said aloud, nothing that fits only one job, never invented proof. Close
+   with "read it aloud once before recording; anything that trips your tongue gets cut".
+3. **The member records it** with the page on screen and pastes the share link. Only a
+   `loom.com/share/...` or YouTube link counts. Write it to `context/me.md` under
+   `## Sample Looms`, one `**<branch>:** <url>` line each, adding the section once if it
+   is missing and replacing the line on a redo.
+
+The report names each branch with its sample recorded or still open.
+
 ## Step 1 · The job and its full posting
 
 `python3 code/pipeline.py get $ARGUMENTS`. The posting is in `details.description`. No posting there (older than a day, or never opened): `find_jobs` action `get` for this one job, then `python3 code/jobs.py detail <id> <file>` as `/find-jobs` Step 6 does. Never write from the summary: the requirements and screening questions are in the full posting.
 
 ## Step 2 · The one-pager for the Loom
 
-The member shows one page on screen in the Loom. Pick it by branch: the one whose `Tools:` line in `templates/profile/lanes.md` the posting matches, and for a mixed job the branch that carries most of the work. Nothing is published and the letter links nothing.
+Only for `own` or a branch with no sample. The member shows one page on screen in the Loom. Pick it by branch: the one whose `Tools:` line in `templates/profile/lanes.md` the posting matches, and for a mixed job the branch that carries most of the work. Nothing is published and the letter links nothing.
 
 | Posting is mainly | Template | How it is made |
 |---|---|---|
@@ -87,6 +119,8 @@ All the best, <first name>
 Fill rules:
 - **The opening carries the card.** The first 230 characters are the role plus this client's outcome, with at least one word from the job title.
 - **Status, counts and clients** ("Top-Rated", "15+ clients", a named result) are written only if they stand in the evidence sections of `context/me.md`. A count that is missing is left out, not asked for. **The portfolio block is optional**: most members have no link, so without one the two lines are dropped and nothing is asked.
+- **The video line.** A sample Loom goes in as its URL, and no line says the video is about
+  this client; a personal Loom keeps `[LOOM LINK]` and may say it walks through their plan.
 - **No page link.** The Loom is the only extra: the member shows a one-pager on their own screen, and the letter links nothing else.
 - **No claim beyond the proof.** A requirement the evidence does not cover is not claimed; name it to the member instead.
 - Do not recap the posting, add generic praise or pad. Never add a guarantee, refund,
@@ -146,5 +180,5 @@ That stage rests on their word; `/brief` checks once if no proposal ever shows u
 ## Step 4 · Report
 
 Run `python3 code/pipeline.py prune` first, because Step 1 fetched the full job. Then the completion report as CLAUDE.md defines it, with the application linked. Say what the application costs in Connects and what the balance leaves.
-Next: record the Loom and return its URL here; replace [LOOM LINK] in the letter. Run the ready application check again. Only then submit on Upwork and run `/proposal <id> submitted`.
+Next, with a sample Loom: the ready check runs now, then submit on Upwork and run `/proposal <id> submitted`; `/proposal <id> own` swaps in a personal one. With a personal Loom: record it and return its URL here; replace [LOOM LINK] in the letter, run the ready check again, then submit and run `/proposal <id> submitted`.
 End with `Upwork calls: N`.

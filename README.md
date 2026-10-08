@@ -98,6 +98,8 @@ Run `git pull`, then `./setup.sh` again. Activate `.venv` first if you use it.
 Everything below is yours and gitignored, so `git pull` never touches it.
 
 - `context/me.md` - who you are and what you can back up
+- `context/samples/` - one sample one-pager and its 45-second script per branch,
+  for the Loom you record once
 - `profile.md` - the profile to paste, written against what is live today
 - `data/jobs.json` - your pipeline, written only by `code/pipeline.py`
 - `jobs/<id>/` - one folder per job: the pitch page, the application,

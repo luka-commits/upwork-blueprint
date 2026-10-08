@@ -1,8 +1,8 @@
 // What a lead needs next: a command to copy into Claude Code, or a sentence for
 // the member's own hands, plus the other commands that fit its stage. The
 // cockpit runs nothing itself.
-// The stage decides what a lead carries. `new` builds the pitch page until BOTH
-// files exist, then the member submits by hand, and `/find-jobs skip <id>
+// The stage decides what a lead carries. `new` writes the application, then the
+// member submits by hand (after a personal Loom when a pitch page exists), and `/find-jobs skip <id>
 // <reason>` stays available on every new lead. `applied` waits. `replied`, `call` and `offer`
 // answer a waiting client first and a due follow-up second, where due means
 // `next_follow_up <= today`; a future date stays Waiting. The cadence is pipeline.py's:
@@ -80,9 +80,12 @@ export function nextStep(job, today = todayIso()) {
   switch (job.status) {
     case 'new': {
       const skip = [`/find-jobs skip ${id} <reason>`];
-      return has(job, 'pitch.html') && has(job, 'application.md')
-        ? step('Finish Loom', `Record the Loom and return its URL to /proposal ${id} for ready page and application checks and republishing. Then submit on Upwork and run /proposal ${id} submitted.`, null, skip)
-        : step('Build pitch page', 'Builds the pitch page and the application.', `/proposal ${id}`, skip);
+      // A sample Loom needs no page, so the application alone is ready to submit;
+      // a page beside it means the member chose a personal Loom (`/proposal <id> own`).
+      if (!has(job, 'application.md')) return step('Write application', 'Writes the application with your sample Loom.', `/proposal ${id}`, skip);
+      return has(job, 'pitch.html')
+        ? step('Finish Loom', `Record the Loom and return its URL to /proposal ${id} for the ready check. Then submit on Upwork and run /proposal ${id} submitted.`, null, skip)
+        : step('Submit', `Paste the application on Upwork and submit it, then run /proposal ${id} submitted.`, null, [`/proposal ${id} own`, ...skip]);
     }
     case 'applied':
       return step('Waiting', WAITING);

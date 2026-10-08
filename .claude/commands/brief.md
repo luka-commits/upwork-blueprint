@@ -24,8 +24,8 @@ WHAT MIGHT GO WRONG: missing IDs or ambiguous pagination can leave a thread unve
 
 ## Step 1 · Read what Upwork shows
 
-With an id, always refresh that lead's thread. Otherwise skip this step when
-`data/sync.json` is younger than two hours and no fresh pull was requested; say so and go to Step 3.
+Every run reads Upwork fresh, with or without an id: the room is the record of what already
+went out, so a draft is never offered against an old copy of it.
 
 Use `list_accounts` for the `org_uid` once. Then, all read only:
 
@@ -202,14 +202,22 @@ after its check passed, and nothing else; one single choice: send it now · I'll
 myself · not today. Only "send it now" sends. A dismissed question, a typed answer or an
 "ok" to anything else is not a yes.
 
-On the yes, `send_message` action `send` with the lead's `room_id` from
-`jobs/<id>/thread.json` and `message` exactly that text, never retyped or shortened, then
-`python3 code/replies.py sent <id> --label <label>`. The tool sends at once, with no preview
-to confirm. No `room_id`, an error, or a response that does not confirm the send: say so in
-one line and leave the draft for the member to send on Upwork. Never resend when the outcome
-is unclear: read the room with `get_messages` first, because a duplicate reaches the client.
-Then the next draft. The other options wait in the dashboard; one the member names gets its
-own question.
+Before each question run `python3 code/replies.py sendable <id>`; a `HOLD` line means no
+question for that lead, and its reason goes into the report in a few words. On the yes, run
+`sendable` once more, then `send_message` action `send` with the `room_id` it printed and
+`message` exactly that text, never retyped or shortened. The tool sends at once, with no
+preview to confirm. Right after it, record it: `python3 code/replies.py sent <id> --label
+<label> --via brief`, with `--story-id` when the response returned one. That writes the exact
+text and time into `replies.json`, shows it in the thread as the member's message and adds
+one line to the lead's timeline, so no later run offers it again.
+
+"Not today" runs `python3 code/replies.py skipped <id>`: the drafts are held, the lead stays
+due, and the next run writes fresh ones. "I'll send it myself" records nothing: the next run
+reads the member's message from the room. An error, or a response that does not confirm the
+send: say so in one line, record nothing, and never resend until a fresh read of the room
+with `get_messages` shows it did not arrive, because a duplicate reaches the client. Then the
+next draft. The other options wait in the dashboard; one the member names gets its own
+question.
 
 ## Step 6 · Dashboard and report
 

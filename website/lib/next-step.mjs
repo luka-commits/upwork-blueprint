@@ -177,6 +177,8 @@ export function waitingState(job, today = todayIso(), now = Date.now()) {
 
 export function replyDrafts(job) {
   const replies = job.replies || {};
+  // Drafts that already went out are history, never an option to send again.
+  if (replies.sent) return [];
   const drafts = (Array.isArray(replies.drafts) ? replies.drafts : [])
     .map(draft => ({ label: String(draft?.label || '').trim(), text: String(draft?.text || '').trim() }))
     .filter(draft => draft.text);

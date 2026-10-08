@@ -2,11 +2,15 @@
 """Validate the machine file that /brief writes for the cockpit.
 
     python3 code/replies.py check <job_id>
+    python3 code/replies.py sendable <job_id>
+    python3 code/replies.py sent <job_id> --label <label> [--via brief|upwork] [--story-id <id>]
+    python3 code/replies.py skipped <job_id>
 
 The model chooses the words. This script checks the fixed contract around them:
 valid JSON, two or three labeled non-empty options, distinct text, no em-dashes,
 no number the evidence sections of context/me.md cannot back, and no way of
-reaching the member off Upwork. It never sends or changes a reply.
+reaching the member off Upwork. It never sends: `sendable` is the guard before a
+send, `sent` records one, `skipped` holds the drafts for today.
 
 A draft is the one client-facing artifact that leaves this repo as a message, and
 it used to be the only one with no gate on its content: the cover letter and the
@@ -14,6 +18,7 @@ pitch page were both scanned for unproven numbers and contact details while the
 reply, which goes straight into a client's inbox, was checked for shape alone.
 """
 import argparse
+import datetime
 import json
 import pathlib
 import re
@@ -23,6 +28,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'code'))
 import pipeline  # noqa: E402  (jobs_dir only)
+import threads  # noqa: E402  (atomic writes of the thread and the drafts)
 
 ID = re.compile(r'^[0-9]{6,25}$')
 
@@ -129,22 +135,65 @@ def cmd_check(args):
     return 0
 
 
+def now():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
+
+
+def load(job_id):
+    """jobs/<id>/replies.json as (path, value); aborts with the reason when it cannot be used."""
+    if not ID.fullmatch(job_id):
+        raise SystemExit('ABORT: that job id is not valid.')
+    file = pipeline.jobs_dir() / job_id / 'replies.json'
+    try:
+        return file, json.loads(file.read_text(encoding='utf-8'))
+    except (FileNotFoundError, json.JSONDecodeError):
+        raise SystemExit('ABORT: replies.json is missing or not valid JSON.')
+
+
+def thread_of(job_id):
+    try:
+        return json.loads((pipeline.jobs_dir() / job_id / 'thread.json').read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def cmd_sendable(args):
+    """Whether these drafts may go out now: the last guard before send_message.
+
+    A reply the client already has must never go out twice. The drafts are refused
+    once one of them was sent or the member said not today, and when the saved room
+    no longer waits on the member: their own message there means it already went out.
+    """
+    _, value = load(args.job_id)
+    thread = thread_of(args.job_id)
+    real = [m for m in thread.get('messages') or [] if isinstance(m, dict) and m.get('kind') != 'event']
+    reason = (f'already sent at {value["sent"].get("at")}' if isinstance(value.get('sent'), dict)
+              else f'held for today at {value["skipped_at"]}' if value.get('skipped_at')
+              else 'no room_id in thread.json' if not thread.get('room_id')
+              else 'the room does not wait on you' if thread.get('awaiting_reply_from') != 'you'
+              else 'your message is the last one in the room' if real and real[-1].get('from') == 'me'
+              else '')
+    problems = [] if reason else validate(value, proof_text() + '\n' + already_told(args.job_id))
+    if reason or problems:
+        print(f'HOLD: {reason or problems[0]}', file=sys.stderr)
+        return 1
+    print(f'SENDABLE room {thread["room_id"]}: ' + ', '.join(str(d.get('label')) for d in value['drafts']))
+    return 0
+
+
 def cmd_sent(args):
     """Record which draft went to the client, in the draft's own words.
 
     The send itself is one connector call and leaves no trace here, so a week later
     nobody can say what was sent or whether it was the text the member approved.
     Taking the record from replies.json rather than from a retyped summary is the
-    whole point: what is logged is provably the option they chose.
+    whole point: what is logged is provably the option they chose. The draft file
+    keeps the exact text and time, the thread shows it as the member's message, and
+    the pipeline timeline carries one line, so the next run cannot offer it again.
     """
-    if not ID.fullmatch(args.job_id):
-        print('ABORT: that job id is not valid.', file=sys.stderr)
-        return 1
-    file = pipeline.jobs_dir() / args.job_id / 'replies.json'
-    try:
-        value = json.loads(file.read_text(encoding='utf-8'))
-    except (FileNotFoundError, json.JSONDecodeError):
-        print('ABORT: replies.json is missing or not valid JSON.', file=sys.stderr)
+    file, value = load(args.job_id)
+    if isinstance(value.get('sent'), dict):
+        print(f'ABORT: these drafts were already sent at {value["sent"].get("at")}.', file=sys.stderr)
         return 1
     drafts = [d for d in value.get('drafts') or [] if isinstance(d, dict)]
     picked = [d for d in drafts if str(d.get('label', '')).strip().lower() == args.label.strip().lower()]
@@ -152,13 +201,32 @@ def cmd_sent(args):
         labels = ', '.join(repr(str(d.get('label', ''))) for d in drafts) or 'none'
         print(f'ABORT: no draft labelled {args.label!r}. Labels present: {labels}', file=sys.stderr)
         return 1
-    text = ' '.join(str(picked[0].get('text', '')).split())
+    exact, at = str(picked[0].get('text', '')).strip(), now()
     out = subprocess.run([sys.executable, str(ROOT / 'code' / 'pipeline.py'), 'acted', args.job_id,
-                          '--note', f'sent to the client: {text}'], capture_output=True, text=True)
+                          '--note', f'sent to the client ({args.via}): {" ".join(exact.split())}'],
+                         capture_output=True, text=True)
     if out.returncode:
         print(out.stderr.strip(), file=sys.stderr)
         return 1
-    print(f'Recorded the "{picked[0].get("label")}" draft as sent.')
+    value['sent'] = {'label': picked[0].get('label'), 'text': exact, 'at': at, 'via': args.via,
+                     'story_id': args.story_id}
+    threads.write_json(file, value)
+    thread = thread_of(args.job_id)
+    if thread:
+        thread.setdefault('messages', []).append({'id': args.story_id, 'from': 'me', 'name': '', 'at': at,
+                                                  'text': exact, 'kind': 'message'})
+        thread['awaiting_reply_from'] = 'them'
+        threads.write_json(pipeline.jobs_dir() / args.job_id / 'thread.json', thread)
+    print(f'Recorded the "{picked[0].get("label")}" draft as sent ({args.via}) at {at}.')
+    return 0
+
+
+def cmd_skipped(args):
+    """The member said not today: these drafts are not offered again; the lead stays due."""
+    file, value = load(args.job_id)
+    value['skipped_at'] = now()
+    threads.write_json(file, value)
+    print(f'Held the drafts for {args.job_id}; the next /brief writes fresh ones if the lead is still due.')
     return 0
 
 
@@ -168,10 +236,19 @@ def main(argv=None):
     check = sub.add_parser('check', help='Validate jobs/<id>/replies.json.')
     check.add_argument('job_id')
     check.set_defaults(func=cmd_check)
-    sent = sub.add_parser('sent', help='Record which draft the member sent, from its own text.')
+    sendable = sub.add_parser('sendable', help='Whether the drafts may go out now; run before every send.')
+    sendable.add_argument('job_id')
+    sendable.set_defaults(func=cmd_sendable)
+    sent = sub.add_parser('sent', help='Record which draft went out, from its own text.')
     sent.add_argument('job_id')
     sent.add_argument('--label', required=True, help='the label of the draft that went out')
+    sent.add_argument('--via', choices=('brief', 'upwork'), default='upwork',
+                      help='brief: sent by send_message on the yes; upwork: the member sent it themselves')
+    sent.add_argument('--story-id', help='the story id send_message returned, when it returned one')
     sent.set_defaults(func=cmd_sent)
+    skipped = sub.add_parser('skipped', help='The member said not today to these drafts.')
+    skipped.add_argument('job_id')
+    skipped.set_defaults(func=cmd_skipped)
     args = parser.parse_args(argv)
     return args.func(args)
 

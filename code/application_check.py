@@ -40,6 +40,9 @@ LOOM_PLACEHOLDER = '[LOOM LINK]'
 # The applicant card shows about 230 to 240 characters, so the client decides whether to
 # open the letter from its first words. These openings spend them on nothing.
 CARD_WORDS = 45
+# The member's sent letters open in one sentence of under 30 words, so the video line
+# still lands on the card.
+OPENER_WORDS = 30
 FILLER_OPENERS = (r'i hope', r'hope you', r'my name is',
                   r'with (over )?\d+ years', r'allow me to', r'i came across',
                   r'just saw your', r'greetings')
@@ -123,6 +126,11 @@ def check(text, job_title='', ready=False):
     if ready and LOOM_PLACEHOLDER in letter:
         fails.append('the [LOOM LINK] placeholder is still in the letter: paste the real '
                      'walkthrough URL before you submit')
+    opener = re.split(r'(?<=[.!?])\s|\n', letter.strip(), maxsplit=1)[0]
+    opener_words = len(re.findall(r"\b[\w'$%+-]+\b", opener))
+    if opener_words > OPENER_WORDS:
+        fails.append(f'the opening sentence is {opener_words} words, the cap is {OPENER_WORDS}: '
+                     'name their project in one short sentence')
     card = ' '.join(re.findall(r"\b[\w'$%+-]+\b", letter)[:CARD_WORDS]).lower()
     spent = [p for p in FILLER_OPENERS if re.search(p, card)]
     if spent:

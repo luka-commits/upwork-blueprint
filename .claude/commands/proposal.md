@@ -96,7 +96,7 @@ the member's sent letters; keep its order and its small signposts (📽️ 🔗 
 `<...>` below is filled from this job's posting and from `context/me.md`, never from memory.
 
 ```
-Hey, I'm a <the member's real status and role from context/me.md, the role as its `**Profile title:**` names it when one is recorded> and can definitely help you <the client's goal, in the client's own words from the posting>.
+Hey, <the client's project, in the words of the job title> is right in my wheelhouse<, only with matching proof in the evidence sections of context/me.md: I've built <that kind of work> before>.
 
 Here's how I would do it :)
 📽️: [LOOM LINK]
@@ -117,7 +117,7 @@ All the best, <first name>
 ```
 
 Fill rules:
-- **The opening carries the card.** The first 230 characters are the role plus this client's outcome, with at least one word from the job title.
+- **The opening carries the card.** One sentence of at most 30 words naming this client's project with at least one word from the job title: no role, no list of their business names. The video line follows inside the first 230 characters.
 - **Status, counts and clients** ("Top-Rated", "15+ clients", a named result) are written only if they stand in the evidence sections of `context/me.md`. A count that is missing is left out, not asked for. **The portfolio block is optional**: most members have no link, so without one the two lines are dropped and nothing is asked.
 - **The video line.** A sample Loom goes in as its URL, and no line says the video is about
   this client; a personal Loom keeps `[LOOM LINK]` and may say it walks through their plan.

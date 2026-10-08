@@ -236,19 +236,52 @@ between the estimate's cases with another figure typed.
 
 ### Write the letter
 
-Write a compact pitch, normally 65 to 120 words and never more than 140 words,
-in the member's voice, with no em-dashes. Use four short blocks:
+Write the letter on the member's own template: five blocks, friendly and plain, no
+em-dashes, normally 120 to 180 words and never more than 220. The template comes from
+the member's sent letters; keep its order and its small signposts (📽️ 🔗 ❗). Every
+`<...>` below is filled from this job's posting and from `context/me.md`, never from memory.
 
-1. One sentence on why the member fits this exact job and outcome.
-2. One sentence inviting the client to watch the walkthrough, with the literal [LOOM LINK] placeholder.
-3. One or two short, relevant examples from the evidence sections of `context/me.md`. Never stretch unrelated proof to fill space.
-4. One specific next question or ask on Upwork.
+```
+Hey, I'm a <the member's real status and role from context/me.md> and can definitely help you <the client's goal, in the client's own words from the posting>.
 
-Do not recap the posting, explain a long method, add generic praise, write a
-biography or pad the pitch. Never add a guarantee, refund, free work or delivery
-date as a sales device. Put answers to required screening questions in
-a separate section, not in the cover letter, unless the posting explicitly
-requires the answer there.
+Here's how I would do it :)
+📽️: [LOOM LINK]
+
+Here's the flowchart I was showing in the video:        <only for GoHighLevel and Automations>
+🔗 <the published pitch page URL from Step 7>
+
+<Screening block, only when the posting states questions: see below>
+
+In terms of relevant experience, <one or two sentences of proof from the evidence sections of context/me.md that fit this job, using the problem words of the posting>.
+
+<One sentence on how the member works that answers this client's situation, for example: audit first, simplify, rebuild, document.>
+
+Websites, funnels etc:
+❗<the member's portfolio link from context/me.md>
+
+Happy to jump on a call to <the one thing to scope for this job>. Looking forward to hearing from you!
+
+All the best, <first name>
+```
+
+Fill rules:
+- **The opening carries the card.** The first 230 characters are the role plus this client's outcome, with at least one word from the job title.
+- **Status, counts and clients** ("Top-Rated", "15+ clients", a named result) are written only if they stand in the evidence sections of `context/me.md`. If the portfolio link or a count is missing, ask once, then record it there ([CLAUDE.md](../../CLAUDE.md) hard rules).
+- **The flowchart line** appears only on branches that build the flowchart page (GoHighLevel, Automations). SEO, Ads and Website drop it: the Loom walks through the roadmap page instead, and the page link goes in the same place.
+- **No claim beyond the proof.** A requirement the evidence does not cover is not claimed; name it to the member instead.
+- Do not recap the posting, add generic praise or pad. Never add a guarantee, refund,
+  free work or delivery date as a sales device.
+
+**Screening questions.** Read the full description for any question the client wants answered (a numbered list, "please answer", "include", "start your reply with") and for questions in Upwork's own question fields. Name each one in the Step 8 report. When the posting wants the answers in the letter itself, insert this block after the video lines, one numbered line per question, each answered in one or two sentences, and where the video covers it, say so in plain words (a timestamp only after the Loom exists):
+
+```
+Answers to your screening questions:
+
+1. <topic of the question>: <answer>
+2. ...
+```
+
+Otherwise put the answers in the separate `# Screening answers` section below, for the member to paste into Upwork's question fields.
 
 Save the cover letter to `jobs/<id>/application.md` in this exact shape so the
 cockpit can present it separately:

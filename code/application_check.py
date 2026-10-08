@@ -6,7 +6,7 @@
 Counts what can be counted, on the cover letter alone (screening answers after a
 "Screening answers" heading do not count toward its length):
 
-    at most 140 words            a compact pitch, not a method essay
+    at most 220 words            a compact pitch, not a method essay (numbered screening answers inside the letter do not count)
     none of the generic phrases   the tells that mark a letter as a template
     no em-dashes                  the fastest tell of machine writing
     the saved Loom or YouTube URL the application links to the finished video
@@ -38,12 +38,12 @@ BANNED = ('i would love to', "i'm excited", 'i am excited', 'what stood out', 'p
 RISK = ("you don't pay", 'you do not pay', 'risk-free', 'risk free', 'full refund', 'only pay',
         'approve each', 'milestones, not', 'milestone')
 ASK = ('send me', 'reply with', 'when works', 'let me know', 'tell me', 'here on upwork')
-MAX_WORDS = 140
+MAX_WORDS = 220
 LOOM_PLACEHOLDER = '[LOOM LINK]'
 # The applicant card shows about 230 to 240 characters, so the client decides whether to
 # open the letter from its first words. These openings spend them on nothing.
 CARD_WORDS = 45
-FILLER_OPENERS = (r'i hope', r'hope you', r'my name is', r"i'?m a\b", r'i am a\b',
+FILLER_OPENERS = (r'i hope', r'hope you', r'my name is',
                   r'with (over )?\d+ years', r'allow me to', r'i came across',
                   r'just saw your', r'greetings')
 
@@ -102,7 +102,8 @@ def check(text, job_title='', proof_text='', ready=False):
     letter = letter_body(letter)
     low = letter.lower()
     fails, notes = [], []
-    words = len(re.findall(r"\b[\w'$%+-]+\b", letter))
+    counted = '\n'.join(l for l in letter.splitlines() if not re.match(r'^\s*\d+\.\s', l))
+    words = len(re.findall(r"\b[\w'$%+-]+\b", counted))
     if words > MAX_WORDS:
         fails.append(f'cover letter is {words} words, the cap is {MAX_WORDS}: cut {words - MAX_WORDS}')
     if not words:

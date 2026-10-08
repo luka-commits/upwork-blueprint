@@ -17,7 +17,7 @@ import sys
 # bare address or number, which no new meeting service can rename.
 CONTACT_LINKS = re.compile(
     r'(mailto:|tel:|sms:|wa\.me|whatsapp|'
-    r'calendly|cal\.com/|tidycal|zcal\.co|savvycal|meetings\.hubspot|hubspot\.com/meetings|'
+    r'calendly|(?<![\w-])cal\.com/|tidycal|zcal\.co|savvycal|meetings\.hubspot|hubspot\.com/meetings|'
     r'youcanbook\.me|acuityscheduling|oncehub|koalendar|book\.ms|'
     r'zoom\.us|meet\.google\.com|calendar\.google\.com|teams\.microsoft\.com|teams\.live\.com|'
     r'webex\.com|whereby\.com|gotomeeting|skype:|join\.skype|'

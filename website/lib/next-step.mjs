@@ -9,8 +9,8 @@
 // follow-up 1 three days after the member's unanswered message, follow-up 2 seven days
 // later, then the lead is cold (status unchanged, never Lost) with one reactivation
 // offer 30 days on. /brief writes every message and the member sends it on Upwork.
-// `/sales-call-proposal` is offered
-// in conversation, after the call, or at offer when no proposal exists. `won`
+// A call booked for later offers `/call-prep` until its brief exists. `/sales-call-proposal`
+// is offered in conversation, after the call, or at offer when no proposal exists. `won`
 // writes the handover and records the result once, with no follow-ups. `lost` and `skipped` carry
 // no task even when a date is set and a client is waiting.
 //
@@ -99,9 +99,13 @@ export function nextStep(job, today = todayIso()) {
       if (job.next_follow_up && job.next_follow_up <= today) return step('Follow up', `${followUpName(job)} is due. ${SEND}`, `/brief ${id}`, extras);
       if (job.next_follow_up && job.next_follow_up > today) return step('Waiting', `${followUpName(job)} ${whenText(dueIn(job.next_follow_up, today))}.`, null, extras);
       if (job.status === 'call') {
-        // Booked for later: the chase stops until the call has happened.
+        // Booked for later: the chase stops until the call has happened, and the brief
+        // for it is the one piece of work the wait carries.
         if (job.call_at && job.call_at > today) {
-          return step('Call booked', `The call is on ${job.call_at}. Nothing to chase until then.`);
+          if (!has(job, 'call-prep.md')) {
+            return step('Prepare the call', `The call is on ${job.call_at}. Researches the client and writes your call brief.`, `/call-prep ${id}`);
+          }
+          return step('Call booked', `The call is on ${job.call_at}. Your call brief is ready.`);
         }
         // The call is behind us, and the one-pager is the work the stage carries.
         if (!has(job, 'proposal.md')) {

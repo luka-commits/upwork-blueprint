@@ -18,7 +18,7 @@ follows the client's language (`references/copy.md`).
 
 ## The path
 
-`/about-me` · `/profile` · `/find-jobs` · `/proposal` · `/brief` ·
+`/about-me` · `/profile` · `/find-jobs` · `/proposal` · `/brief` · `/call-prep` ·
 `/sales-call-proposal` · `/onboarding`, plus the helper `/dashboard`. A focus argument
 runs only that part; an input matching no focus value gets the list and a question.
 Everything after `/about-me` reads that one file.
@@ -112,7 +112,7 @@ The member's own files are gitignored and listed in `README.md`; `git pull` neve
 them, and a conflict means something of theirs got tracked: say so, don't resolve it by
 hand. The commands call `python3`; Windows requires WSL.
 
-- `.claude/commands/` the eight entry points · `code/` every script · `references/` five
+- `.claude/commands/` the nine entry points · `code/` every script · `references/` five
   topics, nothing in them a command does not act on · `templates/` pages and profile
   orientation · `website/` the read-only dashboard · `starters/` the empties
 - `RESEARCH.md` is what we know about Upwork and do not act on. Nothing reads it, and no

@@ -110,7 +110,8 @@ Name the moment, because it decides the next command:
   `python3 code/pipeline.py set <id> call`. A time in the thread, an accepted
   invitation or a "spoke yesterday" all count; a vague "happy to jump on a call"
   does not. When the thread names a date, add `--call-at <YYYY-MM-DD>`: until that
-  day the lead is left alone, and from the day after, its task is the one-pager,
+  day the lead gets no messages and its task is the call brief, `/call-prep <id>`;
+  from the day after, its task is the one-pager,
   `/sales-call-proposal <id> <transcript path or notes>`.
 - **The client answered and wants to talk:** the drafts propose the call, two concrete times or one question that books it.
 - **The client owes an answer:** the cadence decides (follow-up 1 after three days, 2 after seven, then cold). Follow-up 1 reopens the exact decision; follow-up 2 makes it smaller and offers an easy out.

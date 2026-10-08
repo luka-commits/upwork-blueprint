@@ -73,6 +73,12 @@ def rows(env):
         ('kie.ai', has_key(env, 'KIE_AI_API_KEY'), 'optional',
          'draws the sketch on the proposal page',
          '/sales-call-proposal', 'without it the command prints the prompt for any image model you have'),
+        ('Apify', has_key(env, 'APIFY_API_TOKEN'), 'optional',
+         "pulls a client's Google reviews and live Meta ads, capped per pull",
+         '/call-prep', 'without it the brief names what those pulls would have shown'),
+        ('PageSpeed key', has_key(env, 'PAGESPEED_API_KEY') or shutil.which('lighthouse') is not None, 'optional',
+         "measures a client's mobile page speed",
+         '/call-prep', 'free from Google Cloud; without it or a local Lighthouse the speed stays unmeasured'),
     ]
 
 

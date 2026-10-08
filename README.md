@@ -48,8 +48,9 @@ Claude Code session. `RESEARCH.md` is background reading; no command uses it.
 | 3 | `/find-jobs` | Ten leads a day worth applying to, scored against what you sell, straight into your cockpit |
 | 4 | `/proposal` | The one-pager for your Loom, plus the cover letter and screening answers you submit with your Loom |
 | 5 | `/brief` | Your morning: what changed on Upwork, where every lead stands, and the messages that are due |
-| 6 | `/sales-call-proposal` | Turns your sales call into the proposal you send, and says whether it is ready to start a project on |
-| 7 | `/onboarding` | Turns a started contract into the handover brief and the onboarding. Run it again after delivery to record what came out of it |
+| 6 | `/call-prep` | Before a sales call: what the call has to settle, the client's business, the person and their market, every fact linked, plus what is worth preparing |
+| 7 | `/sales-call-proposal` | Turns your sales call into the proposal you send, and says whether it is ready to start a project on |
+| 8 | `/onboarding` | Turns a started contract into the handover brief and the onboarding. Run it again after delivery to record what came out of it |
 
 /about-me also works before connecting or creating a public Upwork profile. Run it
 first: every later command writes from it, and `/find-jobs` on an empty `me.md`
@@ -87,7 +88,9 @@ before it is ready.
 | Optional image API | Usage billed separately; paid images require your yes after the cost is shown |
 
 The keys and bills are yours. `KIE_AI_API_KEY` generates images; you can instead
-use an image model you already have. Details are in `.env.example`.
+use an image model you already have. `/call-prep` uses `APIFY_API_TOKEN` for review and
+ad pulls (at most $0.50 and $0.10 each, only on your pick) and a free `PAGESPEED_API_KEY`.
+Details are in `.env.example`.
 
 ## Updating
 

@@ -140,7 +140,5 @@ Three things in here are not ours. The tool logos in `templates/pitch/logos/`
 come from Simple Icons under CC0; brand marks stay their owners' property and
 only name a tool a client already runs. The diagram look in
 `templates/pitch/diagram.js` follows the design system of diagram-design by
-Cathryn Lavery, MIT licence, with no code copied from it. The ink drawing behind
-the pitch page headline comes from the automatable.co landing page, used with
-permission. Everything else is the author's: it ships to members to use in their
+Cathryn Lavery, MIT licence, with no code copied from it. Everything else is the author's: it ships to members to use in their
 own freelancing, not to republish or resell.

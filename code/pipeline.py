@@ -19,9 +19,9 @@ Usage:
     python3 code/pipeline.py set <job_id> <status> [--force] [--follow-up +3d|YYYY-MM-DD] [--note "..."]
     python3 code/pipeline.py acted <job_id> --note "..." [--at <ISO timestamp>]
     python3 code/pipeline.py record <job_id> --file <metadata.json>|-
-    python3 code/pipeline.py follow-up <job_id> plan --lane <lane> --due <date> --reason "..."
+    python3 code/pipeline.py follow-up <job_id> plan --lane active|cold|reactivation [--due <date> --reason "..."]
     python3 code/pipeline.py follow-up <job_id> sent [--on YYYY-MM-DD]
-    python3 code/pipeline.py follow-up <job_id> clear --reason "..."
+    python3 code/pipeline.py follow-up <job_id> clear --reason "..." [--replied]
     python3 code/pipeline.py note <job_id> "what happened"
     python3 code/pipeline.py task <job_id> add "what to do" [--due +2d|YYYY-MM-DD] [--time HH:MM]
     python3 code/pipeline.py task <job_id> done|reopen|delete <task_number>
@@ -51,16 +51,16 @@ STATUSES = ('new', 'applied', 'replied', 'call', 'offer', 'won', 'lost', 'skippe
 ACTIVE = ('applied', 'replied', 'call', 'offer')
 CLOSED = ('won', 'lost', 'skipped')
 
-# Gaps after each sent follow-up, in business days. Step one is scheduled by
-# the reviewer from the conversation. Later steps are mechanical so a missed
-# morning cannot silently stretch or compress the sequence.
+# Calendar days, each counted from the message before, so a missed morning cannot
+# stretch or compress a sequence. 'active' follows the member's unanswered message
+# in a sales conversation: two follow-ups, then the lead is cold (never Lost on its
+# own). 'cold' is the one reactivation offer after that. 'reactivation' is for won clients.
 FOLLOW_UP_GAPS = {
-    'active': (1,),
+    'active': (3, 7),
+    'cold': (30,),
     'reactivation': (30, 60),
 }
-# 'active' has no last step: while a client is in touch the follow-up comes nearly every
-# business day, and it ends when the client declines or says they have no interest.
-UNBOUNDED = ('active',)
+SALES = ('replied', 'call', 'offer')
 
 # Old unused jobs beyond this many fall out when new ones arrive, oldest first.
 # Fresh intake and anything carrying the member's work never fall out.
@@ -222,29 +222,40 @@ def add_history(job, status, at=None):
 
 
 def parse_follow_up(value):
-    """+Nd or a date. N counts business days, because every lane gap does.
-
-    Calendar days here and business days in the lane meant the same "+3d" landed on
-    Monday from a Friday and on Wednesday from a lane step, with nothing saying so.
-    """
+    """+Nd or a date. N counts calendar days, because every lane gap does."""
     m = re.match(r'^\+(\d+)d$', value)
     if m:
-        return add_business_days(datetime.date.today(), int(m.group(1))).isoformat()
+        return (datetime.date.today() + datetime.timedelta(days=int(m.group(1)))).isoformat()
     try:
         return datetime.date.fromisoformat(value).isoformat()
     except ValueError:
         abort(f'--follow-up expects +Nd or YYYY-MM-DD, got: {value}')
 
 
-def add_business_days(day, count):
-    """Move forward by weekdays. Upwork conversations do not need holiday calendars."""
-    current = day
-    added = 0
-    while added < count:
-        current += datetime.timedelta(days=1)
-        if current.weekday() < 5:
-            added += 1
-    return current
+def unanswered_turns(messages):
+    """The member's message times since the client last wrote, oldest first.
+
+    One turn per calendar day: three bubbles sent the same morning are one message to
+    the client, and a client message resets the count. Messages come oldest first.
+    """
+    turns = []
+    for message in messages or []:
+        if not isinstance(message, dict) or message.get('kind') == 'event':
+            continue
+        stamp = parse_verified_timestamp(message.get('at'))
+        if message.get('from') == 'client':
+            turns = []
+        elif message.get('from') == 'me' and stamp and (not turns or turns[-1][:10] != stamp[:10]):
+            turns.append(stamp)
+    return turns
+
+
+def sequence_stopped(job):
+    """A sequence that ran out or was stopped restarts only after the client writes."""
+    last = (job.get('follow_up_history') or [{}])[-1]
+    if last.get('action') == 'cleared':
+        return not (last.get('by') == 'client' or str(last.get('reason') or '').startswith('The client replied'))
+    return bool(last.get('completed'))
 
 
 def trim(jobs):
@@ -363,6 +374,8 @@ def cmd_set(args):
         activity = verified_timestamp(args.activity_at) if args.activity_at else job['status_updated_at']
         job['last_activity_at'] = max(job.get('last_activity_at') or '', activity)
         add_history(job, args.status, job['status_updated_at'])
+        # A stage change means the conversation moved, so the lead is no longer cold.
+        job.pop('cold_since', None)
     # applied_at is the day of the FIRST application and never moves. The daily
     # target counts it, so a later reply must not shift the day you applied.
     if args.status == 'applied' and not job.get('applied_at'):
@@ -471,8 +484,8 @@ def cmd_follow_up(args):
     source = job.pop('follow_up_source', None)
 
     if args.action == 'plan':
-        if not args.lane or not args.due:
-            abort('plan needs --lane and --due.')
+        if not args.lane:
+            abort('plan needs --lane.')
         try:
             thread = json.loads((jobs_dir() / args.job_id / 'thread.json').read_text(encoding='utf-8'))
         except (OSError, json.JSONDecodeError):
@@ -482,39 +495,58 @@ def cmd_follow_up(args):
         lane = args.lane
         if lane == 'reactivation' and job.get('status') != 'won':
             abort('reactivation is only for a previous or current client in won.')
-        if lane != 'reactivation' and job.get('status') not in ('replied', 'call', 'offer'):
+        if lane != 'reactivation' and job.get('status') not in SALES:
             abort('sales follow-ups need a lead that has answered; applied proposals cannot message first.')
-        # The lane's own first gap, not whatever date happened to be passed: gaps[0]
-        # existed and was never used, so step 1 was the one step nobody measured.
-        first = FOLLOW_UP_GAPS[lane][0]
-        earliest = add_business_days(datetime.date.today(), first)
-        due = parse_follow_up(args.due)
-        if datetime.date.fromisoformat(due) < earliest:
-            abort(f'a {lane} follow-up waits {first} business day(s), so the earliest is '
-                  f'{earliest.isoformat()}, not {due}.')
+        # The cadence counts from the member's unanswered messages in the saved thread:
+        # one is the message itself, two means follow-up 1 went out, three means both did.
+        turns = unanswered_turns(thread.get('messages'))
+        step = 1
+        if lane != 'reactivation':
+            if not turns:
+                abort('the client wrote last; that needs a reply, not a follow-up.')
+            if lane == 'active' and len(turns) > len(FOLLOW_UP_GAPS['active']):
+                lane = 'cold'
+            elif lane == 'active':
+                step = len(turns)
+        gaps = FOLLOW_UP_GAPS[lane]
         reason = ' '.join((args.reason or '').split())
-        if not reason:
-            abort('a follow-up plan needs the conversation-based reason.')
+        if args.due:
+            # Off the cadence (a promised date, an open question) is a judgement, so it says why.
+            if not reason:
+                abort('a follow-up off the cadence needs the conversation-based reason.')
+            due = parse_follow_up(args.due)
+        elif turns:
+            base = datetime.date.fromisoformat(turns[-1][:10])
+            due = (base + datetime.timedelta(days=gaps[step - 1])).isoformat()
+            reason = reason or f'No answer since {base.isoformat()}.'
+        else:
+            abort('reactivation needs --due and the reason to reconnect.')
+        if lane == 'cold':
+            job['cold_since'] = job.get('cold_since') or turns[-1]
+        else:
+            job.pop('cold_since', None)
         job['follow_up_plan'] = {
             'lane': lane,
-            'step': 1,
-            'max_steps': None if lane in UNBOUNDED else len(FOLLOW_UP_GAPS[lane]),
+            'step': step,
+            'max_steps': len(gaps),
             'reason': reason[:500],
             'reviewed_at': now_iso(),
         }
         job['next_follow_up'] = due
         save(jobs)
-        of = '' if lane in UNBOUNDED else f' of {len(FOLLOW_UP_GAPS[lane])}'
-        print(f'{args.job_id}: {lane} follow-up 1{of} due {due}.')
+        print(f'{args.job_id}: {lane} follow-up {step} of {len(gaps)} due {due}.')
         return
 
     if args.action == 'clear':
         reason = ' '.join((args.reason or '').split())
         job.pop('follow_up_plan', None)
         job['next_follow_up'] = None
-        job.setdefault('follow_up_history', []).append({
-            'action': 'cleared', 'at': now_iso(), 'reason': reason[:500],
-        })
+        entry = {'action': 'cleared', 'at': now_iso(), 'reason': reason[:500]}
+        if args.replied:
+            # The client wrote, so the lead is warm again and a new sequence may start.
+            job.pop('cold_since', None)
+            entry['by'] = 'client'
+        job.setdefault('follow_up_history', []).append(entry)
         save(jobs)
         print(f'{args.job_id}: follow-up sequence cleared.')
         return
@@ -542,28 +574,39 @@ def cmd_follow_up(args):
     lane = plan.get('lane')
     gaps = FOLLOW_UP_GAPS.get(lane)
     step = plan.get('step')
-    last = lane not in UNBOUNDED
-    if not gaps or not isinstance(step, int) or step < 1 or (last and step > len(gaps)):
+    if not gaps or not isinstance(step, int) or step < 1:
         abort(f'{args.job_id}: follow-up plan is invalid; clear it and review the conversation again.')
+    # A plan from the old endless lane can sit past the last step; it ends here too.
+    final = step >= len(gaps)
     stamp = verified_timestamp(args.at) if args.at else now_iso()
     job['last_activity_at'] = max(job.get('last_activity_at') or '', stamp)
     job.setdefault('follow_up_history', []).append({
         'action': 'sent', 'at': stamp, 'on': sent_day.isoformat(), 'lane': lane, 'step': step,
         'confirmation': confirmation,
-        'completed': last and step == len(gaps),
+        'completed': final,
     })
-    if last and step == len(gaps):
+    if final and lane == 'active':
+        # Two follow-ups without an answer: cold, never Lost, and one offer to reactivate.
+        due = (sent_day + datetime.timedelta(days=FOLLOW_UP_GAPS['cold'][0])).isoformat()
+        job['cold_since'] = stamp
+        job['follow_up_plan'] = {
+            'lane': 'cold', 'step': 1, 'max_steps': len(FOLLOW_UP_GAPS['cold']),
+            'reason': 'Two follow-ups without an answer; offer one reactivation.',
+            'reviewed_at': stamp,
+        }
+        job['next_follow_up'] = due
+        message = f'{args.job_id}: follow-up {step} sent; the lead is cold, reactivation offer due {due}.'
+    elif final:
         job.pop('follow_up_plan', None)
         job['next_follow_up'] = None
         message = f'{args.job_id}: {lane} sequence complete after follow-up {step}.'
     else:
         next_step = step + 1
-        due = add_business_days(sent_day, gaps[min(next_step, len(gaps)) - 1]).isoformat()
+        due = (sent_day + datetime.timedelta(days=gaps[next_step - 1])).isoformat()
         plan['step'] = next_step
         plan['reviewed_at'] = stamp
         job['next_follow_up'] = due
-        of = '' if not last else f' of {len(gaps)}'
-        message = f'{args.job_id}: follow-up {step} sent; {next_step}{of} due {due}.'
+        message = f'{args.job_id}: follow-up {step} sent; {next_step} of {len(gaps)} due {due}.'
     save(jobs)
     print(message)
 
@@ -1073,6 +1116,7 @@ def build_parser():
     p.add_argument('--reason')
     p.add_argument('--on', help='Date a follow-up was sent, for replay and tests.')
     p.add_argument('--at', help='Verified message time, for sync replay.')
+    p.add_argument('--replied', action='store_true', help='clear: the client wrote; the lead is warm again.')
     p.set_defaults(func=cmd_follow_up)
 
     p = sub.add_parser('note', help='Add a line to a job\'s timeline.')

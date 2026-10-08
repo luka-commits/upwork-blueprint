@@ -1,128 +1,91 @@
 # Follow-up rules
 
-What: a context-based sequence for leads in touch and for previous clients.
-Basis: reasoned; the only data point is one imported conversation (12 September 2026).
-Next: run `/brief` without a job id each morning; it runs this sequence first.
+What: the sales follow-up engine `/brief` runs every time the member starts it.
+Basis: the cadence is a product decision of 8 October 2026; the rest is reasoned
+from one imported conversation (12 September 2026).
 
-The point is to make the next decision easy, not to maximize message count.
-Context can stop a sequence or move its date.
+The point is to make the next step easy for the client, never to maximize message
+count. The code keeps the cadence; Claude reads the conversation and may stop it or
+move a date when the thread gives a reason.
+
+## The funnel
+
+Every lead sits on the same path, and its stage decides the next message:
+
+| Stage | Next step | The draft |
+|---|---|---|
+| client wrote (`replied`) | get a call | propose a call: two concrete times or one question that leads there |
+| call booked (`call`, `call_at` ahead) | hold the call | nothing until the call, unless the client asks |
+| call held (`call`) | the proposal | without `jobs/<id>/proposal.md`: `/sales-call-proposal <id>`; with it: the proposal reminder |
+| proposal sent (`call` or `offer`) | the decision | one question that makes deciding smaller (a start date, a first milestone) |
+| won | the handover | `/onboarding <id>`; no sales follow-up |
 
 ## Reply now
 
-When `awaiting_reply_from` is `you`, answer today. This is a reply, not a dormant
-lead follow-up, and it does not consume a sequence step. A client question,
-requested change, call request or offer always outranks scheduled follow-ups.
+When the client wrote last (`awaiting_reply_from` is `you`), answer today. A reply is
+not a follow-up and starts no sequence. It always outranks scheduled follow-ups.
 
-## In touch
+## The cadence
 
-Use `active` for every lead that has answered (`replied`, `call` or `offer`).
-Follow up nearly every business day until the client declines or says they have no
-interest. Each message gives one new reason to answer: close the named decision,
-reduce scope, answer a likely blocker or make the next choice smaller. A generic
-status request does not count as value.
+After the member's message to a client who has not answered:
 
-## Previous client
+1. **Follow-up 1** three calendar days after that message.
+2. **Follow-up 2** seven calendar days after follow-up 1.
+3. **Cold.** No answer after follow-up 2: the lead is marked cold (`cold_since`) and
+   keeps its stage. Never Lost on its own; Lost is always the member's call.
+4. **Reactivation offer** thirty days after follow-up 2: `/brief` asks once whether to
+   send one message with a fresh reason. A no, or one more message without an answer,
+   parks the lead until the client writes.
 
-Use `reactivation` only for a `won` client with a positive relationship and a
-real reason to reconnect. An unfinished promise or stated date overrides this
-lane and becomes a normal task.
+Any client message stops the sequence and warms a cold lead; the next unanswered
+member message starts a fresh one. Messages sent the same day count as one.
+`code/sync.py` starts each sequence on its own when the member wrote last; a sequence
+that was stopped or ran out restarts only after the client writes.
 
-Allow two messages, 30 then 60 business days apart. Lead with a relevant idea,
-change or next project based on the completed work. Do not send a vague
-"hope you're well" sequence.
+Won clients keep the `reactivation` lane: two messages, 30 then 60 days apart, only
+with a positive relationship and a real reason (a next project, a change worth knowing).
+
+## Off the cadence
+
+Claude judges every lead from its thread and may set an earlier or later date with a
+reason (`plan --due <date> --reason "..."`) when:
+
+- the client named a date ("back on the 12th"): follow up the day after it;
+- a promise was missed (theirs or the member's): the next day, not the cadence;
+- a question the client asked was left open: answer it now;
+- the client went quiet after a call and the proposal: the follow-up is the proposal
+  reminder, one question about it, never a generic nudge.
+
+Stop at once (`clear --reason "..."`) after an explicit no, a request for no more
+contact, evidence another freelancer was hired, or an agreed move to another channel.
 
 ## Applied, lost, skipped and new
 
-An `applied` proposal has no room until the client writes, so it has no follow-up
-and creates no task. After 14 full days without a client reply `/brief` lists it as
-stale and asks whether to set `lost`; Lost is always the member's call.
+An `applied` proposal has no room until the client writes, so it gets no follow-up.
+After 14 full days without a reply `/brief` lists it as stale and asks about Lost.
+`new`, `skipped` and `lost` get nothing, unless the client named timing or budget as
+the reason to wait and gave a date: then one check on that date.
 
-Do not follow up with `new` or `skipped` jobs. A `lost` lead gets one future
-check only when the client explicitly named timing or budget as the reason and a
-date makes sense. Otherwise it stays closed.
+## What a follow-up says
 
-## Context beats the cadence
+One short message, one clear question or step, no pressure, written as the member and
+grounded in the thread. Each one adds a reason to answer: a narrower decision, a
+useful observation, the next concrete step. "Just checking in" is never a draft, and
+neither is guilt ("I haven't heard back"). Follow-up 2 offers an easy out ("if the
+timing has moved, just say so and I'll stop here").
 
-Stop immediately after an explicit no, a request for no more contact, evidence
-that another freelancer was hired, or a move to another agreed communication
-channel. Do not duplicate the conversation across channels.
+## The commands
 
-Honor a date the client named. Follow up on the next business day after a missed
-promise, not on the generic cadence.
+- `python3 code/pipeline.py follow-up <id> plan --lane active` starts the cadence from
+  the saved thread (sync does this on its own).
+- `... plan --lane active --due <date> --reason "..."` sets a date off the cadence.
+- `... plan --lane reactivation --due <date> --reason "..."` for a won client.
+- `... sent [--on YYYY-MM-DD]` records a follow-up that actually went out; sync also
+  sees it in the thread. The sequence advances on arrival, never on the draft.
+- `... clear --reason "..."` stops it; the lead stays where it is.
 
-Count meaningful client turns, not message bubbles. Three short bubbles sent in
-one minute are one turn. Multiple unanswered member messages reduce the next
-sequence, never increase it.
+## Self-improvement
 
-## What each message earns
-
-The first message reopens the exact decision, later ones add a new reason to
-answer. Every message should be understandable without reading a sales template,
-grounded in the thread and written as the member. The bare "just checking in"
-message added no value in the one thread read, so this system excludes it.
-
-## Workflow
-
-Turn the current pipeline and fresh conversations into today's follow-up queue.
-The member starts every run. The run decides and drafts; a draft only leaves on
-their yes to that one message.
-
-### Start with current evidence
-
-Read `data/sync.json` and run
-`python3 code/pipeline.py summary`.
-
-If today's sync is missing or any relevant thread is older than 24 hours, follow
-`.claude/commands/brief.md` Step 1 once before reviewing. Call the connector as
-`references/upwork.md` describes. Never poll or read every historical room.
-
-Review jobs in `replied`, `call`, `offer` and `won`. An `applied` proposal without a room
-cannot receive a message, so leave it waiting without a task, reminder or draft.
-
-### Decide from the conversation
-
-For each job, read the pipeline record and the full saved thread oldest first.
-Use the status, `awaiting_reply_from`, last meaningful message, explicit dates,
-client engagement and consecutive messages from the member. Apply the lane,
-cadence and stop conditions above.
-
-Stop when the thread is weak, the client moved the conversation elsewhere or
-another message would add no reason to answer.
-
-Keep an existing plan; never restart a finished or stopped sequence unless the client returns.
-For a new sequence, write the decision only through:
-
-`python3 code/pipeline.py follow-up <id> plan --lane <lane> --due <date> --reason "<conversation-based reason>"`
-
-Clear a sequence when a stop condition applies:
-
-`python3 code/pipeline.py follow-up <id> clear --reason "<why>"`
-
-### Draft only what is due
-
-For every sendable lead due today or earlier, follow `references/copy.md` and
-Step 4 of `.claude/commands/brief.md`. Save two drafts to
-`jobs/<id>/replies.json` and run `python3 code/replies.py check <id>`.
-
-Each follow-up adds one new reason to answer: a useful observation, a narrowed
-decision, a relevant next step or a graceful close. A pure "just checking in"
-message is not a draft.
-
-Report each due lead's decision and reason in chat. The cockpit shows each lead's
-next action, waiting date or Parked state in its existing board and list.
-
-### Report
-
-Use the repository's completion report. Lead with the number due now and name
-the strongest opportunity. Then run `python3 code/pipeline.py follow-up <job id> sent`
-for each message that actually went out, whether it left from here on the member's
-yes or they sent it on Upwork and said so. The sequence advances on arrival, never
-on the draft. End with the exact Upwork call count.
-
-### Self-improvement
-
-When the member corrects a cadence decision or a follow-up wins a reply, ask
-whether to keep the lesson. If yes, record it against that job with
-`python3 code/pipeline.py note <job id> "<the dated observation>"`, where the
-next run will find it. Change the intervals in this file only after two
-independent examples support the same default.
+When the member corrects a decision or a follow-up wins a reply, ask whether to keep
+the lesson; if yes, `python3 code/pipeline.py note <id> "<dated observation>"`. Change
+the cadence only after two independent examples support the same change.

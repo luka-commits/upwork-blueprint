@@ -1,11 +1,11 @@
 ---
-description: Your morning on Upwork in one command: pulls what changed, tells you where every lead stands and what to do, drafts every message that is due, and puts each one to you before it goes out.
+description: Your daily Upwork status in one command: pulls what changed, tells you where every lead stands and what to do today, and writes the next message for each lead, ready for you to send.
 argument-hint: "[job id, for one lead only]"
 ---
 
 # /brief
 
-The daily ritual. Reads what Upwork shows now, moves each lead to match, reports where everyone stands and writes the due messages, each put to the member on its own.
+The daily ritual and the sales follow-up engine. Reads what Upwork shows now, moves each lead to match, reports where everyone stands and writes the next message for every lead that needs one. It never sends: the member sends on Upwork, and the next run sees it in the thread.
 
 Read first: the proposals and messages parts of
 [references/upwork.md](../../references/upwork.md),
@@ -13,14 +13,14 @@ Read first: the proposals and messages parts of
 described in `context/me.md` is the sender; never load a personal voice skill from outside
 this repository.
 
-**With a job id** it does one lead: refresh that thread, say where it stands, draft what is
-due. **Without one** it does the whole pipeline.
+**With a job id** it does one lead: refresh that thread, say where it stands, draft the next
+message. **Without one** it does the whole pipeline.
 
 ## ROADMAP
 
-WHAT HAPPENS: read Upwork, apply it, report every active lead and draft due messages. About two minutes before drafts.
-I NEED FROM YOU: one decision per message and any closure reason; reading needs no input.
-WHAT MIGHT GO WRONG: missing IDs or ambiguous pagination can leave a thread unverified; an unconfirmed send stays manual.
+WHAT HAPPENS: read Upwork, apply it, report every open lead with today's todos and write the next message for each that is due. About two minutes.
+I NEED FROM YOU: nothing to start; a yes or no only for a reactivation offer or a lead you want closed. You send the messages yourself on Upwork.
+WHAT MIGHT GO WRONG: missing IDs or ambiguous pagination can leave a thread unverified; a lead without a fresh thread gets no draft.
 
 ## Step 1 · Read what Upwork shows
 
@@ -30,7 +30,7 @@ With an id, always refresh that lead's thread. Otherwise skip this step when
 Use `list_accounts` for the `org_uid` once. Then, all read only:
 
 1. Read active records with `python3 code/cockpit.py state`: applied, replied, call,
-   offer, and won with a reactivation plan. With an id, use only that record.
+   offer (cold ones too), and won with a reactivation plan. With an id, use only that record.
 2. Page only to backfill missing `proposal_id`. Use `list_freelancer_proposals`
    action `list`, sorted by `MODIFIEDDATETIME` descending, and its documented pagination.
    Stop when every missing active lead is matched or pages run out; with no missing IDs,
@@ -60,7 +60,7 @@ with `job_id`, `room_id`, `awaiting_reply_from`, `messages_complete` and the mes
 
 `python3 code/sync.py apply --file -`
 
-It moves jobs only forward, adds proposals submitted on Upwork, saves each thread, lists applications with no room after 14 full days as stale (ask the member about Lost, never set it yourself), turns a waiting client into a follow-up due today and records the sync time. Then `python3 code/pipeline.py prune`.
+It moves jobs only forward, adds proposals submitted on Upwork, saves each thread, lists applications with no room after 14 full days as stale (ask the member about Lost, never set it yourself), turns a waiting client into a reply due today, starts or advances the follow-up cadence of [references/follow-ups.md](../../references/follow-ups.md) from the messages it sees, warms a cold lead whose client wrote, and records the sync time. Then `python3 code/pipeline.py prune`.
 First-sync creations are imported history, excluded from funnel and application counts;
 an imported Hired proposal does not ask for a handover. Unmatched offers and contracts are imported too.
 
@@ -70,24 +70,30 @@ The part the member reads first. One line per open lead, ordered by what needs t
 soonest, from `python3 code/cockpit.py state`: client from the card or saved thread;
 time in stage from the latest history entry for its current status, with `status_updated_at` as a legacy fallback.
 
-**who** · **stage and how long they have sat in it** · **waiting, acting, or a follow-up
-already set for a date** · **the one action item, in their words**.
+**who** · **stage and how long they have sat in it** · **waiting, acting, cold, or a follow-up
+set for a date (follow-up 1 or 2)** · **the one action item, in their words**.
 
 An action item is a sentence they could act on without opening anything: "answer Georges
 about the timeline" beats "reply pending".
 
-Then three numbers: how many wait on the member, how many wait on a client, and how many sat in their stage over a week. The pipeline record is right when it disagrees with this report.
+Then three numbers: how many wait on the member today, how many wait on a client, and how many are cold. The pipeline record is right when it disagrees with this report.
 On the member's word, close a lead with `python3 code/pipeline.py set <id> lost --note "<reason>"`.
 
-## Step 4 · Draft what is due
+## Step 4 · The next message per lead
 
-Run the workflow in `references/follow-ups.md` completely: it refreshes stale threads, plans
-each sequence and drafts every due follow-up. Then draft a reply for each open lead whose
-client is waiting and that has no fresh draft yet.
+Act as the member's sales lead, following [references/follow-ups.md](../../references/follow-ups.md).
+Per open lead, run `python3 code/pipeline.py get <id>` and read the saved thread oldest first:
+the client's latest question, what they wait for, any date or promise named, and where the
+lead sits in the funnel (client wrote, call, proposal, close). The stage decides the next
+step, the thread decides the words.
 
-Per lead, run `python3 code/pipeline.py get <id>` and read the saved thread oldest first.
-Identify the client's latest question, what they are waiting for, and any promise already
-made. A thread that is missing or has no client message gets no draft; say what is missing.
+A message is due when the client is waiting, `next_follow_up` is today or earlier, or the
+thread gives a reason off the cadence (a named date passed, a question left open, quiet after
+a call). Set such a date with `follow-up <id> plan --lane active --due <date> --reason "..."`;
+stop a sequence on a stop condition with `follow-up <id> clear --reason "..."`. A cold lead
+whose reactivation offer is due gets one single-choice question: write one reactivation
+message, or leave it parked. A thread that is missing or has no client message gets no
+draft; say what is missing.
 
 Name the moment, because it decides the next command:
 
@@ -97,8 +103,11 @@ Name the moment, because it decides the next command:
   does not. When the thread names a date, add `--call-at <YYYY-MM-DD>`: until that
   day the lead is left alone, and from the day after, its task is the one-pager,
   `/sales-call-proposal <id> <transcript path or notes>`.
-- **Nothing was scheduled and the client owes an answer:** unless its sequence finished or stopped, the cockpit asks every two days from `last_activity_at`; recording the send resets the count. Use `--follow-up` only for a date the conversation gives, such as "call me after the 12th".
+- **The client answered and wants to talk:** the drafts propose the call, two concrete times or one question that books it.
+- **The client owes an answer:** the cadence decides (follow-up 1 after three days, 2 after seven, then cold). Follow-up 1 reopens the exact decision; follow-up 2 makes it smaller and offers an easy out.
 - **A call is requested:** the drafts confirm a time on Upwork.
+- **After a call with a proposal sent:** the follow-up is the proposal reminder, one question about it.
+- **Won:** no sales message; the next command is `/onboarding <id>`.
 - **An offer arrived:** the drafts answer open questions only; the member reviews the offer terms on Upwork. **Read `jobs/<id>/proposal.md` when it exists**; a draft must not contradict the scope, price and milestones already sent.
 - **An applied lead older than three days has no `proposal_id` and no `submission_checked_at`:** record `submission_checked_at` with the current ISO time through `pipeline.py record`, then ask once, as a single choice, whether it was submitted. On a no, run `python3 code/pipeline.py set <id> skipped --note "never submitted"`.
 - **The client named a result or left a review:** this is the only place where
@@ -127,41 +136,28 @@ Write `jobs/<id>/replies.json` as UTF-8 JSON with this exact shape:
 }
 ```
 
+Each draft is short and natural: one clear question or step, no pressure, no "just checking in".
 Two drafts when the decision is simple, three only when a genuinely different angle helps.
 Labels are one or two plain words, each `text` is a full reply rather than notes about one.
 Run `python3 code/replies.py check <id>`, then re-read the file and verify each option
 answers the latest client message and carries no claim the evidence sections cannot support.
 
-## Step 5 · One draft, one decision
+## Step 5 · Hand over the messages
 
-The drafts exist. Nothing leaves this machine until the member decides, per message.
+Nothing leaves this machine: `/brief` never sends a message. Per due lead, in the order of
+Step 3, show the client's name, why this message is due today in one line, and the first
+draft in full exactly as it would arrive; the other option waits in the dashboard. The
+member copies it into the Upwork room and sends it there.
 
-**One at a time, never as a batch.** Show the full text of each draft exactly as it would arrive, name the client and what it answers, and ask about that one message with a single choice ([references/copy.md: How to ask](../../references/copy.md#how-to-ask)): one option per draft, named by its label ("Send Direct"), and "send nothing". One message per call, never two messages in one. "All of them" answers none of them.
-
-**On a yes**, put that one message into the thread through the connector, then read the room
-back to see it arrived. Apply that refreshed thread through `code/sync.py` Step 2,
-so the saved waiting state and observed follow-up send match the room. Record it with
-`python3 code/replies.py sent <id> --label "<the label they chose>"`, which writes that
-draft's own words into the lead's log, because the send leaves no trace here otherwise and a
-week later nobody can say which version went out. Then
-`python3 code/pipeline.py acted <id> --note "Message sent on Upwork"`, and
-`python3 code/pipeline.py follow-up <job id> sent` when it was a follow-up, because the
-sequence advances on arrival, never on the draft.
-
-**On "send nothing", a dismissed question or silence**, the draft stays in `jobs/<id>/replies.json` and the member handles
-it on Upwork. That is a normal outcome, not a failure, and it is never asked twice.
-
-**This part of the connector has never been exercised from this repo.** If the account does
-not have the tool, or the room does not show the message afterwards, stop here for this run,
-say so plainly, and hand over every remaining draft to copy. A message that may or may not
-have arrived is worse than one the member handled by hand.
+No question per message and no confirmation needed: the next `/brief` reads the room, sees
+what went out and advances the follow-up cadence on its own. A draft the member skips stays
+in `jobs/<id>/replies.json` and the lead stays due; that is a normal outcome, never asked twice.
 
 **Proposals and offers are not messages.** Submitting an application spends Connects and is a
-bid; accepting an offer starts a contract. Both stay the member's own click on Upwork, and
-nothing in this step changes that.
+bid; accepting an offer starts a contract. Both stay the member's own click on Upwork.
 
 ## Step 6 · Report
 
 Run `python3 code/pipeline.py prune` first. Then the completion report as CLAUDE.md defines
-it. Lead with who is waiting for the member, then what moved overnight, then what went out
-and what is still waiting on them. End with `Upwork calls: N`.
+it. Lead with today's todos (who waits on the member, which messages to send), then what moved
+since the last run, then who went cold. End with `Upwork calls: N`.

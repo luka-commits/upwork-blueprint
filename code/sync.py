@@ -278,12 +278,14 @@ def cmd_apply(args):
         run_pipeline('observe', jid, 'replied', stamp, '--source', 'upwork-thread', '--verified')
 
     # A sync replays message times, never poll time. Observed sends advance the
-    # sequence before client replies stop it, so the same nudge is not drafted twice.
+    # sequence, and any client message after it stops the sequence and warms a cold
+    # lead, so the same nudge is never drafted twice or sent to someone who answered.
+    planned = []
     for jid, t in threads.items():
         job = next((j for j in pipeline.load() if j['id'] == jid), None)
         if not job:
             continue
-        thread_io.save(jid, t.get('messages') or [], t.get('room_id'), t.get('awaiting_reply_from'))
+        saved = thread_io.save(jid, t.get('messages') or [], t.get('room_id'), t.get('awaiting_reply_from'))
         if t.get('room_id'):
             record_metadata(job, {'room_id': str(t['room_id'])})
         messages = [(verified_timestamp(m.get('at')), m) for m in t.get('messages') or []
@@ -301,11 +303,8 @@ def cmd_apply(args):
             if message.get('from') == 'me' and reviewed and stamp > reviewed:
                 if run_pipeline('follow-up', jid, 'sent', '--on', stamp[:10], '--at', stamp):
                     job = next(j for j in pipeline.load() if j['id'] == jid)
-            last = (job.get('follow_up_history') or [{}])[-1]
-            stopped_at = verified_timestamp(last.get('at'))
-            if (message.get('from') == 'client' and stopped_at and stamp > stopped_at
-                    and (last.get('action') == 'cleared' or last.get('completed'))):
-                if run_pipeline('follow-up', jid, 'clear', '--reason', 'The client replied; review the new message first.'):
+            if message.get('from') == 'client' and (plan or job.get('cold_since') or pipeline.sequence_stopped(job)):
+                if run_pipeline('follow-up', jid, 'clear', '--replied', '--reason', 'The client replied; review the new message first.'):
                     job = next(j for j in pipeline.load() if j['id'] == jid)
         if new_messages:
             stamp, message = new_messages[-1]
@@ -314,14 +313,24 @@ def cmd_apply(args):
                              'Client replied on Upwork.' if message.get('from') == 'client' else 'Member sent a message on Upwork.')
         job = next(j for j in pipeline.load() if j['id'] == jid)
         if t.get('awaiting_reply_from') == 'you' and job.get('status') not in ('lost', 'skipped'):
-            if job.get('follow_up_plan'):
-                run_pipeline('follow-up', jid, 'clear', '--reason', 'The client replied; review the new message first.')
+            if job.get('follow_up_plan') or job.get('cold_since'):
+                run_pipeline('follow-up', jid, 'clear', '--replied', '--reason', 'The client replied; review the new message first.')
                 job = next(j for j in pipeline.load() if j['id'] == jid)
             if job.get('status') in ('replied', 'call', 'offer', 'won') and record_metadata(
                     job, {'next_follow_up': today, 'follow_up_source': 'waiting'}):
                 waiting.append(jid)
-        elif not job.get('follow_up_plan') and job.get('follow_up_source') == 'waiting':
+            continue
+        if not job.get('follow_up_plan') and job.get('follow_up_source') == 'waiting':
             record_metadata(job, {'next_follow_up': None, 'follow_up_source': None})
+            job = next(j for j in pipeline.load() if j['id'] == jid)
+        # The member wrote last and the client has not answered: the cadence starts on its
+        # own (3 days, then 7). Not before a booked call, and never after a sequence was
+        # stopped or ran out; then only a client message restarts it.
+        if (job.get('status') in pipeline.SALES and not job.get('follow_up_plan')
+                and not (job.get('call_at') and job['call_at'] >= today)
+                and pipeline.unanswered_turns(saved) and not pipeline.sequence_stopped(job)):
+            if run_pipeline('follow-up', jid, 'plan', '--lane', 'active'):
+                planned.append(jid)
 
     # Expiration needs fresh evidence that this exact proposal was checked and
     # still has no room. Absence from a limited proposal page proves nothing.
@@ -337,7 +346,7 @@ def cmd_apply(args):
 
     record = {'synced_at': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),
               'moved': moved, 'added': added, 'threads': len(threads), 'awaiting_you': waiting,
-              'stale_applications': stale}
+              'follow_ups_planned': planned, 'stale_applications': stale}
     data_dir().mkdir(parents=True, exist_ok=True)
     (data_dir() / 'sync.json').write_text(json.dumps(record, indent=2), encoding='utf-8')
     for m in moved:
@@ -346,6 +355,8 @@ def cmd_apply(args):
         print(f'added   {jid}  (imported Upwork history)')
     for jid in waiting:
         print(f'waiting {jid}  (the client is waiting for your reply)')
+    for jid in planned:
+        print(f'planned {jid}  (no answer yet; follow-up scheduled)')
     print(f'\n{len(moved)} moved, {len(added)} added, {len(threads)} threads saved, '
           f'{len(waiting)} waiting on you.')
 

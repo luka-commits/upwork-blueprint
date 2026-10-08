@@ -1,5 +1,5 @@
 ---
-description: Writes the application text for one job on the member's own template: cover letter and screening answers.
+description: Prepares the one-pager for the member's Loom and writes the application text for one job: cover letter and screening answers.
 argument-hint: "<job id> [more job ids] | <job id> submitted"
 ---
 
@@ -11,8 +11,8 @@ and report `Upwork calls: 0`, then stop before any other step. It records the me
 **Several ids run one after another.** The repetition is the command's, never the member's yes.
 
 Follow `references/copy.md` for every line the client reads. The member described in
-`context/me.md` is the sender. The member records the Loom themselves and shows a one-pager
-from `templates/roadmap/` on screen; this command only writes the application text.
+`context/me.md` is the sender. The member records the Loom themselves and shows the one-pager on screen;
+this command prepares that page and writes the application text.
 
 Read first: [references/upwork.md](../../references/upwork.md) (hard constraint 8, no contact route before a contract), `context/me.md`.
 
@@ -20,7 +20,27 @@ Read first: [references/upwork.md](../../references/upwork.md) (hard constraint 
 
 `python3 code/pipeline.py get $ARGUMENTS`. The posting is in `details.description`. No posting there (older than a day, or never opened): `find_jobs` action `get` for this one job, then `python3 code/jobs.py detail <id> <file>` as `/find-jobs` Step 6 does. Never write from the summary: the requirements and screening questions are in the full posting.
 
-## Step 2 · Application
+## Step 2 · The one-pager for the Loom
+
+The member shows one page on screen in the Loom. Pick it by branch: the one whose `Tools:` line in `templates/profile/lanes.md` the posting matches, and for a mixed job the branch that carries most of the work. Nothing is published and the letter links nothing.
+
+| Posting is mainly | Template | How it is made |
+|---|---|---|
+| SEO, local SEO, Google Business Profile | `templates/roadmap/seo.html` | copy and edit |
+| Google Ads | `templates/roadmap/google-ads.html` | copy and edit |
+| A website, landing page or redesign | `templates/roadmap/website.html` | copy and edit |
+| GoHighLevel, CRM, sales funnel | `templates/roadmap/gohighlevel.html` + `templates/pitch/graphs/ghl-funnel.json` | `roadmap_build.py` |
+| Automations (Make, Zapier, n8n, AI workflows) | `templates/roadmap/automations.html` + `templates/pitch/graphs/automations.json` | `roadmap_build.py` |
+
+- **SEO, Google Ads, Website:** copy the template to `jobs/<id>/pitch.html` and edit it to this client. The file's own comment lists what to rewrite; these decide whether it lands:
+  - **The h1 is the outcome this client asked for, in their words**, never the name of a service.
+  - **Tag the rows they named.** A fifth entry on any `ROWS` row is what they asked for, quoted from the posting; it prints as a tag on that row. Tag only what they actually wrote, and delete the placeholder tag.
+  - **Add a row for anything they asked for that the plan does not carry.** Keep the page on one screen: if a row is added, merge two.
+  - **Plain words.** A client who is not in the trade must understand every row at a glance: "customer list", not "CRM"; "count your leads", not "conversion tracking".
+- **GoHighLevel, Automations:** copy the template's graph JSON to `jobs/<id>/pitch-graph.json` and cut it to what the posting needs: labels in the client's words, still 8 to 20 steps, at least two per group, every edge leaving a decision labelled, and `python3 code/graph_sketch.py jobs/<id>/pitch-graph.json` clean (a "FIX" line is a defect). Never invent a fact about their setup: draw a "which CRM? to confirm" node instead. Then run `python3 code/roadmap_build.py templates/roadmap/<page>.html --graph jobs/<id>/pitch-graph.json --out jobs/<id>/pitch.html --title "<title>"` and edit the headline, the one-line lede, the who row and the closing offer in the result.
+- **Every page:** fill every blank from `context/me.md`, including the photo (`python3 code/photo.py <photo> --into jobs/<id>/pitch.html`). Then `python3 code/pitch_check.py page jobs/<id>/pitch.html`: no contact detail, no unfilled `<Your name>` or `PUT-YOUR-...`. Open the file in the browser for the member, and say which template and what you changed in one line.
+
+## Step 3 · Application
 
 Use the full posting from Step 1 and `references/copy.md` for
 every line the client will read. The member reviews and submits the proposal
@@ -120,7 +140,7 @@ letter is written and wrong the moment it is pasted.
 Never mark Applied until the member submits on Upwork, then runs `/proposal <id> submitted`.
 That stage rests on their word; `/brief` checks once if no proposal ever shows up.
 
-## Step 3 · Report
+## Step 4 · Report
 
 Run `python3 code/pipeline.py prune` first, because Step 1 fetched the full job. Then the completion report as CLAUDE.md defines it, with the application linked. Say what the application costs in Connects and what the balance leaves.
 Next: record the Loom and return its URL here; replace [LOOM LINK] in the letter. Run the ready application check again. Only then submit on Upwork and run `/proposal <id> submitted`.

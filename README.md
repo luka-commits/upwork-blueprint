@@ -47,7 +47,7 @@ Claude Code session. `RESEARCH.md` is background reading; no command uses it.
 | 1 | `/about-me` | Your work history, your offer, your terms and every result you can prove |
 | 2 | `/profile` | Writes your profile from your facts and top examples, and puts it live after one yes |
 | 3 | `/find-jobs` | Ten leads a day worth applying to, scored against what you sell, straight into your cockpit |
-| 4 | `/proposal` | The cover letter and screening answers you submit with your Loom |
+| 4 | `/proposal` | The one-pager for your Loom, plus the cover letter and screening answers you submit with your Loom |
 | 5 | `/brief` | Your morning: what changed on Upwork, where every lead stands, and the messages that are due |
 | 6 | `/sales-call-proposal` | Turns your sales call into the proposal you send, and says whether it is ready to start a project on |
 | 7 | `/onboarding` | Turns a started contract into the handover brief and the onboarding. Run it again after delivery to record what came out of it |

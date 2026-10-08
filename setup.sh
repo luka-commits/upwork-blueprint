@@ -15,27 +15,6 @@ python3 code/workspace.py
 
 [ -f .env ] || { cp .env.example .env; echo "created .env from the example."; }
 
-python3 - <<'PY'
-import pathlib
-import re
-import secrets
-import string
-import sys
-sys.path.insert(0, 'code')
-from pitch_deploy import load_dotenv
-
-path = pathlib.Path('.env')
-env = {}
-load_dotenv(path, env)
-if not env.get('VERCEL_PITCH_PROJECT'):
-    suffix = ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(6))
-    lines = [line for line in path.read_text(encoding='utf-8').splitlines()
-             if not re.match(r'^\s*VERCEL_PITCH_PROJECT\s*=', line)]
-    lines.append(f'VERCEL_PITCH_PROJECT=upwork-pitches-{suffix}')
-    path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
-PY
-echo "Vercel is required for /proposal; vercel login connects it, and the project is created on the first publish."
-
 # The commands read .env first and ~/.config/credentials.env after it, so a key kept
 # centrally is a key the run will find. Checking only .env reported gaps that were not
 # there, and a member who trusts that list buys a second key they already own.
@@ -45,7 +24,7 @@ import os
 import pathlib
 import sys
 sys.path.insert(0, 'code')
-from pitch_deploy import load_dotenv
+from env_file import load_dotenv
 
 env = dict(os.environ)
 load_dotenv(pathlib.Path('.env'), env)
@@ -72,12 +51,6 @@ fi
 
 if [ ! -d website/node_modules ] && command -v npm >/dev/null; then
   note "the cockpit installs its own packages on the first /dashboard run, which takes a few minutes once. Run 'cd website && npm install' now if you would rather wait for it here."
-fi
-
-if ! command -v vercel >/dev/null; then
-  note "vercel: /proposal requires it to publish. Install with 'npm i -g vercel', then 'vercel login'."
-elif ! vercel whoami >/dev/null 2>&1 && ! env_has VERCEL_TOKEN; then
-  note "vercel is installed but not signed in. Run 'vercel login', or put a VERCEL_TOKEN in .env."
 fi
 
 env_has KIE_AI_API_KEY || note "KIE_AI_API_KEY in .env: lets /sales-call-proposal draw the plan for the client's trade without leaving the terminal. kie.ai. Skip it if you already have an image model: /sales-call-proposal prints the prompt for you to paste anywhere, and the page picks the picture up from jobs/<id>/proposal-sketch.png whoever drew it."

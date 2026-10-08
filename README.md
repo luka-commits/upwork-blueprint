@@ -7,14 +7,13 @@ The full product goal and review standard are in [VISION.md](VISION.md).
 ## Quick start
 
 Before you clone: `/about-me` runs on a Claude plan alone. Every Upwork command
-needs the free Upwork connector. Publishing a pitch page needs a free
-Vercel account. Details are in
+needs the free Upwork connector. Details are in
 [Requirements](#requirements) and [What it costs to run](#what-it-costs-to-run).
 
 1. Clone it anywhere on your computer:
    `git clone https://github.com/luka-commits/upwork-blueprint.git`
 2. Open a terminal in the folder and run `./setup.sh` once. It creates your own
-   files and writes `.env` with your unique Vercel project
+   files and `.env`
 3. Follow [Connect Upwork](#connect-upwork), then run `/about-me`. It asks about
    your background once; later commands write from those answers
 
@@ -74,13 +73,10 @@ from.
   and in your Documents, Downloads and Desktop, for old CVs, results and client
   messages on its own. Read only; Claude Code still asks before it opens a file
   outside this folder, and saying no just skips that source.
-- Vercel CLI: `npm i -g vercel`, then `vercel login` (or set `VERCEL_TOKEN`).
-  If that install fails with EACCES, use `npm i -g --prefix "$HOME/.local" vercel`
-  and add `export PATH="$HOME/.local/bin:$PATH"` to your shell startup file.
 
 `./setup.sh` and `python3 code/tools_status.py` list what each command still needs.
-Upwork commands need the connector; publishing needs Vercel. /about-me can start
-before either is ready.
+Upwork commands need the connector. /about-me can start
+before it is ready.
 
 ## What it costs to run
 
@@ -88,7 +84,6 @@ before either is ready.
 |------|------|
 | Claude Code | a paid Claude plan that includes Claude Code, or API billing |
 | Upwork applications | About 70 Connects/day for ten applications; the actual job costs vary and /find-jobs counts them |
-| Public pitch pages | Vercel's free plan, within its limits |
 | Optional image API | Usage billed separately; paid images require your yes after the cost is shown |
 
 The keys and bills are yours. `KIE_AI_API_KEY` generates images; you can instead

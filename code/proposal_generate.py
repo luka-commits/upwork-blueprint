@@ -4,9 +4,10 @@
     python3 code/proposal_generate.py <job id> --file proposal.json
     python3 code/proposal_generate.py <job id> --file -        # JSON on stdin
 
-Writes jobs/<id>/proposal.html from templates/proposal/template.html. The markdown
-proposal stays the thing the member pastes into Upwork chat. The member delivers
-the page themselves unless a real CTA URL was provided.
+Writes jobs/<id>/proposal.html from templates/proposal/template.html and prints it to
+jobs/<id>/proposal.pdf, one A4 page, the file the member attaches on Upwork. The markdown
+proposal stays the thing the member pastes into Upwork chat. Refuses to run without the
+call transcript at jobs/<id>/call-transcript.md.
 
 Every value the call did not settle is rendered as a visible "open" marker, never as a
 zero and never as a rounded guess: a missing number is honest, an invented one is a claim
@@ -36,6 +37,8 @@ import datetime
 import html
 import json
 import pathlib
+import re
+import subprocess
 import sys
 from urllib.parse import urlparse
 from pipeline import jobs_dir, shown
@@ -43,6 +46,9 @@ from pipeline import jobs_dir, shown
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / 'templates' / 'proposal' / 'template.html'
 OPEN = '<span class="missing">open</span>'
+TRANSCRIPT = 'call-transcript.md'
+# Reasoned, not measured: a ten-minute call runs well past this, notes from memory rarely reach it.
+MIN_TRANSCRIPT_WORDS = 600
 PARTS = ('problem', 'deliverable', 'worth', 'timeline', 'cost', 'tools', 'proof', 'next')
 DEFAULT_LABELS = {
     'problem': 'The problem',
@@ -131,6 +137,36 @@ def cost(raw):
     note = str(raw.get('note') or '').strip()
     return (f'<table class="price">{rows}<tr class="total"><td>Total</td><td>{value(raw.get("text"))}</td></tr></table>'
             + (f'<small>{esc(note)}</small>' if note else ''))
+
+
+def call_record(job_id):
+    """The page rests on what was said on the call, so it is never built without the transcript."""
+    path = jobs_dir() / job_id / TRANSCRIPT
+    if not path.is_file():
+        abort(f'{shown(path)} is missing. Save the full call transcript there first; notes are not enough.')
+    words = len(path.read_text(encoding='utf-8', errors='replace').split())
+    if words < MIN_TRANSCRIPT_WORDS:
+        abort(f'{shown(path)} has {words} words, under the {MIN_TRANSCRIPT_WORDS} a call transcript has. '
+              'That reads like notes; save the full transcript.')
+
+
+def pdf(page):
+    """The page as one A4 PDF, the file the member attaches on Upwork. Past one page it is cut, not shipped."""
+    from proposal_illustrate import chrome_binary
+    chrome = chrome_binary()
+    if not chrome:
+        abort('Chrome is not installed, so the PDF cannot be printed. Set CHROME_BIN if it lives elsewhere.')
+    out = page.with_suffix('.pdf')
+    out.unlink(missing_ok=True)
+    subprocess.run([chrome, '--headless=new', '--disable-gpu', '--no-pdf-header-footer',
+                    f'--print-to-pdf={out}', '--virtual-time-budget=2500', page.resolve().as_uri()],
+                   capture_output=True, timeout=120)
+    if not out.is_file():
+        abort('Chrome produced no PDF of the proposal page.')
+    pages = len(re.findall(rb'/Type\s*/Page[^s]', out.read_bytes()))
+    if pages != 1:
+        abort(f'{shown(out)} runs to {pages} pages. Cut the content until it fits one.')
+    return out
 
 
 def section(label, body, kind=''):
@@ -234,6 +270,7 @@ def main(argv=None):
     parser.add_argument('--file', required=True, help='JSON file, or - for stdin')
     parser.add_argument('--lang', default='en')
     args = parser.parse_args(argv)
+    call_record(args.job_id)
 
     raw = sys.stdin.read() if args.file == '-' else pathlib.Path(args.file).read_text(encoding='utf-8')
     try:
@@ -284,7 +321,7 @@ def main(argv=None):
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page, encoding='utf-8')
     opens = page.count('class="missing"')
-    print(f'{shown(out)} written, {opens} value(s) still open.')
+    print(f'{shown(out)} and {shown(pdf(out))} written, {opens} value(s) still open.')
     return 0
 
 

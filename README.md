@@ -106,7 +106,7 @@ Everything below is yours and gitignored, so `git pull` never touches it.
 - `profile.md` - the profile to paste, written against what is live today
 - `data/jobs.json` - your pipeline, written only by `code/pipeline.py`
 - `jobs/<id>/` - one folder per job: the pitch page, the application,
-  the proposal, the threads and the drafts
+  the call transcript, the proposal and its PDF, the threads and the drafts
 - `clients/<slug>/` - a won job: the brief, the inputs, the work, what you delivered
 
 ## What this will never do

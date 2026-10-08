@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The 6-Week Website Build</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --c-traffic: #e8b7a3;
+    --c-conv: #c96442;
+    --c-sales: #a94f31;
+    --c-analytics: #141413;
+    --c-hand: #87867f;
+    --c-report: #c96442;
+    /* The house look from website/app/tokens.css, as measured on automatable.co:
+       a parchment page, ivory cards with a hairline, no decorative gradient. */
+    --page-alt: #f5f4ed;
+    --paper: #faf9f5;
+    --ink: #141413;
+    --clay: #c96442;
+    --clay-deep: #a04a2e;
+    --clay-fill: #b05538;
+    --clay-soft: #f6e4dc;
+    --sand: #e8e6dc;
+    --stone: #e8e6dc;
+    --line: #f0eee6;
+    --muted: #5e5d59;
+    --soft: #66655f;
+    --on-ink: #faf9f5;
+    --on-ink-2: #b8b3a6;
+    --glow: none;
+    --shadow: 0 4px 24px rgba(20, 20, 19, .05);
+    --display: "Tiempos Text", Georgia, "Iowan Old Style", "Times New Roman", ui-serif, serif;
+    --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page-alt); color: var(--ink); font: 400 15px/1.45 var(--sans); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding-inline: 20px; padding-block: 22px 26px; display: grid; gap: 15px; }
+  /* A grid item will not shrink below its content, so the 820px table pushed the
+     whole page wider than the phone and every other section stretched with it. */
+  .wrap > * { min-width: 0; }
+  h1, h2, h3 { margin: 0; text-wrap: balance; letter-spacing: -0.02em; font-family: var(--display); font-weight: 500; color: var(--ink); }
+  p { margin: 0; }
+
+  header { display: grid; gap: 8px; }
+  header h1 { font-size: clamp(28px, 3.6vw, 40px); line-height: 1.05; font-weight: 500; letter-spacing: -0.025em; }
+  .eyebrow { font: 400 11px/1.3 var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--clay-deep); }
+  header p { color: var(--muted); font-size: 17px; }
+
+  /* Flow */
+  .flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .node {
+    position: relative; background: var(--paper); border: 1px solid var(--stone); border-radius: 16px;
+    padding: 13px 15px 12px; display: grid; grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr); column-gap: 11px; row-gap: 2px;
+    box-shadow: var(--shadow);
+  }
+  .node:not(:last-child)::after {
+    content: ""; position: absolute; right: -17px; top: 26px; width: 20px; height: 20px; z-index: 2;
+    border-radius: 50%; background: var(--paper); border: 1px solid var(--stone);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2387867f' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 6 6 6-6 6'/%3E%3C/svg%3E");
+    background-size: 12px; background-repeat: no-repeat; background-position: center;
+  }
+  .icon {
+    width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; color: #fff;
+    grid-column: 1; grid-row: 1 / span 2; align-self: start;
+    background: linear-gradient(155deg, color-mix(in srgb, var(--c) 78%, #fff) 0%, var(--c) 55%, color-mix(in srgb, var(--c) 80%, #000) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.12), 0 6px 14px -6px var(--c);
+  }
+  .icon svg { width: 20px; height: 20px; }
+  .node h3 { font-size: 18px; line-height: 1.15; grid-column: 2; align-self: center; }
+  .node p { color: var(--muted); font-size: 13px; grid-column: 2; }
+
+  /* Big numbers */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); background-color: var(--ink); background-image: var(--glow); border-radius: 16px; overflow: hidden; }
+  .stat { padding: 22px 20px; display: grid; gap: 6px; border-left: 1px solid rgba(250, 249, 245, .12); }
+  .stat:first-child { border-left: 0; }
+  .stat b { font: 500 clamp(28px, 3.4vw, 38px)/1 var(--display); color: var(--on-ink); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--on-ink-2); font: 400 11px/1.4 var(--mono); letter-spacing: 2px; text-transform: uppercase; }
+
+  /* Roadmap */
+  .rm-head { display: flex; justify-content: flex-start; align-items: baseline; gap: 6px 20px; flex-wrap: wrap; margin-bottom: 8px; }
+  .rm-head h2 { font-size: 21px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font: 400 11px/1.4 var(--mono); letter-spacing: 1.5px; text-transform: uppercase; color: var(--soft); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 14px; height: 8px; border-radius: 3px; display: inline-block; }
+  /* On a phone the table shows two phases and nothing says the rest is a
+     swipe away, so a client reads a plan that stops in phase two. The fade is drawn
+     on the container and hidden once the table fits, which is every desktop. */
+  .scroll { position: relative; overflow-x: auto; background: var(--paper); border: 1px solid var(--stone); border-radius: 16px; box-shadow: var(--shadow); }
+  table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 820px; }
+  th, td { padding: 0; border-bottom: 1px solid var(--line); }
+  thead th { font: 400 11px/1.3 var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--soft); padding: 8px 0; text-align: center; background: var(--page-alt); border-bottom-color: var(--stone); }
+  thead th:first-child { text-align: left; padding-left: 16px; }
+  td.what { padding: 5px 14px; width: 410px; font-size: 13.5px; position: sticky; left: 0; background: var(--paper); z-index: 1; }
+  td.w { position: relative; border-left: 1px solid var(--line); min-width: 50px; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .bar { position: absolute; top: calc(50% - 8px); height: 16px; left: 0; right: 0; }
+  .bar.s { left: 5px; border-top-left-radius: 5px; border-bottom-left-radius: 5px; }
+  .bar.e { right: 5px; border-top-right-radius: 5px; border-bottom-right-radius: 5px; }
+  .bar.run { top: calc(50% - 3px); height: 6px; opacity: 0.35; }
+  td.what b { display: block; font-weight: 600; color: var(--ink); }
+  /* What the client asked for, in their words, sitting on the row that answers it. */
+  .asked { margin-left: 8px; padding: 3px 8px; border-radius: 6px; font-style: normal;
+    font: 400 10px/1.2 var(--mono); letter-spacing: 1.5px; text-transform: uppercase;
+    background: var(--clay-soft); color: var(--clay-deep); white-space: nowrap; vertical-align: 1px; }
+  td.what span { display: block; font-size: 12px; color: var(--muted); line-height: 1.32; margin-top: 1px; }
+  tr.ms td { background: var(--page-alt); height: 38px; }
+  tr.ms td.what { background: var(--page-alt); color: var(--soft); font: 400 11px/1.3 var(--mono); letter-spacing: 2px; text-transform: uppercase; }
+  .d { position: absolute; left: 50%; top: 9px; width: 10px; height: 10px; background: var(--clay); transform: translateX(-50%) rotate(45deg); border-radius: 1px; }
+  .dl { position: absolute; left: 50%; top: 24px; transform: translateX(-50%); font-size: 10.5px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  /* A milestone label is wider than its phase column by design, so the cell has to
+     let it out: clipped, "First auto-reply" reads as "First auto-rep". */
+  tr.ms td { overflow: visible; }
+  @media (max-width: 720px) {
+    .scroll::after { content: "swipe for the later phases"; position: sticky; left: 0; bottom: 0;
+      display: block; padding: 6px 14px; font: 400 10px/1.3 var(--mono); letter-spacing: 1.5px; text-transform: uppercase; color: var(--soft);
+      background: linear-gradient(to top, var(--paper), rgba(250,249,245,0)); }
+  }
+
+  /* The walkthrough and the client's own words. Both sit in group 1, because
+     they answer the same question the photo answers: who is this. */
+  .watch { grid-column: 3; grid-row: 1 / span 3; display: inline-flex; align-items: center; gap: 10px;
+    padding: 9px 16px 9px 10px; border-radius: 12px; background: var(--ink);
+    color: var(--on-ink); text-decoration: none; white-space: nowrap;
+    transition: transform .18s var(--ease), box-shadow .18s; }
+  .watch:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(20, 20, 19, .28); }
+  .play { width: 28px; height: 28px; flex: none; border-radius: 50%; display: grid; place-items: center;
+    background: var(--clay); }
+  .play svg { width: 18px; height: 18px; }
+  .watch-copy { display: grid; }
+  .watch-copy b { font-size: 13.5px; font-weight: 600; }
+  .watch-copy i { font-style: normal; font-size: 11.5px; color: var(--on-ink-2); }
+  .said { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .said li { padding: 12px 16px; background: var(--paper); border: 1px solid var(--stone);
+    border-radius: 14px; display: grid; gap: 6px; box-shadow: var(--shadow); }
+  .said q { font: 400 15px/1.4 var(--display); color: var(--ink); quotes: none; }
+  .said cite { font: 400 10px/1.3 var(--mono); letter-spacing: 1.5px; text-transform: uppercase; color: var(--soft); }
+
+  /* The four groups the page is built from. They are not labels for what sits
+     under them; they are the structure a client reads before reading anything. */
+  .group { display: flex; align-items: center; gap: 10px; font-size: 24px; margin-bottom: 0; }
+  .group .num {
+    flex: none; width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center;
+    background: var(--clay-fill); color: var(--on-ink); font: 400 12px/1 var(--mono); letter-spacing: 0;
+  }
+  .note { font-size: 13px; color: var(--muted); text-align: center; }
+  .detail { margin-top: -6px; }
+
+  @media (max-width: 860px) {
+    .flow { grid-template-columns: 1fr 1fr; }
+    .node:nth-child(2)::after { display: none; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    .stat:nth-child(3) { border-left: 0; }
+    .stat:nth-child(n+3) { border-top: 1px solid rgba(250, 249, 245, .12); }
+  }
+  @media (max-width: 520px) {
+    .wrap { padding-inline: 16px; padding-block: 28px 32px; gap: 24px; }
+    .flow { grid-template-columns: 1fr; }
+    .node::after { display: none; }
+    td.what { width: 250px; font-size: 13px; }
+  }
+
+  /* Who is writing, and the one move the client makes */
+  .who {
+    background: var(--paper); border: 1px solid var(--stone); border-radius: 16px;
+    padding: 13px 16px 12px; display: grid; gap: 2px 20px; align-items: center;
+    grid-template-columns: auto minmax(240px, 1fr);
+    box-shadow: var(--shadow);
+  }
+  .who h2 { font-size: 21px; grid-column: 2; grid-row: 1; }
+  .who p { grid-column: 2; grid-row: 2; }
+  .chips { grid-column: 2; grid-row: 3; margin-top: 4px; }
+  .photo { grid-column: 1; grid-row: 1 / span 3; width: 66px; height: 66px;
+    border-radius: 50%; object-fit: cover; }
+  /* Only until the picture exists. Replacing the div removes it. */
+  .placeholder { display: grid; place-items: center; border: 1.5px dashed var(--clay);
+    background: var(--clay-soft); color: var(--clay-deep); font: 400 10px/1 var(--mono); letter-spacing: 1.5px; text-transform: uppercase; }
+  .who p { color: var(--muted); font-size: 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .proof { font: 400 10.5px/1.3 var(--mono); letter-spacing: 1.5px; text-transform: uppercase; padding: 5px 10px; border-radius: 6px; background: var(--clay-soft); color: var(--clay-deep); }
+  .next { background-color: var(--ink); background-image: var(--glow); border-radius: 16px; padding: 17px 22px 16px;
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 22px; }
+  .report { width: 68px; height: 78px; color: var(--c-report); flex: none; }
+  .next-copy { display: grid; gap: 4px; }
+  .cta { display: inline-flex; align-items: center; gap: 9px; white-space: nowrap;
+    padding: 12px 20px; border-radius: 12px; background: var(--clay-fill); color: var(--on-ink);
+    font-size: 14.5px; font-weight: 600; text-decoration: none;
+    transition: transform .18s var(--ease), box-shadow .18s; }
+  .cta:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(20, 20, 19, .28); }
+  @media (max-width: 640px) { .who { grid-template-columns: auto minmax(0, 1fr); }
+    .watch { grid-column: 1 / -1; grid-row: 4; justify-self: start; margin-top: 8px; }
+    .said { grid-template-columns: 1fr; }
+    .next { grid-template-columns: auto minmax(0, 1fr); }
+    .report { width: 54px; height: 62px; }
+    .cta { grid-column: 1 / -1; }
+    .cta { justify-self: start; margin-top: 8px; } }
+  .next h2 { font-size: 21px; color: var(--on-ink); }
+  .next p.offer { color: var(--on-ink-2); font-size: 14.5px; max-width: 90ch; margin-bottom: 4px; }
+  .next p { color: var(--on-ink); font-size: 16px; font-weight: 600; max-width: 74ch; }
+  .next p.quiet { color: var(--on-ink-2); font-size: 13px; }
+  /* One page. The sheet is meant to be read in one go and to print on one A4 page, so
+     the four tracks live in the table's legend, the three group headings are dropped and
+     only the strongest client quote stays. Fill it for a job without adding sections back. */
+  .wrap { gap: 10px; padding-block: 16px 18px; }
+  header { gap: 4px; } header h1 { font-size: clamp(24px, 3vw, 32px); }
+  .group, .flow, .note, .report { display: none; }
+  .said { grid-template-columns: 1fr; gap: 0; } .said li:nth-child(n+2) { display: none; } .said li { padding: 8px 14px; gap: 2px; }
+  .said q { font-size: 14px; }
+  .who { padding: 9px 14px; } .photo { width: 48px; height: 48px; } .who h2 { font-size: 18px; } .who p { font-size: 13.5px; }
+  .detail { margin-top: 0; } .rm-head { margin-bottom: 6px; }
+  td.what { padding: 3px 12px; } td.what span { font-size: 11.5px; line-height: 1.25; } tr.ms td { height: 38px; }
+  .next { padding: 11px 18px; grid-template-columns: minmax(0, 1fr) auto; } .next h2 { font-size: 18px; }
+  .next p { font-size: 14.5px; } .cta { padding: 9px 16px; }
+  @media print {
+    @page { size: A4; margin: 8mm; }
+    body { background: #fff; font-size: 9.4px; } .wrap { max-width: none; padding: 0; gap: 7px; }
+    header h1 { font-size: 20px; } .eyebrow { font-size: 8px; } .watch { display: none; }
+    .who { padding: 6px 10px; grid-template-columns: auto minmax(0, 1fr); } .photo { width: 36px; height: 36px; } .who h2 { font-size: 13px; }
+    .who p, .said q { font-size: 9.6px; } .proof { font-size: 7.6px; padding: 3px 7px; }
+    .scroll { overflow: visible; } table { min-width: 0; } td.what { width: 42%; font-size: 9.6px; padding: 2px 8px; position: static; }
+    td.what span { font-size: 8.6px; } thead th { font-size: 7px; padding: 5px 0; } tr.ms td { height: 22px; } .dl { top: 14px; font-size: 8px; }
+    td.w { min-width: 0; } .bar { height: 10px; top: calc(50% - 5px); } .legend { font-size: 7.4px; }
+    .next { padding: 8px 12px; } .next h2 { font-size: 12.5px; } .next p { font-size: 9.6px; } .cta { padding: 5px 10px; font-size: 9.4px; }
+  }
+</style>
+
+<!-- A template, not a finished page. Nothing here is written for a client until
+     it is rewritten for one.
+
+     Per job you rewrite:
+       - the h1, which is the outcome this client asked for in their own words,
+         not the name of a service. A posting about missed calls gets a headline
+         about missed calls.
+       - the eyebrow, to name the scope without a delivery promise.
+       - the whole "Who I am" card, from context/me.md, plus the photo.
+       - the four step cards, only if this client's words differ from these.
+       - the ROWS and MS lists in the script at the bottom, which draw the phases,
+         including the fifth entry that quotes what they asked for.
+       - the offer line and the profile link in the closing block.
+
+     What stays: the four tracks in the table. They are the argument, which is that the
+     whole funnel is covered rather than one piece of it. Their specific requests ride
+     inside it as tags, never instead of it. The page is ONE page: do not add sections. -->
+<main class="wrap">
+  <header>
+    <span class="eyebrow">The build plan</span>
+    <h1>A website that gets visitors to call, live in six weeks</h1>
+  </header>
+
+  <!--
+    The chips come from the Results, Reviews and Credentials sections of context/me.md.
+    A chip with nothing behind it gets deleted rather than softened.
+  -->
+  <h2 class="group"><span class="num" aria-hidden="true">1</span>Who I am</h2>
+  <section class="who" aria-labelledby="who">
+    <!-- The member's own photo, the same one their Upwork profile shows, so the
+         client recognises who they already replied to. It has to be embedded,
+         because the deploy uploads this one HTML file and nothing beside it, so a
+         src="photo.jpg" is a 404 the member only finds after sending the link:
+           python3 code/photo.py ~/photo.jpg --into jobs/<id>/pitch.html
+         which crops it square, sizes it for a phone and replaces this div.
+         Never a stock portrait and never a face that is not theirs. -->
+    <div class="photo placeholder"><span>photo</span></div>
+    <h2 id="who">&lt;Your name&gt;</h2>
+    <p>&lt;What you do, in one line, for the kind of business this client runs&gt;</p>
+    
+    <div class="chips">
+      <span class="proof">&lt;A result you can back up&gt;</span>
+      <span class="proof">&lt;A second one, or delete this chip&gt;</span>
+      <span class="proof">&lt;A third one, or delete this chip&gt;</span>
+    </div>
+  </section>
+
+  <!-- Client words, from the Reviews section of context/me.md, quoted exactly.
+       Two is enough. Delete the whole block rather than invent one, and never
+       reword a review to fit the job. -->
+  <ul class="said">
+    <li><q>&lt;A review, word for word&gt;</q><cite>&lt;What the job was&gt;</cite></li>
+    <li><q>&lt;A second review, or delete this one&gt;</q><cite>&lt;What the job was&gt;</cite></li>
+  </ul>
+
+
+  <section class="detail" aria-label="The roadmap, phase by phase">
+    <div class="rm-head">
+      <div class="legend">
+        <span><i class="sw" style="background:var(--c-traffic)"></i>Plan</span>
+        <span><i class="sw" style="background:var(--c-conv)"></i>Build</span>
+        <span><i class="sw" style="background:var(--c-sales)"></i>Convert</span>
+        <span><i class="sw" style="background:var(--c-analytics)"></i>Launch and check</span>
+      </div>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th scope="col">PHASE</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <h2 class="group"><span class="num" aria-hidden="true">3</span>What you get now</h2>
+  <section class="next" aria-label="What you get now">
+      <svg class="report" viewBox="0 0 84 96" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="82" height="94" rx="9" fill="#fff" fill-opacity=".07" stroke="#fff" stroke-opacity=".22"/>
+        <circle cx="42" cy="32" r="15" stroke="#fff" stroke-opacity=".22" stroke-width="5"/>
+        <path d="M42 17a15 15 0 0 1 12.1 23.8" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+        <rect x="16" y="57" width="52" height="5" rx="2.5" fill="#fff" fill-opacity=".85"/>
+        <rect x="16" y="68" width="40" height="5" rx="2.5" fill="currentColor" fill-opacity=".8"/>
+        <rect x="16" y="79" width="30" height="5" rx="2.5" fill="#fff" fill-opacity=".3"/>
+      </svg>
+    <div class="next-copy">
+      <p class="offer">Send me your website URL here on Upwork.</p>
+      <p>I'll reply with the first three things I would change.</p>
+    </div>
+    <!-- The member's Public Upwork profile URL from context/me.md. Nothing may point
+         anywhere but Upwork before a contract exists. -->
+    <a class="cta" href="https://www.upwork.com/freelancers/~PUT-YOUR-PROFILE-ID-HERE">My profile<span aria-hidden="true">&rarr;</span></a>
+  </section>
+
+  <p class="note">Hosting and any paid plugins are billed by their makers and are separate from the fee.</p>
+</main>
+
+<script>
+  const C = { T: "--c-traffic", C: "--c-conv", S: "--c-sales", A: "--c-analytics", H: "--c-hand" };
+  // The plan. A fifth entry on any row is what the client asked for, in their own
+  // words from the posting: it prints as a tag on that row, so they see their
+  // request sitting inside the whole system rather than answered beside it. Tag
+  // only what they actually named, delete the rest, and add a row for anything
+  // they asked for that this plan does not already carry.
+  const ROWS = [
+    ["T", "Your goals and content", "What the site must do, and the words and photos it needs.", { from: 1, to: 1 }, "&lt;their words from the posting, or delete&gt;"],
+    ["T", "Page plan and look", "Which pages, in what order, and how it will look.", { from: 1, to: 2 }],
+    ["C", "Building the pages", "A fast site, easy to use on a phone.", { from: 2, to: 4 }],
+    ["C", "Call button and forms", "One clear next step on every page, and messages that reach you.", { from: 3, to: 4 }],
+    ["S", "Booking and payments", "Online booking or payment, if you need it, connected and tested.", { from: 4, to: 5 }],
+    ["S", "Speed and mobile check", "Loads quickly and works on every screen size.", { from: 5, to: 5 }],
+    ["A", "Test and launch", "Everything tried once by us and once by you, then switched on.", { from: 6, to: 6 }],
+    ["A", "Handover", "A short guide so you can change text and photos yourself.", { from: 6, to: 6 }]
+  ];
+  const MS = { 1: "Plan agreed", 4: "First look", 6: "Live" };
+
+  function cell(k, p, w) {
+    let c = "";
+    if (p.at) { if (!p.at.includes(w)) return '<td class="w"></td>'; c = "s e"; }
+    else if (w >= p.from && w <= p.to) c = (w === p.from ? "s " : "") + (w === p.to ? "e" : "");
+    else if (p.run && w > p.to) c = "run";
+    else return '<td class="w"></td>';
+    return '<td class="w"><span class="bar ' + c + '" style="background:var(' + C[k] + ')"></span></td>';
+  }
+
+  let h = "";
+  for (const [k, name, desc, p, asked] of ROWS) {
+    const tag = asked ? '<i class="asked">' + asked + "</i>" : "";
+    h += '<tr><td class="what"><b>' + name + tag + "</b><span>" + desc + "</span></td>";
+    for (let w = 1; w <= 6; w++) h += cell(k, p, w);
+    h += "</tr>";
+  }
+  h += '<tr class="ms"><td class="what">Milestones</td>';
+  for (let w = 1; w <= 6; w++) h += '<td class="w">' + (MS[w] ? '<span class="d"></span><span class="dl">' + MS[w] + "</span>" : "") + "</td>";
+  document.getElementById("rows").innerHTML = h + "</tr>";
+</script>
+
+</body>
+</html>

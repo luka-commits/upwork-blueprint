@@ -27,7 +27,7 @@ Keep the prefix: `python3 code/jobs.py rules` counts a reason only when the note
 4. `python3 code/jobs.py window` prints the hours to look back (24 on a first run); keep the number as `<window>`. `jobs.py clean` in Step 7 saves the time of this run, so a run must finish for the next window to narrow.
 5. **Tracks.** Read `context/me.md` under "Job search tracks" (lines like `- Theme: term · term`, written by `/about-me`). If there are none, build them now without asking:
    - Take the `Search:` line of each branch the member picked, from [templates/profile/lanes.md](../../templates/profile/lanes.md), as one theme per branch (`- GoHighLevel: GoHighLevel · HighLevel CRM · GHL automation`).
-   - Add one industry theme per picked branch from "Industries you want to work with", the trade plus the branch's service word (`- Gyms: gym SEO · gym Google Ads`).
+   - If `context/me.md` names an industry the member prefers (in "What you do" or their strengths), add one theme for it per picked branch: the trade plus the branch's service word (`- Gyms: gym SEO · gym Google Ads`). Without one, skip it.
    - A custom direction has no lane: draw terms from the services, tools and roles in `context/me.md`.
    - Write the lines under "Job search tracks" in `context/me.md` (each starting with `- `, the only lines `jobs.py rules` reads), tell the member in one line that these are the searches and that they can change them, and continue in this run. Keep at most five themes: each branch's own line first, industry themes only while there is room.
 

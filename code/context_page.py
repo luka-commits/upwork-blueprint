@@ -40,8 +40,8 @@ CLIP = 260       # characters of a long answer before it is cut at a word
 # What fits one A4 page. The numbers were measured on a file with twelve jobs, fourteen
 # results, ten certificates and six reviews: the sheet keeps the strongest of each kind,
 # and everything the file holds goes to the full version beside it.
-FIT = {'jobs': 4, 'earlier': 4, 'results': 4, 'creds': 4, 'quotes': 2, 'chips': 12, 'services': 4, 'lines': 3,
-       'profile': 230, 'job': 160, 'transfer': 80, 'result': 120, 'quote': 120, 'item': 70}
+FIT = {'jobs': 3, 'earlier': 3, 'results': 3, 'creds': 3, 'quotes': 1, 'chips': 10, 'services': 3, 'lines': 3,
+       'profile': 260, 'job': 190, 'transfer': 100, 'result': 140, 'quote': 130, 'item': 70}
 FULL = {'jobs': 99, 'earlier': 0, 'results': 99, 'creds': 99, 'quotes': 99, 'chips': 40, 'services': 99, 'lines': 99,
         'profile': 600, 'job': 520, 'transfer': 300, 'result': 400, 'quote': 400, 'item': 300}
 LIM = dict(FIT)
@@ -54,75 +54,46 @@ INTERNAL = ('Applications per day', 'Smallest project', 'What you do NOT', 'Hour
 # name and headings, a small mono for section labels, terracotta for the rules.
 CSS = """
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { margin: 0; background: var(--canvas); color: var(--ink); font: 15px/1.55 var(--sans);
-         -webkit-font-smoothing: antialiased; }
-  .sheet, .note, .foot { max-width: 940px; margin: 0 auto; }
-  .sheet { margin-top: 40px; background: var(--paper); border: 1px solid var(--hairline-soft);
-           border-radius: var(--radius-floating); box-shadow: var(--shadow-whisper); overflow: hidden; }
-  .top { background: var(--dark); color: var(--on-dark); padding: 44px 56px 34px; }
-  .kicker, h2, .meta, .when, .tag, .fig { font-family: var(--mono); text-transform: uppercase; font-weight: 400; }
-  .kicker { font-size: 10.5px; letter-spacing: 2.4px; color: var(--coral); margin: 0 0 14px; }
-  h1 { font: 500 clamp(34px, 5vw, 46px)/1.04 var(--display); letter-spacing: -1.1px; margin: 0 0 8px; color: var(--on-dark); }
-  .headline { font-size: 17px; line-height: 1.4; color: var(--on-dark-soft); margin: 0; max-width: 38em; }
-  .meta { display: flex; flex-wrap: wrap; gap: 6px 26px; margin: 22px 0 0; padding: 14px 0 0;
-          border-top: 1px solid rgba(250, 249, 245, .16); font-size: 10.5px; letter-spacing: 1.3px; color: var(--on-dark-soft); }
-  .meta b { color: var(--on-dark); font-weight: 400; }
-  .meta a { color: var(--on-dark); text-decoration: none; border-bottom: 1px solid rgba(250, 249, 245, .35); }
-  .cols { display: grid; grid-template-columns: 1.85fr 1fr; padding: 6px 56px 44px; gap: 0 44px; }
-  .side { border-left: 1px solid var(--hairline-soft); padding-left: 36px; }
-  section { padding: 26px 0 0; }
-  h2 { margin: 0 0 14px; font-size: 10.5px; letter-spacing: 2.2px; color: var(--ink);
-       display: flex; align-items: center; gap: 10px; }
+  body { margin: 0; background: var(--canvas); color: var(--ink); font: 14px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+  .sheet, .note, .foot { max-width: 840px; margin: 0 auto; }
+  .sheet { margin-top: 36px; background: var(--paper); padding: 58px 66px 50px; box-shadow: 0 2px 20px rgba(20, 20, 19, .09); }
+  .top { padding-bottom: 18px; border-bottom: 1px solid var(--ring); position: relative; }
+  .top::after { content: ""; position: absolute; left: 0; bottom: -1px; width: 64px; height: 2px; background: var(--terracotta); }
+  h1 { font: 500 36px/1.08 var(--display); letter-spacing: -1px; margin: 0 0 8px; }
+  .headline { font: 400 17px/1.4 var(--display); color: var(--body); margin: 0; }
+  .contact { margin: 14px 0 0; font: 400 11px/1.4 var(--mono); letter-spacing: .6px; color: var(--label); display: flex; flex-wrap: wrap; }
+  .contact span + span::before { content: ""; display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--terracotta); margin: 0 12px 2px; }
+  .contact a { color: inherit; }
+  section { padding: 20px 0 0; }
+  h2 { margin: 0 0 12px; display: flex; align-items: center; gap: 10px; font: 400 10.5px/1 var(--mono);
+       letter-spacing: 2.2px; text-transform: uppercase; color: var(--label); }
+  h2::before { content: ""; width: 18px; height: 2px; background: var(--terracotta); }
   h2::after { content: ""; flex: 1; height: 1px; background: var(--hairline-soft); }
   p { margin: 0; }
+  .row { display: grid; grid-template-columns: 116px 1fr; gap: 0 18px; margin: 0 0 12px; }
+  .when { font: 400 10.5px/1.5 var(--mono); letter-spacing: .8px; text-transform: uppercase; color: var(--label); padding-top: 3px; }
+  .what strong { font: 600 14.5px/1.35 var(--sans); } .what .org { color: var(--terracotta-text); font-family: var(--display); font-size: 15px; }
+  .what p { margin-top: 2px; color: var(--body); }
+  .what .transfer { font-style: italic; }
   .profile { font: 400 17px/1.5 var(--display); color: var(--ink); }
-  .job { margin: 0 0 20px; }
-  .job-top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
-  .job strong { font: 600 16px/1.3 var(--sans); color: var(--ink); }
-  .when { font-size: 10px; letter-spacing: 1.1px; color: var(--label); white-space: nowrap; }
-  .org { margin: 1px 0 6px; font: italic 400 15px/1.3 var(--display); color: var(--terracotta-text); }
-  .job p, .item p, .result p, .side p, li { font-size: 14px; color: var(--body); }
-  .transfer { margin-top: 5px; } .transfer b { color: var(--ink); font-weight: 600; }
-  .result { display: grid; grid-template-columns: 96px 1fr; gap: 16px; align-items: start; margin: 0 0 16px; }
-  .fig { font-size: 15px; letter-spacing: .2px; line-height: 1.25; color: var(--terracotta-text); padding: 9px 8px;
-         background: var(--terracotta-soft); border-radius: var(--radius-control); text-align: center; text-transform: none; }
-  .fig.dot { background: none; }
-  .result strong, .item strong { display: block; font: 600 14.5px/1.35 var(--sans); color: var(--ink); margin-bottom: 2px; }
-  .item { margin: 0 0 14px; }
-  small { display: block; margin-top: 3px; font-size: 12px; color: var(--label); }
-  .tag { display: inline-block; font-size: 9px; letter-spacing: 1.1px; padding: 3px 7px; border-radius: 6px;
-         margin-right: 8px; vertical-align: 2px; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-ring); }
-  ul { margin: 0; padding-left: 0; list-style: none; } li { margin-bottom: 5px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; } .chips li { margin: 0; padding: 4px 10px; border-radius: 999px;
-           background: var(--sand); color: var(--ink); font-size: 12.5px; }
-  ul.plain li { margin-bottom: 10px; } ul.plain b { display: block; color: var(--ink); font-weight: 600; }
-  ul.lines li { padding-left: 14px; position: relative; } ul.lines li::before { content: ""; position: absolute; left: 0; top: 8px;
-           width: 5px; height: 5px; border-radius: 50%; background: var(--terracotta); }
-  blockquote { margin: 0 0 12px; font: italic 400 15px/1.45 var(--display); color: var(--ink); }
-  blockquote small { font: 400 12px/1.4 var(--sans); font-style: normal; }
-  .muted { color: var(--label); font-size: 13.5px; }
+  ul { margin: 0; padding-left: 0; list-style: none; } li { margin: 0 0 7px; padding-left: 16px; position: relative; color: var(--body); }
+  li::before { content: ""; position: absolute; left: 0; top: 9px; width: 5px; height: 5px; border-radius: 50%; background: var(--terracotta); }
+  li b { color: var(--ink); font-weight: 600; }
+  .mark { font-size: 11px; color: var(--warn); white-space: nowrap; }
+  blockquote { margin: 0 0 10px; color: var(--ink); font: italic 400 15.5px/1.45 var(--display); } blockquote small { display: block; font-style: normal; font-size: 12px; margin-top: 2px; }
+  .muted { color: var(--label); font-size: 13px; }
   .note { margin-top: 18px; background: var(--terracotta-soft); border-radius: var(--radius-panel); padding: 18px 22px; }
-  .note h2 { color: var(--terracotta-text); margin-bottom: 8px; } .note h2::after { display: none; }
-  .note li { color: var(--ink); padding-left: 14px; position: relative; }
-  .note li::before { content: "\\2022"; position: absolute; left: 0; color: var(--terracotta); }
+  .note h2 { color: var(--terracotta-text); border: 0; padding: 0; margin-bottom: 8px; }
+  .note ul { padding-left: 16px; } .note li { color: var(--ink); margin-bottom: 3px; }
   .foot { padding: 18px 4px 48px; font-size: 13.5px; color: var(--label); }
   .foot code { font-family: var(--mono); background: var(--sand); padding: 1px 6px; border-radius: 5px; color: var(--ink); }
-  @media screen and (max-width: 820px) { .cols { grid-template-columns: 1fr; padding: 4px 22px 32px; }
-        .side { border-left: 0; padding-left: 0; } .top { padding: 32px 22px 26px; }
-        .sheet { margin: 0; border-radius: 0; border-left: 0; border-right: 0; } .note { margin: 14px 14px 0; }
-        .foot { padding: 16px 18px 40px; } .job-top { flex-direction: column; gap: 2px; } .result { grid-template-columns: 78px 1fr; } }
-  @media print { @page { size: A4; margin: 0; } body { background: none; font-size: 9.4px; line-height: 1.42; }
-        .sheet { margin: 0; max-width: none; border: 0; border-radius: 0; box-shadow: none; }
-        .note, .foot { display: none; }
-        .top { padding: 15mm 13mm 8mm; } h1 { font-size: 27px; margin-bottom: 4px; } .headline { font-size: 11.5px; }
-        .meta { margin-top: 10px; padding-top: 8px; font-size: 7.3px; } .kicker { font-size: 7px; margin-bottom: 8px; }
-        .cols { padding: 0 13mm 10mm; gap: 0 9mm; } .side { padding-left: 7mm; } section { padding-top: 11px; break-inside: avoid; }
-        h2 { font-size: 7.3px; margin-bottom: 7px; } .profile { font-size: 11px; } .job { margin-bottom: 9px; }
-        .job strong { font-size: 10.6px; } .org { font-size: 10px; } .when { font-size: 6.8px; }
-        .job p, .item p, .result p, .side p, li { font-size: 9.1px; } .result strong, .item strong { font-size: 9.6px; }
-        .result { grid-template-columns: 62px 1fr; gap: 9px; margin-bottom: 8px; } .fig { font-size: 9.5px; padding: 5px 4px; }
-        .chips li { font-size: 8.4px; padding: 2px 7px; } blockquote { font-size: 9.6px; } small { font-size: 7.6px; }
-        .tag { font-size: 6px; padding: 2px 4px; } }
+  @media screen and (max-width: 680px) { .sheet { margin: 0; padding: 30px 22px 34px; } .row { grid-template-columns: 1fr; gap: 1px; }
+        .note { margin: 14px 14px 0; } .foot { padding: 16px 18px 40px; } }
+  @media print { @page { size: A4; margin: 15mm 16mm; } body { background: none; font-size: 9.7px; line-height: 1.45; }
+        .sheet { margin: 0; max-width: none; padding: 0; box-shadow: none; } .note, .foot { display: none; }
+        h1 { font-size: 26px; } .headline { font-size: 12px; } .contact { font-size: 7.6px; margin-top: 8px; } .top { padding-bottom: 11px; }
+        section { padding-top: 13px; } h2 { font-size: 7.4px; margin-bottom: 8px; } .row { grid-template-columns: 24mm 1fr; gap: 0 5mm; margin-bottom: 8px; }
+        .when { font-size: 7.4px; padding-top: 2px; } .profile { font-size: 11.4px; } .what strong { font-size: 10.4px; } .what .org { font-size: 10.6px; } li::before { top: 6px; } blockquote { font-size: 10.4px; } li { margin-bottom: 4px; } .mark { font-size: 7.5px; } blockquote small { font-size: 8.5px; } }
 """
 
 
@@ -226,7 +197,7 @@ def trail_html(item):
     return f'<small>Pulled from {esc(clip(item["source"], 120))}</small>'
 
 
-SENT = re.compile(r'(?<=\))\.\s+|(?<=[a-z0-9])\.\s+(?=[A-Z])')
+SENT = re.compile(r'(?<=\))\.\s+|(?<=[a-z]{4})\.\s+(?=[A-Z])')  # not after M.Sc., B.A., Dr.
 LANGUAGE = re.compile(r'\b(native|fluent|bilingual|conversational|proficient|intermediate|basic)\b', re.I)
 
 
@@ -244,30 +215,43 @@ def metric(text):
     return m.group(0).strip() if m else ''
 
 
+def mark_html(item):
+    return ' <span class="mark">(to confirm)</span>' if item['pending'] else ''
+
+
+def row(when, what):
+    return f'<div class="row"><div class="when">{esc(when)}</div><div class="what">{what}</div></div>'
+
+
 def job_html(item):
     role, employer, when = role_of(item['title'])
     text, _, transfer = item['text'].partition('Transfers:')
-    org = f'<p class="org">{esc(employer)}</p>' if employer else ''
-    stamp = f'<span class="when">{esc(when)}</span>' if when else ''
-    gain = (f'<p class="transfer"><b>Transfers</b> {esc(clip(transfer.strip(), LIM['transfer']))}</p>' if transfer.strip() else '')
-    return (f'<div class="job"><div class="job-top"><strong>{esc(role)}</strong>{stamp}</div>'
-            f'{org}<p>{esc(clip(text.strip(), LIM['job']))}</p>{gain}</div>')
+    org = f', <span class="org">{esc(employer)}</span>' if employer else ''
+    gain = f'<p class="transfer">{esc(clip(transfer.strip(), LIM["transfer"]))}</p>' if transfer.strip() else ''
+    return row(when, f'<strong>{esc(role)}</strong>{org}<p>{esc(clip(text.strip(), LIM["job"]))}</p>{gain}')
 
 
-def result_html(item):
-    big = metric(item['text'])
-    figure = f'<div class="fig">{esc(big)}</div>' if big else '<div class="fig dot"></div>'
-    return (f'<div class="result">{figure}<div><strong>{tag_html(item)}{esc(item["title"])}</strong>'
-            f'<p>{esc(clip(item["text"], LIM["result"]))}</p>{trail_html(item)}</div></div>')
+def result_li(item):
+    return f'<li><b>{esc(item["title"])}</b>{mark_html(item)}. {esc(clip(item["text"], LIM["result"]))}</li>'
 
 
-def chips_html(text):
+def year_of(text):
+    m = re.search(r'\b((?:19|20)\d{2})\b', text or '')
+    return m.group(1) if m else ''
+
+
+def school_row(line):
+    when = year_of(line)
+    return row(when, esc(clip(re.sub(r'\s*\(\s*((?:19|20)\d{2})\s*\)', '', line).strip(), 130)))
+
+
+def cert_row(item):
+    return row(year_of(item['text']), f'<strong>{esc(item["title"])}</strong>{mark_html(item)}')
+
+
+def skill_row(label, text, limit):
     words = [w.strip() for w in re.split(r'\s*[,·;]\s*|\s+and\s+', text or '') if w.strip()]
-    return '<ul class="chips">' + ''.join(f'<li>{esc(w)}</li>' for w in words[:LIM['chips']]) + '</ul>' if words else ''
-
-
-def lines_html(items):
-    return '<ul class="lines">' + ''.join(f'<li>{esc(clip(i, 110))}</li>' for i in items[:LIM['lines']]) + '</ul>' if items else ''
+    return row(label, esc(', '.join(words[:limit]))) if words else ''
 
 
 def item_html(item, limit=CLIP):
@@ -284,32 +268,19 @@ def more(count, shown):
 
 
 def header_html(found):
-    """Name, headline and the line of facts a client reads first."""
+    """Name, headline and the contact line a client reads first."""
     name, _, place = (pick(found, 'Name and location') or '').partition(',')
     headline = pick(found, 'The one thing') or pick(found, 'Profession')
     url = pick(found, 'Public Upwork profile URL') or ''
-    facts = [('Based in', place.strip()), ('Rate', pick(found, 'Hourly rate')),
-             ('Job Success', pick(found, 'Job Success')), ('Hours', pick(found, 'Timezone'))]
-    meta = ''.join(f'<span>{esc(label)} <b>{esc(clip(short(value), 70))}</b></span>' for label, value in facts
-                   if value and not value.lower().startswith(('no ', 'none')))
+    facts = [place.strip(), pick(found, 'Timezone'), f'{pick(found, "Hourly rate")}/h' if pick(found, 'Hourly rate') else '',
+             f'Job Success {pick(found, "Job Success")}' if pick(found, 'Job Success') else '']
+    meta = ''.join(f'<span>{esc(clip(short(v), 60))}</span>' for v in facts
+                   if v and not v.lower().startswith(('no ', 'none')) and 'not answered' not in v.lower())
     if url.startswith('http'):
-        meta += f'<span><a href="{esc(url)}">Upwork profile</a></span>'
-    return ('<p class="kicker">Resume</p>'
-            f'<h1>{esc(name.strip() or "Your Upwork resume")}</h1>'
-            + (f'<p class="headline">{esc(clip(headline))}</p>' if headline else
-               '<p class="headline">What every command reads before it writes for you.</p>')
-            + (f'<div class="meta">{meta}</div>' if meta else ''))
-
-
-def services_html(me, found):
-    """The branches with their services when the file lists them, else the one-line answer."""
-    rows = [m.groups() for line in me.get('What you do', [])
-            for m in [re.match(r'^-\s*([^:]+):\s*(.+)$', line.strip())] if m]
-    if rows:
-        return '<ul class="plain">' + ''.join(
-            f'<li><b>{esc(name)}</b>{esc(clip(items, 120))}</li>' for name, items in rows[:LIM['services']]) + '</ul>'
-    sells = pick(found, 'Services you sell')
-    return f'<p>{esc(clip(sells))}</p>' if sells else ''
+        meta += f'<span><a href="{esc(url)}">{esc(clip(url.replace("https://", "").replace("http://", ""), 48))}</a></span>'
+    return (f'<h1>{esc(name.strip() or "Your resume")}</h1>'
+            + (f'<p class="headline">{esc(clip(headline))}</p>' if headline else '')
+            + (f'<div class="contact">{meta}</div>' if meta else ''))
 
 
 def open_html(found, unconfirmed):
@@ -332,42 +303,41 @@ def build(me_text, proof_text, full=False, has_full=False):
     proof = dict(sections(proof_text))
     jobs = entries(me.get('Your background', []))
     results, creds, reviews = (entries(proof.get(name, [])) for name in ('Results', 'Credentials', 'Reviews'))
-
     results = sorted(results, key=lambda r: (r['pending'], not metric(r['text'])))  # proven, with a figure, first
+
     earlier = [role_of(j['title']) for j in jobs[LIM['jobs']:LIM['jobs'] + LIM['earlier']]]
-    earlier_line = lines_html([f'{role}, {org} ({when})' if org else f'{role} ({when})' for role, org, when in earlier]) \
-        if earlier else ''
-    experience = ''.join(job_html(j) for j in jobs[:LIM['jobs']]) + (
-        f'<p class="muted">Earlier</p>{earlier_line}' if earlier_line else '') \
-        + more(len(jobs), LIM['jobs'] + (len(earlier) if earlier_line else 0)) or \
-        '<p class="muted">Still open. /about-me fills this from your CV and your answers.</p>'
-    selected = ''.join(result_html(r) for r in results[:LIM['results']]) + more(len(results), LIM['results']) or \
-        '<p class="muted">Nothing yet. The first delivered job fills this.</p>'
+    experience = ''.join(job_html(j) for j in jobs[:LIM['jobs']])
+    if earlier:
+        experience += row('Earlier', '<p>' + esc('; '.join(f'{r}, {o} ({w})' if o else f'{r} ({w})' for r, o, w in earlier)) + '</p>')
+    experience += more(len(jobs), LIM['jobs'] + len(earlier))
+    experience = experience or '<p class="muted">Still open. /about-me fills this from your CV and your answers.</p>'
+    selected = ('<ul>' + ''.join(result_li(r) for r in results[:LIM['results']]) + '</ul>' + more(len(results), LIM['results'])
+                if results else '<p class="muted">Nothing yet. The first delivered job fills this.</p>')
     strength = (pick(found, 'What you are good at') or '').strip('"“” ')
     summary = f'<p class="profile">{esc(clip(strength, LIM["profile"]))}</p>' if strength else ''
-    tools = chips_html(pick(found, 'Tools and systems'))
     lines = parts(pick(found, 'Education'))
     languages = [p for p in lines if LANGUAGE.search(p)]
-    schooling = [p for p in lines if p not in languages]
+    named = {re.sub(r'\W+', '', c['title']).lower() for c in creds}  # a certificate listed twice shows once
+    schooling = [p for p in lines if p not in languages
+                 and re.sub(r'\W+', '', re.sub(r'\(.*?\)', '', p)).lower() not in named]
+    skills = (skill_row('Tools', pick(found, 'Tools and systems'), LIM['chips'])
+              + skill_row('Services', pick(found, 'Services you sell'), LIM['services'] * 3))
+    language_row = row('Languages', esc(' · '.join(languages))) if languages else ''
     quotes = ''.join(f'<blockquote>{esc(clip(r["text"], LIM["quote"]))}<small>{esc(clip(r["title"], 60))}</small></blockquote>'
                      for r in reviews[:LIM['quotes']])
     unconfirmed = sum(1 for item in results + creds + reviews if item['pending'])
-    title = (pick(found, 'Name and location') or 'Your Upwork resume').partition(',')[0]
+    title = (pick(found, 'Name and location') or 'Your resume').partition(',')[0]
 
     return ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-            f'<title>{esc(title)} · Upwork resume</title>\n<style>' + tokens() + CSS + '</style>\n</head>\n<body>\n'
+            f'<title>{esc(title)} · Resume</title>\n<style>' + tokens() + CSS + '</style>\n</head>\n<body>\n'
             '<main class="sheet">\n<header class="top">' + header_html(found) + '</header>\n'
-            '<div class="cols">\n<div>\n'
-            + block('Profile', summary) + block('Experience', experience) + block('Selected results', selected) +
-            '\n</div>\n<div class="side">\n'
-            + block('Skills and tools', tools)
-            + block('Services', services_html(me, found))
-            + block('Education', lines_html(schooling))
-            + block('Certificates', ''.join(item_html(c, LIM['item']) for c in creds[:LIM['creds']]) + more(len(creds), LIM['creds']))
-            + block('Languages', lines_html(languages))
+            + block('Profile', summary) + block('Experience', experience) + block('Selected results', selected)
+            + block('Education', ''.join(school_row(s) for s in schooling[:LIM['lines']]))
+            + block('Certificates', ''.join(cert_row(c) for c in creds[:LIM['creds']]) + more(len(creds), LIM['creds']))
+            + block('Skills and languages', skills + language_row)
             + block('Recommendations', quotes) +
-            '\n</div>\n</div>\n</main>\n'
+            '\n</main>\n'
             + open_html(found, unconfirmed) +
             '\n<p class="foot">Next: <code>/profile</code> writes your Upwork profile from this. '
             'Built from context/me.md on this machine; rebuild it with '

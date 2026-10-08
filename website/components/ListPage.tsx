@@ -15,18 +15,6 @@ type SortKey = 'score' | 'job' | 'client' | 'competition' | 'budget' | 'step';
 type Sort = { key: SortKey; desc: boolean } | null;
 
 const LAYOUT_KEY = 'cockpit-layout';
-// How fresh a posting is, in hours. A dense search term turns over ten postings in
-// two hours, so "today" is not a useful bucket and these are.
-const FRESH: [number, string][] = [[0, 'Any age'], [1, '1h'], [4, '4h'], [12, '12h'], [24, '24h'], [72, '3d'], [168, '7d']];
-// A custom age is typed as a number with an optional unit: 90m, 36h, 2d. No unit means hours.
-function parseAge(text: string): number | null {
-  const m = /^\s*(\d+(?:\.\d+)?)\s*(m|min|h|d)?\s*$/i.exec(text);
-  if (!m) return null;
-  const n = parseFloat(m[1]);
-  const unit = (m[2] || 'h').toLowerCase();
-  const hours = unit.startsWith('m') ? n / 60 : unit === 'd' ? n * 24 : n;
-  return hours > 0 ? hours : null;
-}
 // The list holds the leads still to decide on; everything from Applied on lives on the board.
 // The title column is gone (27.09.2026): an Upwork title is the client's own SEO line
 // and says the same thing forty times over, while the summary is the sentence that
@@ -53,24 +41,12 @@ export default function ListPage() {
   // Longest waiting first by default: a board exists to show what is going stale.
   const [oldestFirst, setOldestFirst] = useState(true);
   const [dueOnly, setDueOnly] = useState(false);
-  // Hours: 0 shows everything.
-  const [fresh, setFresh] = useState(0);
-  const [custom, setCustom] = useState('');
   const all: any[] = state?.jobs || [];
   const pool = useMemo(() => all.filter(j => (layout === 'board' ? BOARD : LIST).includes(j.status)), [all, layout]);
   // Due means a task is waiting on the member now, not a follow-up set for later.
   const byDue = useMemo(() => dueOnly ? pool.filter(j => waitingState(j).kind === 'act') : pool, [pool, dueOnly]);
-  // A posting stops being worth Connects within hours, so freshness is a filter and
-  // not only a colour. Anything without a posting date stays visible: a missing field
-  // is not evidence that the job is old.
-  const filtered = useMemo(() => {
-    // Only on the list. On the board a "posted 3 days ago" lead is a live conversation,
-    // and hiding it behind an apply-time filter loses work that is already in flight.
-    if (!fresh || layout === 'board') return byDue;
-    const cutoff = Date.now() - fresh * 3600e3;
-    return byDue.filter(j => !j.posted_date || Date.parse(j.posted_date) >= cutoff);
-  }, [byDue, fresh, layout]);
-  const jobs = useMemo(() => sortJobs(searchJobs(filtered, query), layout === 'board' ? null : sort), [filtered, query, sort, layout]);
+  // Freshness is a sort, not a filter: the Competition column orders by posting time.
+  const jobs = useMemo(() => sortJobs(searchJobs(byDue, query), layout === 'board' ? null : sort), [byDue, query, sort, layout]);
   if (!state) return null;
 
   const choose = (next: Layout) => {
@@ -99,17 +75,6 @@ export default function ListPage() {
       </label>
       <button type="button" className={`due-toggle${dueOnly ? ' on' : ''}`} aria-pressed={dueOnly}
         onClick={() => setDueOnly(v => !v)}>{dueTotal ? `Needs me · ${dueTotal}` : 'Needs me'}</button>
-      {layout === 'board' ? null : <div className="age" role="group" aria-label="Posted within">
-        {FRESH.map(([hours, label]) => <button key={label} type="button"
-          onClick={() => { setCustom(''); setFresh(hours); }}
-          aria-pressed={!custom && fresh === hours}>{label}</button>)}
-        <input className={`age-custom${custom ? ' on' : ''}`} placeholder="Custom, e.g. 36h" aria-label="Custom age"
-          value={custom} onChange={e => {
-            setCustom(e.target.value);
-            const hours = parseAge(e.target.value);
-            setFresh(e.target.value.trim() === '' ? 0 : hours ?? fresh);
-          }} />
-      </div>}
       <span className="count" aria-live="polite">{jobs.length === pool.length ? `${pool.length} ${noun}` : `${jobs.length} of ${pool.length} ${noun}`}</span>
     </div>
     {layout === 'board' ? <Board jobs={jobs} oldestFirst={oldestFirst} drawerId={drawerId} toggle={toggle} />

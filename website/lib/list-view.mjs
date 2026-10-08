@@ -1,8 +1,8 @@
 // Search and order for the one list. The board shows the same jobs, grouped.
 // Search is an AND over the query's words, matched against title, summary and id,
 // and an empty query is not a filter. A lead without a score ranks below every
-// scored lead instead of counting as a zero, and an unknown bid count like
-// `20 to 50` sorts last under competition.
+// scored lead instead of counting as a zero. Competition sorts by posting time,
+// newest first, and a lead without a posting date sorts last.
 import { nextStep, stageEnteredAt } from './next-step.mjs';
 import { ORDER } from './stages.mjs';
 
@@ -26,7 +26,10 @@ const KEYS = {
   score,
   job: job => String(job.title || '').toLowerCase(),
   client: job => (job.client || {}).rating ?? -1,
-  competition: job => typeof job.proposals === 'number' ? job.proposals : Infinity,
+  competition: job => {
+    const posted = Date.parse(job.posted_date || '');
+    return Number.isNaN(posted) ? Infinity : -posted;
+  },
   budget: job => amount(job.budget),
   step: job => nextStep(job).label,
 };

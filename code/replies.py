@@ -52,6 +52,27 @@ def proof_text():
     return context_check.proof_only(me.read_text(encoding='utf-8')) if me.is_file() else ''
 
 
+def already_told(job_id):
+    """What this client already has from the member: the proposal sent and the member's own messages.
+
+    A follow-up that repeats the price of the proposal on the table makes no new claim,
+    so the number gate must not strip it out of the proposal reminder.
+    """
+    folder = pipeline.jobs_dir() / job_id
+    parts = []
+    try:
+        parts.append((folder / 'proposal.md').read_text(encoding='utf-8'))
+    except OSError:
+        pass
+    try:
+        thread = json.loads((folder / 'thread.json').read_text(encoding='utf-8'))
+        parts += [str(m.get('text') or '') for m in thread.get('messages') or []
+                  if isinstance(m, dict) and m.get('from') == 'me']
+    except (OSError, json.JSONDecodeError):
+        pass
+    return '\n'.join(parts)
+
+
 def validate(value, proof=None):
     problems = []
     if not isinstance(value, dict):
@@ -99,7 +120,7 @@ def cmd_check(args):
     except json.JSONDecodeError as exc:
         print(f'ABORT: replies.json is not valid JSON at line {exc.lineno}.', file=sys.stderr)
         return 1
-    problems = validate(value)
+    problems = validate(value, proof_text() + '\n' + already_told(args.job_id))
     if problems:
         for problem in problems:
             print(f'FAIL: {problem}', file=sys.stderr)

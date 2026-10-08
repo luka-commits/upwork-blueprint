@@ -10,6 +10,9 @@ and report `Upwork calls: 0`, then stop before any other step. It records the me
 
 **Several ids run one after another.** The repetition is the command's, never the member's yes.
 
+**Running `/proposal` is the member's decision to apply.** Fit was settled in `/find-jobs`:
+never ask whether to apply, never offer to skip, never stop on an unmet requirement.
+
 Follow `references/copy.md` for every line the client reads. The member described in
 `context/me.md` is the sender. The member records the Loom themselves and shows the one-pager on screen;
 this command prepares that page and writes the application text.
@@ -51,7 +54,7 @@ posting states the questions, for manual submission.
 
 ### What is true about you and the scope
 
-List the posting's hard requirements ("built at least 5 sub-accounts for trades", "A2P 10DLC is non-negotiable") and check each against the evidence sections of `context/me.md`. **A requirement your proof does not cover never becomes a claim.** If it is mandatory, ask the member whether they meet it and where that can be checked, one single choice per requirement: met and checkable, met with nothing to point at, not met; the place is typed. Until resolved, save no client-facing draft. If it is a preference, name the gap for the member and draft without claiming it. Lead with the strongest relevant proof by tier; never a badge or number the member does not hold.
+List the posting's hard requirements ("built at least 5 sub-accounts for trades", "A2P 10DLC is non-negotiable") and check each against the evidence sections of `context/me.md`. **A requirement your proof does not cover never becomes a claim.** If it is mandatory, ask the member whether they meet it and where that can be checked, one single choice per requirement: met and checkable, met with nothing to point at, not met; the place is typed. Ask these together with every screening question only the member can answer (a YES or NO, a price), in one batch right after reading the full posting. "Not met" is answered honestly in the application, never claimed and never a reason to stop. If it is a preference, name the gap for the member and draft without claiming it. Lead with the strongest relevant proof by tier; never a badge or number the member does not hold.
 
 ### Write the letter
 
@@ -112,7 +115,7 @@ cockpit can present it separately:
 
 When the full posting states screening questions, answer each in one or two
 sentences from the posting and verified proof. A mandatory answer without
-proof is a hold. Do not guess questions the posting does not state. Append:
+proof says so plainly and is named in the report. Do not guess questions the posting does not state. Append:
 
 ```markdown
 # Screening answers

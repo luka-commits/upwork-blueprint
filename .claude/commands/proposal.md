@@ -1,5 +1,5 @@
 ---
-description: Writes the application for one job on the member's own template: cover letter, screening answers and bid.
+description: Writes the application text for one job on the member's own template: cover letter and screening answers.
 argument-hint: "<job id> [more job ids] | <job id> submitted"
 ---
 
@@ -20,44 +20,18 @@ Read first: [references/upwork.md](../../references/upwork.md) (hard constraint 
 
 `python3 code/pipeline.py get $ARGUMENTS`. The posting is in `details.description`. No posting there (older than a day, or never opened): `find_jobs` action `get` for this one job, then `python3 code/jobs.py detail <id> <file>` as `/find-jobs` Step 6 does. Never write from the summary: the requirements and screening questions are in the full posting.
 
-## Step 2 · Price guide
-
-Estimate effort from the full posting, never the client's budget: low, likely and
-high hours; two to five milestones summing to likely; confidence; scope assumptions.
-
-```
-python3 code/pricing.py <id> --hours <low> <likely> <high> \
-  --confidence high|medium|low --contract-type fixed|hourly|unknown \
-  --milestone "Foundation|hours" --milestone "Build and QA|hours" \
-  --assumption "one concrete scope boundary"
-```
-
-It uses the member's rate plus a scope-risk buffer of 5, 15 or 25 percent for high,
-medium or low confidence. The internal guide is never the bid and never overrides approved terms.
-
-## Step 3 · Application
+## Step 2 · Application
 
 Use the full posting from Step 1 and `references/copy.md` for
 every line the client will read. The member reviews and submits the proposal
 on Upwork themselves. Prepare the cover letter, screening answers when the
-posting states the questions, and the bid for manual submission.
+posting states the questions, for manual submission.
 
 **The first 230 characters decide.** That is all the applicant card shows a client, roughly the first 45 words. Put the outcome and the one relevant proof there, not a greeting or excitement.
 
 ### What is true about you and the scope
 
 List the posting's hard requirements ("built at least 5 sub-accounts for trades", "A2P 10DLC is non-negotiable") and check each against the evidence sections of `context/me.md`. **A requirement your proof does not cover never becomes a claim.** If it is mandatory, ask the member whether they meet it and where that can be checked, one single choice per requirement: met and checkable, met with nothing to point at, not met; the place is typed. Until resolved, save no client-facing draft. If it is a preference, name the gap for the member and draft without claiming it. Lead with the strongest relevant proof by tier; never a badge or number the member does not hold.
-
-Separate explicit deliverables from assumptions. Before quoting a price or
-timeline, resolve the contract type, included work, dependencies, revision or
-acceptance boundary and payment structure from the posting, saved member policy
-or an explicit member decision. If one changes the bid, ask before writing the application. Never convert an hourly profile rate into a fixed-price quote.
-
-When `details.price_estimate` exists, use it as the internal starting point:
-show the hour cases, profile rate, risk buffer, assumptions and roadmap together.
-It is an estimate, not approval. Recalculate it when the resolved scope changes,
-and get the member's explicit bid decision before writing the bid, as a single choice
-between the estimate's cases with another figure typed.
 
 ### Write the letter
 
@@ -128,17 +102,13 @@ proof is a hold. Do not guess questions the posting does not state. Append:
 <one or two sentence answer>
 ```
 
-Record the member-approved bid amount through
-`python3 code/pipeline.py detail <id> --file -` with a JSON object containing
-`bid_amount`. Leave out costs or questions the posting did not reveal.
-
 ### The gate
 
 `python3 code/application_check.py jobs/<id>/application.md --job-title "<exact job title>"`. Exit 1 means fix it. Then read it once as the client would: does it answer their post, or could it sit under any other job?
 
 ### Manual handoff
 
-Present the letter, any answers, the bid and any preferred qualification the
+Present the letter, any answers and any preferred qualification the
 member does not meet. Open the saved job URL on Upwork. The member pastes the
 fields, reviews Upwork's final cost and submits the proposal on Upwork
 themselves.
@@ -150,7 +120,7 @@ letter is written and wrong the moment it is pasted.
 Never mark Applied until the member submits on Upwork, then runs `/proposal <id> submitted`.
 That stage rests on their word; `/brief` checks once if no proposal ever shows up.
 
-## Step 4 · Report
+## Step 3 · Report
 
 Run `python3 code/pipeline.py prune` first, because Step 1 fetched the full job. Then the completion report as CLAUDE.md defines it, with the application linked. Say what the application costs in Connects and what the balance leaves.
 Next: record the Loom and return its URL here; replace [LOOM LINK] in the letter. Run the ready application check again. Only then submit on Upwork and run `/proposal <id> submitted`.

@@ -56,11 +56,11 @@
   }
   function readTokens() {
     P = {
-      card: tok('--card', '#ffffff'), border: tok('--border', '#d1cfc5'),
-      text: tok('--text', '#141413'), muted: tok('--text-3', '#87867f'),
+      card: tok('--card', '#faf9f5'), border: tok('--border', '#e8e6dc'),
+      text: tok('--text', '#141413'), muted: tok('--text-3', '#66655f'),
       accent: tok('--accent', '#c96442'), tint: tok('--dg-tint', '#f6e4dc'),
       tintStroke: tok('--dg-tint-stroke', '#e8b7a3'), edge: tok('--dg-edge', '#87867f'),
-      bg: tok('--bg', '#faf9f5'), bgBand: tok('--bg-band', '#f5f4ed'),
+      bg: tok('--bg', '#f5f4ed'), bgBand: tok('--bg-band', '#faf9f5'),
       text2: tok('--text-2', '#5e5d59')
     };
   }

@@ -13,36 +13,35 @@
      industry-specific theme is a ~6-variable override on :root (or on a
      [data-theme="..."] block), never a rewrite.
      ------------------------------------------------------------------ */
-  /* The Automatable look: ivory page, white cards, ink bands, one clay accent,
-     a serif for headings and a small mono for labels. */
+  /* The house look, measured on automatable.co and kept in website/app/tokens.css:
+     a parchment page, ivory cards with a hairline, near-black ink, terracotta,
+     a serif for headings and a small uppercase mono for labels. */
   :root {
-    --ivory: #faf9f5; --page-alt: #f5f4ed; --paper: #ffffff; --clay: #c96442;
-    --clay-deep: #a94f31; --clay-soft: #f6e4dc; --sand: #e8e6dc; --stone: #d1cfc5;
-    --line: #f0eee6; --muted: #5e5d59; --soft: #87867f;
-    --green: #2f5d2c; --green-soft: #e3efe2;
+    --sand: #e8e6dc; --stone: #d1cfc5;
     --display: "Tiempos Text", Georgia, "Iowan Old Style", "Times New Roman", ui-serif, serif;
     --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
-    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-    --bg: #faf9f5;          /* ivory */
-    --bg-band: #f5f4ed;     /* page-alt */
-    --card: #ffffff;        /* paper */
+    --bg: #f5f4ed;          /* canvas */
+    --bg-band: #faf9f5;     /* ivory */
+    --card: #faf9f5;        /* ivory */
     --ink: #141413;
     --ink-raised: color-mix(in srgb, #faf9f5 7%, #141413);
-    --text: #141413;        /* headings and emphasis */
-    --text-2: #5e5d59;      /* body (muted) */
-    --text-3: #87867f;      /* labels and captions (soft) */
-    --accent: #c96442;      /* clay */
-    --accent-deep: #a94f31; /* clay-deep */
-    --accent-on-ink: #e08a5c;  /* clay lifted for --ink, as in context_page.py */
+    --text: #141413;        /* ink */
+    --text-2: #5e5d59;      /* body */
+    --text-3: #66655f;      /* label, 4.5:1 on every surface here */
+    --accent: #c96442;      /* terracotta: marks, rules, display type */
+    --accent-fill: #b05538; /* terracotta-active: filled buttons, ivory text clears 4.5:1 */
+    --accent-deep: #a04a2e; /* terracotta-text: small brand text, button hover */
+    --accent-on-ink: #e08a5c;  /* terracotta lifted for --ink, as in context_page.py */
     --on-ink: #faf9f5;
-    --on-ink-2: #b8b3a6;
+    --on-ink-2: #b0aea5;    /* on-dark-soft */
     --on-accent: #faf9f5;
-    --border: #d1cfc5;      /* stone */
-    --border-soft: #f0eee6; /* line */
+    --border: #e8e6dc;      /* hairline-soft, the visible border */
+    --border-soft: #f0eee6; /* hairline */
     --border-ink: rgba(250,249,245,.14);
     /* The only thing an industry theme may shift: the secondary tint of icons
-       and of the diagram's own nodes. Buttons, eyebrows and links stay clay. */
+       and of the diagram's own nodes. Buttons, eyebrows and links stay terracotta. */
     --tint: #c96442;
     /* Diagram tokens live here too, so a themed page themes its diagram. */
     --dg-tint: #f6e4dc;         /* clay-soft */
@@ -187,7 +186,7 @@
   .hero-cta { display: inline-flex; align-items: center; gap: 10px; margin: 26px 0 0;
     font-size: 16px; font-weight: 600; color: var(--accent); }
   .hero-cta::before { content: "▶"; display: grid; place-items: center; width: 26px; height: 26px;
-    border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 9px;
+    border-radius: 999px; background: var(--accent-fill); color: var(--on-accent); font-size: 9px;
     padding-left: 2px; flex: none; }
 
   /* ---------------- The Loom, in a device ----------------
@@ -208,7 +207,7 @@
   .device-screen .face { position: absolute; inset: 0; display: flex; align-items: center;
     justify-content: center; gap: 16px; color: var(--on-ink); font-weight: 600; font-size: 16px; }
   .device-screen .play { display: grid; place-items: center; width: 64px; height: 64px;
-    border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 18px;
+    border-radius: 999px; background: var(--accent-fill); color: var(--on-accent); font-size: 18px;
     line-height: 1; flex: none; box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent);
     transition: transform .2s var(--ease), background .2s var(--ease), box-shadow .3s var(--ease); }
   .device-badge { position: absolute; right: 14px; bottom: 14px; z-index: 2;
@@ -303,7 +302,7 @@
     background: var(--card); box-shadow: 0 28px 56px -34px rgba(20,20,19,.5); }
   .artifact-bar { display: flex; align-items: center; gap: 12px; padding: 12px 14px 12px 18px;
     border-bottom: 1px solid var(--border-soft); background: var(--bg); }
-  .artifact-tag { font-size: 11.5px; font-weight: 700; color: var(--on-accent); background: var(--accent);
+  .artifact-tag { font-size: 11.5px; font-weight: 700; color: var(--on-accent); background: var(--accent-fill);
     padding: 4px 10px; border-radius: 6px; flex: none; }
   .artifact-name { font-size: 13px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; min-width: 0; flex: 1; }
@@ -322,7 +321,7 @@
     .dg-btn:not(:disabled):hover { border-color: var(--dg-tint-stroke);
       background: color-mix(in srgb, var(--accent) 5%, var(--card)); }
   }
-  .dg-btn-accent { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .dg-btn-accent { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--on-accent); }
   .dg-btn-ghost { background: transparent; }
 
   .dg-editbar { display: flex; align-items: center; gap: 8px; padding: 9px 14px 9px 18px;
@@ -364,7 +363,7 @@
   .dg-fallback li::before { counter-increment: dgf; content: counter(dgf);
     position: absolute; left: 0; top: -1px; width: 23px; height: 23px; border-radius: 999px;
     display: grid; place-items: center; font-size: 12px; font-weight: 700;
-    background: var(--accent); color: var(--on-accent); }
+    background: var(--accent-fill); color: var(--on-accent); }
 
   .dg-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     padding: 11px 14px 12px 18px; border-top: 1px solid var(--border-soft); background: var(--bg); }
@@ -544,7 +543,7 @@
   .scope-list li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 7px; height: 7px;
     border-radius: 999px; border: 1.5px solid var(--accent-on-ink); }
 
-  .btn { display: inline-flex; align-items: center; gap: 10px; background: var(--accent);
+  .btn { display: inline-flex; align-items: center; gap: 10px; background: var(--accent-fill);
     color: var(--on-accent); text-decoration: none; font-weight: 600; padding: 16px 34px;
     border-radius: 12px; font-size: 15.5px; border: none;
     /* Shadow takes the page's own dark tone, not the accent hue: a saturated

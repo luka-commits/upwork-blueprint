@@ -14,28 +14,30 @@
     --c-analytics: #141413;
     --c-hand: #87867f;
     --c-report: #c96442;
-    --ivory: #faf9f5;
+    /* The house look from website/app/tokens.css, as measured on automatable.co:
+       a parchment page, ivory cards with a hairline, no decorative gradient. */
     --page-alt: #f5f4ed;
-    --paper: #ffffff;
+    --paper: #faf9f5;
     --ink: #141413;
     --clay: #c96442;
-    --clay-deep: #a94f31;
+    --clay-deep: #a04a2e;
+    --clay-fill: #b05538;
     --clay-soft: #f6e4dc;
     --sand: #e8e6dc;
-    --stone: #d1cfc5;
+    --stone: #e8e6dc;
     --line: #f0eee6;
     --muted: #5e5d59;
-    --soft: #87867f;
+    --soft: #66655f;
     --on-ink: #faf9f5;
     --on-ink-2: #b8b3a6;
-    --glow: radial-gradient(60% 130% at 94% -10%, rgba(201, 100, 66, .45), transparent 62%);
-    --shadow: 0 8px 24px rgba(20, 20, 19, .08);
+    --glow: none;
+    --shadow: 0 4px 24px rgba(20, 20, 19, .05);
     --display: "Tiempos Text", Georgia, "Iowan Old Style", "Times New Roman", ui-serif, serif;
     --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
     --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--ivory); color: var(--ink); font: 400 15px/1.45 var(--sans); -webkit-font-smoothing: antialiased; }
+  body { margin: 0; background: var(--page-alt); color: var(--ink); font: 400 15px/1.45 var(--sans); -webkit-font-smoothing: antialiased; }
   .wrap { max-width: 1040px; margin: 0 auto; padding-inline: 20px; padding-block: 22px 26px; display: grid; gap: 15px; }
   /* A grid item will not shrink below its content, so the 820px table pushed the
      whole page wider than the phone and every other section stretched with it. */
@@ -51,7 +53,7 @@
   /* Flow */
   .flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
   .node {
-    position: relative; background: var(--paper); border: 1px solid var(--stone); border-radius: 18px;
+    position: relative; background: var(--paper); border: 1px solid var(--stone); border-radius: 16px;
     padding: 13px 15px 12px; display: grid; grid-template-columns: auto minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr); column-gap: 11px; row-gap: 2px;
     box-shadow: var(--shadow);
@@ -88,7 +90,7 @@
   /* On a phone the table shows two phases and nothing says the rest is a
      swipe away, so a client reads a plan that stops in phase two. The fade is drawn
      on the container and hidden once the table fits, which is every desktop. */
-  .scroll { position: relative; overflow-x: auto; background: var(--paper); border: 1px solid var(--stone); border-radius: 18px; box-shadow: var(--shadow); }
+  .scroll { position: relative; overflow-x: auto; background: var(--paper); border: 1px solid var(--stone); border-radius: 16px; box-shadow: var(--shadow); }
   table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 820px; }
   th, td { padding: 0; border-bottom: 1px solid var(--line); }
   thead th { font: 400 11px/1.3 var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--soft); padding: 8px 0; text-align: center; background: var(--page-alt); border-bottom-color: var(--stone); }
@@ -116,7 +118,7 @@
   @media (max-width: 720px) {
     .scroll::after { content: "swipe for the later phases"; position: sticky; left: 0; bottom: 0;
       display: block; padding: 6px 14px; font: 400 10px/1.3 var(--mono); letter-spacing: 1.5px; text-transform: uppercase; color: var(--soft);
-      background: linear-gradient(to top, var(--paper), rgba(255,255,255,0)); }
+      background: linear-gradient(to top, var(--paper), rgba(250,249,245,0)); }
   }
 
   /* The walkthrough and the client's own words. Both sit in group 1, because
@@ -143,7 +145,7 @@
   .group { display: flex; align-items: center; gap: 10px; font-size: 24px; margin-bottom: 0; }
   .group .num {
     flex: none; width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center;
-    background: var(--clay); color: var(--on-ink); font: 400 12px/1 var(--mono); letter-spacing: 0;
+    background: var(--clay-fill); color: var(--on-ink); font: 400 12px/1 var(--mono); letter-spacing: 0;
   }
   .note { font-size: 13px; color: var(--muted); text-align: center; }
   .detail { margin-top: -6px; }
@@ -164,7 +166,7 @@
 
   /* Who is writing, and the one move the client makes */
   .who {
-    background: var(--paper); border: 1px solid var(--stone); border-radius: 18px;
+    background: var(--paper); border: 1px solid var(--stone); border-radius: 16px;
     padding: 13px 16px 12px; display: grid; gap: 2px 20px; align-items: center;
     grid-template-columns: auto minmax(240px, 1fr) auto;
     box-shadow: var(--shadow);
@@ -180,12 +182,12 @@
   .who p { color: var(--muted); font-size: 14px; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .proof { font: 400 10.5px/1.3 var(--mono); letter-spacing: 1.5px; text-transform: uppercase; padding: 5px 10px; border-radius: 6px; background: var(--clay-soft); color: var(--clay-deep); }
-  .next { background-color: var(--ink); background-image: var(--glow); border-radius: 18px; padding: 17px 22px 16px;
+  .next { background-color: var(--ink); background-image: var(--glow); border-radius: 16px; padding: 17px 22px 16px;
     display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 22px; }
   .report { width: 68px; height: 78px; color: var(--c-report); flex: none; }
   .next-copy { display: grid; gap: 4px; }
   .cta { display: inline-flex; align-items: center; gap: 9px; white-space: nowrap;
-    padding: 12px 20px; border-radius: 12px; background: var(--clay); color: var(--on-ink);
+    padding: 12px 20px; border-radius: 12px; background: var(--clay-fill); color: var(--on-ink);
     font-size: 14.5px; font-weight: 600; text-decoration: none;
     transition: transform .18s var(--ease), box-shadow .18s; }
   .cta:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(20, 20, 19, .28); }

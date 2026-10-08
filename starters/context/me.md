@@ -32,6 +32,14 @@ thing a new profile has.
 **What you do NOT do:** not answered yet
 **Tools and systems you can name confidently:** not answered yet
 
+## Positioning
+
+How your Upwork profile pitches you, as /profile put it live. Every later command
+pitches you the same way, so a proposal never sells a different role than your profile.
+
+**Profile title:** not answered yet
+**Profile hook:** not answered yet
+
 ## How you work
 
 **Hourly rate:** not answered yet

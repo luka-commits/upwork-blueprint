@@ -48,7 +48,8 @@ LIM = dict(FIT)
 # How /about-me writes the source of something the member said themselves. It needs no label.
 OWN_WORDS = cc.OWN_WORDS
 INTERNAL = ('Applications per day', 'Smallest project', 'What you do NOT', 'Hourly rate',
-            'Maximum proposals', 'Lowest share', 'Industries', 'Proof to build', 'Branches you picked')
+            'Maximum proposals', 'Lowest share', 'Industries', 'Proof to build', 'Branches you picked',
+            'Profile title', 'Profile hook')
 
 # A resume on the house tokens: a parchment page, one ivory sheet, a serif for the
 # name and headings, a small mono for section labels, terracotta for the rules.

@@ -29,7 +29,7 @@ nothing client-facing is written yet.
 ## Step 1 · Evidence gate
 
 Run `python3 code/workspace.py` and `python3 code/pipeline.py get <job id>`.
-Require `replied`, `call`, or `offer` when `jobs/<id>/proposal.md` does not exist yet.
+Require `replied`, `call`, or `offer` when `jobs/<id>/proposal.md` does not exist yet; an earlier lead goes back to `/brief`, which moves it once the client answers, and `/call-prep <id>` prepares the call itself.
 At offer with an existing proposal, `/brief` owns the thread. Read the second argument
 as a file when it is a path; otherwise treat it as pasted
 notes. Without a call record, ask for the transcript or notes and stop.
@@ -163,4 +163,6 @@ After the member confirms they pasted it on Upwork, record
 ## Step 7 · Report
 
 Use the completion report from `CLAUDE.md` and link the proposal. The next action
-is the member's review and manual send on Upwork. End with `Upwork calls: 0`.
+is the member's review and manual send on Upwork; after that, `/brief` reads the client's
+answer and moves the lead to offer, and `/onboarding <id>` follows once the contract starts.
+End with `Upwork calls: 0`.

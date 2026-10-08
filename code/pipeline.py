@@ -203,7 +203,7 @@ def find(jobs, job_id):
     for j in jobs:
         if j.get('id') == job_id:
             return j
-    abort(f'job "{job_id}" is not in the pipeline.')
+    abort(f'job "{job_id}" is not in the pipeline. /find-jobs puts jobs there; check the id.')
 
 
 def add_history(job, status, at=None):

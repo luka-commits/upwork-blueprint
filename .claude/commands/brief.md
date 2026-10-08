@@ -76,6 +76,12 @@ prints them. Client name from the saved thread (the client's `name` on their mes
 - **Waiting on client:** the ball is with the client, including a follow-up set for a later date.
 - **Cold:** `cold_since` is set and no reactivation offer is due today.
 
+Two more lines come from the same state, because the daily loop starts again at the top:
+a `new` lead whose `artifacts` hold `application.md` was written and never marked sent, so
+it goes under Do now as "submit on Upwork, then `/proposal <id> submitted`". And when
+`tracker.done` is below `tracker.goal`, the report's next step is `/find-jobs` with the
+number still open today.
+
 Each lead gets one action in the member's words: "answer Georges about the timeline" beats
 "reply pending". A `call_at` in the past while the client waits is named in the Why line
 ("the call date, 30 Sep, has passed"). The pipeline record is right when it disagrees with

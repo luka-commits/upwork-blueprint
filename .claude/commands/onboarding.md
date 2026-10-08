@@ -28,7 +28,7 @@ theirs, so the pending label comes off, with where it can be checked when they n
 `result_recorded_at` through `python3 code/pipeline.py record <id> --file -` and report.
 Do not reread contracts, redo onboarding or open another workspace. Upwork calls: 0.
 
-Otherwise require `replied`, `call`, `offer` or `won`. Read `list_contracts` action
+Otherwise require `replied`, `call`, `offer` or `won`; an earlier lead goes back to `/brief`. Read `list_contracts` action
 `search` before changing stage; use the stored `contract_id` or the exact title to find
 candidate contracts. Page only until the match is found or results end. Read its status,
 type, client, rate or amount and dates. For fixed work read `list_milestones` too.
@@ -108,5 +108,6 @@ contract said rather than from a question: the rate or amount they actually sell
 Say the lines in one block, write them on a yes, and never promote a promise to a result.
 
 Use the completion report from `CLAUDE.md` and link the handover brief. The next action
-is to fill the remaining client facts and begin delivery. End with `Upwork calls: N`,
+is to fill the remaining client facts and begin delivery; once it is delivered,
+`/onboarding <id>` again records the result in `context/me.md`. End with `Upwork calls: N`,
 counting the calls actually made, including accounts, contract pages and milestones.

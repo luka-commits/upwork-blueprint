@@ -21,7 +21,7 @@ Keep the prefix: `python3 code/jobs.py rules` counts a reason only when the note
 
 ## Step 1 · Prepare
 
-1. `python3 code/context_check.py --status`: if `untouched`, send the member to `/about-me` and stop.
+1. `python3 code/context_check.py --gate find-jobs`: a `STOP` line ends the run and names the command to run first; a `NOTE` line goes into the report under Still needed.
 2. `python3 code/workspace.py`, `python3 code/pipeline.py prune`, then `python3 code/pipeline.py reset-search` (yesterday's unused leads expire, skip reasons kept).
 3. `list_accounts`. If the Upwork tools are missing, walk the member through connecting as `CLAUDE.md` says and stop.
 4. `python3 code/jobs.py window` starts the run and prints the hours to look back, at most twelve; keep the number as `<window>`. A second line `gap: N hours` goes into the report as the hours this run did not search. `jobs.py clean` in Step 7 saves the time of this run, so a run must finish for the next window to narrow.
@@ -66,7 +66,7 @@ Run `python3 code/jobs.py candidates data/search/*.json --window-hours <window>`
 2. Once the report shows a dimension past that gate, run `python3 code/learn.py lessons`. It writes `data/lessons.json`, which `jobs.py score` applies (one point at most). Say which lesson moved a lead.
 3. `python3 code/jobs.py lessons` prints the past calls and saved skip reasons. Use relevant reasons to calibrate fit and name them in the rationale. One rejection is specific to that job; a reason repeated three times lowers the next job with that pattern. Never invent a blanket exclusion or rewrite `context/me.md` silently; automated "cannot apply" skips describe eligibility, not taste.
 
-**Judge.** Give every candidate a fit from 0 to 10 against `context/me.md` and the member's own history, reading its whole `description` in `data/candidates.json` (the printout shows only the start). The fit is the score; there is no second scale.
+**Judge.** Give every candidate a fit from 0 to 10 against `context/me.md`, its `## Positioning` title first when one is recorded (the role the client will see on the profile), and the member's own history, reading its whole `description` in `data/candidates.json` (the printout shows only the start). The fit is the score; there is no second scale.
 
 - **9 or 10:** what the member sells, in their words, for the clients they serve best. Worth the day's first Connects.
 - **8:** clearly theirs, one step off centre. The bulk of a good day.

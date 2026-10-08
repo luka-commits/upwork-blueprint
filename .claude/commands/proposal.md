@@ -11,7 +11,7 @@ branch without a sample, builds the tailored one-pager in Step 2 for a personal 
 keeps `[LOOM LINK]` in the letter.
 
 **`/proposal <id> submitted`:** only run `python3 code/pipeline.py set <id> applied`
-and report `Upwork calls: 0`, then stop before any other step. It records the member's submission.
+and report `Upwork calls: 0` with `/brief` as the next step, then stop before any other step. It records the member's submission.
 
 **Several ids run one after another.** The repetition is the command's, never the member's yes.
 
@@ -53,7 +53,7 @@ The report names each branch with its sample recorded or still open.
 
 ## Step 1 · The job and its full posting
 
-`python3 code/pipeline.py get $ARGUMENTS`. The posting is in `details.description`. No posting there (older than a day, or never opened): `find_jobs` action `get` for this one job, then `python3 code/jobs.py detail <id> <file>` as `/find-jobs` Step 6 does. Never write from the summary: the requirements and screening questions are in the full posting.
+`python3 code/context_check.py --gate proposal`: a `STOP` line ends the run and names the command to run first; a `NOTE` line goes into the report under Still needed. A job id the pipeline does not know goes back to `/find-jobs`. Then `python3 code/pipeline.py get $ARGUMENTS`. The posting is in `details.description`. No posting there (older than a day, or never opened): `find_jobs` action `get` for this one job, then `python3 code/jobs.py detail <id> <file>` as `/find-jobs` Step 6 does. Never write from the summary: the requirements and screening questions are in the full posting.
 
 ## Step 2 · The one-pager for the Loom
 
@@ -96,7 +96,7 @@ the member's sent letters; keep its order and its small signposts (📽️ 🔗 
 `<...>` below is filled from this job's posting and from `context/me.md`, never from memory.
 
 ```
-Hey, I'm a <the member's real status and role from context/me.md> and can definitely help you <the client's goal, in the client's own words from the posting>.
+Hey, I'm a <the member's real status and role from context/me.md, the role as its `**Profile title:**` names it when one is recorded> and can definitely help you <the client's goal, in the client's own words from the posting>.
 
 Here's how I would do it :)
 📽️: [LOOM LINK]
@@ -181,4 +181,5 @@ That stage rests on their word; `/brief` checks once if no proposal ever shows u
 
 Run `python3 code/pipeline.py prune` first, because Step 1 fetched the full job. Then the completion report as CLAUDE.md defines it, with the application linked. Say what the application costs in Connects and what the balance leaves.
 Next, with a sample Loom: the ready check runs now, then submit on Upwork and run `/proposal <id> submitted`; `/proposal <id> own` swaps in a personal one. With a personal Loom: record it and return its URL here; replace [LOOM LINK] in the letter, run the ready check again, then submit and run `/proposal <id> submitted`.
+From the submission on, `/brief` follows the lead up every day.
 End with `Upwork calls: N`.

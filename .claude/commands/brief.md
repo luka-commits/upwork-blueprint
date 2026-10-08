@@ -18,7 +18,7 @@ message. **Without one** it does the whole pipeline.
 
 ## ROADMAP
 
-WHAT HAPPENS: read Upwork, apply it, report every open lead with today's todos and write the next message for each that is due. About two minutes.
+WHAT HAPPENS: read Upwork, apply it, write the next message for each lead that is due, print the brief and update the dashboard. About two minutes, longer on the dashboard's first start.
 I NEED FROM YOU: nothing to start; a yes or no only for a reactivation offer or a lead you want closed. You send the messages yourself on Upwork.
 WHAT MIGHT GO WRONG: missing IDs or ambiguous pagination can leave a thread unverified; a lead without a fresh thread gets no draft.
 
@@ -66,18 +66,21 @@ an imported Hired proposal does not ask for a handover. Unmatched offers and con
 
 ## Step 3 · Where every lead stands
 
-The part the member reads first. One line per open lead, ordered by what needs them
-soonest, from `python3 code/cockpit.py state`: client from the card or saved thread;
-time in stage from the latest history entry for its current status, with `status_updated_at` as a legacy fallback.
+Sort every open lead from `python3 code/cockpit.py state` into one of three groups; Step 5
+prints them. Client name from the saved thread (the client's `name` on their messages) or
+`contract_client`; time in stage from the latest history entry for its current status, with
+`status_updated_at` as a legacy fallback.
 
-**who** · **stage and how long they have sat in it** · **waiting, acting, cold, or a follow-up
-set for a date (follow-up 1 or 2)** · **the one action item, in their words**.
+- **Do now:** the member acts today. A waiting client, a follow-up due today or earlier, a
+  due reactivation offer, an offer to review, a proposal to write after a call.
+- **Waiting on client:** the ball is with the client, including a follow-up set for a later date.
+- **Cold:** `cold_since` is set and no reactivation offer is due today.
 
-An action item is a sentence they could act on without opening anything: "answer Georges
-about the timeline" beats "reply pending".
-
-Then three numbers: how many wait on the member today, how many wait on a client, and how many are cold. The pipeline record is right when it disagrees with this report.
-On the member's word, close a lead with `python3 code/pipeline.py set <id> lost --note "<reason>"`.
+Each lead gets one action in the member's words: "answer Georges about the timeline" beats
+"reply pending". A `call_at` in the past while the client waits is named in the Why line
+("the call date, 30 Sep, has passed"). The pipeline record is right when it disagrees with
+this report. On the member's word, close a lead with
+`python3 code/pipeline.py set <id> lost --note "<reason>"`.
 
 ## Step 4 · The next message per lead
 
@@ -142,22 +145,55 @@ Labels are one or two plain words, each `text` is a full reply rather than notes
 Run `python3 code/replies.py check <id>`, then re-read the file and verify each option
 answers the latest client message and carries no claim the evidence sections cannot support.
 
-## Step 5 · Hand over the messages
+## Step 5 · The brief
 
-Nothing leaves this machine: `/brief` never sends a message. Per due lead, in the order of
-Step 3, show the client's name, why this message is due today in one line, and the first
-draft in full exactly as it would arrive; the other option waits in the dashboard. The
-member copies it into the Upwork room and sends it there.
+Nothing leaves this machine: `/brief` never sends a message. The member copies each draft
+into the Upwork room and sends it there; the next `/brief` reads the room, sees what went
+out and advances the cadence on its own. A skipped draft stays in `jobs/<id>/replies.json`
+and the lead stays due, never asked twice. Proposals and offers are not messages: submitting
+and accepting stay the member's own click on Upwork.
 
-No question per message and no confirmation needed: the next `/brief` reads the room, sees
-what went out and advances the follow-up cadence on its own. A draft the member skips stays
-in `jobs/<id>/replies.json` and the lead stays due; that is a normal outcome, never asked twice.
+Print exactly this shape, no tables, no em-dashes:
 
-**Proposals and offers are not messages.** Submitting an application spends Connects and is a
-bid; accepting an offer starts a contract. Both stay the member's own click on Upwork.
+```
+BRIEF · Thu 8 Oct · 3 on you · 2 waiting · 0 cold
 
-## Step 6 · Report
+1 · DO NOW
+1. Billy · Restaurant SEO · Reply
+   Why: asked for month one in writing (9 days)
+   Send on Upwork:
+   > <the first draft in full, exactly as it would arrive>
+2. Jiu-Jitsu academy · Offer
+   Do: review the offer terms on Upwork
 
-Run `python3 code/pipeline.py prune` first. Then the completion report as CLAUDE.md defines
-it. Lead with today's todos (who waits on the member, which messages to send), then what moved
-since the last run, then who went cold. End with `Upwork calls: N`.
+2 · WAITING ON CLIENT
+- Garage SEO · applied 9 days ago
+- Gym ads · follow-up 1 of 2 in 2 days
+
+3 · COLD
+- none
+
+Dashboard updated: http://127.0.0.1:<port>
+DRAFT · send 2 messages · Upwork calls: 0
+```
+
+- **Header:** weekday and date, then the three counts; they must equal the block lengths.
+- **Do now:** numbered, most urgent first (a waiting client, then overdue, then due today).
+  Each item is who · job · action, a `Why:` line, then either `Send on Upwork:` with the first
+  draft quoted in full (the other option waits in the dashboard) or a `Do:` line.
+- **Cold:** `name · cold since N days · reactivation in N days`, or `due` instead of the days;
+  `- none` when empty.
+- **Changed since last run:** a fourth block between Cold and the dashboard line, one line
+  per stage move or new lead, only when something moved.
+
+## Step 6 · Dashboard and report
+
+Run `python3 code/pipeline.py prune`. Then update the dashboard as
+[.claude/commands/dashboard.md](dashboard.md) steps 1 to 3 describe: reuse this repo's
+running cockpit, or start `python3 code/cockpit.py --no-open` in the background, wait until
+it is ready, and open or reload the exact printed URL. It reads `data/jobs.json` and the drafts
+live, so the reload shows today's stages and messages. Print that URL in the
+`Dashboard updated:` line; if the cockpit cannot start, say why there instead.
+
+The last line is the completion report: verdict (COMPLETE, DRAFT when messages wait to be
+sent, HELD or BLOCKED), what the member does next in a few words, and `Upwork calls: N`.

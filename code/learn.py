@@ -46,11 +46,15 @@ def tracks(job):
 
 
 def branch(slug):
-    """Which kind of search found it: Upwork's own feed, a theme, or a client tool."""
+    """Which kind of search found it: Upwork's own feed, a title term, a query page or a client tool."""
     if slug.startswith('recommended'):
         return 'recommendation'
     if slug.startswith('tool-'):
         return "client's own tool"
+    if slug.startswith('title-'):
+        return 'title search'
+    if slug.startswith('query-'):
+        return 'query search'
     return 'search theme'
 
 
@@ -77,7 +81,7 @@ def dimensions(job):
     out = []
     for slug in tracks(job):
         out.append(('found via', slug))
-        out.append(('search branch', branch(slug)))
+        out.append(('kind of search', branch(slug)))
         picked = picked_branches().get(re.sub(r'^(?:query|title|search)-', '', slug).split('--')[0])
         if picked:
             out.append(('your branch', picked))
@@ -152,7 +156,7 @@ def rejections(path=None):
 
 
 def branch_yield(rows, jobs):
-    """Per search branch: how many it produced, and how many survived the gate.
+    """Per search: how many it produced, and how many survived the gate.
 
     A branch that keeps producing candidates and never one that passes is the
     clearest thing this pipeline can say about its own keywords, and it says it
@@ -194,7 +198,7 @@ def cmd_report(args):
 
     turned_down = rejections()
     if turned_down:
-        print(f'\nThe gate turned down {len(turned_down)} candidate(s). Per search branch, '
+        print(f'\nThe gate turned down {len(turned_down)} candidate(s). Per search, '
               f'how many reached your pipeline:')
         for name, passed, seen in branch_yield(turned_down, jobs):
             verdict = 'nothing passes, stop spending calls on it' if not passed else ''

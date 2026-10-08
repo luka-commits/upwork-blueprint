@@ -107,7 +107,8 @@ def history(log=None):
 def verdict(row):
     """What to do with this term on the next run."""
     past = row.get('history') or {}
-    if past.get('runs', 0) >= DROP_AFTER_RUNS and not past.get('only_here'):
+    if (row['term'].startswith('title-') and past.get('runs', 0) >= DROP_AFTER_RUNS
+            and not past.get('only_here')):
         return f'propose dropping: in {past["runs"]} runs it found nothing another term had not'
     if not row['postings']:
         return 'drop: the search returned nothing'
@@ -174,11 +175,13 @@ def only_here(files):
     """Per file, how many of its postings no other file in this run returned.
 
     A narrow term beside a broad one (GEO beside SEO) may only repeat what the broad
-    one found. The title search has no "without" word, so the overlap cannot be
+    one found. Terms are compared with the other title terms only: the query page and
+    the recommendations are there to overlap, and are never proposed for dropping. The title search has no "without" word, so the overlap cannot be
     avoided in the search; it can only be counted and the term dropped on a yes.
     """
     ids = {pathlib.Path(f).stem: {str(j.get('id')) for j in load(f)} for f in files}
-    return {name: len(mine - set().union(*(other for n, other in ids.items() if n != name)))
+    terms = {name: mine for name, mine in ids.items() if name.startswith('title-')}
+    return {name: len(mine - set().union(*(other for n, other in terms.items() if n != name)))
             for name, mine in ids.items()}
 
 

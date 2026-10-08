@@ -50,7 +50,7 @@ own target.
 A menu for a first run, so nobody stares at a blank page. **Every term here is
 unmeasured until this account measures it**, and one page of results settles it: how
 many of the ten are real work for this member, and over how many hours they spread.
-A term that fails twice is proposed for removal, and removed only on the member's yes. The four angles are the
+A term that finds nothing another term had not, in three runs, is proposed for removal (`tracks.py measure --log`), and removed only on the member's yes. The four angles are the
 columns; a field the member does not sell is a field to skip.
 
 **Local search and paid search**

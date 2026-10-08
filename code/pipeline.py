@@ -19,7 +19,7 @@ Usage:
     python3 code/pipeline.py set <job_id> <status> [--force] [--follow-up +3d|YYYY-MM-DD] [--note "..."]
     python3 code/pipeline.py acted <job_id> --note "..." [--at <ISO timestamp>]
     python3 code/pipeline.py record <job_id> --file <metadata.json>|-
-    python3 code/pipeline.py follow-up <job_id> plan --lane active|cold|reactivation [--due <date> --reason "..."]
+    python3 code/pipeline.py follow-up <job_id> plan --lane active|cold [--due <date> --reason "..."]
     python3 code/pipeline.py follow-up <job_id> sent [--on YYYY-MM-DD]
     python3 code/pipeline.py follow-up <job_id> clear --reason "..." [--replied]
     python3 code/pipeline.py note <job_id> "what happened"
@@ -54,11 +54,10 @@ CLOSED = ('won', 'lost', 'skipped')
 # Calendar days, each counted from the message before, so a missed morning cannot
 # stretch or compress a sequence. 'active' follows the member's unanswered message
 # in a sales conversation: two follow-ups, then the lead is cold (never Lost on its
-# own). 'cold' is the one reactivation offer after that. 'reactivation' is for won clients.
+# own). 'cold' is the one reactivation offer after that. Won clients get no sequence.
 FOLLOW_UP_GAPS = {
     'active': (3, 7),
     'cold': (30,),
-    'reactivation': (30, 60),
 }
 SALES = ('replied', 'call', 'offer')
 
@@ -390,14 +389,11 @@ def cmd_set(args):
                     abort('--applied-at expects an ISO timestamp or unknown.')
             job['applied_at'] = observed or job['status_updated_at']
             job.pop('application_date_unknown', None)
-    lane = (job.get('follow_up_plan') or {}).get('lane')
     if args.status in ('applied', 'lost', 'skipped'):
         job['next_follow_up'] = None
         job.pop('follow_up_plan', None)
-    elif args.status == 'won' and lane != 'reactivation' and not args.follow_up:
-        # Winning ends a sales sequence. It must not end the reactivation lane, which
-        # exists only for won clients: recording a sent message with `set won` used to
-        # delete that plan, and the 60-day second touch went with it.
+    elif args.status == 'won' and not args.follow_up:
+        # Winning ends every sequence; a won client gets no follow-up from here.
         job['next_follow_up'] = None
         job.pop('follow_up_plan', None)
     elif args.follow_up:
@@ -493,21 +489,18 @@ def cmd_follow_up(args):
         if not str(thread.get('room_id') or '').strip():
             abort('this conversation has no room; a freelancer cannot message first.')
         lane = args.lane
-        if lane == 'reactivation' and job.get('status') != 'won':
-            abort('reactivation is only for a previous or current client in won.')
-        if lane != 'reactivation' and job.get('status') not in SALES:
-            abort('sales follow-ups need a lead that has answered; applied proposals cannot message first.')
+        if job.get('status') not in SALES:
+            abort('follow-ups need a lead in conversation; applied proposals cannot message first and won clients get none.')
         # The cadence counts from the member's unanswered messages in the saved thread:
         # one is the message itself, two means follow-up 1 went out, three means both did.
         turns = unanswered_turns(thread.get('messages'))
+        if not turns:
+            abort('the client wrote last; that needs a reply, not a follow-up.')
         step = 1
-        if lane != 'reactivation':
-            if not turns:
-                abort('the client wrote last; that needs a reply, not a follow-up.')
-            if lane == 'active' and len(turns) > len(FOLLOW_UP_GAPS['active']):
-                lane = 'cold'
-            elif lane == 'active':
-                step = len(turns)
+        if lane == 'active' and len(turns) > len(FOLLOW_UP_GAPS['active']):
+            lane = 'cold'
+        elif lane == 'active':
+            step = len(turns)
         gaps = FOLLOW_UP_GAPS[lane]
         reason = ' '.join((args.reason or '').split())
         if args.due:
@@ -515,12 +508,10 @@ def cmd_follow_up(args):
             if not reason:
                 abort('a follow-up off the cadence needs the conversation-based reason.')
             due = parse_follow_up(args.due)
-        elif turns:
+        else:
             base = datetime.date.fromisoformat(turns[-1][:10])
             due = (base + datetime.timedelta(days=gaps[step - 1])).isoformat()
             reason = reason or f'No answer since {base.isoformat()}.'
-        else:
-            abort('reactivation needs --due and the reason to reconnect.')
         if lane == 'cold':
             job['cold_since'] = job.get('cold_since') or turns[-1]
         else:

@@ -42,9 +42,6 @@ member message starts a fresh one. Messages sent the same day count as one.
 `code/sync.py` starts each sequence on its own when the member wrote last; a sequence
 that was stopped or ran out restarts only after the client writes.
 
-Won clients keep the `reactivation` lane: two messages, 30 then 60 days apart, only
-with a positive relationship and a real reason (a next project, a change worth knowing).
-
 ## Off the cadence
 
 Claude judges every lead from its thread and may set an earlier or later date with a
@@ -79,7 +76,6 @@ timing has moved, just say so and I'll stop here").
 - `python3 code/pipeline.py follow-up <id> plan --lane active` starts the cadence from
   the saved thread (sync does this on its own).
 - `... plan --lane active --due <date> --reason "..."` sets a date off the cadence.
-- `... plan --lane reactivation --due <date> --reason "..."` for a won client.
 - `... sent [--on YYYY-MM-DD]` records a follow-up that actually went out; sync also
   sees it in the thread. The sequence advances on arrival, never on the draft.
 - `... clear --reason "..."` stops it; the lead stays where it is.

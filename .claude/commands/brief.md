@@ -30,7 +30,7 @@ With an id, always refresh that lead's thread. Otherwise skip this step when
 Use `list_accounts` for the `org_uid` once. Then, all read only:
 
 1. Read active records with `python3 code/cockpit.py state`: applied, replied, call,
-   offer (cold ones too), and won with a reactivation plan. With an id, use only that record.
+   offer (cold ones too). With an id, use only that record.
 2. Page only to backfill missing `proposal_id`. Use `list_freelancer_proposals`
    action `list`, sorted by `MODIFIEDDATETIME` descending, and its documented pagination.
    Stop when every missing active lead is matched or pages run out; with no missing IDs,

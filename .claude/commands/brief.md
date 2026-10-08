@@ -1,11 +1,11 @@
 ---
-description: Your daily Upwork status in one command: pulls what changed, tells you where every lead stands and what to do today, and writes the next message for each lead, ready for you to send.
+description: Your daily Upwork status in one command: pulls what changed, tells you where every lead stands and what to do today, and writes the next message for each lead and sends it on your yes, one at a time.
 argument-hint: "[job id, for one lead only]"
 ---
 
 # /brief
 
-The daily ritual and the sales follow-up engine. Reads what Upwork shows now, moves each lead to match, reports where everyone stands and writes the next message for every lead that needs one. It never sends: the member sends on Upwork, and the next run sees it in the thread.
+The daily ritual and the sales follow-up engine. Reads what Upwork shows now, moves each lead to match, reports where everyone stands and writes the next message for every lead that needs one. It sends a message only on the member's yes, one at a time, with the exact text in front of them; whatever they do not send from here they send on Upwork, and the next run sees it in the thread.
 
 Read first: the proposals and messages parts of
 [references/upwork.md](../../references/upwork.md),
@@ -19,7 +19,7 @@ message. **Without one** it does the whole pipeline.
 ## ROADMAP
 
 WHAT HAPPENS: read Upwork, apply it, write the next message for each lead that is due, print the brief and update the dashboard. About two minutes, longer on the dashboard's first start.
-I NEED FROM YOU: nothing to start; a yes or no only for a reactivation offer or a lead you want closed. You send the messages yourself on Upwork.
+I NEED FROM YOU: nothing to start; a yes or no only for a reactivation offer or a lead you want closed. A yes per message you want sent from here; the rest you send yourself on Upwork.
 WHAT MIGHT GO WRONG: missing IDs or ambiguous pagination can leave a thread unverified; a lead without a fresh thread gets no draft.
 
 ## Step 1 · Read what Upwork shows
@@ -154,9 +154,9 @@ answers the latest client message and carries no claim the evidence sections can
 
 ## Step 5 · The brief
 
-Nothing leaves this machine: `/brief` never sends a message. The member copies each draft
-into the Upwork room and sends it there; the next `/brief` reads the room, sees what went
-out and advances the cadence on its own. A skipped draft stays in `jobs/<id>/replies.json`
+A message leaves this machine only on the member's yes, one at a time (Send, below). Any
+draft they do not send from here they copy into the Upwork room and send there; the next
+`/brief` reads the room, sees what went out and advances the cadence on its own. A skipped draft stays in `jobs/<id>/replies.json`
 and the lead stays due, never asked twice. Proposals and offers are not messages: submitting
 and accepting stay the member's own click on Upwork.
 
@@ -193,6 +193,24 @@ DRAFT · send 2 messages · Upwork calls: 0
 - **Changed since last run:** a fourth block between Cold and the dashboard line, one line
   per stage move or new lead, only when something moved.
 
+### Send, one yes per message
+
+After the brief, offer each `Send on Upwork:` draft from Do now, most urgent first, one
+question per message ([references/upwork.md](../../references/upwork.md), constraint 2).
+The question holds the lead's name and the draft's exact text from `jobs/<id>/replies.json`
+after its check passed, and nothing else; one single choice: send it now · I'll send it
+myself · not today. Only "send it now" sends. A dismissed question, a typed answer or an
+"ok" to anything else is not a yes.
+
+On the yes, `send_message` action `send` with the lead's `room_id` from
+`jobs/<id>/thread.json` and `message` exactly that text, never retyped or shortened, then
+`python3 code/replies.py sent <id> --label <label>`. The tool sends at once, with no preview
+to confirm. No `room_id`, an error, or a response that does not confirm the send: say so in
+one line and leave the draft for the member to send on Upwork. Never resend when the outcome
+is unclear: read the room with `get_messages` first, because a duplicate reaches the client.
+Then the next draft. The other options wait in the dashboard; one the member names gets its
+own question.
+
 ## Step 6 · Dashboard and report
 
 Run `python3 code/pipeline.py prune`. Then update the dashboard as
@@ -203,4 +221,5 @@ live, so the reload shows today's stages and messages. Print that URL in the
 `Dashboard updated:` line; if the cockpit cannot start, say why there instead.
 
 The last line is the completion report: verdict (COMPLETE, DRAFT when messages wait to be
-sent, HELD or BLOCKED), what the member does next in a few words, and `Upwork calls: N`.
+sent, HELD or BLOCKED), what the member does next in a few words, and `Upwork calls: N`,
+every send included.

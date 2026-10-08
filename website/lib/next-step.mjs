@@ -8,7 +8,7 @@
 // `next_follow_up <= today`; a future date stays Waiting. The cadence is pipeline.py's:
 // follow-up 1 three days after the member's unanswered message, follow-up 2 seven days
 // later, then the lead is cold (status unchanged, never Lost) with one reactivation
-// offer 30 days on. /brief writes every message and the member sends it on Upwork.
+// offer 30 days on. /brief writes every message and sends it on the member's yes, one at a time.
 // A call booked for later offers `/call-prep` until its brief exists. `/sales-call-proposal`
 // is offered in conversation, after the call, or at offer when no proposal exists. `won`
 // writes the handover and records the result once, with no follow-ups. `lost` and `skipped` carry
@@ -20,7 +20,7 @@
 import { todayIso } from './dates.mjs';
 
 const WAITING = 'Waiting for the client. /brief picks up replies.';
-const SEND = '/brief writes it, you send it on Upwork.';
+const SEND = '/brief writes it and sends it on your yes, or you send it on Upwork.';
 const NOTHING = Object.freeze({ label: '', detail: '', command: null, extras: [] });
 
 const has = (job, name) => (job.artifacts || []).includes(name);

@@ -38,7 +38,7 @@ LESSONS = DATA / 'lessons.json'
 PIPELINE = ROOT / 'code' / 'pipeline.py'
 ME = pathlib.Path(os.environ.get('BLUEPRINT_ME') or ROOT / 'context' / 'me.md')
 TAG = re.compile(r'</?untrusted_participant_content>')
-MIN_WINDOW, MAX_WINDOW = 10, 24
+MIN_WINDOW, MAX_WINDOW = 10, 12
 RUN_FLOOR = 2          # the smallest window a repeat run asks for, in hours
 # Everything a member reads about a job is one number out of ten, so there is no
 # second scale to translate, no "points" behind a "grade", and nothing for the
@@ -163,11 +163,11 @@ def record_search():
 
 
 def search_window_hours():
-    """The hours to look back: since the last run, never past a day.
+    """The hours to look back: since the last run, never past twelve hours.
 
     The stamp is the honest source, because a run that found nothing still covered
     its hours. The newest saved lead is the fallback for an account whose stamp was
-    never written, and 24 hours the fallback for a first run. The floor is small on
+    never written, and the twelve-hour ceiling the fallback for a first run. The floor is small on
     purpose: searching four times a day should cost four small windows, not four
     overlapping ten-hour ones.
     """
@@ -269,12 +269,12 @@ def cmd_rules(args):
     print(json.dumps({
         'tracks': [theme['label'] for theme in themes],
         'themes': themes,
-        'query_mode': 'Semantic match across the job title and description',
+        'query_mode': 'Job title match, one search per term',
         'performance': query_performance(themes),
         'performance_scope': 'Downstream outcomes for saved leads only. Upwork retrieval totals are not retained.',
         'window_hours': search_window_hours(),
         'window_bounds': [MIN_WINDOW, MAX_WINDOW],
-        'sources': ['Upwork recommendations', 'Semantic search themes'],
+        'sources': ['Upwork recommendations', 'Title search per term'],
         'filters': ['Already applied', 'Already in the pipeline', 'Outside the search window',
                     'Unverified payment', 'Full-time role',
                     *([f'More than {_LIMITS["proposals"]:g} proposals'] if _LIMITS['proposals'] else []),

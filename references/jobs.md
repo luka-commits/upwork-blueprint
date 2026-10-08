@@ -173,11 +173,13 @@ has no line there; build it from the catalog above.
 An industry the member prefers adds one track per picked branch, the trade plus that branch's
 service word (`gym SEO`, `gym Google Ads`, `gym website`), only while there is room.
 
-**At most five tracks.** Every track is one search call per page, and more tracks buy coverage
-at the cost of depth per term, which is how a run stops finding the fresh postings that are the
-whole point. Branches go first in the member's order; a branch left out is named in the report.
+**At most five tracks.** Every term is one title search per page, every track adds one `query`
+page and every run one page of Upwork's recommendations, and a run stops at 25 pages, so
+more tracks buy coverage at the cost of depth per term, which is how a run stops finding the
+fresh postings that are the whole point. Branches go first in the member's order; a branch left
+out is named in the report.
 
-## The member's limits, sent with the query
+## The member's limits, sent with the search
 
 A boundary belongs in the search itself, not in a judgement after the results
 arrive: the filters cost nothing and every one of them turns ten random rows into

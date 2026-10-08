@@ -32,13 +32,19 @@ sys.path.insert(0, str(ROOT / 'code'))
 import context_check as cc  # noqa: E402
 
 OUT = ROOT / 'context' / 'overview.html'
+FULL_OUT = ROOT / 'context' / 'overview-full.html'
 TOKENS = ROOT / 'website' / 'app' / 'tokens.css'
 STARTER = 'not answered yet'
 EMPTY = ('nothing recorded yet', 'not filled in yet', STARTER)
 CLIP = 260       # characters of a long answer before it is cut at a word
-JOBS = 5         # experience entries shown, the rest become "and N more"
-RESULTS = 6      # results shown on the sheet
-CREDENTIALS = 6  # credentials shown beside them
+# What fits one A4 page. The numbers were measured on a file with twelve jobs, fourteen
+# results, ten certificates and six reviews: the sheet keeps the strongest of each kind,
+# and everything the file holds goes to the full version beside it.
+FIT = {'jobs': 4, 'earlier': 4, 'results': 4, 'creds': 4, 'quotes': 2, 'chips': 12, 'services': 4, 'lines': 3,
+       'profile': 230, 'job': 160, 'transfer': 80, 'result': 120, 'quote': 120, 'item': 70}
+FULL = {'jobs': 99, 'earlier': 0, 'results': 99, 'creds': 99, 'quotes': 99, 'chips': 40, 'services': 99, 'lines': 99,
+        'profile': 600, 'job': 520, 'transfer': 300, 'result': 400, 'quote': 400, 'item': 300}
+LIM = dict(FIT)
 # How /about-me writes the source of something the member said themselves. It needs no label.
 OWN_WORDS = ('your answer', 'your own', 'you said', 'you told')
 INTERNAL = ('Applications per day', 'Smallest project', 'What you do NOT', 'Hourly rate',
@@ -101,7 +107,7 @@ CSS = """
   .note li::before { content: "\\2022"; position: absolute; left: 0; color: var(--terracotta); }
   .foot { padding: 18px 4px 48px; font-size: 13.5px; color: var(--label); }
   .foot code { font-family: var(--mono); background: var(--sand); padding: 1px 6px; border-radius: 5px; color: var(--ink); }
-  @media (max-width: 820px) { .cols { grid-template-columns: 1fr; padding: 4px 22px 32px; }
+  @media screen and (max-width: 820px) { .cols { grid-template-columns: 1fr; padding: 4px 22px 32px; }
         .side { border-left: 0; padding-left: 0; } .top { padding: 32px 22px 26px; }
         .sheet { margin: 0; border-radius: 0; border-left: 0; border-right: 0; } .note { margin: 14px 14px 0; }
         .foot { padding: 16px 18px 40px; } .job-top { flex-direction: column; gap: 2px; } .result { grid-template-columns: 78px 1fr; } }
@@ -243,25 +249,25 @@ def job_html(item):
     text, _, transfer = item['text'].partition('Transfers:')
     org = f'<p class="org">{esc(employer)}</p>' if employer else ''
     stamp = f'<span class="when">{esc(when)}</span>' if when else ''
-    gain = (f'<p class="transfer"><b>Transfers</b> {esc(clip(transfer.strip(), 200))}</p>' if transfer.strip() else '')
+    gain = (f'<p class="transfer"><b>Transfers</b> {esc(clip(transfer.strip(), LIM['transfer']))}</p>' if transfer.strip() else '')
     return (f'<div class="job"><div class="job-top"><strong>{esc(role)}</strong>{stamp}</div>'
-            f'{org}<p>{esc(clip(text.strip(), 320))}</p>{gain}</div>')
+            f'{org}<p>{esc(clip(text.strip(), LIM['job']))}</p>{gain}</div>')
 
 
 def result_html(item):
     big = metric(item['text'])
     figure = f'<div class="fig">{esc(big)}</div>' if big else '<div class="fig dot"></div>'
     return (f'<div class="result">{figure}<div><strong>{tag_html(item)}{esc(item["title"])}</strong>'
-            f'<p>{esc(clip(item["text"], 220))}</p>{trail_html(item)}</div></div>')
+            f'<p>{esc(clip(item["text"], LIM["result"]))}</p>{trail_html(item)}</div></div>')
 
 
 def chips_html(text):
     words = [w.strip() for w in re.split(r'\s*[,·;]\s*|\s+and\s+', text or '') if w.strip()]
-    return '<ul class="chips">' + ''.join(f'<li>{esc(w)}</li>' for w in words[:16]) + '</ul>' if words else ''
+    return '<ul class="chips">' + ''.join(f'<li>{esc(w)}</li>' for w in words[:LIM['chips']]) + '</ul>' if words else ''
 
 
 def lines_html(items):
-    return '<ul class="lines">' + ''.join(f'<li>{esc(clip(i, 140))}</li>' for i in items) + '</ul>' if items else ''
+    return '<ul class="lines">' + ''.join(f'<li>{esc(clip(i, 110))}</li>' for i in items[:LIM['lines']]) + '</ul>' if items else ''
 
 
 def item_html(item, limit=CLIP):
@@ -301,7 +307,7 @@ def services_html(me, found):
             for m in [re.match(r'^-\s*([^:]+):\s*(.+)$', line.strip())] if m]
     if rows:
         return '<ul class="plain">' + ''.join(
-            f'<li><b>{esc(name)}</b>{esc(clip(items))}</li>' for name, items in rows) + '</ul>'
+            f'<li><b>{esc(name)}</b>{esc(clip(items, 120))}</li>' for name, items in rows[:LIM['services']]) + '</ul>'
     sells = pick(found, 'Services you sell')
     return f'<p>{esc(clip(sells))}</p>' if sells else ''
 
@@ -318,25 +324,33 @@ def open_html(found, unconfirmed):
     return f'<div class="note"><h2>Not on your resume yet</h2><ul>{"".join(lines)}</ul></div>' if lines else ''
 
 
-def build(me_text, proof_text):
+def build(me_text, proof_text, full=False, has_full=False):
+    LIM.clear()
+    LIM.update(FULL if full else FIT)
     me = dict(sections(me_text))
     found = answers(me)
     proof = dict(sections(proof_text))
     jobs = entries(me.get('Your background', []))
     results, creds, reviews = (entries(proof.get(name, [])) for name in ('Results', 'Credentials', 'Reviews'))
 
-    experience = ''.join(job_html(j) for j in jobs[:JOBS]) + more(len(jobs), JOBS) or \
+    results = sorted(results, key=lambda r: (r['pending'], not metric(r['text'])))  # proven, with a figure, first
+    earlier = [role_of(j['title']) for j in jobs[LIM['jobs']:LIM['jobs'] + LIM['earlier']]]
+    earlier_line = lines_html([f'{role}, {org} ({when})' if org else f'{role} ({when})' for role, org, when in earlier]) \
+        if earlier else ''
+    experience = ''.join(job_html(j) for j in jobs[:LIM['jobs']]) + (
+        f'<p class="muted">Earlier</p>{earlier_line}' if earlier_line else '') \
+        + more(len(jobs), LIM['jobs'] + (len(earlier) if earlier_line else 0)) or \
         '<p class="muted">Still open. /about-me fills this from your CV and your answers.</p>'
-    selected = ''.join(result_html(r) for r in results[:RESULTS]) + more(len(results), RESULTS) or \
+    selected = ''.join(result_html(r) for r in results[:LIM['results']]) + more(len(results), LIM['results']) or \
         '<p class="muted">Nothing yet. The first delivered job fills this.</p>'
     strength = (pick(found, 'What you are good at') or '').strip('"“” ')
-    summary = f'<p class="profile">{esc(clip(strength, 360))}</p>' if strength else ''
+    summary = f'<p class="profile">{esc(clip(strength, LIM["profile"]))}</p>' if strength else ''
     tools = chips_html(pick(found, 'Tools and systems'))
     lines = parts(pick(found, 'Education'))
     languages = [p for p in lines if LANGUAGE.search(p)]
     schooling = [p for p in lines if p not in languages]
-    quotes = ''.join(f'<blockquote>{esc(clip(r["text"], 220))}<small>{esc(r["title"])}</small></blockquote>'
-                     for r in reviews)
+    quotes = ''.join(f'<blockquote>{esc(clip(r["text"], LIM["quote"]))}<small>{esc(clip(r["title"], 60))}</small></blockquote>'
+                     for r in reviews[:LIM['quotes']])
     unconfirmed = sum(1 for item in results + creds + reviews if item['pending'])
     title = (pick(found, 'Name and location') or 'Your Upwork resume').partition(',')[0]
 
@@ -350,14 +364,16 @@ def build(me_text, proof_text):
             + block('Skills and tools', tools)
             + block('Services', services_html(me, found))
             + block('Education', lines_html(schooling))
-            + block('Certificates', ''.join(item_html(c, 150) for c in creds[:CREDENTIALS]) + more(len(creds), CREDENTIALS))
+            + block('Certificates', ''.join(item_html(c, LIM['item']) for c in creds[:LIM['creds']]) + more(len(creds), LIM['creds']))
             + block('Languages', lines_html(languages))
             + block('Recommendations', quotes) +
             '\n</div>\n</div>\n</main>\n'
             + open_html(found, unconfirmed) +
             '\n<p class="foot">Next: <code>/profile</code> writes your Upwork profile from this. '
             'Built from context/me.md on this machine; rebuild it with '
-            '<code>python3 code/context_page.py --open</code>.</p>\n'
+            '<code>python3 code/context_page.py --open</code>.'
+            + (' The sheet keeps the strongest of each kind to fit one page; everything else is on the '
+               '<a href="overview-full.html">full version</a>.' if has_full else '') + '</p>\n'
             '</body>\n</html>\n')
 
 
@@ -379,8 +395,14 @@ def main(argv=None):
     proof_text = cc.proof_only(me_text)
     open_points = len(cc.check_me(me_text) + cc.check_proof(proof_text))
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(build(me_text, proof_text), encoding='utf-8')
-    print(f'{OUT.relative_to(ROOT)} written, {open_points} open')
+    one, everything = build(me_text, proof_text), build(me_text, proof_text, full=True)
+    trimmed = one != everything
+    OUT.write_text(build(me_text, proof_text, has_full=trimmed), encoding='utf-8')
+    if trimmed:
+        FULL_OUT.write_text(everything, encoding='utf-8')
+    elif FULL_OUT.exists():
+        FULL_OUT.unlink()
+    print(f'{OUT.relative_to(ROOT)} written, {open_points} open' + (f'; everything on {FULL_OUT.name}' if trimmed else ''))
     if args.open:
         webbrowser.open(OUT.as_uri())
     return 0

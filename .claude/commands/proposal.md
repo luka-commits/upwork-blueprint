@@ -1,5 +1,5 @@
 ---
-description: Builds a one-page pitch site for one job and the application to submit with your Loom: cover letter and bid.
+description: Builds a one-page pitch site for one job, chosen by branch, and the application to submit: cover letter and bid.
 argument-hint: "<job id> [more job ids] | <job id> submitted"
 ---
 
@@ -74,29 +74,42 @@ guide is never the bid, never appears on the page and never overrides approved t
 
 ## Step 4 · Read the posting into a plan
 
-**Decide which page this job gets.** SEO and Google Ads get the one-page roadmap only: phases instead of a drawing, no second page. Every other job gets the full pitch page built below.
+**Decide which page this job gets, by branch.** Every branch has a one-page template that prints on one A4 page. Pick the one whose `Tools:` line (`templates/profile/lanes.md`) the posting matches; a job that mixes branches gets the branch that carries most of the work.
 
-- **The posting is mainly SEO, local SEO, Google Business Profile or Google Ads:**
-  copy `templates/roadmap/seo.html` or `templates/roadmap/google-ads.html` to
-  `jobs/<id>/pitch.html`, which is the file the deploy publishes, and edit it to
-  this client. **Then skip Steps 4 and 5 entirely and go to Step 6**: there is no
-  graph and no `pitch_generate.py` run at all. The file's own comment
-  lists what to rewrite; four of them decide whether it lands:
+| Posting is mainly | Page | How it is made |
+|---|---|---|
+| SEO, local SEO, Google Business Profile | `templates/roadmap/seo.html` | copy and edit |
+| Google Ads | `templates/roadmap/google-ads.html` | copy and edit |
+| A website, landing page or redesign | `templates/roadmap/website.html` | copy and edit |
+| GoHighLevel, CRM, sales funnel | `templates/roadmap/gohighlevel.html` + `templates/pitch/graphs/ghl-funnel.json` | `roadmap_build.py` |
+| Automations (Make, Zapier, n8n, AI workflows) | `templates/roadmap/automations.html` + `templates/pitch/graphs/automations.json` | `roadmap_build.py` |
+| Something else | the full pitch page below | Steps 4 and 5 |
+
+- **Roadmap pages (SEO, Google Ads, Website):** copy the template to `jobs/<id>/pitch.html`,
+  which is the file the deploy publishes, and edit it to this client. **Skip Steps 4 and 5
+  and go to Step 6**: no graph, no `pitch_generate.py`. The file's own comment lists what
+  to rewrite; these decide whether it lands:
 
   - **The h1 is the outcome this client asked for, in their words**, never the name of a service.
-  - **Tag the rows they named.** A fifth entry on any `ROWS` row is what they asked for, quoted from the posting; it prints as a tag on that row. Tag only what they actually wrote, and delete the placeholder tag the template ships with.
-  - **Add a row for anything they asked for that the plan does not carry.**
+  - **Tag the rows they named.** A fifth entry on any `ROWS` row is what they asked for, quoted from the posting; it prints as a tag on that row. Tag only what they actually wrote, and delete the placeholder tag.
+  - **Add a row for anything they asked for that the plan does not carry.** Keep the page on one screen: if a row is added, merge two.
+  - **Plain words.** A client who is not in the trade must understand every row at a glance: "customer list", not "CRM"; "count your leads", not "conversion tracking".
 
-  - **Fill every blank, including the photo and the public profile URL from `context/me.md`.** The photo goes in with
-    `python3 code/photo.py <their photo> --into jobs/<id>/pitch.html`, which crops and sizes
-    it and refuses one too heavy to embed. `pitch_check.py`
-    refuses the page while it still says `<Your name>` or `PUT-YOUR-...`, and the
-    photo has to be embedded as a `data:` URI because the deploy uploads one file
-    and nothing beside it. Remove the walkthrough link until the Loom is recorded;
-    restore it with the actual URL before the ready check and republish.
+- **Flowchart pages (GoHighLevel, Automations):** cut the graph to what the posting needs
+  (labels in the client's words, still 8 to 20 steps and still `graph_sketch.py` clean, see
+  Step 4 below), save it as `jobs/<id>/pitch-graph.json`, then run
+  `python3 code/roadmap_build.py templates/roadmap/<page>.html --graph jobs/<id>/pitch-graph.json --out jobs/<id>/pitch.html --title "<title>"`.
+  Edit the headline, the one-line lede, the who row and the closing offer in the result. Skip Step 5.
 
-Keep the three groups and the four tracks; use phases without a delivery timeline. Change the row wording to their trade and city, and the note at the foot if the scope is narrower.
-- **Anything else, or a job that mixes SEO with real automation work:** draw the diagram as below.
+- **All one-pagers:** fill every blank, including the photo and the public profile URL from
+  `context/me.md`. The photo goes in with
+  `python3 code/photo.py <their photo> --into jobs/<id>/pitch.html`, which crops and sizes
+  it and refuses one too heavy to embed. `pitch_check.py` refuses the page while it still
+  says `<Your name>` or `PUT-YOUR-...`, and the photo has to be embedded as a `data:` URI
+  because the deploy uploads one file and nothing beside it. The one-pagers carry no
+  walkthrough button: a Loom, when there is one, goes into the application text, not onto the page.
+
+- **Anything else:** draw the diagram as below.
 
 Write down, before drawing: the trigger, the systems they already run, the manual work today, where results must land, the phase two wishes, the constraints. Then five rules: use their words ("your Squarespace form", not "web form"); never invent a fact, draw a "which CRM? to confirm" node instead; mark scope with groups (what ships first, what comes later); every manual step in the posting is a step the diagram takes over; a requirement with its own sentence gets its own node.
 
@@ -285,9 +298,8 @@ That stage rests on their word; `/brief` checks once if no proposal ever shows u
 
 Run `python3 code/pipeline.py prune` first, because Step 1 fetched the full job. Then the completion report as CLAUDE.md defines it, with the public page and
 application linked. Say what the application costs in Connects and what the balance leaves.
-Next: record the Loom and return its URL here; add it to the page and replace [LOOM LINK] in the letter.
-Then run `python3 code/pitch_check.py page jobs/<id>/pitch.html --ready` and the ready
-application check again. Republish with `python3 code/pitch_deploy.py <id>` under the
-member's publish approval, confirm the live URL and say it was republished with the Loom.
-Only then submit on Upwork and run `/proposal <id> submitted`.
+Next: record the Loom and return its URL here; replace [LOOM LINK] in the letter. The
+page itself carries no walkthrough button, so nothing is republished. Run
+`python3 code/pitch_check.py page jobs/<id>/pitch.html --ready` and the ready
+application check again. Only then submit on Upwork and run `/proposal <id> submitted`.
 End with `Upwork calls: N`.

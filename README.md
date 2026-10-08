@@ -47,7 +47,7 @@ Claude Code session. `RESEARCH.md` is background reading; no command uses it.
 | 1 | `/about-me` | Your work history, your offer, your terms and every result you can prove |
 | 2 | `/profile` | Writes your profile from your facts and top examples, and puts it live after one yes |
 | 3 | `/find-jobs` | Ten leads a day worth applying to, scored against what you sell, straight into your cockpit |
-| 4 | `/proposal` | A one-page pitch site plus the cover letter and bid you submit with your Loom |
+| 4 | `/proposal` | The cover letter, screening answers and bid you submit with your Loom |
 | 5 | `/brief` | Your morning: what changed on Upwork, where every lead stands, and the messages that are due |
 | 6 | `/sales-call-proposal` | Turns your sales call into the proposal you send, and says whether it is ready to start a project on |
 | 7 | `/onboarding` | Turns a started contract into the handover brief and the onboarding. Run it again after delivery to record what came out of it |
@@ -70,7 +70,6 @@ from.
   make a virtual environment first: `python3 -m venv .venv && source .venv/bin/activate`
   Activate it with `source .venv/bin/activate` in every new terminal before `claude`.
 - [Node.js](https://nodejs.org) 20.19+ (20.x) or 22.12+ for the cockpit
-- Google Chrome, which `/proposal` uses to check the page on a phone screen
 - Optional: Claude's Google Drive and Gmail connectors. `/about-me` then looks there,
   and in your Documents, Downloads and Desktop, for old CVs, results and client
   messages on its own. Read only; Claude Code still asks before it opens a file

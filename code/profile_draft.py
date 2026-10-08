@@ -139,7 +139,7 @@ def cmd_check(args):
     proof = pathlib.Path(args.proof)
     # Only the evidence sections. Handed the whole file, every number in it would
     # count as a source, and an hourly rate of 40 would prove a claim of 40%.
-    proof_text = (context_check.proof_only(proof.read_text(encoding='utf-8'))
+    proof_text = (context_check.client_proof(proof.read_text(encoding='utf-8'))
                   if proof.is_file() else '')
     if args.only == 'video':
         # The script generator writes only `## Video script`, so a missing title and

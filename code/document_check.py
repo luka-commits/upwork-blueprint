@@ -41,7 +41,7 @@ def proof_text():
     """The evidence sections of the member's own file, and nothing else from it."""
     import context_check  # noqa: E402  (same folder, imported where it is used)
     me = ROOT / 'context' / 'me.md'
-    return context_check.proof_only(me.read_text(encoding='utf-8')) if me.is_file() else ''
+    return context_check.client_proof(me.read_text(encoding='utf-8')) if me.is_file() else ''
 
 
 def unbacked(text, proof):

@@ -63,6 +63,8 @@ INTERVIEW = (
     'Daily tools and languages',
 )
 INTERVIEW_FINDING = 'proof interview'
+# A source starting like this is the member's own word, never held back as pending.
+OWN_WORDS = ('your answer', 'your own', 'you said', 'you told')
 CHECKABLE = re.compile(r'(where to check|where it can be checked|checked at|source:|https?://|upwork\.com)', re.I)
 
 
@@ -162,19 +164,58 @@ def proof_entries(text):
             if EMPTY_SECTION not in line.lower() and not line.startswith('One block per')]
 
 
+def awaiting_yes(block):
+    """True for an entry pulled from elsewhere that the member has not confirmed yet.
+
+    What the member said themselves is never held back, whatever an older status
+    line says: their word is the record, and nothing here questions it.
+    """
+    bullets = {m.group(1).strip('* ').lower(): m.group(2).strip()
+               for m in re.finditer(r'^-\s*([^:\n]+):\s*(.*)$', block, re.M)}
+    marked = ('pending' in bullets.get('status', '').lower()
+              or re.search(r'^-\s*(?:\*\*)?pending\b|\(pending\b', block, re.M | re.I))
+    return bool(marked) and not bullets.get('source', '').lower().startswith(OWN_WORDS)
+
+
+def client_proof(text):
+    """The evidence a client may see: the proof sections without anything awaiting a yes.
+
+    Every gate in front of client copy reads this, so a number found in a file,
+    an email or on the web reaches a client only after the member said yes to it.
+    """
+    kept, block = [], []
+
+    def flush():
+        if not awaiting_yes('\n'.join(block)):
+            kept.extend(block)
+
+    for line in proof_only(text).splitlines():
+        if line.startswith('## '):
+            flush()
+            kept.append(line)
+            block = []
+        elif line.startswith('### '):
+            flush()
+            block = [line]
+        else:
+            block.append(line)
+    flush()
+    return '\n'.join(kept)
+
+
 def verified_proof(text):
     """Entries the member stated or confirmed: everything not still waiting for their yes."""
-    return '\n\n'.join(block for block in proof_entries(text)
-                       if not re.search(r'\bpending\b', block, re.I))
+    return '\n\n'.join(proof_entries(client_proof(text)))
 
 
 def usable_proof(text):
-    """Entries the member stated with a concrete figure, verified or not.
+    """Entries a client may see that carry a concrete figure.
 
-    A client-facing profile may carry the member's own numbers. Only entries with
-    no figure, and the starter's instructions, stay out.
+    A client-facing profile carries the member's own numbers as they gave them.
+    Entries with no figure, entries still awaiting a yes, and the starter's
+    instructions stay out.
     """
-    return '\n\n'.join(block for block in proof_entries(text) if re.search(r'\d', block))
+    return '\n\n'.join(block for block in proof_entries(client_proof(text)) if re.search(r'\d', block))
 
 
 def status(text):

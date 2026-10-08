@@ -46,7 +46,7 @@ FULL = {'jobs': 99, 'earlier': 0, 'results': 99, 'creds': 99, 'quotes': 99, 'chi
         'profile': 600, 'job': 520, 'transfer': 300, 'result': 400, 'quote': 400, 'item': 300}
 LIM = dict(FIT)
 # How /about-me writes the source of something the member said themselves. It needs no label.
-OWN_WORDS = ('your answer', 'your own', 'you said', 'you told')
+OWN_WORDS = cc.OWN_WORDS
 INTERNAL = ('Applications per day', 'Smallest project', 'What you do NOT', 'Hourly rate',
             'Maximum proposals', 'Lowest share', 'Industries', 'Proof to build', 'Branches you picked')
 

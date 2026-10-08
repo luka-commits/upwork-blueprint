@@ -442,7 +442,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     job = load_job(args.job_id)
-    proof_text = (context_check.proof_only(PROOF.read_text(encoding='utf-8'))
+    proof_text = (context_check.client_proof(PROOF.read_text(encoding='utf-8'))
                   if PROOF.is_file() else '')
     me_text = ME.read_text(encoding='utf-8') if ME.is_file() else ''
     diagram_data, diagram_fallback = build_graph(args.graph)

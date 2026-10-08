@@ -162,7 +162,7 @@ def main(argv=None):
     proof = pathlib.Path(args.proof)
     fails, notes, eye, words, has_screening = check(
         text, args.job_title,
-        context_check.proof_only(proof.read_text(encoding='utf-8')) if proof.is_file() else '',
+        context_check.client_proof(proof.read_text(encoding='utf-8')) if proof.is_file() else '',
         ready=args.ready)
     for n in notes:
         print(f'note  {n}')

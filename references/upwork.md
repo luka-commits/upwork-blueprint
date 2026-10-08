@@ -57,7 +57,7 @@ Stop when the requested fact is known; never broaden a search to make an empty r
 
 ## Jobs
 
-**MEASURED 14 August 2026.** `find_jobs search` returns only a truncated `description_snippet`; the full text needs action `get`. **DOCUMENTED BUT UNTESTED, tool description 8 October 2026:** `include_full_details` true adds each result's full description to the same search answer.
+**MEASURED 14 August 2026.** `find_jobs search` returns only a truncated `description_snippet`; the full text needs action `get`. **MEASURED 8 October 2026:** `include_full_details` true adds each result's full text as `description` to the same search answer, wrapped like the snippet in `<untrusted_participant_content>`; paging works with `title` and `sort` recency, and `cursor` is an offset (`endCursor` "2" after two results, "4" after four).
 
 - **`limit` is hard at 10** results per call, with no way to ask for more.
 - **There is no date filter**, so "only the last two days" can be applied only after results arrive.
@@ -66,7 +66,7 @@ Stop when the requested fact is known; never broaden a search to make an empty r
 
 **MEASURED 12 September 2026:** every result carries `url`, a working job link. `title` cannot be combined with `query` or with `sort` relevance. Results carry `proposal_count`, `applied`, `featured` and the client's `total_posted_jobs`, but no hire count; the hire record comes only from `get` (`client_record`).
 
-**Never exercised from this repo:** `smart_search` reads Upwork's recommendation feeds. `/find-jobs` uses `mode` `most_recent` with `from_date` (an RFC3339 time, the start of its window); `days_posted` counts whole days only. Whatever else its description promises is unverified, so a run says what it got back rather than what it expected.
+**MEASURED 8 October 2026:** `smart_search` `mode` `most_recent` with `from_date` (an RFC3339 time) returns jobs with `published_date`, `proposals_tier`, `description_snippet` and a client block that carries `total_hires`, plus `hasMore`, `next_cursor` and `total_matching` instead of `pageInfo`. It takes no `include_full_details`. The feed is narrowed to the freelancer's own profile, not the marketplace; `days_posted` counts whole days only.
 
 **What `find_jobs get` adds:** `connects_cost` (what applying costs), `activityStat.applicationsBidStats` (average, minimum and maximum competing rate), `activityStat.jobActivity` (invites sent, hired, invited to interview, offered, unanswered invites), `preferred_qualifications` (minimum Job Success Score, earnings, hours, English level, rising talent, portfolio, contractor type), `client_work_history` (recent contracts with feedback both ways), `clientCompanyPublic` (city, country, timezone), `contractTerms` (experience level, engagement type, hourly budget, persons to hire), `can_apply`. The full description regularly carries a screening instruction no field shows, such as a mandatory opening phrase: read it before writing a proposal.
 

@@ -35,11 +35,11 @@ Keep the prefix: `python3 code/jobs.py rules` counts a reason only when the note
 
 Every Upwork call in this command, search or not, waits for the answer to the one before and then for `python3 code/jobs.py pause` (five seconds, reasoned after the restriction of 8 October 2026, not measured); never two at once ([references/upwork.md](../../references/upwork.md), constraint 7). A run makes at most 25 search pages, recommendations and `query` pages included, and opens at most 15 jobs; state both in the ROADMAP. Send `proposals_max`, `budget_min` or `rate_min` as search filters only when `context/me.md` records that figure as the member's choice; the default limits apply after the search, in Step 3.
 
-The calls, each with `verified_payment_only` true, `limit` 10 and `include_full_details` true (the whole posting in the same answer, no extra call; documented, untested):
+The calls, each with `verified_payment_only` true and `limit` 10; the two searches also with `include_full_details` true (the whole posting in the same answer, no extra call):
 
 - **Title search:** `find_jobs` action `search`, `title` the term, `sort` `recency`. It matches the job title only, every word in it; never combine it with `query`.
 - **Query search:** the same with `query` the theme's `query` from `jobs.py rules` (its terms in one call). It matches the whole posting by meaning: fitting jobs whose title names no term, and more noise.
-- **Recommendations:** action `smart_search`, `mode` `most_recent`, `from_date` now minus `<window>` hours in UTC (`date -u -v-<window>H +%Y-%m-%dT%H:%M:%SZ`, on Linux `date -u -d '-<window> hours' +%Y-%m-%dT%H:%M:%SZ`). Untested: if the action is missing or its jobs carry no posting date, say so in the report and go on.
+- **Recommendations:** action `smart_search`, `mode` `most_recent`, `from_date` now minus `<window>` hours in UTC (`date -u -v-<window>H +%Y-%m-%dT%H:%M:%SZ`, on Linux `date -u -d '-<window> hours' +%Y-%m-%dT%H:%M:%SZ`). It takes no `include_full_details`, so its jobs arrive as previews. If the action is missing or its jobs carry no posting date, say so in the report and go on.
 
 Go in rounds, branches in the line's order, so every branch gets its core before any branch gets depth:
 

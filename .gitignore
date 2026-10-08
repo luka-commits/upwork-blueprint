@@ -29,7 +29,6 @@ __pycache__/
 *.log
 node_modules/
 /website/.next/
-/templates/lead-magnet/dist/
 *.tsbuildinfo
 /tools/leaks.txt
 

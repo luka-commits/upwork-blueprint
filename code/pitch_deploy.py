@@ -55,7 +55,7 @@ def load_dotenv(path, env):
 def deployment_config(env=None):
     env = dict(os.environ if env is None else env)
     load_dotenv(ROOT / '.env', env)
-    # The same second place the audit and the preflight read. Without it a member
+    # The same second place the preflight reads. Without it a member
     # who keeps their keys centrally passes every check and then fails to publish.
     load_dotenv(pathlib.Path.home() / '.config' / 'credentials.env', env)
     project = env.get('VERCEL_PITCH_PROJECT', '').strip()
@@ -182,8 +182,6 @@ def publish(job_id):
 
     sys.path.insert(0, str(ROOT / 'code'))
     import pitch_check
-    import lead_magnet_check
-    import lead_magnet_deploy
     problems = pitch_check.check_page(source)
     if problems:
         abort('the pitch page failed its gate: ' + '; '.join(problems))
@@ -201,13 +199,6 @@ def publish(job_id):
             if old_problems:
                 abort(f'the previously published pitch {published_id} failed its gate: ' + '; '.join(old_problems))
             pages[published_id] = published
-        audit = jobs_dir() / published_id / 'lead-magnet.html'
-        if record.get('lead_magnet_url') and audit.is_file():
-            audit_problems = lead_magnet_check.check_page(
-                audit, website=lead_magnet_deploy.saved_website(record))
-            if audit_problems:
-                abort(f'the previously published audit {published_id} failed its gate: ' + '; '.join(audit_problems))
-            pages[f'{published_id}/audit'] = audit
 
     vercel = shutil.which('vercel')
     if not vercel:

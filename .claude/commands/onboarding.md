@@ -22,8 +22,9 @@ WHAT MIGHT GO WRONG: a pending offer is not a contract; final terms may differ; 
 Run `python3 code/workspace.py` and `python3 code/pipeline.py get $ARGUMENTS`.
 If `jobs/<id>/project.md` exists, run only the result pass: if `result_recorded_at` is set,
 report it is already recorded and stop. Otherwise ask what came out of the work and where
-it can be checked. Update its existing pending Results entry in `context/me.md` (create one only if absent), verified with a source
-or pending without one; write only on the member's yes. Then persist the current ISO
+it can be checked, as `/about-me` Step 4 does: the kind of result as checkboxes, its figure
+typed, the place as a single choice ([references/copy.md: How to ask](../../references/copy.md#how-to-ask)). Update its existing pending Results entry in `context/me.md` (create one only if absent): what they tell you is
+theirs, so the pending label comes off, with where it can be checked when they name it; write only on the member's yes. Then persist the current ISO
 `result_recorded_at` through `python3 code/pipeline.py record <id> --file -` and report.
 Do not reread contracts, redo onboarding or open another workspace. Upwork calls: 0.
 
@@ -31,7 +32,8 @@ Otherwise require `replied`, `call`, `offer` or `won`. Read `list_contracts` act
 `search` before changing stage; use the stored `contract_id` or the exact title to find
 candidate contracts. Page only until the match is found or results end. Read its status,
 type, client, rate or amount and dates. For fixed work read `list_milestones` too.
-Name the contract and have the member confirm it is this job; a verbal yes without a
+Name the contract and have the member confirm it is this job, as a single choice over the
+contracts found with "none of these" among them; a verbal yes without a
 real started contract is insufficient. Persist `contract_id` and `contract_client`
 through `pipeline.py record`, then `python3 code/pipeline.py set <id> won --note "Contract confirmed by the member"`.
 Never accept an offer or start a contract for them.
@@ -39,7 +41,8 @@ Never accept an offer or start a contract for them.
 ## Step 2 · Confirm the delivery baseline
 
 Then compare what you read with `jobs/<id>/proposal.md` and the saved conversation, and
-put only the differences to them, one question at a time: contract type and amount or
+put only the differences to them, each its own single choice with the contract's value
+first and up to four in a call: contract type and amount or
 rate, funded first milestone, agreed scope and exclusions, start date, deadline, client
 inputs and acceptance method. The contract wins every conflict, and a difference is
 written into the brief as a difference rather than quietly resolved.
@@ -65,8 +68,8 @@ invented dates, numbers, access or acceptance criteria. Run
 
 **Ask first whether there will be an onboarding call.** Plenty of jobs do not have one: a
 small fixed piece with the brief already agreed starts faster in writing, and forcing a
-meeting onto a client who wants the work done is a bad first impression. So ask, once, and
-build whichever of the two the answer calls for.
+meeting onto a client who wants the work done is a bad first impression. So ask, once, as a
+single choice (a call, or a written start), and build whichever of the two the answer calls for.
 
 **With a call**, write the agenda into `project.md` under `## First actions`, in this order,
 because it is the order that gets everything answered: the roadmap from the proposal read

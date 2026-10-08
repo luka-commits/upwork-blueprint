@@ -48,7 +48,7 @@ def artifacts(job_id):
 # What a member is looking at when they open a lead: the thing a client reads, the thing
 # they still have to send, and the raw material behind both. A flat list of eleven files
 # hides the first two behind the third.
-CLIENT_FACING = {'pitch.html', 'proposal.html', 'lead-magnet.html'}
+CLIENT_FACING = {'pitch.html', 'proposal.html'}
 TO_SEND = {'application.md', 'proposal.md', 'project.md'}
 
 
@@ -87,9 +87,6 @@ def artifact_health(job):
                 import document_check  # noqa: E402  (same folder, imported where it is used)
                 kind = 'proposal' if name == 'proposal.md' else 'project'
                 problems = document_check.validate_artifact(kind, path.read_text(encoding='utf-8'), proof)
-            elif name == 'lead-magnet.html':
-                import lead_magnet_check  # noqa: E402  (same folder, imported where it is used)
-                problems = lead_magnet_check.check_page(path)
         except (OSError, UnicodeError):
             problems = ['file could not be read']
         if problems is None or not problems:

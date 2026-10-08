@@ -1,0 +1,39 @@
+/* The house look, one set of tokens for every dashboard in this repository.
+   The cockpit imports this file and `code/context_page.py` inlines it, so the
+   two cannot drift. Values match the agency site and the audit dashboards:
+   warm parchment, ivory cards, near-black ink, terracotta as the one brand hue. */
+:root {
+  /* Surfaces */
+  --canvas: #f5f4ed;            /* the page */
+  --ivory: #faf9f5;             /* cards, panels, anything raised */
+  --sand: #e8e6dc;              /* chips, wells, pressed controls */
+  --hover: #f3f1ea;             /* a row or control under the pointer */
+  /* Text */
+  --ink: #141413;               /* headings and body */
+  --body: #5e5d59;              /* secondary text */
+  --label: #66655f;             /* small labels and metadata, 4.5:1 on every surface here */
+  --muted: #87867f;             /* decoration only: too light for text */
+  /* Lines */
+  --hairline: #f0eee6;          /* the quiet border */
+  --hairline-soft: #e8e6dc;     /* the visible border */
+  --ring: #d1cfc5;              /* hover and focus rings, strong borders */
+  /* Brand */
+  --terracotta: #c96442;        /* marks, rules, dots, large display type */
+  --terracotta-active: #b05538; /* filled buttons: ivory text clears 4.5:1 on it */
+  --terracotta-text: #a04a2e;   /* links and small brand text on any light surface */
+  --terracotta-soft: #f6e4dc;   /* brand tint behind text */
+  --coral: #d97757;             /* kickers and accents at display size */
+  /* Status */
+  --good: #3d7a4a; --good-text: #2f6a3c; --good-bg: #e6f0e6; --good-ring: rgba(61, 122, 74, .25);
+  --warn: #8a6300; --warn-bg: #f8efd9; --warn-ring: rgba(212, 160, 23, .3); --warn-mark: #d4a017;
+  --bad: #b53333; --bad-text: #9a2a2a; --bad-bg: #f7e6e3; --bad-ring: rgba(181, 51, 51, .22);
+  /* Dark surfaces */
+  --dark: #141413; --on-dark: #faf9f5; --on-dark-soft: #b0aea5;
+  /* Type: a serif for headings and figures, the system sans for reading, a mono for labels */
+  --display: "Tiempos Text", Georgia, "Iowan Old Style", "Times New Roman", ui-serif, serif;
+  --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Shape and depth */
+  --radius-control: 8px; --radius-panel: 12px; --radius-floating: 16px;
+  --shadow-whisper: 0 4px 24px rgba(20, 20, 19, .05);
+}

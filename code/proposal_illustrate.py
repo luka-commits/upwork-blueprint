@@ -179,7 +179,7 @@ def main(argv=None):
         abort(f'{shown(out)} exists already and is never overwritten.')
 
     key = api_key()
-    # Fail closed before the first paid call, the same way the audit does. Until
+    # Fail closed before the first paid call. Until
     # this ran, a key that had been revoked or mistyped was discovered after the
     # foundation image had already been uploaded.
     import preflight

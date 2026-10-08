@@ -164,10 +164,27 @@ Costs no Upwork call, because it reads the files the run already saved.
 
 ## Ready-made tracks
 
-`/about-me` writes the `Search:` line of each picked branch in
-[templates/profile/lanes.md](../templates/profile/lanes.md) into `context/me.md` as the member's tracks,
-and `/find-jobs` runs them in the same run without asking. A custom direction has no line there;
-build it from the catalog above.
+A first run does not have to invent terms from nothing. Two lanes are written out below, each
+already split across the four branches. Offer the matching lane, let the member cut what they
+cannot deliver, and treat the rest as the exploration set: the ones that produce nothing twice
+still get dropped.
+
+**Lane A, getting found and getting enquiries.** SEO, Google Ads and the website that carries
+them. One buyer, a local business owner who wants the phone to ring, and the lane this repo
+already delivers for: both roadmap templates are SEO and Google Ads.
+
+```
+- Local SEO: Google Business Profile · Google Maps ranking · local SEO
+- SEO problem: not showing on Google · organic traffic · keyword research
+- Google Ads: Google Ads · Performance Max · conversion tracking
+- Ads problem: wasted ad spend · cost per lead · Google Ads audit
+- Website: Webflow · WordPress · Elementor · landing page
+- Industry: dentist SEO · plumber leads · law firm marketing · med spa ads
+```
+
+**Lane B, what happens to an enquiry after it arrives.** CRM, follow-up and booking, sold to
+agencies and to owners who already have traffic. A different promise from lane A, so it is a
+lane of its own rather than three more terms.
 
 **1. GoHighLevel CRM automations**
 ```

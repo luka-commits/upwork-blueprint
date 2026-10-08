@@ -145,7 +145,7 @@ python3 code/pitch_generate.py <id> --hook "..." \
   --hero-illustration jobs/<id>/hero.jpg
 ```
 
-- **Industry treatment:** choose one restrained `--theme` and keep it for the whole page: `steel` for trades, construction and operations; `signal` for software, AI and automation; `growth` for SEO, marketing and commerce; `calm` for health, coaching, education and care; or `warm` for general professional services. Hero and card illustrations (one per card: two cards without the lead-magnet showcase, three with it) use the client's actual environment, materials and workflow. Motion stays subtle, readable and disabled by reduced-motion preferences.
+- **Industry treatment:** choose one restrained `--theme` and keep it for the whole page: `steel` for trades, construction and operations; `signal` for software, AI and automation; `growth` for SEO, marketing and commerce; `calm` for health, coaching, education and care; or `warm` for general professional services. Hero and card illustrations (one per card, two cards) use the client's actual environment, materials and workflow. Motion stays subtle, readable and disabled by reduced-motion preferences.
 
 - **Proof stays short:** at most three client voices on the page.
 
@@ -156,7 +156,7 @@ python3 code/pitch_generate.py <id> --hook "..." \
 - **Onboarding:** only the access, content and decisions needed before the first build.
 - **Updates:** name a specific cadence and where updates will live. Upwork before a
   contract, the client's own workspace after hire.
-- **Working together:** lead with the client outcome, then how it happens. With a lead magnet, it is Step 01, so the sequence reads audit, onboarding, updates. Write one short, job-specific `--plan-outcome` per card and optionally one landscape `--plan-image` per card, in the same order. When images are chosen, hero and card images form one coherent series: one style, the actual project in the client's industry, no text, logos or generic diagrams. The subject is the system, work or finished outcome; people only as small context, never looking at a screen, pointing at a board or posing beside the work. Inspect every source image and its crop on the finished page; reject repeated compositions, fake readable UI, dominant people and crops that hide the industry or the work.
+- **Working together:** lead with the client outcome, then how it happens. Write one short, job-specific `--plan-outcome` per card and optionally one landscape `--plan-image` per card, in the same order. When images are chosen, hero and card images form one coherent series: one style, the actual project in the client's industry, no text, logos or generic diagrams. The subject is the system, work or finished outcome; people only as small context, never looking at a screen, pointing at a board or posing beside the work. Inspect every source image and its crop on the finished page; reject repeated compositions, fake readable UI, dominant people and crops that hide the industry or the work.
 - **Member photo:** when a real member photo is available, use it as the identity
   reference for one natural action portrait and pass the finished local asset
   with `--profile-image`. Never invent a member's likeness without that
@@ -171,32 +171,6 @@ python3 code/pitch_generate.py <id> --hook "..." \
 - Optional: `--live-artifact "Label|URL"` for anything actually built and `--proof-link "Label|Detail|URL"` for past work with no contact details on it.
 - **Pictures are optional and the pitch is complete without them.** A 16:9 `--hero-illustration` sits directly below the headline, never inside the flow, and follows the image rules above. A path you pass that does not exist is still an error; passing none is not.
 - Give the moving dither field a job-specific, high-contrast source through `--dither-source`: one simple industry object or scene (a roofline and ladder for roofing) that stays identifiable as dots, not a particle cloud or detailed photo. Prefer a small local SVG; it is embedded and may load nothing from the network. Keep every motif upright: horizontal mirroring is fine, vertical flipping is not.
-- When the job is tied to a local business website **and the member sells local SEO**,
-  offer the free audit: for them it is part of the offer on every such job. The signal is
-  `**Free SEO audit offered:**` in `context/me.md`, and without that line, whether their
-  services name SEO or an audit at all. A member who sells video editing has no audit to
-  give away, and promising one on their behalf is a promise they cannot keep.
-  Make the free upfront work
-  explicit: the client sends the website, and the member returns the complete
-  audit before the build. Sell the useful outcome, then name what the audit
-  contains.
-  Name it as a free audit in the headline or CTA. Do not make the client decode
-  euphemisms such as review, insights or opportunity scan.
-  Use a headline of at most eight words, one sentence of at most 20 words and these three compact deliverables: a 25-point
-  Google Maps grid, a full Google Business Profile review, and a 21-point
-  website review with a prioritized action plan. Adapt the nouns to the job,
-  but do not replace the deliverables with a vague custom audit. Use
-  `--showcase "job-specific title|short delivery promise|#next|Send your website on Upwork"`
-  with three `--showcase-point` values of at most eight words each. Generate the
-  safe fictional example with
-  `python3 code/lead_magnet_demo.py jobs/<id>/lead-magnet-example.html --business "Example [industry]" --service "[client service]" --location "[client market]" --conversion "[desired enquiry action]"`
-  and embed it with `--showcase-html`; the client can scroll and open the three
-  audit sections directly. It must show the current project-local report with
-  its `Google visibility`, `Google Business Profile` and `Website` sections. Never substitute an archived or external report design. A short `--showcase-video` walkthrough
-  is only the fallback when an embed cannot be used; the bundled report cover is
-  the final fallback. Do not expose private client data, link to a contact page
-  or promise findings that have not been measured. Its fictional business,
-  service, conversion and market must match the actual industry.
 
 ## Step 6 · The gates
 
@@ -205,16 +179,15 @@ python3 code/pitch_generate.py <id> --hook "..." \
   then run `python3 code/pitch_capture.py <id> --clean`. Never call a page done
   unseen. The cleanup removes the temporary screenshot after the visual check.
 - Inspect the hero and every plan-image crop. Check every dither placement:
-  the source must be upright, identifiable and clear of the copy. If an audit is
-  embedded, open it and confirm both the compact phone and expanded view render
-  at a 390px document width without horizontal overflow.
+  the source must be upright, identifiable and clear of the copy.
 
 ## Step 7 · Publish the client page
 
 **Run `python3 code/preflight.py vercel`, then ask.** Unavailable: say so, skip this step
 and go to the application, which then carries no link and one sentence about the plan
 instead. Available: one line to the member, what the page promises and that the URL is
-about to be public, and publish on their word.
+about to be public, and publish on their pick: a single choice, publish it or not yet
+([references/copy.md: How to ask](../../references/copy.md#how-to-ask)).
 
 Run `python3 code/pitch_deploy.py <id>`. It confirms the page opens publicly and
 saves the exact deployment URL through `code/pipeline.py`. Never upload the job
@@ -235,7 +208,7 @@ posting states the questions, and the bid for manual submission.
 
 ### What is true about you and the scope
 
-List the posting's hard requirements ("built at least 5 sub-accounts for trades", "A2P 10DLC is non-negotiable") and check each against the evidence sections of `context/me.md`. **A requirement your proof does not cover never becomes a claim.** If it is mandatory, ask the member whether they meet it and where that can be checked. Until resolved, save no client-facing draft. If it is a preference, name the gap for the member and draft without claiming it. Lead with the strongest relevant proof by tier; never a badge or number the member does not hold.
+List the posting's hard requirements ("built at least 5 sub-accounts for trades", "A2P 10DLC is non-negotiable") and check each against the evidence sections of `context/me.md`. **A requirement your proof does not cover never becomes a claim.** If it is mandatory, ask the member whether they meet it and where that can be checked, one single choice per requirement: met and checkable, met with nothing to point at, not met; the place is typed. Until resolved, save no client-facing draft. If it is a preference, name the gap for the member and draft without claiming it. Lead with the strongest relevant proof by tier; never a badge or number the member does not hold.
 
 Separate explicit deliverables from assumptions. Before quoting a price or
 timeline, resolve the contract type, included work, dependencies, revision or
@@ -245,7 +218,8 @@ or an explicit member decision. If one changes the bid, ask before writing the a
 When `details.price_estimate` exists, use it as the internal starting point:
 show the hour cases, profile rate, risk buffer, assumptions and roadmap together.
 It is an estimate, not approval. Recalculate it when the resolved scope changes,
-and get the member's explicit bid decision before writing the bid.
+and get the member's explicit bid decision before writing the bid, as a single choice
+between the estimate's cases with another figure typed.
 
 ### Write the letter
 

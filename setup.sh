@@ -61,13 +61,8 @@ echo "What each command still needs from you:"
 
 command -v node >/dev/null || note "node: /dashboard needs it. https://nodejs.org"
 
-if ! python3 -c "import playwright, PIL" >/dev/null 2>&1; then
-  note "Python packages: /proposal needs them to check a page the way a client sees it. Run 'python3 -m pip install -r requirements.txt'. If pip refuses because the system Python is managed, make a virtual environment first: 'python3 -m venv .venv && source .venv/bin/activate', then run setup.sh again."
-elif ! python3 -c "
-from playwright.sync_api import sync_playwright
-with sync_playwright() as p: p.chromium.launch().close()
-" >/dev/null 2>&1; then
-  note "the browser for those packages: run 'python3 -m playwright install chromium'. Without it those page checks stop."
+if ! python3 -c "import PIL" >/dev/null 2>&1; then
+  note "Python packages: /proposal and /sales-call-proposal size their images with Pillow. Run 'python3 -m pip install -r requirements.txt'. If pip refuses because the system Python is managed, make a virtual environment first: 'python3 -m venv .venv && source .venv/bin/activate', then run setup.sh again."
 fi
 
 if ! command -v google-chrome >/dev/null && ! command -v chromium >/dev/null \
@@ -88,8 +83,7 @@ fi
 env_has KIE_AI_API_KEY || note "KIE_AI_API_KEY in .env: lets /sales-call-proposal draw the plan for the client's trade without leaving the terminal. kie.ai. Skip it if you already have an image model: /sales-call-proposal prints the prompt for you to paste anywhere, and the page picks the picture up from jobs/<id>/proposal-sketch.png whoever drew it."
 
 [ "$missing" -eq 0 ] && echo "  nothing is missing. This checks that a key exists, never that it still
-  has credit, and never which account a token belongs to. Before the first run
- "
+  has credit, and never which account a token belongs to."
 
 echo
 echo "Your context, data and job files are yours now; git will not touch them."

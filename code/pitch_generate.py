@@ -20,8 +20,7 @@ something the evidence sections do not hold.
         [--loom-url https://www.loom.com/share/...] [--video-length "3 minute"] \\
         --hero-illustration path [--profile-image path] [--live-artifact "Label|URL"] \\
         [--proof-link "Label|Detail|URL"] [--next-step "..."] \\
-        [--theme warm|steel|signal|growth|calm] [--dither-source path] \\
-        [--showcase "Title|Teaser|URL|CTA" --showcase-point "..." --showcase-html path]
+        [--theme warm|steel|signal|growth|calm] [--dither-source path]
 
 Writes jobs/<job_id>/pitch.html. Exits 1 on anything missing or malformed: a half
 page with a silent gap is worse than a stop that names the cause.
@@ -46,7 +45,6 @@ TEMPLATE = ASSETS / 'template.html'
 DIAGRAM_JS = ASSETS / 'diagram.js'
 LOGO_DIR = ASSETS / 'logos'
 DITHER = ASSETS / 'ink-plume.png'
-REPORT_COVER = ASSETS / 'report-cover-example.jpg'
 PIPELINE = ROOT / 'code' / 'pipeline.py'
 PROOF = ROOT / 'context' / 'me.md'
 ME = ROOT / 'context' / 'me.md'
@@ -383,25 +381,20 @@ def updates_html(text):
             '</dl>')
 
 
-def plan_cards(showcase, kickoff, updates, outcomes, images, job_title):
-    """Render the short client journey after the detailed lead-magnet preview."""
-    has_audit = bool(showcase and showcase[0])
-    labels = (['Upfront audit'] if has_audit else []) + ['Onboarding', 'Updates']
-    defaults = ((['See what needs fixing first'] if has_audit else [])
-                + ['Turn the scope into one build plan', 'Always know what is done and next'])
+def plan_cards(kickoff, updates, outcomes, images, job_title):
+    """Render the short client journey: onboarding, then updates."""
+    labels = ['Onboarding', 'Updates']
+    defaults = ['Turn the scope into one build plan', 'Always know what is done and next']
     outcomes = outcomes or defaults
     if len(outcomes) != len(labels):
         abort(f'exactly {len(labels)} --plan-outcome values expected, got {len(outcomes)}.')
     if images and len(images) != len(labels):
         abort(f'exactly {len(labels)} --plan-image values expected, got {len(images)}.')
 
-    bodies = []
-    if has_audit:
-        bodies.append(f'<p class="plan-description">{esc(showcase[1])}</p>')
-    bodies.append('<ul class="scope-list">'
-                  + ''.join(f'<li>{esc(item)}</li>' for item in kickoff)
-                  + '</ul>')
-    bodies.append(updates_html(updates))
+    bodies = ['<ul class="scope-list">'
+              + ''.join(f'<li>{esc(item)}</li>' for item in kickoff)
+              + '</ul>',
+              updates_html(updates)]
 
     cards = []
     for index, (label, outcome, body) in enumerate(zip(labels, outcomes, bodies), 1):
@@ -417,48 +410,6 @@ def plan_cards(showcase, kickoff, updates, outcomes, images, job_title):
             f'<p class="plan-label">{esc(label)}</p>{body}</div></article>'
         )
     return ''.join(cards)
-
-
-def plan_lede(showcase):
-    """Describe only the number of steps the rendered plan actually contains."""
-    return ('Three clear steps from the first audit to a working system.' if showcase
-            else 'Two clear steps from kickoff to a working system.')
-
-
-def showcase_media(embed, video, image):
-    """Prefer the live audit, then a walkthrough, then the static cover."""
-    if embed:
-        path = pathlib.Path(embed)
-        if path.suffix.lower() not in {'.html', '.htm'} or not path.is_file():
-            abort('--showcase-html must be an existing HTML file.')
-        source = path.read_text(encoding='utf-8')
-        # The three sections and the template stamp, which is what "current report"
-        # means. It used to list the chapter headings too, and when the report shell
-        # renamed them no report could satisfy this gate any more, in either
-        # direction: the member was told to embed a file the generator refused.
-        required = ('name="lead-magnet-template" content="upwork-lead-magnet-v1"',
-                    'data-audit-section="maps"', 'data-audit-section="profile"',
-                    'data-audit-section="website"', "connect-src 'none'")
-        if not all(marker in source for marker in required):
-            abort('--showcase-html must be the current debranded lead-magnet report.')
-        forbidden = re.search(r'<(?:iframe|form)\b|(?:src|href|action)\s*=\s*["\'](?:https?://|mailto:|tel:)',
-                              source, flags=re.I)
-        if forbidden:
-            abort(f'--showcase-html contains unsafe or internal content: {forbidden.group(0)!r}.')
-        encoded = base64.b64encode(source.encode('utf-8')).decode('ascii')
-        return (f'<iframe class="cover-face audit-frame" src="data:text/html;base64,{encoded}" '
-                'title="Interactive example website audit" sandbox="allow-scripts" loading="lazy" '
-                'referrerpolicy="no-referrer"></iframe>')
-    if video:
-        path = pathlib.Path(video)
-        mime = {'.mp4': 'video/mp4', '.webm': 'video/webm'}.get(path.suffix.lower())
-        if not mime:
-            abort('--showcase-video must be an MP4 or WebM file.')
-        return (f'<video class="cover-face cover-video" autoplay muted loop playsinline preload="metadata" '
-                f'aria-label="Short scroll through an example website audit">'
-                f'<source src="{data_uri(path, mime)}" type="{mime}"></video>')
-    return (f'<img class="cover-face" src="{data_uri(image, "image/jpeg")}" '
-            'alt="Cover of an example website audit">')
 
 
 def main(argv=None):
@@ -486,11 +437,6 @@ def main(argv=None):
     ap.add_argument('--live-artifact', action='append', default=[], help='"Label|URL" of something already built')
     ap.add_argument('--proof-link', default='', help='"Label|Detail|URL" of past work, no contact details on it')
     ap.add_argument('--next-step', default=DEFAULT_NEXT)
-    ap.add_argument('--showcase', default='', help='"Title|Teaser|URL|CTA" for a sample of your work')
-    ap.add_argument('--showcase-point', action='append', default=[])
-    ap.add_argument('--showcase-image', default='')
-    ap.add_argument('--showcase-video', default='', help='silent MP4 or WebM scroll through an example audit')
-    ap.add_argument('--showcase-html', default='', help='safe current lead-magnet HTML embedded as an interactive example')
     ap.add_argument('--max-reviews', type=int, default=3)
     ap.add_argument('--out')
     args = ap.parse_args(argv)
@@ -551,11 +497,6 @@ def main(argv=None):
 
     page = TEMPLATE.read_text(encoding='utf-8')
     page = keep_or_strip(page, 'videos', bool(videos))
-    page = keep_or_strip(page, 'showcase', bool(args.showcase))
-    showcase = split_label(args.showcase, 4, '--showcase') if args.showcase else ['', '', '', '']
-    showcase_image = pathlib.Path(args.showcase_image) if args.showcase_image else REPORT_COVER
-    if args.showcase and not args.showcase_html and not args.showcase_video and not showcase_image.is_file():
-        abort(f'lead magnet cover "{showcase_image}" does not exist.')
 
     nodes = json.loads(diagram_data)['nodes']
     js = DIAGRAM_JS.read_text(encoding='utf-8').replace('{{LOGOS_JSON}}', logos_json(nodes))
@@ -570,22 +511,14 @@ def main(argv=None):
         '{{VIDEO_LENGTH}}': esc(args.video_length),
         '{{PROFILE_MEDIA}}': profile_media(args.profile_image),
         '{{CV_BLOCK}}': cv_block(proof_text, me_text),
-        '{{PLAN_CARDS}}': plan_cards(showcase, args.kickoff, args.updates,
+        '{{PLAN_CARDS}}': plan_cards(args.kickoff, args.updates,
                                      args.plan_outcome, args.plan_image, job.get('title')),
-        '{{PLAN_LEDE}}': plan_lede(args.showcase),
         '{{LIVE_ARTIFACTS}}': live,
         '{{PROOF_LINK}}': proof_link,
         '{{TESTIMONIALS_BLOCK}}': reviews_html,
         '{{VIDEOS_BLOCK}}': videos,
         '{{VIDEOS_NOTE}}': 'A few recent builds from my channel.',
         '{{CHANNEL_URL}}': esc(channel),
-        '{{SHOWCASE_TITLE}}': esc(showcase[0]),
-        '{{LEAD_MAGNET_TEASER}}': esc(showcase[1]),
-        '{{LEAD_MAGNET_URL}}': esc(showcase[2]),
-        '{{LEAD_MAGNET_CTA}}': esc(showcase[3]),
-        '{{SHOWCASE_POINTS}}': ''.join(f'<li>{esc(p)}</li>' for p in args.showcase_point),
-        '{{SHOWCASE_MEDIA}}': showcase_media(args.showcase_html, args.showcase_video, showcase_image) if args.showcase else '',
-        '{{SHOWCASE_STATUS}}': 'Scroll' if args.showcase_html else 'Preview',
         '{{NEXT_STEP}}': esc(args.next_step),
         '{{PROFILE_URL}}': esc(url or '#'),
         '{{FOOTER_LINKS}}': '<span class="dot">·</span>'.join(footer),

@@ -22,7 +22,8 @@ WHAT MIGHT GO WRONG: wishes may look like agreement; missing inputs or an unfund
 # Part 1 · The conversation
 
 Everything before the page is a talk with the member: read the call, keep the promises it
-left behind, settle the four commercial decisions. Claude asks, the member answers, and
+left behind, settle the four commercial decisions. Claude asks in choices the member
+clicks ([references/copy.md: How to ask](../../references/copy.md#how-to-ask)), and
 nothing client-facing is written yet.
 
 ## Step 1 · Evidence gate
@@ -57,7 +58,8 @@ Sort them into three piles and say which is which:
    **Do those now**, in this run, and put the answer in the report. This is the part
    that usually gets forgotten between the call and the proposal.
 2. **Needs the member.** A number only they know, a file on their machine, a decision
-   about price or timing. Ask for it in one message, all of them together.
+   about price or timing. Ask for all of them in one call: a decision as a single choice
+   between the candidates the call left, a number or a file typed.
 3. **Needs the client.** Access, material, a decision. It becomes a line under
    `## Client inputs` in the proposal, with the date it was promised for.
 
@@ -74,7 +76,9 @@ one compact message:
 3. client inputs, access and approvals required
 4. start condition, milestone timing and final acceptance
 
-Ask the member to confirm or correct them, all four in one message. An unanswered one
+Then ask in one call, one single choice per field: the value as the call left it first,
+any other candidate the call voiced beside it, and "still open". A typed correction
+replaces the value. An unanswered or open one
 does not stop the run: write the page with that line marked as open and say so in the
 report, because a proposal a member can fix in one edit beats a blank page.
 Do not add a guarantee, refund promise, result promise or delivery date that the

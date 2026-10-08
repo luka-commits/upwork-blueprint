@@ -14,7 +14,7 @@ Vercel account. Details are in
 1. Clone it anywhere on your computer:
    `git clone https://github.com/luka-commits/upwork-blueprint.git`
 2. Open a terminal in the folder and run `./setup.sh` once. It creates your own
-   files, writes `.env` with your unique Vercel project and builds the audit report template
+   files and writes `.env` with your unique Vercel project
 3. Follow [Connect Upwork](#connect-upwork), then run `/about-me`. It asks about
    your background once; later commands write from those answers
 
@@ -65,25 +65,23 @@ from.
 
 - macOS or Linux. On Windows, use WSL; native Windows is unsupported.
 - [Claude Code](https://claude.com/claude-code) and an Upwork freelancer account
-- Python 3.10 or newer: `python3 -m pip install -r requirements.txt`, then
-  `python3 -m playwright install chromium`. The page checks stop without them. If pip refuses because the system Python is managed,
+- Python 3.10 or newer: `python3 -m pip install -r requirements.txt`.
+  If pip refuses because the system Python is managed,
   make a virtual environment first: `python3 -m venv .venv && source .venv/bin/activate`
   Activate it with `source .venv/bin/activate` in every new terminal before `claude`.
-- [Node.js](https://nodejs.org) 20.19+ (20.x) or 22.12+ for the cockpit and report template
+- [Node.js](https://nodejs.org) 20.19+ (20.x) or 22.12+ for the cockpit
 - Google Chrome, which `/proposal` uses to check the page on a phone screen
-- Optional: Claude's Google Drive and Gmail connectors. `/about-me` can then look
-  for old CVs, results and client messages, read only and only after your yes.
+- Optional: Claude's Google Drive and Gmail connectors. `/about-me` then looks there,
+  and in your Documents, Downloads and Desktop, for old CVs, results and client
+  messages on its own. Read only; Claude Code still asks before it opens a file
+  outside this folder, and saying no just skips that source.
 - Vercel CLI: `npm i -g vercel`, then `vercel login` (or set `VERCEL_TOKEN`).
   If that install fails with EACCES, use `npm i -g --prefix "$HOME/.local" vercel`
   and add `export PATH="$HOME/.local/bin:$PATH"` to your shell startup file.
-- Audit keys in `.env`: Firecrawl, Apify and DataForSEO. Page speed needs
-  `PAGESPEED_API_KEY` or local Lighthouse: `npm i -g lighthouse`.
-- Optional `GOOGLE_MAPS_API_KEY` enables Google Static Maps. Without it the audit
-  uses OpenStreetMap tiles; ranking measurements still run.
 
 `./setup.sh` and `python3 code/tools_status.py` list what each command still needs.
 Upwork commands need the connector; publishing needs Vercel. /about-me can start
-before the audit tools are ready.
+before either is ready.
 
 ## What it costs to run
 
@@ -92,13 +90,9 @@ before the audit tools are ready.
 | Claude Code | a paid Claude plan that includes Claude Code, or API billing |
 | Upwork applications | About 70 Connects/day for ten applications; the actual job costs vary and /find-jobs counts them |
 | Public pitch pages | Vercel's free plan, within its limits |
-| Core audit APIs | About $0.25 per audit on the measured 27 September 2026 run (48 calls); each run asks you to approve its estimate |
-| Optional image and AI APIs | Usage billed separately; paid images require your yes after the cost is shown |
+| Optional image API | Usage billed separately; paid images require your yes after the cost is shown |
 
-The keys and bills are yours. Preflight needs at least $3 Apify and $1 DataForSEO
-credit, which are balance floors, not audit prices. Check balances between runs.
-Optional `OPENAI_API_KEY` adds AI-search and review analysis; without it those
-chapters say "not measured". `KIE_AI_API_KEY` generates images; you can instead
+The keys and bills are yours. `KIE_AI_API_KEY` generates images; you can instead
 use an image model you already have. Details are in `.env.example`.
 
 ## Updating
@@ -112,7 +106,7 @@ Everything below is yours and gitignored, so `git pull` never touches it.
 - `context/me.md` - who you are and what you can back up
 - `profile.md` - the profile to paste, written against what is live today
 - `data/jobs.json` - your pipeline, written only by `code/pipeline.py`
-- `jobs/<id>/` - one folder per job: the pitch page, the application, the audit,
+- `jobs/<id>/` - one folder per job: the pitch page, the application,
   the proposal, the threads and the drafts
 - `clients/<slug>/` - a won job: the brief, the inputs, the work, what you delivered
 

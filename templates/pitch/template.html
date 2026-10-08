@@ -533,7 +533,6 @@
     font-size: clamp(20px, 1.7vw, 25px); line-height: 1.13; text-wrap: balance; }
   .plan-label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
     font-weight: 700; color: var(--accent-on-ink); margin: 0 0 10px; }
-  .plan-description { margin: 0; color: var(--on-ink-2); font-size: 14.5px; line-height: 1.6; }
   .work-details { display: grid; gap: 16px; margin: 0; }
   .work-details div { padding-top: 15px; border-top: 1px solid var(--border-ink); }
   .work-details dt { margin: 0 0 5px; color: var(--accent-on-ink); font-size: 11px;
@@ -552,78 +551,6 @@
   .scope-list li:last-child { margin-bottom: 0; }
   .scope-list li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 7px; height: 7px;
     border-radius: 999px; border: 1.5px solid var(--accent-on-ink); }
-
-  /* ---------------- Report showcase ---------------- */
-  .showcase { display: grid; grid-template-columns: minmax(250px, 310px) minmax(0, 1fr);
-    align-items: center; gap: clamp(44px, 7vw, 88px); }
-  .showcase-copy { grid-column: 2; max-width: 520px; }
-  .showcase-preview { grid-column: 1; position: relative; width: min(100%, 286px); justify-self: center;
-    transition: transform .42s var(--ease); }
-  .audit-window { position: relative; overflow: hidden; height: 548px; border: 7px solid var(--ink);
-    border-radius: 38px; background: var(--card);
-    box-shadow: 0 32px 64px -34px rgba(28,23,18,.64), 0 0 0 1px rgba(255,255,255,.32); }
-  .audit-window::before { content: ""; position: absolute; z-index: 3; top: 7px; left: 50%;
-    width: 82px; height: 20px; border-radius: 0 0 12px 12px; background: var(--ink);
-    transform: translateX(-50%); pointer-events: none; }
-  .audit-window-bar { display: grid; grid-template-columns: 1fr auto; align-items: center;
-    height: 34px; padding: 4px 12px 0; border-bottom: 1px solid rgba(117,105,88,.16);
-    background: rgba(250,248,243,.96); }
-  .window-dots { display: none; }
-  .window-title { overflow: hidden; color: var(--text-3); font-size: 10px; font-weight: 650;
-    letter-spacing: .02em; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-  .window-status { color: var(--accent-deep); font: 650 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-    letter-spacing: .06em; text-transform: uppercase; }
-  .cover-face { display: block; width: 100%; }
-  .cover-video { aspect-ratio: 4 / 5; object-fit: cover; object-position: top; background: var(--card); }
-  .audit-frame { height: calc(100% - 34px); border: 0; background: var(--card); }
-  /* The embedded report was designed and checked at a 390px mobile viewport.
-     Keep that exact layout inside the smaller visual phone instead of asking
-     the report to squeeze itself into the 272px opening. */
-  .showcase-preview .audit-frame { width: 390px; height: 717px;
-    transform: scale(.6974358974); transform-origin: top left; }
-  .audit-expand { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; margin: 14px auto 0;
-    padding: 0 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--card);
-    color: var(--text); font: inherit; font-size: 13px; font-weight: 650; cursor: pointer;
-    box-shadow: 0 10px 24px -20px rgba(28,23,18,.5);
-    transition: transform .18s var(--ease), border-color .18s var(--ease), background .18s var(--ease); }
-  .audit-expand svg { width: 15px; height: 15px; }
-  .audit-expand:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 42%, transparent);
-    outline-offset: 3px; }
-  .audit-overlay[hidden] { display: none; }
-  .audit-overlay { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center;
-    padding: 42px 20px; background: rgba(28,23,18,.78);
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
-  .audit-overlay .audit-window { width: min(404px, calc(100vw - 40px));
-    height: min(820px, calc(100vh - 88px)); }
-  .audit-overlay .audit-frame { width: 100%; height: calc(100% - 34px); transform: none; }
-  .audit-overlay .audit-expand { position: fixed; top: 16px; right: 18px; margin: 0;
-    border-color: rgba(255,255,255,.32); background: rgba(28,23,18,.72); color: var(--card); }
-  body.audit-open { overflow: hidden; }
-  .showcase-copy .section-title { margin-bottom: 14px; }
-  .showcase-copy p { font-size: 16px; color: var(--text-2); margin: 0 0 22px; line-height: 1.62;
-    max-width: 42ch; text-wrap: pretty; }
-  .showcase-copy .note { font-size: 13px; color: var(--text-3); margin: 16px 0 0; max-width: 38ch; }
-
-  /* What is actually inside the report. The section used to promise "see what
-     we can do" and show a cover, which asks the reader to take the value on
-     faith; naming the three things it contains is what turns a picture of a
-     document into an offer. */
-  .report-list { list-style: none; margin: 0 0 26px; padding: 0; display: grid; gap: 10px;
-    max-width: 42ch; }
-  .report-list li { position: relative; padding-left: 26px; font-size: 14.5px;
-    color: var(--text-2); line-height: 1.5; text-wrap: pretty; }
-  .report-list li::before { content: ""; position: absolute; left: 0; top: .42em; width: 13px; height: 13px;
-    border-radius: 999px; border: 2px solid var(--accent); }
-  .report-list li::after { content: ""; position: absolute; left: 4.5px; top: .74em; width: 4px; height: 4px;
-    border-radius: 999px; background: var(--accent); }
-  @media (max-width: 760px) { .report-list { margin-left: auto; margin-right: auto; text-align: left; } }
-
-  @media (max-width: 760px) {
-    .showcase { grid-template-columns: 1fr; gap: 34px; }
-    .showcase-copy { grid-column: 1; grid-row: 1; max-width: 520px; }
-    .showcase-preview { grid-column: 1; grid-row: 2; }
-    .showcase-copy p, .showcase-copy .note { margin-left: auto; margin-right: auto; }
-  }
 
   .btn { display: inline-flex; align-items: center; gap: 10px; background: var(--accent);
     color: var(--on-accent); text-decoration: none; font-weight: 600; padding: 16px 34px;
@@ -681,8 +608,6 @@
     box-shadow: 0 20px 42px -28px rgba(0,0,0,.75); }
   .plan-item:hover .plan-media img { transform: scale(1.025); }
 
-  .showcase-preview:hover { transform: translateY(-4px); }
-  .audit-expand:hover { border-color: var(--accent); background: var(--bg-band); }
   .testimonial:hover { transform: translateY(-3px); box-shadow: 0 16px 32px -22px rgba(28,23,18,.45); }
   .foot-links a:hover { color: var(--accent); border-color: var(--accent); }
   .btn:hover { background: var(--accent-deep); transform: translateY(-2px);
@@ -727,18 +652,15 @@
   .anim .plan-item:nth-child(3) { transition-delay: .16s; }
   .anim .plan-item:nth-child(4) { transition-delay: .24s; }
 
-  .anim [data-cover] { opacity: 0; transform: translateY(10px) scale(.985); }
-  .anim [data-cover].in { opacity: 1; transform: none; }
-
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     :root { --tilt: 0deg; }
-    .anim [data-rise], .anim [data-settle], .anim [data-cover],
+    .anim [data-rise], .anim [data-settle],
     .anim .anim .yt-grid .yt-card, .anim .plan-item, .anim .plan-item::after {
       opacity: 1 !important; transform: none !important; transition: opacity .01s linear !important; }
     .device { transform: none !important; transition: none !important; }
-    .showcase-preview, .btn, .testimonial, .plan-item, .yt-card, .device-screen .play { transition: none !important; }
-    .showcase-preview:hover, .btn:hover, .testimonial:hover, .plan-item:hover, .yt-card:hover { transform: none; }
+    .btn, .testimonial, .plan-item, .yt-card, .device-screen .play { transition: none !important; }
+    .btn:hover, .testimonial:hover, .plan-item:hover, .yt-card:hover { transform: none; }
   }
   /* A page without a walkthrough video yet shows no empty player. */
   .no-video .device-stage { display: none; }
@@ -750,8 +672,8 @@
     <nav class="navbar-inner" aria-label="Sections">
       <a class="navseg" href="#walkthrough"><span>Walkthrough</span></a>
       <a class="navseg" href="#build"><span>What I'd build</span></a>
-      <a class="navseg" href="#proof"><span>Proof</span></a>
       <a class="navseg" href="#plan"><span>Working together</span></a>
+      <a class="navseg" href="#proof"><span>Proof</span></a>
       <a class="navseg" href="#next"><span>Next step</span></a>
     </nav>
   </header>
@@ -902,52 +824,12 @@
   </section>
   <!-- videos:end -->
 
-  <!-- showcase:start -->
-  <section class="band band-warm" id="proof">
-    <div class="inner-wide">
-      <div class="showcase">
-        <div class="showcase-preview" data-cover data-audit-preview>
-          <div class="audit-window">
-            <div class="audit-window-bar" aria-hidden="true">
-              <span class="window-dots"><i></i><i></i><i></i></span>
-              <span class="window-title">Example website audit</span>
-              <span class="window-status">{{SHOWCASE_STATUS}}</span>
-            </div>
-            {{SHOWCASE_MEDIA}}
-          </div>
-          <button class="audit-expand" type="button" aria-expanded="false" aria-controls="audit-dialog" data-audit-expand>
-            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span>Expand audit</span>
-          </button>
-        </div>
-        <div class="audit-overlay" id="audit-dialog" role="dialog" aria-modal="true" aria-label="Expanded example website audit" data-audit-dialog hidden>
-          <div data-audit-mount></div>
-          <button class="audit-expand" type="button" data-audit-close>
-            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            <span>Close audit</span>
-          </button>
-        </div>
-        <div class="showcase-copy">
-          <h2 class="serif section-title" data-rise>{{SHOWCASE_TITLE}}</h2>
-          <p data-rise data-d="1">{{LEAD_MAGNET_TEASER}}</p>
-          <ul class="report-list" data-rise data-d="2">
-            {{SHOWCASE_POINTS}}
-          </ul>
-          <a class="btn" href="{{LEAD_MAGNET_URL}}" target="_blank" rel="noopener" data-rise data-d="3">
-            {{LEAD_MAGNET_CTA}} <span class="arrow" aria-hidden="true">→</span>
-          </a>
-        </div>
-      </div>
-    </div>
-  </section>
-  <!-- showcase:end -->
-
   <section class="band band-ink band-dotted" id="plan">
     <canvas class="dither dither-plan" data-src="{{DITHER_SRC_NEXT}}" data-fit="{{DITHER_FIT}}" data-on-ink aria-hidden="true"></canvas>
     <div class="inner-wide">
       <div class="center">
         <h2 class="serif section-title" data-rise>Then we get to work</h2>
-        <p class="section-lede" data-rise data-d="1">{{PLAN_LEDE}}</p>
+        <p class="section-lede" data-rise data-d="1">Two clear steps from kickoff to a working system.</p>
       </div>
       <div class="plan-grid">
         {{PLAN_CARDS}}
@@ -955,7 +837,7 @@
     </div>
   </section>
 
-  <section class="band band-plain">
+  <section class="band band-plain" id="proof">
     <div class="inner">
       <div class="center">
         <h2 class="serif section-title" data-rise>What my Upwork clients say</h2>
@@ -996,44 +878,10 @@
         io.unobserve(e.target);
       });
     }, { rootMargin: '0px 0px -8% 0px', threshold: .12 });
-    document.querySelectorAll('[data-rise], [data-settle], [data-cover], .plan-item, .yt-grid')
+    document.querySelectorAll('[data-rise], [data-settle], .plan-item, .yt-grid')
       .forEach(function (el) { io.observe(el); });
     requestAnimationFrame(function () {
       document.querySelectorAll('.hero [data-rise]').forEach(function (el) { el.classList.add('in'); });
-    });
-  }
-
-  var auditPreview = document.querySelector('[data-audit-preview]');
-  var auditExpand = document.querySelector('[data-audit-expand]');
-  var auditDialog = document.querySelector('[data-audit-dialog]');
-  var auditMount = document.querySelector('[data-audit-mount]');
-  var auditClose = document.querySelector('[data-audit-close]');
-  if (auditPreview && auditExpand && auditDialog && auditMount && auditClose) {
-    var auditScrollY = 0;
-    var setAuditExpanded = function (expanded) {
-      if (expanded) auditScrollY = window.scrollY;
-      auditExpand.setAttribute('aria-expanded', String(expanded));
-      auditDialog.hidden = !expanded;
-      document.body.classList.toggle('audit-open', expanded);
-      if (expanded) {
-        var source = auditPreview.querySelector('.audit-window');
-        if (source) auditMount.appendChild(source.cloneNode(true));
-        auditClose.focus();
-      } else {
-        auditMount.replaceChildren();
-        window.scrollTo(0, auditScrollY);
-        auditExpand.focus({ preventScroll: true });
-      }
-    };
-    auditExpand.addEventListener('click', function () { setAuditExpanded(true); });
-    auditClose.addEventListener('click', function () { setAuditExpanded(false); });
-    auditDialog.addEventListener('click', function (event) {
-      if (event.target === auditDialog) setAuditExpanded(false);
-    });
-    document.addEventListener('keydown', function (event) {
-      if (event.key === 'Escape' && !auditDialog.hidden) {
-        setAuditExpanded(false);
-      }
     });
   }
 

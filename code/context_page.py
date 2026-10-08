@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
-"""The member's one-page Upwork CV, built from their own file.
+"""The member's one-page Upwork resume, built from their own file.
 
     python3 code/context_page.py [--open]
 
 /about-me ends by reporting what it wrote. A report in a terminal scrolls away,
 and the file it wrote is markdown with starter lines still in it. This renders
-it as one page laid out like a CV, with the sections of `context/me.md`:
-background, what you do and results on the left, how you work, credentials,
-reviews and what is still open on the right. Only what a client would care about
-is on it: internal limits such as the smallest project or applications a day stay
-in the file.
+`context/me.md` as a resume: name and headline on top, experience and selected
+results in the main column, services, tools, credentials and recommendations
+beside it. Only what a client would care about is on the sheet: internal limits
+such as the smallest project or applications a day stay in the file, and what is
+still open sits in a note under it.
+
+An entry carries a label only when it was pulled from somewhere else (a file, an
+email, the web) and the member has not confirmed it yet. What they said
+themselves is simply theirs.
 
 Output is `context/overview.html`, which is gitignored like everything else in
-that folder. It is built from the files alone and reaches no service. It prints
-on one A4 page.
+that folder. It is built from the files alone and reaches no service. The look
+comes from `website/app/tokens.css`, the tokens every dashboard here shares. The
+sheet prints as a clean A4 resume, without the note under it.
 """
 import argparse
 import html
@@ -27,79 +32,81 @@ sys.path.insert(0, str(ROOT / 'code'))
 import context_check as cc  # noqa: E402
 
 OUT = ROOT / 'context' / 'overview.html'
+TOKENS = ROOT / 'website' / 'app' / 'tokens.css'
 STARTER = 'not answered yet'
 EMPTY = ('nothing recorded yet', 'not filled in yet', STARTER)
 CLIP = 260       # characters of a long answer before it is cut at a word
-JOBS = 4         # background entries shown, the rest become "and N more"
+JOBS = 5         # experience entries shown, the rest become "and N more"
+RESULTS = 6      # results shown on the sheet
+CREDENTIALS = 6  # credentials shown beside them
+# How /about-me writes the source of something the member said themselves. It needs no label.
+OWN_WORDS = ('your answer', 'your own', 'you said', 'you told')
+INTERNAL = ('Applications per day', 'Smallest project', 'What you do NOT', 'Hourly rate',
+            'Maximum proposals', 'Lowest share', 'Industries', 'Proof to build')
 
-# The Automatable look: a dark hero with one clay glow, ivory page, white cards,
-# a serif for headings and a small mono for labels.
+# A resume on the house tokens: a parchment page, one ivory sheet, a serif for the
+# name and headings, a small mono for section labels, terracotta for the rules.
 CSS = """
-  :root { color-scheme: light; --ivory: #faf9f5; --ink: #141413; --clay: #c96442; --clay-deep: #a94f31;
-          --clay-soft: #f6e4dc; --sand: #e8e6dc; --stone: #d1cfc5; --muted: #5e5d59; --soft: #87867f;
-          --green: #2f5d2c; --green-soft: #e3efe2; --on-ink: #faf9f5; --on-ink-2: #b8b3a6;
-          --display: "Tiempos Text", Georgia, "Iowan Old Style", "Times New Roman", ui-serif, serif;
-          --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
-          --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace; }
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { margin: 0; background: var(--ivory); color: var(--muted); font: 15.5px/1.55 var(--sans);
+  body { margin: 0; background: var(--canvas); color: var(--ink); font: 15px/1.55 var(--sans);
          -webkit-font-smoothing: antialiased; }
-  .hero { background-color: var(--ink); color: var(--on-ink);
-          background-image: radial-gradient(60% 130% at 94% -10%, rgba(201,100,66,.6), transparent 62%),
-                            radial-gradient(40% 90% at 72% 125%, rgba(201,100,66,.28), transparent 70%); }
-  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 32px; }
-  .hero .wrap { padding-top: 52px; padding-bottom: 96px; }
-  .eyebrow, h2, dt, .stat span { font-family: var(--mono); font-size: 11px; letter-spacing: 2px;
-                                 text-transform: uppercase; color: var(--soft); font-weight: 400; }
-  .eyebrow { color: #e08a5c; margin: 0 0 16px; }
-  h1 { font: 500 clamp(32px, 5.2vw, 56px)/1.05 var(--display); letter-spacing: -1.2px; color: var(--on-ink);
-       margin: 0 0 14px; max-width: 18em; }
-  .lede { font-size: 18px; margin: 0; max-width: 38em; color: var(--on-ink-2); }
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: -56px 0 0;
-           position: relative; }
-  .stat { background: #fff; border: 1px solid var(--stone); border-radius: 14px; padding: 14px 16px;
-          box-shadow: 0 8px 24px rgba(20,20,19,.08); }
-  .stat span { display: block; margin-bottom: 6px; }
-  .stat strong { display: block; font: 500 24px/1.15 var(--display); letter-spacing: -.5px; color: var(--ink); }
-  .stat strong.open { font-size: 17px; color: var(--soft); font-weight: 400; }
-  .cols { display: grid; grid-template-columns: 1.7fr 1fr; gap: 0 44px; margin-top: 14px; }
-  section { padding: 22px 0 4px; }
-  h2 { margin: 0 0 14px; display: flex; align-items: center; gap: 10px; }
-  h2::before { content: ""; width: 18px; height: 2px; background: var(--clay); }
-  .timeline { border-left: 2px solid var(--sand); margin-left: 4px; padding-left: 22px; }
-  .timeline .entry { position: relative; }
-  .timeline .entry::before { content: ""; position: absolute; left: -29px; top: 7px; width: 10px; height: 10px;
-                             border-radius: 50%; background: var(--clay); box-shadow: 0 0 0 4px var(--ivory); }
-  .entry { margin: 0 0 16px; }
-  .entry strong { display: block; font: 500 18px/1.3 var(--display); color: var(--ink); margin-bottom: 2px; }
-  .entry p { margin: 0; }
-  .entry small { display: block; color: var(--soft); font-size: 13px; margin-top: 3px; }
-  .card { background: #fff; border: 1px solid var(--stone); border-left: 4px solid var(--stone); border-radius: 12px;
-          padding: 14px 16px; margin: 0 0 12px; }
-  .card.v { border-left-color: var(--green); } .card.p { border-left-color: var(--clay); }
-  .card .entry { margin: 0; }
-  .tag { display: inline-block; font: 400 10px/1 var(--mono); text-transform: uppercase; letter-spacing: 1.5px;
-         padding: 4px 8px; border-radius: 6px; margin-right: 8px; vertical-align: 2px; }
-  .tag.v { background: var(--green-soft); color: var(--green); } .tag.p { background: var(--clay-soft); color: var(--clay-deep); }
-  dl { margin: 0; display: grid; gap: 12px; }
-  dd { margin: 2px 0 0; font: 400 17px/1.25 var(--display); color: var(--ink); }
-  .rows p { margin: 0 0 10px; } .rows b { color: var(--ink); font-weight: 600; }
-  .muted { color: var(--soft); font-size: 14px; margin: 0; }
-  ul { margin: 0; padding-left: 18px; } li { margin-bottom: 3px; }
-  .open { background: var(--clay-soft); border-radius: 14px; padding: 16px 18px; margin: 22px 0 0; }
-  .open h2 { color: var(--clay-deep); margin-bottom: 8px; }
-  .next { margin: 26px 0 0; padding: 18px 0 40px; border-top: 1px solid var(--stone); font-size: 14px; }
-  .next code { font-family: var(--mono); background: var(--sand); padding: 1px 6px; border-radius: 5px; color: var(--ink); }
-  @media (max-width: 800px) { .cols { grid-template-columns: 1fr; } .wrap { padding: 0 20px; }
-                              .hero .wrap { padding-top: 36px; } }
-  @media print { @page { size: A4; margin: 8mm; } body { font-size: 10px; line-height: 1.45; }
-                 .hero .wrap { padding-top: 18px; padding-bottom: 46px; } .wrap { padding: 0 14px; }
-                 h1 { font-size: 26px; margin-bottom: 6px; } .lede { font-size: 12px; }
-                 .stats { margin-top: -30px; gap: 8px; } .stat { padding: 8px 10px; box-shadow: none; }
-                 .stat strong { font-size: 16px; } .cols { gap: 0 22px; margin-top: 4px; } dd { font-size: 14px; }
-                 .entry strong { font-size: 13px; } .entry { margin-bottom: 8px; } .card { padding: 8px 10px; margin-bottom: 7px; }
-                 section { padding: 10px 0 0; break-inside: avoid; } .open { margin-top: 10px; padding: 10px 12px; }
-                 .next { margin-top: 12px; padding: 8px 0 0; } }
+  .sheet, .note, .foot { max-width: 920px; margin: 0 auto; }
+  .sheet { margin-top: 40px; background: var(--ivory); border: 1px solid var(--hairline-soft);
+           border-radius: var(--radius-floating); box-shadow: var(--shadow-whisper); padding: 52px 56px 40px; }
+  .kicker, h2, .meta, .when, .tag { font-family: var(--mono); text-transform: uppercase; font-weight: 400; }
+  .kicker { font-size: 11px; letter-spacing: 2px; color: var(--terracotta-text); margin: 0 0 12px; }
+  h1 { font: 500 clamp(34px, 5vw, 48px)/1.05 var(--display); letter-spacing: -1.2px; margin: 0 0 10px; }
+  .headline { font-size: 18px; line-height: 1.4; color: var(--body); margin: 0; max-width: 36em; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 18px 0 0; padding: 14px 0 0;
+          border-top: 1px solid var(--hairline-soft); font-size: 11px; letter-spacing: 1.2px; color: var(--label); }
+  .meta b { color: var(--ink); font-weight: 500; }
+  .summary { font: 400 19px/1.45 var(--display); margin: 26px 0 0; padding-left: 18px;
+             border-left: 2px solid var(--terracotta); }
+  .cols { display: grid; grid-template-columns: 1.75fr 1fr; gap: 0 48px; margin-top: 8px; }
+  section { padding: 26px 0 0; }
+  h2 { margin: 0 0 14px; font-size: 11px; letter-spacing: 2px; color: var(--label);
+       display: flex; align-items: center; gap: 10px; }
+  h2::before { content: ""; width: 18px; height: 2px; background: var(--terracotta); }
+  .job { margin: 0 0 18px; }
+  .job-top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+  .job strong, .item strong { font: 500 17.5px/1.3 var(--display); }
+  .when { font-size: 10.5px; letter-spacing: 1px; color: var(--label); white-space: nowrap; }
+  .org { margin: 1px 0 4px; font-size: 14px; font-weight: 600; color: var(--body); }
+  p { margin: 0; }
+  .job p, .item p, .side p, li { font-size: 14.5px; color: var(--body); }
+  .item { position: relative; margin: 0 0 14px; padding-left: 18px; }
+  .item::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 6px;
+                  border-radius: 50%; background: var(--terracotta); }
+  .item strong { display: block; font-size: 16px; margin-bottom: 2px; }
+  .side .item { padding-left: 0; } .side .item::before { display: none; }
+  .side .item strong { font: 600 14.5px/1.35 var(--sans); }
+  small { display: block; margin-top: 3px; font-size: 12.5px; color: var(--label); }
+  .tag { display: inline-block; font-size: 9.5px; letter-spacing: 1.2px; padding: 3px 7px; border-radius: 6px;
+         margin-right: 8px; vertical-align: 2px; background: var(--warn-bg); color: var(--warn);
+         border: 1px solid var(--warn-ring); }
+  ul { margin: 0; padding-left: 18px; } li { margin-bottom: 4px; }
+  ul.plain { list-style: none; padding: 0; } ul.plain li { margin-bottom: 9px; }
+  ul.plain b { display: block; color: var(--ink); font-weight: 600; }
+  blockquote { margin: 0 0 12px; font: 400 16px/1.45 var(--display); }
+  blockquote small { font: 400 12.5px/1.4 var(--sans); }
+  .muted { color: var(--label); font-size: 14px; }
+  .note { margin-top: 18px; background: var(--terracotta-soft); border-radius: var(--radius-panel); padding: 18px 22px; }
+  .note h2 { color: var(--terracotta-text); margin-bottom: 8px; }
+  .note li { color: var(--ink); }
+  .foot { padding: 18px 4px 48px; font-size: 13.5px; color: var(--label); }
+  .foot code { font-family: var(--mono); background: var(--sand); padding: 1px 6px; border-radius: 5px; color: var(--ink); }
+  @media (max-width: 800px) { .cols { grid-template-columns: 1fr; } .sheet { margin: 0; border-radius: 0; padding: 32px 22px; }
+                              .note { margin: 14px 14px 0; } .foot { padding: 16px 18px 40px; }
+                              .job-top { flex-direction: column; gap: 2px; } }
+  @media print { @page { size: A4; margin: 11mm; } body { background: none; font-size: 9.6px; line-height: 1.42; }
+                 .sheet { margin: 0; max-width: none; border: 0; border-radius: 0; box-shadow: none; padding: 0; background: none; }
+                 .note, .foot { display: none; } h1 { font-size: 27px; margin-bottom: 5px; } .headline { font-size: 12px; }
+                 .meta { margin-top: 9px; padding-top: 7px; font-size: 7.5px; } .summary { font-size: 12px; margin-top: 12px; }
+                 .cols { gap: 0 24px; margin-top: 0; } section { padding-top: 13px; break-inside: avoid; }
+                 h2 { font-size: 7.5px; margin-bottom: 7px; } .job { margin-bottom: 9px; } .item { margin-bottom: 7px; }
+                 .job strong { font-size: 12px; } .item strong { font-size: 11px; } .side .item strong { font-size: 9.6px; }
+                 .job p, .item p, .side p, li, .org { font-size: 9.4px; } small { font-size: 8px; }
+                 blockquote { font-size: 10.5px; } .when { font-size: 7px; } .tag { font-size: 6.5px; padding: 2px 4px; } }
 """
 
 
@@ -158,107 +165,155 @@ def blank(text):
 
 
 def entries(body):
-    """Each `###` block as {title, text, place, verified}. Empty starter blocks are dropped."""
+    """Each `###` block as {title, text, source, pending}. Empty starter blocks are dropped.
+
+    `pending` is true only for something pulled from elsewhere and not confirmed yet:
+    an entry the member stated themselves is never marked, whatever an older file says.
+    """
     found, title, lines = [], None, []
     for line in body + ['### ']:
         if line.startswith('### '):
             if title:
-                text = [x.strip() for x in lines if x.strip() and not x.strip().startswith('- ')]
+                text = [x.strip() for x in lines if x.strip()
+                        and not x.strip().startswith(('- ', 'Transfers:')) and not re.match(r'^\*\*.+?:\*\*', x.strip())]
                 bullets = {m.group(1).lower(): m.group(2).strip() for x in lines
                            for m in [re.match(r'^-\s*([^:]+):\s*(.*)$', x.strip())] if m}
-                place = next((v for k, v in bullets.items() if k.startswith('where')), '')
-                status = bullets.get('status', '').lower()
                 joined = ' '.join(text)
+                source = bullets.get('source', '')
                 if joined and not blank(joined):
-                    found.append({'title': title, 'text': joined, 'place': place,
-                                  'verified': 'verified' in status and 'pending' not in status})
+                    found.append({'title': title, 'text': joined, 'source': source,
+                                  'pending': ('pending' in bullets.get('status', '').lower()
+                                              and not source.lower().startswith(OWN_WORDS))})
             title, lines = line[4:].strip(), []
         elif title is not None:
             lines.append(line)
     return found
 
 
-def entry_html(item, tag=False):
-    badge = ''
-    if tag:
-        badge = '<span class="tag v">verified</span>' if item['verified'] else '<span class="tag p">pending</span>'
-    place = f'<small>Checked at: {esc(item["place"])}</small>' if item['place'] else ''
-    return f'<div class="entry"><strong>{badge}{esc(item["title"])}</strong><p>{esc(clip(item["text"]))}</p>{place}</div>'
+def role_of(title):
+    """'Role, Employer (March 2022 to now)' as (role, employer, when); missing parts come back empty."""
+    match = re.match(r'^(.*?)\s*\(([^()]*\d{4}[^()]*)\)\s*$', title)
+    name, when = (match.group(1), match.group(2)) if match else (title, '')
+    role, _, employer = name.rpartition(', ')
+    return (role, employer, when) if role else (name, '', when)
 
 
-def card_html(item):
-    return f'<div class="card {"v" if item["verified"] else "p"}">{entry_html(item, tag=True)}</div>'
+def tag_html(item):
+    """The one label on the sheet: something pulled from elsewhere that nobody has confirmed yet."""
+    return '<span class="tag">to confirm</span>' if item['pending'] else ''
+
+
+def trail_html(item):
+    """Where an unconfirmed entry came from. A confirmed one needs no footnote on a resume."""
+    if not (item['pending'] and item['source']):
+        return ''
+    return f'<small>Pulled from {esc(clip(item["source"], 120))}</small>'
+
+
+def job_html(item):
+    role, employer, when = role_of(item['title'])
+    org = f'<p class="org">{esc(employer)}</p>' if employer else ''
+    stamp = f'<span class="when">{esc(when)}</span>' if when else ''
+    return (f'<div class="job"><div class="job-top"><strong>{esc(role)}</strong>{stamp}</div>'
+            f'{org}<p>{esc(clip(item["text"], 340))}</p></div>')
+
+
+def item_html(item, limit=CLIP):
+    return (f'<div class="item"><strong>{tag_html(item)}{esc(item["title"])}</strong>'
+            f'<p>{esc(clip(item["text"], limit))}</p>{trail_html(item)}</div>')
 
 
 def block(title, inner):
-    return f'<section><h2>{esc(title)}</h2>{inner}</section>'
+    return f'<section><h2>{esc(title)}</h2>{inner}</section>' if inner else ''
+
+
+def more(count, shown):
+    return f'<p class="muted">and {count - shown} more in your file</p>' if count > shown else ''
+
+
+def header_html(found):
+    """Name, headline and the line of facts a client reads first."""
+    name, _, place = (pick(found, 'Name and location') or '').partition(',')
+    headline = pick(found, 'The one thing') or pick(found, 'Profession')
+    facts = (('Based in', place.strip()), ('Rate', pick(found, 'Hourly rate')),
+             ('Job Success', pick(found, 'Job Success')), ('Hours', pick(found, 'Timezone')))
+    meta = ''.join(f'<span>{esc(label)} <b>{esc(clip(short(value), 70))}</b></span>' for label, value in facts
+                   if value and not value.lower().startswith(('no ', 'none')))
+    strength = (pick(found, 'What you are good at') or '').strip('"“” ')
+    return ('<p class="kicker">Upwork resume</p>'
+            f'<h1>{esc(name.strip() or "Your Upwork resume")}</h1>'
+            + (f'<p class="headline">{esc(clip(headline))}</p>' if headline else
+               '<p class="headline">What every command reads before it writes for you.</p>')
+            + (f'<div class="meta">{meta}</div>' if meta else '')
+            + (f'<p class="summary">{esc(clip(strength, 320))}</p>' if strength else ''))
+
+
+def services_html(me, found):
+    """The branches with their services when the file lists them, else the one-line answer."""
+    rows = [m.groups() for line in me.get('What you do', [])
+            for m in [re.match(r'^-\s*([^:]+):\s*(.+)$', line.strip())] if m]
+    if rows:
+        return '<ul class="plain">' + ''.join(
+            f'<li><b>{esc(name)}</b>{esc(clip(items))}</li>' for name, items in rows) + '</ul>'
+    sells = pick(found, 'Services you sell')
+    return f'<p>{esc(clip(sells))}</p>' if sells else ''
+
+
+def open_html(found, unconfirmed):
+    """What the sheet is still missing: unanswered lines, then anything waiting for a yes."""
+    gaps = [short(label) for label, value in found.items() if value is None and not label.startswith(INTERNAL)]
+    lines = [f'<li>{esc(gap)}</li>' for gap in gaps[:8]]
+    if len(gaps) > 8:
+        lines.append(f'<li>and {len(gaps) - 8} more</li>')
+    if unconfirmed:
+        lines.append(f'<li>{unconfirmed} {"entry" if unconfirmed == 1 else "entries"} pulled from your files, '
+                     'marked "to confirm" until you say they are right</li>')
+    return f'<div class="note"><h2>Not on your resume yet</h2><ul>{"".join(lines)}</ul></div>' if lines else ''
 
 
 def build(me_text, proof_text):
     me = dict(sections(me_text))
     found = answers(me)
-
-    who = pick(found, 'Profession')
-    one = pick(found, 'The one thing')
-    sells = pick(found, 'Services you sell')
-    avoid = pick(found, 'What you do NOT')
-    industries = pick(found, 'Industries')
-
-    jobs = entries(me.get('Your background', []))
-    background = ''.join(entry_html(j) for j in jobs[:JOBS])
-    if len(jobs) > JOBS:
-        background += f'<p class="muted">and {len(jobs) - JOBS} more</p>'
-    if jobs:
-        background = f'<div class="timeline">{background}</div>'
-    else:
-        plain = clip(' '.join(x.strip() for x in me.get('Your background', []) if x.strip() and not blank(x)))
-        background = f'<p>{esc(plain)}</p>' if plain else '<p class="muted">Still open.</p>'
-
-    rows = ''.join(f'<p><b>{label}</b> {esc(clip(value))}</p>' for label, value in (
-        ('Sells', sells), ('Does not do', avoid), ('Works with', industries)) if value)
-    do_html = f'<div class="rows">{rows}</div>' if rows else '<p class="muted">Still open.</p>'
-
     proof = dict(sections(proof_text))
-    results = entries(proof.get('Results', []))
-    results_html = ''.join(card_html(r) for r in results) or \
+    jobs = entries(me.get('Your background', []))
+    results, creds, reviews = (entries(proof.get(name, [])) for name in ('Results', 'Credentials', 'Reviews'))
+
+    experience = ''.join(job_html(j) for j in jobs[:JOBS]) + more(len(jobs), JOBS) or \
+        '<p class="muted">Still open. /about-me fills this from your CV and your answers.</p>'
+    selected = ''.join(item_html(r) for r in results[:RESULTS]) + more(len(results), RESULTS) or \
         '<p class="muted">Nothing yet. The first delivered job fills this.</p>'
-
-    strip = [(label, pick(found, key)) for label, key in (
-        ('Hourly rate', 'Hourly rate'), ('Timezone', 'Timezone'), ('Job Success', 'Job Success'),
-        ('Intro video', 'Intro video'))]
-    stats = ''.join(f'<div class="stat"><span>{esc(label)}</span><strong>{esc(clip(value, 40))}</strong></div>'
-                    if value else f'<div class="stat"><span>{esc(label)}</span><strong class="open">open</strong></div>'
-                    for label, value in strip)
-
-    creds = entries(proof.get('Credentials', []))
-    creds_html = ''.join(entry_html(c, tag=True) for c in creds) or '<p class="muted">None recorded yet.</p>'
-    reviews = entries(proof.get('Reviews', []))
-    reviews_html = ''.join(entry_html(r) for r in reviews) or '<p class="muted">None recorded yet.</p>'
-
-    gaps = [short(label) for label, value in found.items()
-            if value is None and not label.startswith(('Applications per day', 'Smallest project', 'What you do NOT', 'Hourly rate'))]
-    open_html = ''
-    if gaps:
-        shown = ''.join(f'<li>{esc(g)}</li>' for g in gaps[:6])
-        more = f'<li class="muted">and {len(gaps) - 6} more</li>' if len(gaps) > 6 else ''
-        open_html = f'<div class="open"><h2>Still open</h2><ul>{shown}{more}</ul></div>'
+    tools = pick(found, 'Tools and systems')
+    schooling = pick(found, 'Education')
+    quotes = ''.join(f'<blockquote>{esc(clip(r["text"], 220))}<small>{esc(r["title"])}</small></blockquote>'
+                     for r in reviews)
+    unconfirmed = sum(1 for item in results + creds + reviews if item['pending'])
+    title = (pick(found, 'Name and location') or 'Your Upwork resume').partition(',')[0]
 
     return ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-            '<title>Your Upwork context</title>\n<style>' + CSS + '</style>\n</head>\n<body>\n'
-            '<div class="hero"><div class="wrap">\n'
-            f'<p class="eyebrow">Your Upwork profile</p><h1>{esc(one) if one else "Your Upwork context"}</h1>'
-            f'<p class="lede">{esc(clip(who)) if who else "What every command reads before it writes for you."}</p>\n'
-            '</div></div>\n<div class="wrap">\n'
-            f'<div class="stats">{stats}</div>\n'
+            f'<title>{esc(title)} · Upwork resume</title>\n<style>' + tokens() + CSS + '</style>\n</head>\n<body>\n'
+            '<main class="sheet">\n<header>' + header_html(found) + '</header>\n'
             '<div class="cols">\n<div>\n'
-            + block('Background', background) + block('What you do', do_html) + block('Results', results_html) +
-            '\n</div>\n<div>\n'
-            + block('Credentials', creds_html) + block('Reviews', reviews_html) + open_html +
-            '\n</div>\n</div>\n'
-            '<p class="next">Next: <code>/profile</code> writes the profile from this page. '
-            'None of what is open blocks it. Built from context/me.md on this machine.</p>\n'
-            '</div>\n</body>\n</html>\n')
+            + block('Experience', experience) + block('Selected results', selected) +
+            '\n</div>\n<div class="side">\n'
+            + block('Services', services_html(me, found))
+            + block('Tools', f'<p>{esc(clip(tools, 320))}</p>' if tools else '')
+            + block('Credentials', ''.join(item_html(c, 150) for c in creds[:CREDENTIALS]) + more(len(creds), CREDENTIALS))
+            + block('Education and languages', f'<p>{esc(clip(schooling, 320))}</p>' if schooling else '')
+            + block('Recommendations', quotes) +
+            '\n</div>\n</div>\n</main>\n'
+            + open_html(found, unconfirmed) +
+            '\n<p class="foot">Next: <code>/profile</code> writes your Upwork profile from this. '
+            'Built from context/me.md on this machine; rebuild it with '
+            '<code>python3 code/context_page.py --open</code>.</p>\n'
+            '</body>\n</html>\n')
+
+
+def tokens():
+    """The shared tokens, inlined so the page opens from disk with no other file."""
+    if not TOKENS.is_file():
+        raise SystemExit(f'{TOKENS.relative_to(ROOT)} is missing: the page takes its look from it.')
+    return TOKENS.read_text(encoding='utf-8')
 
 
 def main(argv=None):

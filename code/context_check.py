@@ -7,7 +7,12 @@
 /about-me fills context/me.md. Everything after it, from the profile to a
 proposal, quotes that file, so a starter line left in place turns
 into "not answered yet" inside something a client reads. This counts what is
-still open and refuses a proof entry that cannot be checked.
+still open.
+
+What the member said themselves needs no status: it is theirs. A proof entry is
+marked `pending` only while it is something pulled from elsewhere (a file, an
+email, the web) that they have not confirmed, and `verified` only when it also
+names where it can be checked.
 """
 import argparse
 import pathlib
@@ -29,10 +34,35 @@ REQUIRED = (
     'The one thing you want to be hired for',
     'Services you sell',
     'Tools and systems you can name confidently',
-    'Industries you want to work with',
     'Timezone and hours you answer messages',
 )
-STATUS = re.compile(r'\b(verified|pending)\b', re.I)
+# The proof interview /about-me puts to every member: one line per question under
+# "## Proof interview". "none" is an answer. A missing line is not, so a file
+# written before the interview existed reads as open until it has run, and
+# /profile does not write from a file whose interview is unfinished.
+INTERVIEW = (
+    'Press and stage',
+    'Recognizable brands',
+    'Biggest companies',
+    'Own business',
+    'Biggest responsibility',
+    'Video testimonials',
+    'Written recommendations',
+    'Case studies',
+    'Upwork status',
+    'Top project results',
+    'Projects completed',
+    'Hours saved',
+    'Money earned',
+    'People helped',
+    'Years of experience',
+    'Certifications',
+    'Awards and promotions',
+    'Online following',
+    'Outcomes you deliver',
+    'Daily tools and languages',
+)
+INTERVIEW_FINDING = 'proof interview'
 CHECKABLE = re.compile(r'(where to check|where it can be checked|checked at|source:|https?://|upwork\.com)', re.I)
 
 
@@ -72,7 +102,15 @@ def check_me(text):
     body = re.sub(r'^\*\*[^:\n]+:\*\*[^\n]*', '', background.group(1), flags=re.M).strip() if background else ''
     if not body or re.search(r'not filled in yet|not answered yet', body, re.I):
         findings.append('me.md: Your background is still unanswered')
+    findings.extend(f'me.md: {INTERVIEW_FINDING}, {label} is still unanswered'
+                    for label in interview_open(text))
     return findings
+
+
+def interview_open(text):
+    """The interview questions with no answer on file, in the order they are asked."""
+    values = ((label, field(text, label)) for label in INTERVIEW)
+    return [label for label, value in values if not value or STARTER in value.lower()]
 
 
 def entries(text):
@@ -107,9 +145,7 @@ def check_proof(text):
     body = [(section, line) for section, line in entries(proof_only(text))
             if EMPTY_SECTION not in line.lower() and not line.startswith('One block per')]
     for section, line in body:
-        if not STATUS.search(line):
-            findings.append(f'me.md, {section}: no verified or pending status: "{line[:50]}"')
-        elif re.search(r'\bverified\b', line, re.I) and not CHECKABLE.search(line):
+        if re.search(r'\bverified\b', line, re.I) and not CHECKABLE.search(line):
             findings.append(f'me.md, {section}: verified with no place to check it: "{line[:50]}"')
     return findings
 
@@ -127,10 +163,9 @@ def proof_entries(text):
 
 
 def verified_proof(text):
-    """Only entries explicitly verified, never a pending or instruction block."""
+    """Entries the member stated or confirmed: everything not still waiting for their yes."""
     return '\n\n'.join(block for block in proof_entries(text)
-                       if re.search(r'\bverified\b', block, re.I)
-                       and not re.search(r'\bpending\b', block, re.I))
+                       if not re.search(r'\bpending\b', block, re.I))
 
 
 def usable_proof(text):
@@ -175,8 +210,9 @@ def main(argv=None):
     text = args.me.read_text(encoding='utf-8')
     if args.status:
         state, filled, proofs, open_points = status(text)
+        asked = len(INTERVIEW) - len(interview_open(text))
         print(f'{state}: {filled} of {len(REQUIRED)} answers, {proofs} proof entries, '
-              f'{open_points} open')
+              f'{open_points} open, proof interview {asked} of {len(INTERVIEW)} answered')
         return 0
     findings = check_me(text) + check_proof(proof_only(text))
     if findings:

@@ -78,25 +78,22 @@ export function nextStep(job, today = todayIso()) {
     case 'replied':
     case 'call':
     case 'offer': {
-      // The audit costs money, so it is offered once. A saved website is not asked
-      // for again, and a published audit is not rebuilt.
-      const audit = job.lead_magnet_url ? [] : [job.lead_magnet_source ? `/lead-magnet ${id}` : `/lead-magnet ${id} <website>`];
       const proposal = `/sales-call-proposal ${id} <transcript path or notes>`;
-      const extras = [...(job.status === 'replied' || (job.status === 'offer' && !has(job, 'proposal.md')) ? [proposal] : []), ...audit];
+      const extras = job.status === 'replied' || (job.status === 'offer' && !has(job, 'proposal.md')) ? [proposal] : [];
       if (job.client_waiting) return step('Reply', 'The client is waiting. Draft a reply; approve one message or send it on Upwork.', `/brief ${id}`, extras);
       if (job.next_follow_up && job.next_follow_up <= today) return step('Follow up', 'A follow-up is due. Draft a nudge; approve one message or send it on Upwork.', `/brief ${id}`, extras);
       if (job.next_follow_up && job.next_follow_up > today) return step('Waiting', `Follow up ${whenText(dueIn(job.next_follow_up, today))}.`, null, extras);
       if (job.status === 'call') {
         // Booked for later: the chase stops until the call has happened.
         if (job.call_at && job.call_at > today) {
-          return step('Call booked', `The call is on ${job.call_at}. Nothing to chase until then.`, null, audit);
+          return step('Call booked', `The call is on ${job.call_at}. Nothing to chase until then.`);
         }
         // The call is behind us, and the one-pager is the work the stage carries.
         if (!has(job, 'proposal.md')) {
-          return step('Write the proposal', 'Turns the call into the one-pager the client decides on.', proposal, audit);
+          return step('Write the proposal', 'Turns the call into the one-pager the client decides on.', proposal);
         }
         // Sent, and now it is chased like anything else the client owes an answer to.
-        return chase(job, today, `/brief ${id}`, audit);
+        return chase(job, today, `/brief ${id}`);
       }
       if (job.status === 'offer') {
         return step('Review offer', 'Review the offer on Upwork. /brief moves it to Won once the contract starts.', null, extras);

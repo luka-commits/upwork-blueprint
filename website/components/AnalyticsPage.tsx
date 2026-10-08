@@ -3,8 +3,8 @@
 import { useCockpit } from '@/lib/context';
 import { MIN_RATE, funnelShapes, funnelSteps } from '@/lib/funnel.mjs';
 
-// One hue from light to dark, checked with the dataviz ordinal validator against the white card.
-const RAMP = ['#86b6ef', '#4f94e4', '#4f94e4', '#1a6ad0', '#0c3f86'];
+// One hue from light to dark: the house terracotta, on the ivory card.
+const RAMP = ['#e5a48c', '#d97757', '#d97757', '#b05538', '#7a3620'];
 const WIDTH = 560, HEIGHT = 84, GAP = 2, LABEL_X = 610;
 
 const BAR_W = 46, BAR_GAP = 10, CHART_H = 132, BAR_TOP = 30;
@@ -37,7 +37,7 @@ function Outreach({ weeks }: { weeks: { week: string; count: number }[] }) {
           return <g key={week.week}>
             <title>{`Week of ${label(week.week)}: ${week.count} application${week.count === 1 ? '' : 's'}`}</title>
             <rect x={x} y={BAR_TOP + CHART_H - height} width={BAR_W} height={Math.max(height, 2)} rx={4}
-                  fill={last ? '#86b6ef' : '#1a6ad0'} />
+                  fill={last ? '#e5a48c' : '#b05538'} />
             {week.count ? <text x={x + BAR_W / 2} y={BAR_TOP + CHART_H - height - 14} className="outreach-count"
                                 textAnchor="middle">{week.count}</text> : null}
             <text x={x + BAR_W / 2} y={BAR_TOP + CHART_H + 22} className="funnel-rate" textAnchor="middle">{label(week.week)}</text>

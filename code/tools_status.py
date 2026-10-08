@@ -37,16 +37,10 @@ def has_key(env, *names):
 
 
 def python_packages():
-    """Both packages and the browser, because either one alone stops the run."""
+    """Pillow, the one package the image steps import."""
     try:
         import PIL  # noqa: F401
-        from playwright.sync_api import sync_playwright
     except ImportError:
-        return False
-    try:
-        with sync_playwright() as p:
-            p.chromium.launch().close()
-    except Exception:
         return False
     return True
 
@@ -74,13 +68,12 @@ def rows(env):
          'reads your profile and the job market',
          '/profile, /find-jobs, /brief', 'nothing replaces it, and only you can connect it'),
         ('Node.js', shutil.which('node') is not None, 'optional',
-         'runs the dashboard',
+         'runs the cockpit',
          '/dashboard', 'install from nodejs.org, or work from the chat'),
         ('Python packages', python_packages(), 'optional',
-         'opens a client page the way their customer sees it',
-         '/proposal',
-         "pip install -r requirements.txt, then playwright install chromium. The page "
-         "check cannot run without them"),
+         'sizes your photo and the proposal sketch so each page stays one file',
+         '/proposal, /sales-call-proposal',
+         'pip install -r requirements.txt. Without it the pages are built without those images'),
         ('Google Chrome', chrome(env), 'optional',
          'screenshots a page before you send it',
          '/proposal, /sales-call-proposal', 'without it you check the page by eye'),

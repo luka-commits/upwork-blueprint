@@ -72,7 +72,6 @@ export default function Drawer() {
         <TheJob job={job} />
         <WorthIt job={job} />
         <Pitch job={job} />
-        <Audit job={job} />
         {(job.artifacts || []).includes('application.md') ? <Application job={job} /> : null}
         {(job.artifacts || []).includes('proposal.md') ? <Proposal job={job} /> : null}
         <Drafts job={job} />
@@ -131,18 +130,6 @@ function Pitch({ job }: { job: any }) {
     {job.pitch_url
       ? <p><a href={job.pitch_url} target="_blank" rel="noopener">{job.pitch_url}</a> <CopyButton text={job.pitch_url} label="Copy link" /></p>
       : <p><a href={artifactUrl(job.id, 'pitch.html')} target="_blank" rel="noopener">Open the local pitch page</a></p>}
-  </section>;
-}
-
-/** The checked audit, once /lead-magnet has built it. Published or still local. */
-function Audit({ job }: { job: any }) {
-  const local = (job.artifacts || []).includes('lead-magnet.html');
-  if (!job.lead_magnet_url && !local) return null;
-  return <section className="drawer-section">
-    <h4>Audit</h4>
-    {job.lead_magnet_url
-      ? <p><a href={job.lead_magnet_url} target="_blank" rel="noopener">{job.lead_magnet_url}</a> <CopyButton text={job.lead_magnet_url} label="Copy link" /></p>
-      : <p><a href={artifactUrl(job.id, 'lead-magnet.html')} target="_blank" rel="noopener">Open the local audit</a></p>}
   </section>;
 }
 

@@ -1,7 +1,7 @@
 # The profile: what to measure, and what to write
 
 Everything `/profile` needs: the checks that score a live profile, then the rules that write the new
-one. Directives only; the evidence, and everything that is knowledge rather than a lever, sits in
+one, including how proof is ranked. Directives only; the evidence, and everything that is knowledge rather than a lever, sits in
 `RESEARCH.md`. Article numbers cite `support.upwork.com/hc/en-us/articles/`, read 26 September 2026.
 Adjacent: [upwork.md](upwork.md), [jobs.md](jobs.md), [copy.md](copy.md).
 
@@ -93,6 +93,29 @@ account's live interface for what that account can actually do. Community advice
 and another member's outcome are ideas to test, never rules. A market report
 describes its own sample and period and nothing more.
 
+## Rank the proof
+
+**Front-load the strongest proof the member holds.** The hook and the first bullet come from the
+highest tier with an entry, then down the list. This is the house ranking, reasoned rather than
+measured here, and it is internal: never show a member a tier or its letter.
+
+- **S, the closers:** video testimonials · detailed case studies with hard proof · Top Rated · a
+  100% Job Success Score · $100,000 or more earned on Upwork
+- **A, strong support:** Top 1% for a skill · featured in major press · 100 or more reviews · 100
+  or more projects · spoken at events
+- **B, outcome numbers:** hours saved · client revenue earned · named big-brand work · work for an
+  8-figure company, or a named large employer with its public size · a business of their own with
+  its numbers · a budget or team they were responsible for · people helped
+- **C, nice to have:** certifications · years of experience · awards and promotions · written
+  recommendations · an online following · niche-specific systems built
+
+`/about-me` asks for every one of these in its proof interview, so a missing tier means the member
+answered none, not that nobody asked. A first profile with nothing above B or C is normal: lead with
+the strongest entry there is, then the offer. **A tier never excuses a claim:** every line still
+needs its entry in the evidence sections, a company's size is said about the company and never as
+the member's result, and a badge, score or earnings figure is written only as the aggregate in
+`data/profile.json` states it.
+
 ## Title
 
 Two or three blocks divided by `|`, 55 to 70 characters, never padded to fill. **A description of
@@ -118,9 +141,10 @@ the two top earners of 16 write long prose and lists sat with lower earnings (me
 imperative back to "you"; only 2 of 16 profiles do it. **Answer one objection**, usually "it will not break" or "you will own it".
 **Close with one imperative plus permission**, such as "send me what you have, even if it is messy".
 
-**What goes into the hook and the three bullets:** the results a client cares about most, with
-numbers: leads gained, revenue earned, hours saved, a named brand, and a detailed case study when one
-exists. Not what the profile page already shows: a Top Rated badge, the Job Success Score, earnings.
+**What goes into the hook and the three bullets:** the highest tiers the member holds (Rank the
+proof), strongest first, with numbers: a video testimonial or detailed case study, leads gained,
+revenue earned, hours saved, a named brand. Upwork status the page already shows (badge, Job Success
+Score, earnings) goes in only at S tier, never below it.
 
 **Free differentiators**, because almost nobody does them: a price, a disqualification line ("this
 is not for you if"), an availability window, a date on a claim, a numeric guarantee. Name one the

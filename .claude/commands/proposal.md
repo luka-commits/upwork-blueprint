@@ -256,8 +256,9 @@ In terms of relevant experience, <one or two sentences of proof from the evidenc
 
 <One sentence on how the member works that answers this client's situation, for example: audit first, simplify, rebuild, document.>
 
+<Only if the member has a portfolio link in context/me.md:>
 Websites, funnels etc:
-❗<the member's portfolio link from context/me.md>
+❗<the portfolio link>
 
 Happy to jump on a call to <the one thing to scope for this job>. Looking forward to hearing from you!
 
@@ -266,7 +267,7 @@ All the best, <first name>
 
 Fill rules:
 - **The opening carries the card.** The first 230 characters are the role plus this client's outcome, with at least one word from the job title.
-- **Status, counts and clients** ("Top-Rated", "15+ clients", a named result) are written only if they stand in the evidence sections of `context/me.md`. If the portfolio link or a count is missing, ask once, then record it there ([CLAUDE.md](../../CLAUDE.md) hard rules).
+- **Status, counts and clients** ("Top-Rated", "15+ clients", a named result) are written only if they stand in the evidence sections of `context/me.md`. A count that is missing is left out, not asked for. **The portfolio block is optional**: most members have no link, so without one the two lines are dropped and nothing is asked.
 - **The flowchart line** appears only on branches that build the flowchart page (GoHighLevel, Automations). SEO, Ads and Website drop it: the Loom walks through the roadmap page instead, and the page link goes in the same place.
 - **No claim beyond the proof.** A requirement the evidence does not cover is not claimed; name it to the member instead.
 - Do not recap the posting, add generic praise or pad. Never add a guarantee, refund,

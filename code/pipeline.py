@@ -437,7 +437,8 @@ def cmd_record(args):
     """Store connector identity and workflow markers through the sole writer."""
     value = read_json_arg(args.file)
     allowed = {'proposal_id', 'room_id', 'contract_id', 'contract_client', 'client_slug',
-               'submission_checked_at', 'result_recorded_at', 'next_follow_up', 'follow_up_source'}
+               'submission_checked_at', 'handover_done_at', 'result_recorded_at', 'next_follow_up',
+               'follow_up_source'}
     if not isinstance(value, dict) or not value or set(value) - allowed:
         abort('metadata needs only ' + ', '.join(sorted(allowed)) + '.')
     for key, item in value.items():

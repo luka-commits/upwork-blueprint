@@ -226,7 +226,9 @@ def cmd_apply(args):
                     jobs = pipeline.load()
             if jid in known:
                 metadata = {key: str(item[key]) for key in ('proposal_id', 'room_id', 'contract_id') if item.get(key)}
-                if item.get('client_name'):
+                # The name the member confirmed in /onboarding stays; sync only fills a gap.
+                current = next(j for j in jobs if j['id'] == jid)
+                if item.get('client_name') and not current.get('contract_client'):
                     metadata['contract_client'] = str(item['client_name'])
                 if metadata:
                     record_metadata(next(j for j in jobs if j['id'] == jid), metadata)

@@ -53,7 +53,7 @@ The report names each branch with its sample recorded or still open.
 
 ## Step 1 · The job and its full posting
 
-`python3 code/context_check.py --gate proposal`: a `STOP` line ends the run and names the command to run first; a `NOTE` line goes into the report under Still needed. A job id the pipeline does not know goes back to `/find-jobs`. Then `python3 code/pipeline.py get $ARGUMENTS`. The posting is in `details.description`. No posting there (older than a day, or never opened): `find_jobs` action `get` for this one job, then `python3 code/jobs.py detail <id> <file>` as `/find-jobs` Step 6 does. Never write from the summary: the requirements and screening questions are in the full posting.
+`python3 code/context_check.py --gate proposal`: a `STOP` line ends the run and names the command to run first; a `NOTE` line goes into the report under Still needed. A job id the pipeline does not know goes back to `/find-jobs`. Then `python3 code/pipeline.py get <job id>`, once per id (`own` and `submitted` are not ids). The posting is in `details.description`. No posting there (older than a day, or never opened): `find_jobs` action `get` for this one job, then `python3 code/jobs.py detail <id> <file>` as `/find-jobs` Step 6 does. Never write from the summary: the requirements and screening questions are in the full posting.
 
 ## Step 2 · The one-pager for the Loom
 
@@ -126,7 +126,7 @@ Fill rules:
 - Do not recap the posting, add generic praise or pad. Never add a guarantee, refund,
   free work or delivery date as a sales device.
 
-**Screening questions.** Read the full description for any question the client wants answered (a numbered list, "please answer", "include", "start your reply with") and for questions in Upwork's own question fields. Name each one in the Step 8 report. When the posting wants the answers in the letter itself, insert this block after the video lines, one numbered line per question, each answered in one or two sentences, and where the video covers it, say so in plain words (a timestamp only after the Loom exists):
+**Screening questions.** Read the full description for any question the client wants answered (a numbered list, "please answer", "include", "start your reply with") and for questions in Upwork's own question fields. Name each one in the Step 4 report. When the posting wants the answers in the letter itself, insert this block after the video lines, one numbered line per question, each answered in one or two sentences, and where the video covers it, say so in plain words (a timestamp only after the Loom exists):
 
 ```
 Answers to your screening questions:

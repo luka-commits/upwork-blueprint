@@ -83,6 +83,8 @@ export function nextStep(job, today = todayIso()) {
       // A sample Loom needs no page, so the application alone is ready to submit;
       // a page beside it means the member chose a personal Loom (`/proposal <id> own`).
       if (!has(job, 'application.md')) return step('Write application', 'Writes the application with your sample Loom.', `/proposal ${id}`, skip);
+      // A letter that fails its own check is not ready to submit, whatever the folder holds.
+      if ((job.artifact_errors || {})['application.md']) return step('Fix application', 'The application fails its check. Rerun to fix it.', `/proposal ${id}`, skip);
       return has(job, 'pitch.html')
         ? step('Finish Loom', `Record the Loom and return its URL to /proposal ${id} for the ready check. Then submit on Upwork and run /proposal ${id} submitted.`, null, skip)
         : step('Submit', `Paste the application on Upwork and submit it, then run /proposal ${id} submitted.`, null, [`/proposal ${id} own`, ...skip]);
@@ -101,7 +103,7 @@ export function nextStep(job, today = todayIso()) {
       if (job.status === 'call') {
         // Booked for later: the chase stops until the call has happened, and the brief
         // for it is the one piece of work the wait carries.
-        if (job.call_at && job.call_at > today) {
+        if (job.call_at && job.call_at >= today) {
           if (!has(job, 'call-prep.md')) {
             return step('Prepare the call', `The call is on ${job.call_at}. Researches the client and writes your call brief.`, `/call-prep ${id}`);
           }
@@ -124,6 +126,7 @@ export function nextStep(job, today = todayIso()) {
       // not started. The second /onboarding pass is the one step nobody else owns: it records what
       // was delivered, and that is what makes the next proposal provable.
       if (job.client_waiting) return step('Reply', `The client is waiting. ${SEND}`, `/brief ${id}`);
+      if (has(job, 'project.md') && !job.handover_done_at) return step('Finish onboarding', 'The handover stopped before the end. Rerun to finish it.', `/onboarding ${id}`);
       if (has(job, 'project.md') && !job.result_recorded_at) return step('Record the result', 'After delivery: what came out of it, with a number and where it can be checked.', `/onboarding ${id}`);
       if (parked(job)) return step('Parked', 'The follow-up sequence has stopped. Wait for the client to return.');
       if (has(job, 'project.md')) return { ...NOTHING, extras: [] };

@@ -37,7 +37,8 @@ BANNED = ('i would love to', "i'm excited", 'i am excited', 'what stood out', 'p
           'results-driven', 'i want in', 'rockstar', 'ninja', 'i hope this finds you')
 RISK = ("you don't pay", 'you do not pay', 'risk-free', 'risk free', 'full refund', 'only pay',
         'approve each', 'milestones, not', 'milestone')
-ASK = ('send me', 'reply with', 'when works', 'let me know', 'tell me', 'here on upwork')
+ASK = ('send me', 'reply with', 'when works', 'let me know', 'tell me', 'here on upwork',
+       'jump on a call', 'hearing from you')
 MAX_WORDS = 220
 LOOM_PLACEHOLDER = '[LOOM LINK]'
 # The applicant card shows about 230 to 240 characters, so the client decides whether to
@@ -63,7 +64,7 @@ def has_video(text):
 
 
 def split_letter(text):
-    m = re.search(r'^\W*screening (answers|question)', text, re.I | re.M)
+    m = re.search(r'^\W*(?:answers to your )?screening (answers|question)', text, re.I | re.M)
     return (text[:m.start()], text[m.start():]) if m else (text, None)
 
 

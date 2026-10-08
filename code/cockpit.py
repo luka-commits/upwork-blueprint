@@ -69,7 +69,7 @@ def artifact_health(job):
     folder = JOBS_DIR / str(job.get('id') or '')
     valid, errors = [], {}
     proof_path = pathlib.Path(os.environ.get('BLUEPRINT_CONTEXT') or ROOT / 'context') / 'me.md'
-    proof = (context_check.proof_only(proof_path.read_text(encoding='utf-8'))
+    proof = (context_check.client_proof(proof_path.read_text(encoding='utf-8'))
              if proof_path.is_file() else '')
     for name in artifacts(str(job.get('id') or '')):
         path = folder / name

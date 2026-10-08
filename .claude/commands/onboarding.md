@@ -20,7 +20,8 @@ WHAT MIGHT GO WRONG: a pending offer is not a contract; final terms may differ; 
 ## Step 1 · Contract gate
 
 Run `python3 code/workspace.py` and `python3 code/pipeline.py get $ARGUMENTS`.
-If `jobs/<id>/project.md` exists, run only the result pass: if `result_recorded_at` is set,
+If the record has `handover_done_at`, run only the result pass (a `project.md` without it
+means the first run stopped early: go on from the step after the brief's check, never redo it): if `result_recorded_at` is set,
 report it is already recorded and stop. Otherwise ask what came out of the work and where
 it can be checked, as `/about-me` Step 4 does: the kind of result as checkboxes, its figure
 typed, the place as a single choice ([references/copy.md: How to ask](../../references/copy.md#how-to-ask)). Update its existing pending Results entry in `context/me.md` (create one only if absent): what they tell you is
@@ -103,9 +104,13 @@ thread, and name in the report how many are still open. A fact nobody wrote down
 the client gets asked twice.
 
 **Then put the new facts about the member back into their own file**, from what the
-contract said rather than from a question: the rate or amount they actually sell at, and a
-`pending` Results entry for the engagement with the client's industry and the sold outcome.
-Say the lines in one block, write them on a yes, and never promote a promise to a result.
+contract said rather than from a question. An hourly contract's rate goes into
+`**Hourly rate:**` only when it differs, as the new figure first; a fixed price changes no rate
+line and goes into the entry below. The engagement becomes a Results entry with the client's
+industry and the sold outcome, `- Status: pending` and `- Source: Upwork contract, <date>`: a
+promise, held back from every client until the result pass records what came out. Say the
+lines in one block, write them on a yes, and never promote a promise to a result. Then record
+`{"handover_done_at": "<ISO time>"}` through `python3 code/pipeline.py record <id> --file -`.
 
 Use the completion report from `CLAUDE.md` and link the handover brief. The next action
 is to fill the remaining client facts and begin delivery; once it is delivered,

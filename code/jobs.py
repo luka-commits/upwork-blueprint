@@ -99,7 +99,10 @@ def me_number(label):
     """One `**Label:**` figure from context/me.md, or None when it is not answered."""
     if not ME.is_file():
         return None
-    match = re.search(rf'(?im)^\*\*{re.escape(label)}:\*\*[ \t]*\$?([\d,.]+)', ME.read_text(encoding='utf-8'))
+    # A currency in front ("$55", "€55", "USD 55") is read as the same figure: the
+    # limits compare it with Upwork's dollar budgets, close enough to sort by.
+    match = re.search(rf'(?im)^\*\*{re.escape(label)}:\*\*[ \t]*(?:US\$|\$|€|USD|EUR)?[ \t]*([\d,.]+)',
+                      ME.read_text(encoding='utf-8'))
     return float(match.group(1).replace(',', '')) if match else None
 
 

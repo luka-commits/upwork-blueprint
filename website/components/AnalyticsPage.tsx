@@ -94,6 +94,8 @@ export default function AnalyticsPage() {
   const won = steps.find(step => step.key === 'won') || { count: 0 };
   const winRate = applied.count >= MIN_RATE ? Math.round(100 * won.count / applied.count) : null;
   const total = steps.length * (HEIGHT + GAP) - GAP;
+  // Cold leads keep their stage, so the funnel cannot show them; the count sits under it.
+  const coldCount = (state.jobs || []).filter((job: any) => job.cold_since && ['replied', 'call', 'offer'].includes(job.status)).length;
   return <section className="funnel" aria-label="Funnel">
     <h2>Funnel</h2>
     <p className="funnel-headline">{applied.count
@@ -118,7 +120,8 @@ export default function AnalyticsPage() {
         })}
       </svg>
     </div>
-    <p className="funnel-note">Every lead counts once at each stage it ever reached.</p>
+    <p className="funnel-note">Every lead counts once at each stage it ever reached.{coldCount
+      ? ` ${coldCount} cold after two unanswered follow-ups, still in their stage.` : ''}</p>
     <Outreach weeks={state.outreach} />
     <Timings timings={state.timings} />
   </section>;

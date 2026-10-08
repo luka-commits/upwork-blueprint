@@ -2,7 +2,7 @@
 
 The five branches we recommend, offered to every member first. They are a recommendation, not a menu: steady demand on Upwork, each with a course in the community, and a member's own direction works too. The member names what they can deliver today and what they could grow into, and `/about-me` takes their picks as given, all five included. The services under a branch are the member's menu, not alternatives: record the branch and list only the services they name. The course under each branch is the lesson in the community classroom to watch before the first application. A direction that fits none of these is a custom addition, offered after them.
 
-The `Search:` line is what `/find-jobs` looks for in job titles, one term per call (measured 8 October 2026, ten newest postings per term). The first term is the broad one and is paged across the whole window; every other term is one the first does not contain, since a title search for "SEO" already returns every "local SEO" job.
+The `Search:` line is what `/find-jobs` looks for in job titles, one term per call (measured 8 October 2026, ten newest postings per term). The first term is the broad one and is paged across the whole window; every other term is one the first does not contain, since a title search for "SEO" already returns every "local SEO" job. Google Business Profile, GEO and AEO are unmeasured trial terms: the per-term record of the first runs keeps or drops them.
 
 ## 1. GoHighLevel CRM automations
 
@@ -36,7 +36,7 @@ Search: WordPress · Elementor · website redesign
 Course: "SEO: How To Rank #1 On Google".
 Profile orientation: `seo-cro.md`.
 Tools: Ahrefs, Semrush, Screaming Frog, Google Search Console, Google Business Profile.
-Search: SEO · Google Business Profile
+Search: SEO · Google Business Profile · GEO · AEO
 
 - Technical SEO audit and fixes
 - Local SEO and Google Business Profile

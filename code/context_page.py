@@ -18,7 +18,7 @@ themselves is simply theirs.
 Output is `context/overview.html`, which is gitignored like everything else in
 that folder. It is built from the files alone and reaches no service. The look
 comes from `website/app/tokens.css`, the tokens every dashboard here shares. The
-sheet prints as a clean A4 resume, without the note under it.
+sheet prints as a clean one-page A4 resume, without the note under it.
 """
 import argparse
 import html
@@ -42,7 +42,7 @@ CREDENTIALS = 6  # credentials shown beside them
 # How /about-me writes the source of something the member said themselves. It needs no label.
 OWN_WORDS = ('your answer', 'your own', 'you said', 'you told')
 INTERNAL = ('Applications per day', 'Smallest project', 'What you do NOT', 'Hourly rate',
-            'Maximum proposals', 'Lowest share', 'Industries', 'Proof to build')
+            'Maximum proposals', 'Lowest share', 'Industries', 'Proof to build', 'Branches you picked')
 
 # A resume on the house tokens: a parchment page, one ivory sheet, a serif for the
 # name and headings, a small mono for section labels, terracotta for the rules.
@@ -50,63 +50,73 @@ CSS = """
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { margin: 0; background: var(--canvas); color: var(--ink); font: 15px/1.55 var(--sans);
          -webkit-font-smoothing: antialiased; }
-  .sheet, .note, .foot { max-width: 920px; margin: 0 auto; }
-  .sheet { margin-top: 40px; background: var(--ivory); border: 1px solid var(--hairline-soft);
-           border-radius: var(--radius-floating); box-shadow: var(--shadow-whisper); padding: 52px 56px 40px; }
-  .kicker, h2, .meta, .when, .tag { font-family: var(--mono); text-transform: uppercase; font-weight: 400; }
-  .kicker { font-size: 11px; letter-spacing: 2px; color: var(--terracotta-text); margin: 0 0 12px; }
-  h1 { font: 500 clamp(34px, 5vw, 48px)/1.05 var(--display); letter-spacing: -1.2px; margin: 0 0 10px; }
-  .headline { font-size: 18px; line-height: 1.4; color: var(--body); margin: 0; max-width: 36em; }
-  .meta { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 18px 0 0; padding: 14px 0 0;
-          border-top: 1px solid var(--hairline-soft); font-size: 11px; letter-spacing: 1.2px; color: var(--label); }
-  .meta b { color: var(--ink); font-weight: 500; }
-  .summary { font: 400 19px/1.45 var(--display); margin: 26px 0 0; padding-left: 18px;
-             border-left: 2px solid var(--terracotta); }
-  .cols { display: grid; grid-template-columns: 1.75fr 1fr; gap: 0 48px; margin-top: 8px; }
+  .sheet, .note, .foot { max-width: 940px; margin: 0 auto; }
+  .sheet { margin-top: 40px; background: var(--paper); border: 1px solid var(--hairline-soft);
+           border-radius: var(--radius-floating); box-shadow: var(--shadow-whisper); overflow: hidden; }
+  .top { background: var(--dark); color: var(--on-dark); padding: 44px 56px 34px; }
+  .kicker, h2, .meta, .when, .tag, .fig { font-family: var(--mono); text-transform: uppercase; font-weight: 400; }
+  .kicker { font-size: 10.5px; letter-spacing: 2.4px; color: var(--coral); margin: 0 0 14px; }
+  h1 { font: 500 clamp(34px, 5vw, 46px)/1.04 var(--display); letter-spacing: -1.1px; margin: 0 0 8px; color: var(--on-dark); }
+  .headline { font-size: 17px; line-height: 1.4; color: var(--on-dark-soft); margin: 0; max-width: 38em; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 26px; margin: 22px 0 0; padding: 14px 0 0;
+          border-top: 1px solid rgba(250, 249, 245, .16); font-size: 10.5px; letter-spacing: 1.3px; color: var(--on-dark-soft); }
+  .meta b { color: var(--on-dark); font-weight: 400; }
+  .meta a { color: var(--on-dark); text-decoration: none; border-bottom: 1px solid rgba(250, 249, 245, .35); }
+  .cols { display: grid; grid-template-columns: 1.85fr 1fr; padding: 6px 56px 44px; gap: 0 44px; }
+  .side { border-left: 1px solid var(--hairline-soft); padding-left: 36px; }
   section { padding: 26px 0 0; }
-  h2 { margin: 0 0 14px; font-size: 11px; letter-spacing: 2px; color: var(--label);
+  h2 { margin: 0 0 14px; font-size: 10.5px; letter-spacing: 2.2px; color: var(--ink);
        display: flex; align-items: center; gap: 10px; }
-  h2::before { content: ""; width: 18px; height: 2px; background: var(--terracotta); }
-  .job { margin: 0 0 18px; }
-  .job-top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
-  .job strong, .item strong { font: 500 17.5px/1.3 var(--display); }
-  .when { font-size: 10.5px; letter-spacing: 1px; color: var(--label); white-space: nowrap; }
-  .org { margin: 1px 0 4px; font-size: 14px; font-weight: 600; color: var(--body); }
+  h2::after { content: ""; flex: 1; height: 1px; background: var(--hairline-soft); }
   p { margin: 0; }
-  .job p, .item p, .side p, li { font-size: 14.5px; color: var(--body); }
-  .item { position: relative; margin: 0 0 14px; padding-left: 18px; }
-  .item::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 6px;
-                  border-radius: 50%; background: var(--terracotta); }
-  .item strong { display: block; font-size: 16px; margin-bottom: 2px; }
-  .side .item { padding-left: 0; } .side .item::before { display: none; }
-  .side .item strong { font: 600 14.5px/1.35 var(--sans); }
-  small { display: block; margin-top: 3px; font-size: 12.5px; color: var(--label); }
-  .tag { display: inline-block; font-size: 9.5px; letter-spacing: 1.2px; padding: 3px 7px; border-radius: 6px;
-         margin-right: 8px; vertical-align: 2px; background: var(--warn-bg); color: var(--warn);
-         border: 1px solid var(--warn-ring); }
-  ul { margin: 0; padding-left: 18px; } li { margin-bottom: 4px; }
-  ul.plain { list-style: none; padding: 0; } ul.plain li { margin-bottom: 9px; }
-  ul.plain b { display: block; color: var(--ink); font-weight: 600; }
-  blockquote { margin: 0 0 12px; font: 400 16px/1.45 var(--display); }
-  blockquote small { font: 400 12.5px/1.4 var(--sans); }
-  .muted { color: var(--label); font-size: 14px; }
+  .profile { font: 400 17px/1.5 var(--display); color: var(--ink); }
+  .job { margin: 0 0 20px; }
+  .job-top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+  .job strong { font: 600 16px/1.3 var(--sans); color: var(--ink); }
+  .when { font-size: 10px; letter-spacing: 1.1px; color: var(--label); white-space: nowrap; }
+  .org { margin: 1px 0 6px; font: italic 400 15px/1.3 var(--display); color: var(--terracotta-text); }
+  .job p, .item p, .result p, .side p, li { font-size: 14px; color: var(--body); }
+  .transfer { margin-top: 5px; } .transfer b { color: var(--ink); font-weight: 600; }
+  .result { display: grid; grid-template-columns: 96px 1fr; gap: 16px; align-items: start; margin: 0 0 16px; }
+  .fig { font-size: 15px; letter-spacing: .2px; line-height: 1.25; color: var(--terracotta-text); padding: 9px 8px;
+         background: var(--terracotta-soft); border-radius: var(--radius-control); text-align: center; text-transform: none; }
+  .fig.dot { background: none; }
+  .result strong, .item strong { display: block; font: 600 14.5px/1.35 var(--sans); color: var(--ink); margin-bottom: 2px; }
+  .item { margin: 0 0 14px; }
+  small { display: block; margin-top: 3px; font-size: 12px; color: var(--label); }
+  .tag { display: inline-block; font-size: 9px; letter-spacing: 1.1px; padding: 3px 7px; border-radius: 6px;
+         margin-right: 8px; vertical-align: 2px; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-ring); }
+  ul { margin: 0; padding-left: 0; list-style: none; } li { margin-bottom: 5px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; } .chips li { margin: 0; padding: 4px 10px; border-radius: 999px;
+           background: var(--sand); color: var(--ink); font-size: 12.5px; }
+  ul.plain li { margin-bottom: 10px; } ul.plain b { display: block; color: var(--ink); font-weight: 600; }
+  ul.lines li { padding-left: 14px; position: relative; } ul.lines li::before { content: ""; position: absolute; left: 0; top: 8px;
+           width: 5px; height: 5px; border-radius: 50%; background: var(--terracotta); }
+  blockquote { margin: 0 0 12px; font: italic 400 15px/1.45 var(--display); color: var(--ink); }
+  blockquote small { font: 400 12px/1.4 var(--sans); font-style: normal; }
+  .muted { color: var(--label); font-size: 13.5px; }
   .note { margin-top: 18px; background: var(--terracotta-soft); border-radius: var(--radius-panel); padding: 18px 22px; }
-  .note h2 { color: var(--terracotta-text); margin-bottom: 8px; }
-  .note li { color: var(--ink); }
+  .note h2 { color: var(--terracotta-text); margin-bottom: 8px; } .note h2::after { display: none; }
+  .note li { color: var(--ink); padding-left: 14px; position: relative; }
+  .note li::before { content: "\\2022"; position: absolute; left: 0; color: var(--terracotta); }
   .foot { padding: 18px 4px 48px; font-size: 13.5px; color: var(--label); }
   .foot code { font-family: var(--mono); background: var(--sand); padding: 1px 6px; border-radius: 5px; color: var(--ink); }
-  @media (max-width: 800px) { .cols { grid-template-columns: 1fr; } .sheet { margin: 0; border-radius: 0; padding: 32px 22px; }
-                              .note { margin: 14px 14px 0; } .foot { padding: 16px 18px 40px; }
-                              .job-top { flex-direction: column; gap: 2px; } }
-  @media print { @page { size: A4; margin: 11mm; } body { background: none; font-size: 9.6px; line-height: 1.42; }
-                 .sheet { margin: 0; max-width: none; border: 0; border-radius: 0; box-shadow: none; padding: 0; background: none; }
-                 .note, .foot { display: none; } h1 { font-size: 27px; margin-bottom: 5px; } .headline { font-size: 12px; }
-                 .meta { margin-top: 9px; padding-top: 7px; font-size: 7.5px; } .summary { font-size: 12px; margin-top: 12px; }
-                 .cols { gap: 0 24px; margin-top: 0; } section { padding-top: 13px; break-inside: avoid; }
-                 h2 { font-size: 7.5px; margin-bottom: 7px; } .job { margin-bottom: 9px; } .item { margin-bottom: 7px; }
-                 .job strong { font-size: 12px; } .item strong { font-size: 11px; } .side .item strong { font-size: 9.6px; }
-                 .job p, .item p, .side p, li, .org { font-size: 9.4px; } small { font-size: 8px; }
-                 blockquote { font-size: 10.5px; } .when { font-size: 7px; } .tag { font-size: 6.5px; padding: 2px 4px; } }
+  @media (max-width: 820px) { .cols { grid-template-columns: 1fr; padding: 4px 22px 32px; }
+        .side { border-left: 0; padding-left: 0; } .top { padding: 32px 22px 26px; }
+        .sheet { margin: 0; border-radius: 0; border-left: 0; border-right: 0; } .note { margin: 14px 14px 0; }
+        .foot { padding: 16px 18px 40px; } .job-top { flex-direction: column; gap: 2px; } .result { grid-template-columns: 78px 1fr; } }
+  @media print { @page { size: A4; margin: 0; } body { background: none; font-size: 9.4px; line-height: 1.42; }
+        .sheet { margin: 0; max-width: none; border: 0; border-radius: 0; box-shadow: none; }
+        .note, .foot { display: none; }
+        .top { padding: 15mm 13mm 8mm; } h1 { font-size: 27px; margin-bottom: 4px; } .headline { font-size: 11.5px; }
+        .meta { margin-top: 10px; padding-top: 8px; font-size: 7.3px; } .kicker { font-size: 7px; margin-bottom: 8px; }
+        .cols { padding: 0 13mm 10mm; gap: 0 9mm; } .side { padding-left: 7mm; } section { padding-top: 11px; break-inside: avoid; }
+        h2 { font-size: 7.3px; margin-bottom: 7px; } .profile { font-size: 11px; } .job { margin-bottom: 9px; }
+        .job strong { font-size: 10.6px; } .org { font-size: 10px; } .when { font-size: 6.8px; }
+        .job p, .item p, .result p, .side p, li { font-size: 9.1px; } .result strong, .item strong { font-size: 9.6px; }
+        .result { grid-template-columns: 62px 1fr; gap: 9px; margin-bottom: 8px; } .fig { font-size: 9.5px; padding: 5px 4px; }
+        .chips li { font-size: 8.4px; padding: 2px 7px; } blockquote { font-size: 9.6px; } small { font-size: 7.6px; }
+        .tag { font-size: 6px; padding: 2px 4px; } }
 """
 
 
@@ -210,12 +220,48 @@ def trail_html(item):
     return f'<small>Pulled from {esc(clip(item["source"], 120))}</small>'
 
 
+SENT = re.compile(r'(?<=\))\.\s+|(?<=[a-z0-9])\.\s+(?=[A-Z])')
+LANGUAGE = re.compile(r'\b(native|fluent|bilingual|conversational|proficient|intermediate|basic)\b', re.I)
+
+
+def parts(text):
+    """A one-line answer such as 'M.Sc. X (2021). German native, English fluent.' as separate lines."""
+    return [p.strip().rstrip('.') for p in SENT.split(text or '') if p.strip()]
+
+
+def metric(text):
+    """The figure a result leads with: '18% to 9%' as '18% → 9%', else the first number with its unit."""
+    m = re.search(r'from\s+(\d[\d.,]*\s?%?)\s+to\s+(\d[\d.,]*\s?%?)', text, re.I)
+    if m:
+        return f'{m.group(1).strip()} → {m.group(2).strip()}'
+    m = re.search(r'\d[\d.,]*\s?(?:%|percent|x\b|k\b|hours?|hrs?|days?|weeks?)', text, re.I)
+    return m.group(0).strip() if m else ''
+
+
 def job_html(item):
     role, employer, when = role_of(item['title'])
+    text, _, transfer = item['text'].partition('Transfers:')
     org = f'<p class="org">{esc(employer)}</p>' if employer else ''
     stamp = f'<span class="when">{esc(when)}</span>' if when else ''
+    gain = (f'<p class="transfer"><b>Transfers</b> {esc(clip(transfer.strip(), 200))}</p>' if transfer.strip() else '')
     return (f'<div class="job"><div class="job-top"><strong>{esc(role)}</strong>{stamp}</div>'
-            f'{org}<p>{esc(clip(item["text"], 340))}</p></div>')
+            f'{org}<p>{esc(clip(text.strip(), 320))}</p>{gain}</div>')
+
+
+def result_html(item):
+    big = metric(item['text'])
+    figure = f'<div class="fig">{esc(big)}</div>' if big else '<div class="fig dot"></div>'
+    return (f'<div class="result">{figure}<div><strong>{tag_html(item)}{esc(item["title"])}</strong>'
+            f'<p>{esc(clip(item["text"], 220))}</p>{trail_html(item)}</div></div>')
+
+
+def chips_html(text):
+    words = [w.strip() for w in re.split(r'\s*[,·;]\s*|\s+and\s+', text or '') if w.strip()]
+    return '<ul class="chips">' + ''.join(f'<li>{esc(w)}</li>' for w in words[:16]) + '</ul>' if words else ''
+
+
+def lines_html(items):
+    return '<ul class="lines">' + ''.join(f'<li>{esc(clip(i, 140))}</li>' for i in items) + '</ul>' if items else ''
 
 
 def item_html(item, limit=CLIP):
@@ -235,17 +281,18 @@ def header_html(found):
     """Name, headline and the line of facts a client reads first."""
     name, _, place = (pick(found, 'Name and location') or '').partition(',')
     headline = pick(found, 'The one thing') or pick(found, 'Profession')
-    facts = (('Based in', place.strip()), ('Rate', pick(found, 'Hourly rate')),
-             ('Job Success', pick(found, 'Job Success')), ('Hours', pick(found, 'Timezone')))
+    url = pick(found, 'Public Upwork profile URL') or ''
+    facts = [('Based in', place.strip()), ('Rate', pick(found, 'Hourly rate')),
+             ('Job Success', pick(found, 'Job Success')), ('Hours', pick(found, 'Timezone'))]
     meta = ''.join(f'<span>{esc(label)} <b>{esc(clip(short(value), 70))}</b></span>' for label, value in facts
                    if value and not value.lower().startswith(('no ', 'none')))
-    strength = (pick(found, 'What you are good at') or '').strip('"“” ')
-    return ('<p class="kicker">Upwork resume</p>'
+    if url.startswith('http'):
+        meta += f'<span><a href="{esc(url)}">Upwork profile</a></span>'
+    return ('<p class="kicker">Resume</p>'
             f'<h1>{esc(name.strip() or "Your Upwork resume")}</h1>'
             + (f'<p class="headline">{esc(clip(headline))}</p>' if headline else
                '<p class="headline">What every command reads before it writes for you.</p>')
-            + (f'<div class="meta">{meta}</div>' if meta else '')
-            + (f'<p class="summary">{esc(clip(strength, 320))}</p>' if strength else ''))
+            + (f'<div class="meta">{meta}</div>' if meta else ''))
 
 
 def services_html(me, found):
@@ -280,10 +327,14 @@ def build(me_text, proof_text):
 
     experience = ''.join(job_html(j) for j in jobs[:JOBS]) + more(len(jobs), JOBS) or \
         '<p class="muted">Still open. /about-me fills this from your CV and your answers.</p>'
-    selected = ''.join(item_html(r) for r in results[:RESULTS]) + more(len(results), RESULTS) or \
+    selected = ''.join(result_html(r) for r in results[:RESULTS]) + more(len(results), RESULTS) or \
         '<p class="muted">Nothing yet. The first delivered job fills this.</p>'
-    tools = pick(found, 'Tools and systems')
-    schooling = pick(found, 'Education')
+    strength = (pick(found, 'What you are good at') or '').strip('"“” ')
+    summary = f'<p class="profile">{esc(clip(strength, 360))}</p>' if strength else ''
+    tools = chips_html(pick(found, 'Tools and systems'))
+    lines = parts(pick(found, 'Education'))
+    languages = [p for p in lines if LANGUAGE.search(p)]
+    schooling = [p for p in lines if p not in languages]
     quotes = ''.join(f'<blockquote>{esc(clip(r["text"], 220))}<small>{esc(r["title"])}</small></blockquote>'
                      for r in reviews)
     unconfirmed = sum(1 for item in results + creds + reviews if item['pending'])
@@ -292,14 +343,15 @@ def build(me_text, proof_text):
     return ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
             f'<title>{esc(title)} · Upwork resume</title>\n<style>' + tokens() + CSS + '</style>\n</head>\n<body>\n'
-            '<main class="sheet">\n<header>' + header_html(found) + '</header>\n'
+            '<main class="sheet">\n<header class="top">' + header_html(found) + '</header>\n'
             '<div class="cols">\n<div>\n'
-            + block('Experience', experience) + block('Selected results', selected) +
+            + block('Profile', summary) + block('Experience', experience) + block('Selected results', selected) +
             '\n</div>\n<div class="side">\n'
+            + block('Skills and tools', tools)
             + block('Services', services_html(me, found))
-            + block('Tools', f'<p>{esc(clip(tools, 320))}</p>' if tools else '')
-            + block('Credentials', ''.join(item_html(c, 150) for c in creds[:CREDENTIALS]) + more(len(creds), CREDENTIALS))
-            + block('Education and languages', f'<p>{esc(clip(schooling, 320))}</p>' if schooling else '')
+            + block('Education', lines_html(schooling))
+            + block('Certificates', ''.join(item_html(c, 150) for c in creds[:CREDENTIALS]) + more(len(creds), CREDENTIALS))
+            + block('Languages', lines_html(languages))
             + block('Recommendations', quotes) +
             '\n</div>\n</div>\n</main>\n'
             + open_html(found, unconfirmed) +

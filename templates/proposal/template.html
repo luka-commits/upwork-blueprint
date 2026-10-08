@@ -8,9 +8,9 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
   :root {
-    /* The house look from website/app/tokens.css, as measured on automatable.co. */
-    --bg: #f5f4ed; --paper: #faf9f5; --ink: #141413; --text: #141413; --muted: #5e5d59;
-    --faint: #66655f; --accent: #c96442; --accent-fill: #b05538; --rule: #f0eee6; --open: #a04a2e;
+    /* The house look, measured on automatable.co 8 October 2026. Color stays an accent. */
+    --bg: #f5f4ed; --paper: #fdfcf9; --ink: #141413; --text: #3d3d3a; --muted: #5e5d59;
+    --faint: #87867f; --line: #e8e6dc; --ring: #d1cfc5; --accent: #c96442; --tint: #f6e9e2; --open: #a04a2e;
     --screen: #141413; --screen-text: #faf9f5; --screen-muted: #b0aea5;
     --display: "Tiempos Text", Georgia, "Iowan Old Style", "Times New Roman", ui-serif, serif;
     --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -18,102 +18,153 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); padding: 24px 12px 56px;
-         font: 13px/1.5 var(--sans);
-         -webkit-font-smoothing: antialiased; }
-  p { margin: 0; }
+         font: 12.5px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+  p, ol { margin: 0; }
+  .missing { color: var(--open); font-style: italic; }
 
-  /* One page. If the content runs past it, the content gets cut, not the page made longer. */
+  /* One page, read top to bottom. If the content runs past it, the content gets cut. */
   .sheet { width: 210mm; min-height: 297mm; max-width: 100%; margin: 0 auto; background: var(--paper);
-           border: 1px solid var(--rule); border-radius: 16px;
-           box-shadow: 0 4px 24px rgba(20,20,19,.05); padding: 18mm 20mm 14mm;
-           display: flex; flex-direction: column; }
+           box-shadow: 0 1px 2px rgba(20,20,19,.06), 0 12px 40px rgba(20,20,19,.06);
+           padding: 12mm 16mm 10mm; display: flex; flex-direction: column; counter-reset: sec; }
 
-  .head { border-bottom: 1.5px solid var(--ink); padding-bottom: 4mm; margin-bottom: 7mm; }
-  h1 { font-family: var(--display); font-weight: 500;
-       color: var(--ink); font-size: 26px; line-height: 1.15; margin: 0 0 1.5mm; }
-  .sub { color: var(--muted); font-size: 11.5px; }
+  /* Letterhead: who sends it, to whom, when. */
+  .head { display: flex; align-items: center; gap: 4mm; padding-bottom: 5mm; border-bottom: 1px solid var(--ink); }
+  .face { width: 13mm; height: 13mm; border-radius: 50%; object-fit: cover; flex: none; display: grid; place-items: center;
+          background: var(--tint); color: var(--accent); font: 500 14px/1 var(--display); }
+  .who { flex: 1; }
+  .who b { display: block; font: 500 15px/1.2 var(--display); color: var(--ink); }
+  .who span { font-size: 11px; color: var(--muted); }
+  .doc { text-align: right; }
+  .doc b { display: block; font: 400 10px/1 var(--mono); letter-spacing: 2px; color: var(--accent); margin-bottom: 1.5mm; }
+  .doc span { font: 400 10px/1 var(--mono); color: var(--faint); }
 
-  /* The video goes first: it is the part the client actually takes in. */
-  .video { position: relative; display: flex; align-items: center; gap: 6mm; overflow: hidden;
-           background: var(--screen); color: var(--screen-text); text-decoration: none;
-           border-radius: 2.5mm; padding: 7mm 8mm; margin-bottom: 7mm; min-height: 34mm;
-           box-shadow: 0 0 0 1.2mm rgba(193,102,62,.16); }
-  .video .poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-                   opacity: .22; filter: grayscale(.3); }
+  h1 { font: 500 34px/1.1 var(--display); color: var(--ink); margin: 7mm 0 4mm; letter-spacing: -.4px; }
+
+  /* Optional: when there is a video, it leads under the headline. */
+  .video { position: relative; display: flex; align-items: center; gap: 6mm; overflow: hidden; margin-bottom: 6mm;
+           background: var(--screen); color: var(--screen-text); text-decoration: none; border-radius: 3mm;
+           padding: 7mm 8mm; min-height: 34mm; }
+  .video .poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .3; filter: grayscale(.3); }
   .video > *:not(.poster) { position: relative; }
-  .play { width: 15mm; height: 15mm; border-radius: 50%; background: var(--accent); flex: none;
-          display: grid; place-items: center; }
+  .play { width: 14mm; height: 14mm; border-radius: 50%; background: var(--accent); flex: none; display: grid; place-items: center; }
   .play::before { content: ""; margin-left: 1.2mm; border-style: solid; border-color: transparent;
-                  border-left-color: #fff; border-width: 2.6mm 0 2.6mm 4.2mm; }
-  .video b { display: block; font-size: 15px; font-weight: 600; margin-bottom: 1mm; }
-  .video span { font-size: 11.5px; color: var(--screen-muted); }
-  .video .len { position: absolute; right: 5mm; bottom: 4mm; font: 600 10.5px/1 var(--mono);
-                color: var(--screen-muted); }
+                  border-left-color: #fff; border-width: 2.5mm 0 2.5mm 4mm; }
+  .video b { display: block; font: 500 16px/1.2 var(--display); margin-bottom: 1mm; }
+  .video span { font-size: 11px; color: var(--screen-muted); }
+  .video .len { position: absolute; right: 5mm; bottom: 4mm; font: 400 10px/1 var(--mono); color: var(--screen-muted); }
   .video .missing { color: #d9b48f; }
 
-  /* Eight short parts, one rhythm: a small label, one line under it. */
-  .parts { flex: 1; }
-  .part { display: grid; grid-template-columns: 34mm 1fr; gap: 6mm; align-items: baseline;
-          padding: 3.4mm 0; border-top: 1px solid var(--rule); }
-  .part:first-child { border-top: 0; padding-top: 0; }
-  .part .k { font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
-             color: var(--faint); font-weight: 400; }
-  .part .v { font-size: 13px; color: var(--ink); line-height: 1.45; }
-  .part .v small { display: block; font-size: 11px; color: var(--muted); margin-top: .8mm; }
-  .part ol { margin: 0; padding-left: 4.5mm; }
-  .part ol li { padding-left: 1mm; }
-  .part ol li + li { margin-top: .8mm; }
-  .part.cost .v strong { font-family: var(--display); font-weight: 500; font-size: 15px;
-                         font-variant-numeric: tabular-nums; }
+  /* Every section the same: a numbered label over the content, full width, one rule between. */
+  .sec { display: grid; gap: 1.5mm; padding: 3.4mm 0; flex: 1 0 auto; align-content: start;
+         border-top: 1px solid var(--line); counter-increment: sec; }
+  .sec .k { font: 400 9px/1.4 var(--mono); letter-spacing: 1.5px; text-transform: uppercase; color: var(--faint); }
+  .sec .k::before { content: counter(sec, decimal-leading-zero); color: var(--accent); margin-right: 2mm; }
+  .sec > .v { font-size: 12.5px; color: var(--ink); }
+  .sec > .v small { display: block; font-size: 11px; color: var(--muted); margin-top: 1mm; }
+  .sec.lead > .v { font: 400 15px/1.4 var(--display); }
+  .sec.lead > .v small { font-family: var(--sans); }
+  .sec.problem > .v { color: var(--muted); }
 
-  .foot { border-top: 1px solid var(--rule); padding-top: 5mm; margin-top: 4mm; display: flex;
-          justify-content: space-between; align-items: flex-end; gap: 10mm; }
-  .fine { font-size: 9.5px; color: var(--faint); }
-  .fine p { margin: 0 0 1mm; }
-  .cta { background: var(--accent-fill); color: var(--screen-text); text-decoration: none; padding: 3mm 6mm;
-         border-radius: 2mm; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  /* How it works: the one drawing on the page. */
+  .flow ol { list-style: none; padding: 0; display: flex; counter-reset: f; }
+  .flow li { flex: 1; position: relative; counter-increment: f; padding-right: 3mm; }
+  .flow li::before { content: counter(f); position: relative; z-index: 1; display: grid; place-items: center;
+                     width: 7mm; height: 7mm; border-radius: 50%; background: var(--paper); color: var(--accent);
+                     box-shadow: 0 0 0 1.2px var(--accent); font: 400 11px/1 var(--display); }
+  .flow li:last-child::before { background: var(--accent); color: #fff; }
+  .flow li:not(:last-child)::after { content: ""; position: absolute; top: 3.5mm; left: 9mm; right: 2mm; height: 1px;
+                                     background: linear-gradient(90deg, var(--ring), var(--accent)); }
+  .flow li span { display: block; margin-top: 2mm; font-size: 12px; line-height: 1.35; color: var(--ink); }
 
-  .missing { color: var(--open); font-style: italic; }
+  .track { list-style: none; padding: 0; }
+  .track li { display: grid; grid-template-columns: 17mm 1fr; padding: 1.2mm 0; }
+  .track li:first-child { padding-top: 0; }
+  .track li + li { border-top: 1px dashed var(--line); }
+  .track b { font: 400 10px/1.7 var(--mono); color: var(--accent); }
+  .track span { font-size: 12px; color: var(--ink); }
+
+  .price { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .price td { padding: 1.2mm 0; font-size: 12px; color: var(--ink); vertical-align: baseline; }
+  .price tr + tr td { border-top: 1px dashed var(--line); }
+  .price tr:first-child td { padding-top: 0; }
+  .price td:last-child { text-align: right; white-space: nowrap; padding-left: 4mm; }
+  .price tr.total td { border-top: 1px solid var(--ink); padding-top: 2mm; font: 500 15px/1.2 var(--display); }
+  .sec > .v strong { font: 500 18px/1.2 var(--display); }
+  .worth { display: flex; justify-content: space-between; gap: 4mm; margin-top: 2mm; font-size: 11px; color: var(--muted); }
+  .worth .v { color: var(--ink); }
+
+  /* The plan: one phase per milestone, read left to right, the total under it. */
+  .phases { list-style: none; padding: 0; display: flex; gap: 2mm; }
+  .phases li { flex: 1; display: flex; flex-direction: column; }
+  .phases i { display: block; height: 2mm; border-radius: 1mm; background: var(--tint); margin-bottom: 2.5mm; }
+  .phases li:last-child i { background: var(--accent); }
+  .phases b { font: 400 9.5px/1.4 var(--mono); letter-spacing: .6px; text-transform: uppercase; color: var(--accent); }
+  .phases span { font-size: 12.5px; line-height: 1.4; color: var(--ink); margin: 1mm 0 1.5mm; flex: 1; }
+  .phases em { font: 500 16px/1.2 var(--display); font-style: normal; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .sum { display: flex; justify-content: space-between; align-items: baseline; gap: 6mm; margin-top: 3.5mm;
+         padding-top: 2.5mm; border-top: 1px solid var(--ink); }
+  .sum small { font-size: 11px; color: var(--muted); }
+  .sum p { white-space: nowrap; }
+  .sum span { font-size: 11px; color: var(--muted); margin-right: 3mm; }
+  .sum strong { font: 500 20px/1 var(--display); color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  .sec.proof > .v { font: italic 400 13.5px/1.45 var(--display); }
+  .sec.proof > .v .missing { font: italic 12px/1.4 var(--sans); }
+
+  .next ol { list-style: none; padding: 0; counter-reset: n; }
+  .next li { counter-increment: n; display: grid; grid-template-columns: 8mm 1fr; padding: .8mm 0; font-size: 12.5px; }
+  .next li::before { content: counter(n); font: 400 14px/1.3 var(--display); color: var(--accent); }
+
+  .foot { margin-top: 2mm; padding-top: 4mm; border-top: 1px solid var(--ink); display: flex;
+          justify-content: space-between; align-items: center; gap: 10mm; }
+  .fine { font-size: 9px; line-height: 1.6; color: var(--faint); }
+  .cta { background: var(--ink); color: var(--screen-text); text-decoration: none; padding: 3mm 6mm;
+         border-radius: 1.5mm; font-size: 12px; font-weight: 500; white-space: nowrap; }
+  .cta::after { content: "  \2192"; color: var(--accent); }
 
   @media (max-width: 800px) {
     body { padding: 10px 8px 36px; }
-    .sheet { padding: 9mm 6mm; min-height: 0; }
-    .video { padding: 6mm 5mm 9mm; gap: 4mm; }
-    .play { width: 12mm; height: 12mm; }
-    .part { grid-template-columns: 1fr; gap: 1mm; }
-    .foot { flex-direction: column; align-items: flex-start; gap: 5mm; }
+    .sheet { padding: 8mm 5mm; min-height: 0; }
+    .sec { flex: none; }
+    h1 { font-size: 27px; }
+    .flow ol { flex-direction: column; gap: 2.5mm; }
+    .flow li { display: flex; align-items: center; gap: 3mm; }
+    .flow li span { margin-top: 0; }
+    .flow li::after { display: none; }
+    .phases { flex-direction: column; gap: 4mm; }
+    .sum { flex-direction: column; gap: 2mm; }
+    .foot { flex-direction: column; align-items: stretch; gap: 5mm; }
   }
   @media print {
-    body { padding: 0; background: #fff; }
-    .sheet { box-shadow: none; border: 0; border-radius: 0; width: auto; min-height: 0; padding: 0; }
-    .video { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    @page { size: A4 portrait; margin: 14mm; }
+    body { padding: 0; background: var(--paper); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .sheet { box-shadow: none; width: auto; min-height: 266mm; padding: 0; }
+    @page { size: A4 portrait; margin: 13mm; }
   }
 </style>
 </head>
 <body>
 <div class="sheet">
 
-  <div class="head">
-    <h1>{{HEADLINE}}</h1>
-    <p class="sub">Proposal for {{CLIENT}} · {{DATE}}</p>
-  </div>
+  <header class="head">
+    {{PHOTO}}
+    <div class="who"><b>{{MEMBER}}</b><span>Prepared for {{CLIENT}}</span></div>
+    <div class="doc"><b>PROPOSAL</b><span>{{DATE}}</span></div>
+  </header>
+
+  <h1>{{HEADLINE}}</h1>
 
   {{VIDEO}}
 
-  <div class="parts">
-    <div class="part"><p class="k">{{L_PROBLEM}}</p><div class="v">{{PROBLEM}}</div></div>
-    <div class="part"><p class="k">{{L_DELIVERABLE}}</p><div class="v">{{DELIVERABLE}}</div></div>
-    <div class="part"><p class="k">{{L_WORTH}}</p><div class="v">{{WORTH}}</div></div>
-    <div class="part"><p class="k">{{L_TIMELINE}}</p><div class="v">{{TIMELINE}}</div></div>
-    <div class="part cost"><p class="k">{{L_COST}}</p><div class="v">{{COST}}</div></div>
-    <div class="part"><p class="k">{{L_TOOLS}}</p><div class="v">{{TOOLS}}</div></div>
-    <div class="part"><p class="k">{{L_PROOF}}</p><div class="v">{{PROOF}}</div></div>
-    <div class="part"><p class="k">{{L_NEXT}}</p><div class="v">{{NEXT}}</div></div>
-  </div>
+  <section class="sec lead problem"><p class="k">{{L_PROBLEM}}</p><div class="v">{{PROBLEM}}</div></section>
+  <section class="sec lead"><p class="k">{{L_DELIVERABLE}}</p><div class="v">{{DELIVERABLE}}</div></section>
+  {{FLOW}}
+  {{PLAN}}
+  <section class="sec"><p class="k">{{L_TOOLS}}</p><div class="v">{{TOOLS}}</div></section>
+  {{PROOF}}
+  <section class="sec next"><p class="k">{{L_NEXT}}</p><div class="v">{{NEXT}}</div></section>
 
   <div class="foot">
-    <div class="fine">{{MEMBER}}<br>{{FINE}}</div>
+    <div class="fine">{{FINE}}</div>
     <a class="cta" href="{{CTA_HREF}}">{{CTA}}</a>
   </div>
 

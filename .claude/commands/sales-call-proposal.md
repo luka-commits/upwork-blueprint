@@ -120,17 +120,25 @@ and funded milestone. Mark each ready, thin or missing and put gaps in the repor
 ## Step 5 · Build the page
 
 The markdown is what the member pastes into Upwork chat. The page is the one pager a
-client reads twice: **an optional video on top, then eight short parts, one line each.** If it runs
-past one page, cut. `headline` names the build ("Missed-call text-back"), not the client.
+client reads twice, a professional offer read top to bottom: **a letterhead with the
+member's photo, the headline, an optional video, then numbered sections, one line each.**
+If it runs past one page, cut. `headline` names the build ("Missed-call text-back"), not the client.
 
+- `photo`: the member's photo file, the same one `/proposal` puts on the pitch page; without
+  one the letterhead shows their initials.
 - `video` `{href, title, note, length}`: when there is one, it leads. A custom Loom for this
   client when the member has time, otherwise their reusable walkthrough. Title speaks to the
   client ("Sarah, watch this first"), note says what it covers. Optional: no link, no card.
 - `problem`: their pain in their numbers. `deliverable`: what they get, as a working state.
-- `worth`: only a figure the client gave on the call, else open. `timeline`: start, demo, live.
-- `cost`: the approved price; `{text, note}` puts the milestone split in the note.
+- `flow`: three to five short steps of how the build works, drawn as a chain. Optional.
+- `cost` `{text, note, items}`: `text` is the approved total, each item one milestone
+  `{when, label, amount}` ("Days 1–5", "Setup and a working demo", "$600"). Items with a
+  `when` draw timeline and price as one plan; `timeline` is then one sentence for what starts
+  the clock. Without items, `timeline` and `cost` stand apart as before.
+- `worth`: only a figure the client gave on the call, else leave it empty and the line is left out.
 - `tools`: what it runs on, and on whose accounts. `proof`: one line from the evidence
-  sections of `context/me.md`, else open. `next_steps`: at most three things the client does.
+  sections of `context/me.md`, else leave it empty and the section is left out.
+- `next_steps`: at most three things the client does.
 
 Also `member`, `client`, `date`, `cta`, `cta_href`, `fine` (array), optional `labels`.
 Run `python3 code/proposal_generate.py <id> --file -` for `jobs/<id>/proposal.html`.
@@ -138,7 +146,7 @@ Provide a real HTTPS `cta_href` or omit the CTA. An optional sketch at
 `jobs/<id>/proposal-sketch.png` (`code/proposal_illustrate.py`, no text) dims behind the video.
 The member delivers the page on Upwork themselves; nothing hosts or sends it.
 
-**Every value the call did not settle renders as a visible "open" marker.** Never write a
+**Every other value the call did not settle renders as a visible "open" marker.** Never write a
 zero, a rounded guess or a placeholder that reads like a number: a missing figure is honest
 and the member fills it in one edit, an invented one dies at the first milestone. The run
 says how many are still open.

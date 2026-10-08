@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The one page a client reads after the call: the video first, then eight short parts.
+"""The one page a client reads after the call: a letterhead, then numbered sections top to bottom.
 
     python3 code/proposal_generate.py <job id> --file proposal.json
     python3 code/proposal_generate.py <job id> --file -        # JSON on stdin
@@ -10,19 +10,25 @@ the page themselves unless a real CTA URL was provided.
 
 Every value the call did not settle is rendered as a visible "open" marker, never as a
 zero and never as a rounded guess: a missing number is honest, an invented one is a claim
-the first milestone exposes.
+the first milestone exposes. Proof and worth are the exception: without one, their line is
+left out, because an open proof only tells the client there is none.
 
 The JSON, all strings unless noted:
 
     member, client, headline, date,
+    photo (optional: the member's photo, a local file or an HTTPS URL; else their initials),
     video (object: href, title, note, length),
+    flow (array, optional, three to five short steps of how it works),
     problem, deliverable, worth, timeline, cost, tools, proof,
     next_steps (array, at most three),
     cta, cta_href, fine (array),
     labels (object, optional, overrides the eight part labels)
 
 Each part is one line. A part may also be {text, note} when one short line under it
-carries something the client needs, like the milestone split under the cost.
+carries something the client needs, like the milestone split under the cost. The
+timeline may instead be up to four stops [{when, what}]; the cost may carry items
+[{label, amount, when}], one per milestone, with its text as the total. Items with a
+`when` merge timeline and price into one plan; a string timeline is then its start note.
 """
 import argparse
 import base64
@@ -43,7 +49,7 @@ DEFAULT_LABELS = {
     'deliverable': 'What you get',
     'worth': "What it's worth",
     'timeline': 'Timeline',
-    'cost': 'Cost',
+    'cost': 'Investment',
     'tools': 'Tools',
     'proof': 'Proof',
     'next': 'Next steps',
@@ -85,6 +91,92 @@ def part(raw, strong=False):
     if strong and 'missing' not in line:
         line = f'<strong>{line}</strong>'
     return line + (f'<small>{esc(note)}</small>' if note else '')
+
+
+def photo(raw, member):
+    """The member's face in the letterhead: a local file is embedded, else their initials."""
+    raw = str(raw or '').strip()
+    if raw.startswith('https://'):
+        return f'<img class="face" alt="" src="{esc(https(raw, "photo"))}">'
+    path = pathlib.Path(raw).expanduser() if raw else None
+    if path and not path.is_absolute():
+        path = ROOT / path
+    if path and path.is_file():
+        from photo import data_uri
+        return f'<img class="face" alt="" src="{data_uri(path)}">'
+    if raw:
+        abort(f'photo not found: {raw}')
+    initials = ''.join(w[0] for w in str(member or '').split()[:2]).upper()
+    return f'<span class="face">{esc(initials)}</span>' if initials else ''
+
+
+def flow(raw, label):
+    """Optional: how the build works, three to five short steps drawn as a line. Absent, no section."""
+    steps = [s for s in (raw or []) if str(s or '').strip()]
+    if not steps:
+        return ''
+    if not 3 <= len(steps) <= 5:
+        abort(f'flow has {len(steps)} steps; it draws three to five.')
+    return (f'<section class="sec flow"><p class="k">{esc(label)}</p><div class="v"><ol>'
+            + ''.join(f'<li><span>{esc(s)}</span></li>' for s in steps) + '</ol></div></section>')
+
+
+def cost(raw):
+    """The price. With items [{label, amount}] it reads as an offer: one line per milestone, then the total."""
+    items = raw.get('items') if isinstance(raw, dict) else None
+    if not items:
+        return part(raw, strong=True)
+    rows = ''.join(f'<tr><td>{value(i.get("label"))}</td><td>{value(i.get("amount"))}</td></tr>'
+                   for i in items if isinstance(i, dict))
+    note = str(raw.get('note') or '').strip()
+    return (f'<table class="price">{rows}<tr class="total"><td>Total</td><td>{value(raw.get("text"))}</td></tr></table>'
+            + (f'<small>{esc(note)}</small>' if note else ''))
+
+
+def section(label, body, kind=''):
+    return f'<section class="sec {kind}"><p class="k">{esc(label)}</p><div class="v">{body}</div></section>'
+
+
+def plan(data, labels):
+    """When and what it costs. Milestones with a `when` become one plan: a phase per milestone,
+    its days, its delivery and its amount, then the total. Otherwise timeline and price apart."""
+    raw = data.get('cost')
+    items = [i for i in (raw.get('items') or []) if isinstance(i, dict)] if isinstance(raw, dict) else []
+    # Only a figure the client gave on the call; without one the line is left out, not marked open.
+    worth = (f'<div class="worth"><span>{esc(labels["worth"])}</span><span class="v">{esc(data["worth"])}</span></div>'
+             if str(data.get('worth') or '').strip() else '')
+    if not any(i.get('when') for i in items):
+        return (section(labels['timeline'], timeline(data.get('timeline')))
+                + section(labels['cost'], cost(raw) + worth))
+    if len(items) > 4:
+        abort(f'cost has {len(items)} milestones; the plan shows four at most.')
+    phases = ''.join(
+        f'<li><i></i><b>Milestone {n} · {value(i.get("when"))}</b><span>{value(i.get("label"))}</span>'
+        f'<em>{value(i.get("amount"))}</em></li>' for n, i in enumerate(items, 1))
+    start = data.get('timeline') if isinstance(data.get('timeline'), str) else ''
+    notes = ' '.join(esc(n) for n in (start, raw.get('note')) if str(n or '').strip())
+    total = (f'<div class="sum"><small>{notes}</small>'
+             f'<p><span>Total</span><strong>{value(raw.get("text"))}</strong></p></div>')
+    return section(labels.get('plan', 'Plan and investment'), f'<ol class="phases">{phases}</ol>{total}{worth}', 'plan')
+
+
+def proof(raw, label):
+    """Proof from the evidence in me.md, or no section at all: an empty proof line tells the client there is none."""
+    text = part(raw)
+    return '' if 'missing' in text else section(label, text, 'proof')
+
+
+def timeline(raw):
+    """A sentence, or up to four stops [{when, what}] drawn as a track from start to live."""
+    if not isinstance(raw, list):
+        return part(raw)
+    stops = [s for s in raw if isinstance(s, dict) and (s.get('when') or s.get('what'))]
+    if not stops:
+        return OPEN
+    if len(stops) > 4:
+        abort(f'timeline has {len(stops)} stops; the track shows four at most.')
+    return '<ol class="track">' + ''.join(
+        f'<li><b>{value(s.get("when"))}</b><span>{value(s.get("what"))}</span></li>' for s in stops) + '</ol>'
 
 
 def next_steps(items):
@@ -175,6 +267,10 @@ def main(argv=None):
     }
     for name in PARTS[:-1]:
         fields['{{' + name.upper() + '}}'] = part(data.get(name), strong=name == 'cost')
+    fields['{{PLAN}}'] = plan(data, labels)
+    fields['{{PROOF}}'] = proof(data.get('proof'), labels['proof'])
+    fields['{{PHOTO}}'] = photo(data.get('photo'), data.get('member'))
+    fields['{{FLOW}}'] = flow(data.get('flow'), labels.get('flow', 'How it works'))
     for name in PARTS:
         fields['{{L_' + name.upper() + '}}'] = esc(labels[name])
 

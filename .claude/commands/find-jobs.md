@@ -13,11 +13,7 @@ Read first: [references/upwork.md](../../references/upwork.md), [references/jobs
 
 `skip <job id> <reason>` does only that: no Upwork tool, no search, `Upwork calls: 0`, and it never continues into Step 1.
 
-Run `python3 code/pipeline.py get <job id>`. Only a Not applied lead (status
-`new`) can be skipped. A lead further along moves through `/brief`, so say that
-and stop. Without a reason, ask with one single choice (budget, scope, tool, client) and
-wait: a useful reason names the fact that rules the job out, never a mood, and a typed
-detail is saved with the pick ([references/copy.md: How to ask](../../references/copy.md#how-to-ask)).
+Run `python3 code/pipeline.py get <job id>`. Only a Not applied lead (status `new`) can be skipped; a lead further along moves through `/brief`, so say that and stop. Without a reason, ask for one line: it names the fact that rules the job out (budget, scope, tool, client), never a mood. Then run:
 
 `python3 code/pipeline.py set <job id> skipped --note "not a fit: <reason>"`
 
@@ -46,58 +42,7 @@ For each theme, call `find_jobs` action `search` with `query` the `query` that `
 3. Page the densest themes first: set `cursor` to the previous `pageInfo.endCursor` while `hasNextPage` and the page's oldest job is inside the window, appending each page's jobs to the same `data/search/query-<slug>.json`; never put a page number in the file name. Stop at twelve pages and report the theme as denser than one run can reach.
 4. Never remove a theme yourself: when one returned nothing, propose removing it in the report and delete it only on a yes.
 
-**Every later run exploits.** It runs the kept tracks, pages the dense ones, applies the
-lessons from Step 3b, honours the window from Step 0, and tests at most one new candidate
-term per run so a bad guess costs one call. A term that returned nothing twice gets
-removed from `context/me.md` with a line saying so.
-
-## Step 1 · Invitations first
-
-Call `list_freelancer_proposals` action `invitations` once. Open invitations are the warmest leads and go to the top of the report. For each one not yet in the pipeline, fetch the job with `find_jobs` action `get`, add it with `python3 code/pipeline.py add --file -` (id, title, url, budget, job_type, client, posted_date, `found_via` set to `invitation`), then store its details as Step 6 does. The member answers on Upwork; this command never accepts or declines. No invitations: say nothing and continue.
-
-## Step 2 · Search, two directions
-
-Save each response's `jobs` list to `data/search/<name>.json` as `{"jobs": [...]}`, every job with its fields as returned. The file name becomes the job's "found via", which is how weak tracks get noticed later.
-
-0. **Show the terms and the limits, and ask, before spending a single call.** List what you are about to search, one line per track with its source: their own file, the catalog in [references/jobs.md](../../references/jobs.md), or a skill name harvested from the last run. Under it, the hard no's as `python3 code/jobs.py rules` reports them, with one recommendation per number for this person, drawn from their file and profile and the tiers in jobs.md, with half a line of why. Then ask in one call ([references/copy.md: How to ask](../../references/copy.md#how-to-ask)): the tracks as checkboxes, ticked meaning searched today, and each limit as a single choice with your recommendation first and a tighter and a looser value beside it. A missing term is typed. Wait for the answer. This is the one gate in this command: a wrong term or limit costs the member a day of leads.
-
-   Save the answers in `context/me.md` as `**Maximum proposals on a job:**` and `**Lowest share of your rate:**`, so the next run reads them instead of asking. Never ask for a smallest project. A limit whose figure is unknown prints as `LIMIT OFF` in the candidate step: name it out loud.
-
-**When the member sells something the catalog does not cover**, build the list with them from the four branches, then harvest Upwork's own wording from one broad search (method in [references/jobs.md](../../references/jobs.md)). Save what they confirm under "Job search tracks" in `context/me.md`.
-
-1. **Upwork's recommendations:** when the connector exposes it, use the documented but untested `find_jobs` action `smart_search`, `mode` `most_recent`, `days_posted` the window in days rounded up and `verified_payment_only` true. Page with `cursor` set to the previous `pageInfo.endCursor` while `pageInfo.hasNextPage` is true, at most 4 pages. Save as `recommended-1.json`, `recommended-2.json` and so on. If the action or documented response shape is absent, report that evidence gap and continue with search themes rather than guessing.
-2. **Your search themes:** run `python3 code/jobs.py rules`. Its `themes`
-   are the member's personal configuration from `context/me.md`. Each theme
-   groups useful variations and tool names into one semantic query. For every
-   theme, call `find_jobs` action `search`, `query` the emitted `query`, `sort`
-   `recency`, and `verified_payment_only` true. **Page until the window is
-   covered**, not to a fixed page count: keep setting `cursor` while
-   `hasNextPage` and the page's oldest job is still inside the window, and stop
-at the page that crosses it.
-
-   **Send the member's own limits with the query, so the pages that come back are
-   pages worth reading.** The search filters are free and server side:
-   `proposals_max` for the competition ceiling, `budget_min` for fixed work,
-   `rate_min` for hourly, plus `experience_level`, `job_type` and `workload`
-   where the member has named a boundary.
-
-**The window decides the page count.** Twelve pages is the runaway stop: report the term as denser than one run can reach and offer to split or narrow it with a filter. Say how many pages a term took, since that is the density measurement. Save as `query-<slug>.json`, using the emitted `slug`. Never split the grouped query into separate calls.
-
-   If there are no themes yet, propose three to six from the member's services,
-   profile skills and proof. Use `- Theme: term · variant · tool` lines, each starting with the dash because `jobs.py rules` reads no other line, write
-   them under "Job search tracks" in `context/me.md`, and say so in one line.
-   Do not add a service merely because a tool exists; the member must actually
-   want that work.
-
-3. **The client's own industry.** Search the trade plus the pain, not the tool (a dental practice's no-shows, a gym's leads, a law firm's follow-up). An industry the member has worked in goes first. Save as `industry-<slug>.json`.
-
-4. **The client's own tools, the quiet half.** Search the platforms the member can work with even when the posting never says "automation": Shopify, Salesforce, Monday, ClickUp, Zoho, Pipedrive, Google Calendar, Gmail, Zoom. Propose two or three such tracks from the member's own stack, mark them in `context/me.md` like any theme, and save as `query-<slug>.json` so the funnel shows which branch paid.
-
-Default to broad themes and score after retrieval. Do not add a proposal-count
-or budget filter unless `context/me.md` records that boundary as a member choice;
-filters remove jobs before anyone scores them.
-
-**Never disqualify a client on a thin signal** (no spending history, low average spend, few reviews; see references/jobs.md). Only the posting's own text fixing a low budget and a deadline together disqualifies. Honest reviews are the one signal worth reading closely.
+**Never disqualify a client on a thin signal** (no spending history, low average spend, few reviews; see references/jobs.md). Only the posting's own text fixing a low budget and a deadline together disqualifies.
 
 ## Step 3 · Count
 
@@ -146,36 +91,8 @@ Then `python3 code/jobs.py detail <id> data/details/<id>.json`. Only a new job w
 
 ## Step 7 · Close and report
 
-**Name the client's industry first, in the headline and in the first sentence of the outcome**: "A dental practice wants its GoHighLevel CRM cleaned up and automated", never "A business wants...". Take it from the posting (the client's own words, company profile, examples), never infer it from the tool they use. When the posting does not say, write "industry not stated", never a plausible guess; that blank is itself worth seeing.
-The list uses this outcome, or the saved `summary` when no full brief exists.
-Keep both focused on the requested work. Put proof fit, competition and advice
-in `rationale`, not in the job description. The sidebar shows that assessment.
-To clarify an existing member-written summary, use
-`python3 code/pipeline.py describe <id> "Plain-language summary"`, and for the
-list's one-sentence headline `python3 code/pipeline.py headline <id> "<sentence>"`.
-
-## Step 7 · Close
-
-1. `python3 code/pipeline.py prune`, then `python3 code/jobs.py clean` (deletes this run's raw responses).
-2. **Show the daily target, and the bench is everything else that passed.** The target
-   is ten unless `Applications per day` in `context/me.md` says otherwise. Show that
-   many, numbered, each one line: who wants what, the grade, and what applying costs in Connects. Behind them
-   stands every other lead that passed the gate, in rank order, which is what
-   `python3 code/pipeline.py list` already prints. Open invitations come first, before the ten.
-3. Ask once which of the leads you showed are a no, as checkboxes over the numbered
-   leads with "keep all of them" among them, then why in one more call: one single
-   choice per lead turned down (budget, scope, tool, client), a typed detail kept with
-   it. Take any answer, including none, and record each with
-   `python3 code/pipeline.py set <id> skipped --note "not a fit: <reason>"`. Keep the
-   prefix, because `python3 code/jobs.py rules` counts a reason only when the note
-   carries it. A reason names the fact that rules it out, such as budget, scope, tool
-   or client. This is the half of the record that needs a person, so it is asked once,
-   here, and never chased. A lead the member rejects later takes the same route through
-   `/find-jobs skip <id> <reason>`.
-When the member turns one down, name the next one in the same breath, so the list is ten again before they ask, while the bench holds. **The bench floor is the gate itself**: a lead below the gate is never offered as a refill. The bench is good for today only, since tomorrow's window disqualifies it. The complete scored list lives in the cockpit.
-4. **Say it when ten is not there.** Fewer than ten at a 7 or better is a result, not a failure to hide: report how many there are and the cause (too few dense tracks, limits too tight, a quiet day, or a member with empty evidence sections, where a direction still two lanes wide scores honest fits at 7 and 8 and the gate eats them). Never pad the ten with leads the score turned down, and never lower the gate to fill a row.
-5. **Name the day's Connects bill once.** Ten applications cost what the ten jobs cost,
-   measured from each `connects_cost`. Call `get_freelancer_dashboard` action `check`
-   once for the Connects balance, and include this call in `Upwork calls: N`. One
-line, no advice unless the balance runs out before the ten do.
-6. Use the compact completion report from `CLAUDE.md`. Next step: `/proposal <id>` for the first lead on the list, or the cockpit. Every lead shown has its full posting saved. End with `Upwork calls: N`, measured, never an estimated range.
+1. `python3 code/pipeline.py prune`, then `python3 code/jobs.py clean` (deletes this run's raw responses and writes the stamp).
+2. Show the target number of leads, numbered, one line each: who wants what, the grade, the Connects cost. The other leads that passed the gate wait as the bench (`python3 code/pipeline.py list`). Fewer than ten at 7 or better is a result: report the count and the cause (quiet day, few dense tracks, thin evidence in `context/me.md`). Never pad or lower the gate.
+3. Name the day's Connects bill once from the `connects_cost` values, with the balance from one `get_freelancer_dashboard` action `check`. Never buy Connects.
+4. Add one optional line: "Any of these a no, and why?" Never block on it or ask again. Record each answer with `python3 code/pipeline.py set <id> skipped --note "not a fit: <reason>"` and when they answer on their next turn, offer the next lead from the bench (today only; a lead below the gate is never a refill).
+5. Use the completion report from `CLAUDE.md`. Next step: `/proposal <id>` for the first lead, or the dashboard. End with `Upwork calls: N`, counted, including the dashboard check.

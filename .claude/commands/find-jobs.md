@@ -53,7 +53,7 @@ Go in rounds, branches in the line's order, so every branch gets its core before
 
 Every term gets its first page, even when earlier terms returned the same jobs: that page is the term's only measurement. When the 25 pages run out, stop and name the terms that did not reach the window's start. Save every page's `jobs` list as returned, as `{"jobs": [...]}`: recommendations to `data/search/recommended.json`, a term to `data/search/title-<slug>--<term>.json` (the theme's `slug` from `jobs.py rules`, the term in lowercase with dashes, its pages appended to the same file), a `query` page to `data/search/query-<slug>.json`. The file name becomes the job's "found via", so `learn.py` counts outcomes per branch, per term and per kind of search.
 
-Never remove a term yourself: when one has nothing inside the window, propose removing it in the report and delete it only on a yes.
+Never remove a term yourself: Step 7 measures every term, and one it marks "propose dropping" goes into the report as a proposal, deleted only on a yes.
 
 **Never disqualify a client on a thin signal** (no spending history, low average spend, few reviews; see references/jobs.md). Only the posting's own text fixing a low budget and a deadline together disqualifies.
 
@@ -105,7 +105,7 @@ Then `python3 code/jobs.py detail <id> data/details/<id>.json`. Only a new job w
 ## Step 7 · Close and report
 
 1. Take the balance from one `get_freelancer_dashboard` action `check`.
-2. `python3 code/pipeline.py prune`, then `python3 code/jobs.py clean --calls <N>` with every Upwork call of this run, the balance check included (deletes this run's raw responses, writes the stamp and logs calls and minutes to `data/runs.jsonl`, the record of what a run can safely do).
+2. `python3 code/tracks.py measure data/search/*.json --log` keeps per term how many postings it found and how many no other search found (`data/terms.jsonl`, counts only); a term that found nothing of its own in three runs is marked "propose dropping". Then `python3 code/pipeline.py prune` and `python3 code/jobs.py clean --calls <N>` with every Upwork call of this run, the balance check included (deletes this run's raw responses, writes the stamp and logs calls and minutes to `data/runs.jsonl`, the record of what a run can safely do).
 3. Show the target number of leads, numbered, one line each: who wants what, the grade, the Connects cost. The other leads that passed the gate wait as the bench (`python3 code/pipeline.py list --status new`). Fewer than ten at 7 or better is a result: report the count and the cause (quiet day, few dense tracks, thin evidence in `context/me.md`). Never pad or lower the gate. Name the day's Connects bill once from the `connects_cost` values, with the balance. Never buy Connects.
 4. Add one optional line: "Any of these a no, and why?" Never block on it or ask again. Record each answer with `python3 code/pipeline.py set <id> skipped --note "not a fit: <reason>"` and when they answer on their next turn, offer the next lead from the bench (today only; a lead below the gate is never a refill).
 5. Use the completion report from `CLAUDE.md`, with any `gap` line from Step 1. Next step: `/proposal <id>` for the first lead, or the dashboard. End with `Upwork calls: N`, counted, including the dashboard check.

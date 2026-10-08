@@ -50,7 +50,7 @@ own target.
 A menu for a first run, so nobody stares at a blank page. **Every term here is
 unmeasured until this account measures it**, and one page of results settles it: how
 many of the ten are real work for this member, and over how many hours they spread.
-A term that fails twice is removed with a line saying so. The four angles are the
+A term that fails twice is proposed for removal, and removed only on the member's yes. The four angles are the
 columns; a field the member does not sell is a field to skip.
 
 **Local search and paid search**
@@ -167,11 +167,12 @@ Costs no Upwork call, because it reads the files the run already saved.
 The `Search:` line of each branch in [templates/profile/lanes.md](../templates/profile/lanes.md)
 is that branch's track, and the only place its terms live. `/find-jobs` reads
 `**Branches you picked:**` in `context/me.md`, writes one track per picked branch with the
-branch heading as its label, and runs them in the same run without asking. A custom direction
-has no line there; build it from the catalog above.
+branch name as its label, and runs them in the same run without asking. A custom direction
+has no line there: its terms come from its services, tools and roles in `context/me.md`,
+worded the way the catalog above words them.
 
-An industry the member prefers adds one track per picked branch, the trade plus that branch's
-service word (`gym SEO`, `gym Google Ads`, `gym website`), only while there is room.
+An industry the member prefers adds one track, the trade plus each picked branch's service
+word (`gym SEO`, `gym Google Ads`, `gym website`), only while there is room.
 
 **At most five tracks.** Every term is one title search per page, every track adds one `query`
 page and every run one page of Upwork's recommendations, and a run stops at 25 pages, so
@@ -179,11 +180,12 @@ more tracks buy coverage at the cost of depth per term, which is how a run stops
 fresh postings that are the whole point. Branches go first in the member's order; a branch left
 out is named in the report.
 
-## The member's limits, sent with the search
+## The member's limits
 
-A boundary belongs in the search itself, not in a judgement after the results
-arrive: the filters cost nothing and every one of them turns ten random rows into
-ten rows worth reading.
+`jobs.py candidates` applies these after the search, with the defaults below. A figure the
+member writes into `context/me.md` is also sent as the search filter in the third column,
+so their own boundary costs no page; a default never is, because a filter removes jobs
+before anyone scores them.
 
 **These figures are a starting point, not a rule.** Three of the five scale with
 experience, and the wrong figure is expensive in both directions: an established member
@@ -199,7 +201,7 @@ writes them into `context/me.md`, and every later run reads them there.
 | Hourly floor | 60% of the member's rate | `rate_min` | The same day returned hourly postings at $3 to $5 |
 | Engagement | no `FULL_TIME` | `job_type`, `workload` | An employee disguised as a contract, and the one trap a generous budget hides best |
 | Client rating | drop below 3.0, and only with at least 3 reviews | after the search | One bad review is one freelancer's bad week; three are a pattern. The rating is not a search filter |
-| Age | over 24 hours | the window | Measured 28 September 2026: a three-hour-old posting already carried 23 proposals. A day old is a queue, not an opening |
+| Age | older than the window, at most 12 hours | the window | Measured 28 September 2026: a three-hour-old posting already carried 23 proposals. A day old is a queue, not an opening |
 
 **A posting that caps itself is a no whatever the client looks like**, for example
 "$500 fixed price, done by Friday". The posting is evidence about the budget, the

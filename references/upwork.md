@@ -15,10 +15,12 @@ Every claim carries its measurement date. **MEASURED** means called against a re
 4. `python3 code/pipeline.py prune` after every run. Upwork content is cached 24 hours, saved chats 90 days (`KEEP_CHAT_HOURS`); the member's own work stays.
 5. No login leaves this machine.
 6. Every run ends with `Upwork calls: N`, counted rather than estimated. No fixed
-   ceiling: a pipeline with twenty open leads legitimately costs more than one
-   with three. What is never allowed is a loop that keeps asking, which is the
+   ceiling on the total: a pipeline with twenty open leads legitimately costs more than one
+   with three; `/find-jobs` alone caps itself at 25 search pages and 15 opened jobs. What is never allowed is a loop that keeps asking, which is the
    pattern Upwork's policy names, not the total.
-7. Full job details one job at a time, when a job is opened or before applying, never for a list.
+7. Full job details (`find_jobs get`) one job at a time, when a job is opened or before applying, never for a list.
+   `include_full_details` on a search is not that: it is a search parameter Upwork documents to
+   save the `get` per result, and adds no call.
    Every Upwork call waits for the answer to the one before: never two at once, never spread
    across subagents, never a sweep of terms beyond the run's own searches. MEASURED 8 October
    2026: about 45 title searches in two minutes, partly parallel, from five subagents, got the
@@ -55,7 +57,7 @@ Stop when the requested fact is known; never broaden a search to make an empty r
 
 ## Jobs
 
-**MEASURED 14 August 2026.** `find_jobs search` returns only a truncated `description_snippet`; the full text needs action `get`.
+**MEASURED 14 August 2026.** `find_jobs search` returns only a truncated `description_snippet`; the full text needs action `get`. **DOCUMENTED BUT UNTESTED, tool description 8 October 2026:** `include_full_details` true adds each result's full description to the same search answer.
 
 - **`limit` is hard at 10** results per call, with no way to ask for more.
 - **There is no date filter**, so "only the last two days" can be applied only after results arrive.
@@ -64,7 +66,7 @@ Stop when the requested fact is known; never broaden a search to make an empty r
 
 **MEASURED 12 September 2026:** every result carries `url`, a working job link. `title` cannot be combined with `query` or with `sort` relevance. Results carry `proposal_count`, `applied`, `featured` and the client's `total_posted_jobs`, but no hire count; the hire record comes only from `get` (`client_record`).
 
-**Never exercised from this repo:** `smart_search` reads Upwork's recommendation feeds. `/find-jobs` uses `mode` `most_recent` with `days_posted`. Whatever else its description promises is unverified, so a run says what it got back rather than what it expected.
+**Never exercised from this repo:** `smart_search` reads Upwork's recommendation feeds. `/find-jobs` uses `mode` `most_recent` with `from_date` (an RFC3339 time, the start of its window); `days_posted` counts whole days only. Whatever else its description promises is unverified, so a run says what it got back rather than what it expected.
 
 **What `find_jobs get` adds:** `connects_cost` (what applying costs), `activityStat.applicationsBidStats` (average, minimum and maximum competing rate), `activityStat.jobActivity` (invites sent, hired, invited to interview, offered, unanswered invites), `preferred_qualifications` (minimum Job Success Score, earnings, hours, English level, rising talent, portfolio, contractor type), `client_work_history` (recent contracts with feedback both ways), `clientCompanyPublic` (city, country, timezone), `contractTerms` (experience level, engagement type, hourly budget, persons to hire), `can_apply`. The full description regularly carries a screening instruction no field shows, such as a mandatory opening phrase: read it before writing a proposal.
 

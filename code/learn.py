@@ -68,7 +68,7 @@ def picked_branches():
     match = re.search(r'^\*\*Branches you picked:\*\*[ \t]*(.*)$', text, re.M | re.I)
     if not match or 'not answered yet' in match.group(1).lower():
         return {}
-    names = [name.strip() for name in re.split(r'\s*[·|]\s*', match.group(1)) if name.strip()]
+    names = [re.sub(r'^\d+\.\s*', '', name.strip()) for name in re.split(r'\s*[·|]\s*', match.group(1)) if name.strip()]
     return {re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-'): name for name in names}
 
 
@@ -78,7 +78,7 @@ def dimensions(job):
     for slug in tracks(job):
         out.append(('found via', slug))
         out.append(('search branch', branch(slug)))
-        picked = picked_branches().get(re.sub(r'^(?:query|title|search)-', '', slug))
+        picked = picked_branches().get(re.sub(r'^(?:query|title|search)-', '', slug).split('--')[0])
         if picked:
             out.append(('your branch', picked))
     client = job.get('client') or {}
@@ -93,7 +93,7 @@ def dimensions(job):
         out.append(('client asked for', str(level)))
     score = job.get('score')
     if isinstance(score, (int, float)):
-        out.append(('our own score', f'{int(score) // 10 * 10} to {int(score) // 10 * 10 + 9}'))
+        out.append(('our own score', '9 or 10' if score >= 9 else '7 or 8' if score >= 7 else '6 or less'))
     return out
 
 
@@ -217,8 +217,8 @@ def cmd_report(args):
         print(f'{dimension}: {value} | applied {c["applied"]}, replied {c["replied"]}, '
               f'offer {c["offer"]}, won {c["won"]} | {verdict}')
     learned = lessons(counts, args.min)
-    print(f'\n{len(learned)} lesson(s) strong enough to move a score, capped at '
-          f'{MAX_POINTS} points either way.')
+    print(f'\n{len(learned)} lesson(s) strong enough to move a score; jobs.py score applies '
+          f'at most one point in total either way.')
     for lesson in learned:
         print(f'  {lesson["dimension"]} "{lesson["value"]}": {lesson["points"]:+d} '
               f'({lesson["replied"]}/{lesson["applied"]} replied)')

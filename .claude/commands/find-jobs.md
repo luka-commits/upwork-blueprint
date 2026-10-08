@@ -49,7 +49,7 @@ Go in rounds, branches in the line's order, so every branch gets its core before
 1. One page of recommendations.
 2. Per theme: page 1 of its first term, the broad one, and its `query` page.
 3. Per theme: page 1 of every other term.
-4. Further pages of a term while `hasNextPage` and the page's oldest job is inside the window, with `cursor` set to the previous `pageInfo.endCursor` (in practice the broad terms).
+4. Further pages of each theme's first term only, while `hasNextPage` and the page's oldest job is inside the window, with `cursor` set to the previous `pageInfo.endCursor`. Every other term keeps its one page, however dense.
 
 Every term gets its first page, even when earlier terms returned the same jobs: that page is the term's only measurement. When the 25 pages run out, stop and name the terms that did not reach the window's start. Save every page's `jobs` list as returned, as `{"jobs": [...]}`: recommendations to `data/search/recommended.json`, a term to `data/search/title-<slug>--<term>.json` (the theme's `slug` from `jobs.py rules`, the term in lowercase with dashes, its pages appended to the same file), a `query` page to `data/search/query-<slug>.json`. The file name becomes the job's "found via", so `learn.py` counts outcomes per branch, per term and per kind of search.
 

@@ -8,7 +8,7 @@ argument-hint: "<job id> [more job ids] | <job id> submitted"
 **`/proposal <id> submitted`:** only run `python3 code/pipeline.py set <id> applied`
 and report `Upwork calls: 0`, then stop before any other step. It records the member's submission.
 
-**Several ids run one after another.** Each page gets its own sketch, its own approval and its own publish: the repetition is the command's, never the member's yes.
+**Several ids run one after another.** Each page gets its own sketch, its own approval: the repetition is the command's, never the member's yes.
 
 Follow `references/copy.md` for the page and application. The
 member described in `context/me.md` is the sender.
@@ -22,10 +22,7 @@ Read first: [references/upwork.md](../../references/upwork.md) (hard constraint 
 
 Before Step 1, if `jobs/<id>/pitch.html` exists, run
 `python3 code/pitch_check.py page jobs/<id>/pitch.html`. When it passes, keep
-that page and skip building it again. Check the pipeline record for a
-`pitch_url`: with one, go straight to the Application step. Without one the page
-was never published, so run Step 7 first, because the application links to a page
-a client has to be able to open.
+that page and skip building it again and go straight to the Application step.
 
 ## Step 1 · The job and its full posting
 
@@ -86,7 +83,7 @@ guide is never the bid, never appears on the page and never overrides approved t
 | Something else | the full pitch page below | Steps 4 and 5 |
 
 - **Roadmap pages (SEO, Google Ads, Website):** copy the template to `jobs/<id>/pitch.html`,
-  which is the file the deploy publishes, and edit it to this client. **Skip Steps 4 and 5
+  which is the file the member shares on screen in the Loom, and edit it to this client. **Skip Steps 4 and 5
   and go to Step 6**: no graph, no `pitch_generate.py`. The file's own comment lists what
   to rewrite; these decide whether it lands:
 
@@ -194,23 +191,7 @@ python3 code/pitch_generate.py <id> --hook "..." \
 - Inspect the hero and every plan-image crop. Check every dither placement:
   the source must be upright, identifiable and clear of the copy.
 
-## Step 7 · Publish the client page
-
-**Run `python3 code/preflight.py vercel`, then ask.** Unavailable: say so, skip this step
-and go to the application, which then carries no link and one sentence about the plan
-instead. Available: one line to the member, what the page promises and that the URL is
-about to be public, and publish on their pick: a single choice, publish it or not yet
-([references/copy.md: How to ask](../../references/copy.md#how-to-ask)).
-
-Run `python3 code/pitch_deploy.py <id>`. It confirms the page opens publicly and
-saves the exact deployment URL through `code/pipeline.py`. Never upload the job
-folder, because it contains drafts.
-
-**It republishes every page that project already holds** (one Vercel deploy replaces the whole project): an old page failing its gate stops this run with `the previously published pitch <id> failed its gate`, and the fix is that page. A page the member pulled stays gone after the next deploy.
-
-Publishing is part of this command. A missing Vercel CLI or authentication is a blocker, not a completed pitch. A Vercel CLI login or a `VERCEL_TOKEN` works, **but not a token that belongs to a different account**: the preflight stops when a token publishes as somebody other than `vercel login`. A team token names the team in `VERCEL_SCOPE`.
-
-## Step 8 · Application
+## Step 7 · Application
 
 Use the full posting from Step 1 and `references/copy.md` for
 every line the client will read. The member reviews and submits the proposal
@@ -247,9 +228,6 @@ Hey, I'm a <the member's real status and role from context/me.md> and can defini
 Here's how I would do it :)
 📽️: [LOOM LINK]
 
-Here's the flowchart I was showing in the video:        <only for GoHighLevel and Automations>
-🔗 <the published pitch page URL from Step 7>
-
 <Screening block, only when the posting states questions: see below>
 
 In terms of relevant experience, <one or two sentences of proof from the evidence sections of context/me.md that fit this job, using the problem words of the posting>.
@@ -268,7 +246,7 @@ All the best, <first name>
 Fill rules:
 - **The opening carries the card.** The first 230 characters are the role plus this client's outcome, with at least one word from the job title.
 - **Status, counts and clients** ("Top-Rated", "15+ clients", a named result) are written only if they stand in the evidence sections of `context/me.md`. A count that is missing is left out, not asked for. **The portfolio block is optional**: most members have no link, so without one the two lines are dropped and nothing is asked.
-- **The flowchart line** appears only on branches that build the flowchart page (GoHighLevel, Automations). SEO, Ads and Website drop it: the Loom walks through the roadmap page instead, and the page link goes in the same place.
+- **The page is not published.** The member opens `jobs/<id>/pitch.html` on their own screen and walks through it in the Loom. The letter carries no page link.
 - **No claim beyond the proof.** A requirement the evidence does not cover is not claimed; name it to the member instead.
 - Do not recap the posting, add generic praise or pad. Never add a guarantee, refund,
   free work or delivery date as a sales device.
@@ -328,12 +306,9 @@ letter is written and wrong the moment it is pasted.
 Never mark Applied until the member submits on Upwork, then runs `/proposal <id> submitted`.
 That stage rests on their word; `/brief` checks once if no proposal ever shows up.
 
-## Step 9 · Report
+## Step 8 · Report
 
-Run `python3 code/pipeline.py prune` first, because Step 1 fetched the full job. Then the completion report as CLAUDE.md defines it, with the public page and
-application linked. Say what the application costs in Connects and what the balance leaves.
+Run `python3 code/pipeline.py prune` first, because Step 1 fetched the full job. Then the completion report as CLAUDE.md defines it, with the application linked. Say what the application costs in Connects and what the balance leaves.
 Next: record the Loom and return its URL here; replace [LOOM LINK] in the letter. The
-page itself carries no walkthrough button, so nothing is republished. Run
-`python3 code/pitch_check.py page jobs/<id>/pitch.html --ready` and the ready
-application check again. Only then submit on Upwork and run `/proposal <id> submitted`.
+page stays on the member's computer. Run the ready application check again. Only then submit on Upwork and run `/proposal <id> submitted`.
 End with `Upwork calls: N`.

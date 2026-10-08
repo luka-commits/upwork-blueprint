@@ -76,18 +76,18 @@ def check_page(path, *, require_hero=False, ready=False):
         problems.append(f'unfilled placeholders: {", ".join(sorted(set(left)))}')
     # The roadmap templates mark their blanks in the prose a client reads, not in
     # the {{BRACES}} the generator fills, so the rule above walked straight past a
-    # page still saying "<Your name>" and passed it for publishing.
+    # page still saying "<Your name>" and passed it.
     for m in TEMPLATE_BLANK.finditer(text):
         problems.append(f'still carries a template blank: {m.group(0)[:60]}')
     for m in re.finditer(r'PUT-YOUR-[A-Z-]+', page):
-        # The Loom id is the one blank that cannot be filled before publishing: the
-        # walkthrough is a video of this page, so the page has to exist first. It is
-        # refused at the moment the link goes to a client, not while it is being built.
+        # The Loom id is the one blank that cannot be filled while the page is built:
+        # the walkthrough is a video of this page, so the page has to exist first. It
+        # is refused only with --ready, once the Loom exists.
         if 'LOOM' in m.group(0) and not ready:
             continue
         problems.append(f'still carries a template blank: {m.group(0)}')
-    # write_site copies the HTML and nothing beside it, so any file the page points
-    # at by a relative path is a 404 the member only sees after sending the link.
+    # The page is one file the member opens and shows in the Loom, so any file it
+    # points at by a relative path is a broken image on screen.
     # Outside comments only: a commented-out tag cannot 404, and the roadmap
     # templates spell the wrong form inside a comment in order to warn against it.
     live = re.sub(r'<!--.*?-->', ' ', page, flags=re.S)

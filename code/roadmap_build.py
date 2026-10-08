@@ -19,7 +19,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'code'))
-import pitch_generate as pg  # noqa: E402
+import diagram as pg  # noqa: E402
 
 PITCH = ROOT / 'templates' / 'pitch' / 'template.html'
 KEEP = re.compile(r'\.dg-|\.artifact|\.sw\b|\.sw-|#dg')

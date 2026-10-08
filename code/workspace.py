@@ -99,10 +99,6 @@ def ensure(root=ROOT, starters=STARTERS):
     (root / 'data').mkdir(exist_ok=True)  # the live profile and job files land here
     for source in sorted(p for p in starters.rglob('*') if p.is_file()):
         relative = source.relative_to(starters)
-        # Shipped tool knowledge stays current. A member's explicit local copy
-        # takes precedence, but setup does not freeze one on their behalf.
-        if relative.parts[:2] == ('context', 'tool-knowledge'):
-            continue
         target = root / relative
         if target.exists():
             if relative == pathlib.Path('context/me.md'):

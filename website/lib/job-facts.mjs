@@ -4,7 +4,7 @@
 // Freshness and crowding are read from the posting itself, never from the frozen
 // score: under a day is green, three days amber, a week red; five bids or fewer
 // green, thirty or more red, and a range like `20 to 50` is read from its first
-// number. A score of 70 or more is strong, under 50 is weak. A budget is written
+// number. A score of 9 or more is strong, under 7 is weak. A budget is written
 // the same way in the row, the panel and the board, and an hourly job with no
 // rate says so rather than showing a dash.
 import { jobPreview } from './job-brief.mjs';

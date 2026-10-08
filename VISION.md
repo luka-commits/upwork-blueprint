@@ -62,7 +62,7 @@ The cockpit applies these principles to the interface in
 ## Review contract
 
 Review the system against this file, then against the evidence a run actually
-leaves: what `tools/check_repo.py` reports, what the built report shows at 1440
+leaves: what the commands' own checks report, what the built report shows at 1440
 and 390 pixels, and what the real interface does. A review ends PASS or FAIL and
 answers five questions:
 

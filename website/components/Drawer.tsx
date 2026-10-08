@@ -123,13 +123,10 @@ function WorthIt({ job }: { job: any }) {
 }
 
 function Pitch({ job }: { job: any }) {
-  const local = (job.artifacts || []).includes('pitch.html');
-  if (!job.pitch_url && !local) return null;
+  if (!(job.artifacts || []).includes('pitch.html')) return null;
   return <section className="drawer-section">
     <h4>Pitch page</h4>
-    {job.pitch_url
-      ? <p><a href={job.pitch_url} target="_blank" rel="noopener">{job.pitch_url}</a> <CopyButton text={job.pitch_url} label="Copy link" /></p>
-      : <p><a href={artifactUrl(job.id, 'pitch.html')} target="_blank" rel="noopener">Open the local pitch page</a></p>}
+    <p><a href={artifactUrl(job.id, 'pitch.html')} target="_blank" rel="noopener">Open the local pitch page</a></p>
   </section>;
 }
 

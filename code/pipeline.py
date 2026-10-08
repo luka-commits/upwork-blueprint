@@ -23,8 +23,6 @@ Usage:
     python3 code/pipeline.py follow-up <job_id> sent [--on YYYY-MM-DD]
     python3 code/pipeline.py follow-up <job_id> clear --reason "..." [--replied]
     python3 code/pipeline.py note <job_id> "what happened"
-    python3 code/pipeline.py task <job_id> add "what to do" [--due +2d|YYYY-MM-DD] [--time HH:MM]
-    python3 code/pipeline.py task <job_id> done|reopen|delete <task_number>
     python3 code/pipeline.py get <job_id>
     python3 code/pipeline.py list [--status new] [--limit 25]
     python3 code/pipeline.py summary
@@ -44,7 +42,6 @@ import pathlib
 import re
 import sys
 import tempfile
-from urllib.parse import urlparse
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 STATUSES = ('new', 'applied', 'replied', 'call', 'offer', 'won', 'lost', 'skipped')
@@ -737,59 +734,6 @@ def cmd_note(args):
     print(f'{args.job_id}: note added.')
 
 
-def cmd_task(args):
-    """Tasks on a lead or a won client: add one, tick it off, reopen or delete it."""
-    jobs = load()
-    job = find(jobs, args.job_id)
-    tasks = job.setdefault('tasks', [])
-    if args.action == 'add':
-        text = ' '.join((args.text or '').split())
-        if not text:
-            abort('a task needs text.')
-        if args.time and not args.due:
-            abort('--time needs --due.')
-        if args.time and not re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', args.time):
-            abort('--time expects HH:MM in 24-hour time.')
-        number = max((t['id'] for t in tasks), default=0) + 1
-        tasks.append({'id': number, 'text': text[:300], 'due': parse_follow_up(args.due) if args.due else None,
-                      'due_time': args.time or None, 'created_at': now_iso(), 'done_at': None})
-        message = f'task {number} added'
-    else:
-        task = next((t for t in tasks if str(t['id']) == str(args.text)), None)
-        if not task:
-            abort(f'there is no task {args.text} on {args.job_id}.')
-        if args.action == 'done':
-            task['done_at'] = now_iso()
-        elif args.action == 'reopen':
-            task['done_at'] = None
-        else:
-            tasks.remove(task)
-        message = f'task {task["id"]} {"deleted" if args.action == "delete" else args.action}'
-    save(jobs)
-    print(f'{args.job_id}: {message}.')
-
-
-def cmd_pitch_url(args):
-    """Save a hosted pitch URL separately from its local preview."""
-    jobs = load()
-    job = find(jobs, args.job_id)
-    value = args.url.strip()
-    if value == '-':
-        job.pop('pitch_url', None)
-    else:
-        parsed = urlparse(value)
-        host = (parsed.hostname or '').lower().rstrip('.')
-        import ipaddress
-        try:
-            private = not ipaddress.ip_address(host).is_global
-        except ValueError:
-            private = (host in ('localhost', '') or host.endswith(('.localhost', '.local', '.test', '.invalid'))
-                       or '.' not in host or bool(re.fullmatch(r'[\d.]+', host)))
-        if parsed.scheme != 'https' or private or parsed.username or parsed.password or any(c.isspace() for c in value):
-            abort('use the public HTTPS URL of your hosted pitch page, not the local preview.')
-        job['pitch_url'] = value
-    save(jobs)
-    print(f'{args.job_id}: pitch link {"removed" if value == "-" else "saved"}.')
 
 
 def cmd_get(args):
@@ -912,12 +856,10 @@ def cmd_prune(args):
                                    'profile.json', 'highlights.json', 'contracts.json')
                  for p in data_dir().glob(pattern)
                  if p.is_file() and datetime.datetime.fromtimestamp(p.stat().st_mtime, datetime.timezone.utc) < cutoff]
-    previews = [p for p in jobs_dir().glob('*/.pitch-preview.png')
-                if p.is_file() and datetime.datetime.fromtimestamp(p.stat().st_mtime, datetime.timezone.utc) < cutoff]
     if args.dry_run:
         print(f'DRY RUN: {hits} of {len(jobs)} jobs older than {args.hours}h, '
-              f'{fields} cached fields, {len(threads)} saved threads, {len(raw_cache)} raw cache files and '
-              f'{len(previews)} pitch previews would be removed. Nothing changed.')
+              f'{fields} cached fields, {len(threads)} saved threads, and {len(raw_cache)} raw cache files would be removed. '
+              f'Nothing changed.')
         return
     if hits:
         save(jobs)
@@ -925,15 +867,13 @@ def cmd_prune(args):
         t.unlink()
     for item in raw_cache:
         item.unlink()
-    for preview in previews:
-        preview.unlink()
     print(f'{hits} jobs pruned, {fields} cached fields removed, {len(threads)} saved threads, '
-          f'{len(raw_cache)} raw cache files and {len(previews)} pitch previews deleted.')
+          f'and {len(raw_cache)} raw cache files deleted.')
 
 
 def protected_search_lead(job, now_utc):
-    """A published page, application, decision or fresh intake keeps the lead."""
-    if (job.get('pitch_url') or job.get('status') != 'new'
+    """An application, a decision or a fresh intake keeps the lead."""
+    if (job.get('status') != 'new'
             or job.get('applied_at') or job.get('application_date_unknown')
             or (jobs_dir() / str(job.get('id')) / 'application.md').is_file()):
         return True
@@ -1114,19 +1054,6 @@ def build_parser():
     p.add_argument('job_id')
     p.add_argument('text')
     p.set_defaults(func=cmd_note)
-
-    p = sub.add_parser('task', help='Tasks on a lead or client.')
-    p.add_argument('job_id')
-    p.add_argument('action', choices=('add', 'done', 'reopen', 'delete'))
-    p.add_argument('text', help='The task text for add, the task number otherwise.')
-    p.add_argument('--due')
-    p.add_argument('--time')
-    p.set_defaults(func=cmd_task)
-
-    p = sub.add_parser('pitch-url', help='Save the public URL of a hosted pitch page.')
-    p.add_argument('job_id')
-    p.add_argument('url', help='Public HTTPS URL, or "-" to remove it.')
-    p.set_defaults(func=cmd_pitch_url)
 
     p = sub.add_parser('get', help='One record as JSON.')
     p.add_argument('job_id')

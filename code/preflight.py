@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail before paid work when credentials or publishing are unavailable.
+"""Fail before paid work when a credential is missing or refused.
 
 Every check reads its credentials first and returns without them, never calling the
 provider: a check made with an empty key produces a request that proves nothing and
@@ -8,20 +8,9 @@ still counts against the account it could not authenticate.
 
 from __future__ import annotations
 
-import argparse
 import json
-import os
-import pathlib
-import shutil
-import subprocess
-import sys
 import urllib.error
 import urllib.request
-
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'code'))
-
-import env_file
 
 
 def get_json(url, headers, *, opener=urllib.request.urlopen):
@@ -61,26 +50,3 @@ def kie_error(env, *, fetch=get_json):
     if answer.get('code') in (401, 403):
         return f'kie.ai refused the key: {answer.get("msg") or answer.get("code")}'
     return ''
-
-
-def checks(profile, env, *, fetch=get_json, which=shutil.which, runner=subprocess.run):
-    if profile == 'proposal':
-        return [('kie.ai', kie_error(env, fetch=fetch))]
-    raise ValueError(f'unknown preflight profile: {profile}')
-
-
-def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('profile', choices=('proposal',))
-    args = parser.parse_args(argv)
-    env = dict(os.environ)
-    env_file.load_dotenv(ROOT / '.env', env)
-    env_file.load_dotenv(pathlib.Path.home() / '.config' / 'credentials.env', env)
-    results = checks(args.profile, env)
-    for name, problem in results:
-        print(f'{"FAIL" if problem else "PASS"}  {name}{f": {problem}" if problem else ""}')
-    return 1 if any(problem for _, problem in results) else 0
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

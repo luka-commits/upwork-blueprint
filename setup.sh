@@ -46,7 +46,7 @@ fi
 
 if ! command -v google-chrome >/dev/null && ! command -v chromium >/dev/null \
    && [ ! -d "/Applications/Google Chrome.app" ] && ! env_has CHROME_BIN; then
-  note "Google Chrome: /proposal checks the finished page on a phone screen with it, and /sales-call-proposal draws its sketch with it. Install it from google.com/chrome, or put the path in CHROME_BIN."
+  note "Google Chrome: /sales-call-proposal draws its sketch with it. Install it from google.com/chrome, or put the path in CHROME_BIN."
 fi
 
 if [ ! -d website/node_modules ] && command -v npm >/dev/null; then

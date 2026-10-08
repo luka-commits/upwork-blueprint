@@ -186,18 +186,6 @@ def role_of(title):
     return (role, employer, when) if role else (name, '', when)
 
 
-def tag_html(item):
-    """The one label on the sheet: something pulled from elsewhere that nobody has confirmed yet."""
-    return '<span class="tag">to confirm</span>' if item['pending'] else ''
-
-
-def trail_html(item):
-    """Where an unconfirmed entry came from. A confirmed one needs no footnote on a resume."""
-    if not (item['pending'] and item['source']):
-        return ''
-    return f'<small>Pulled from {esc(clip(item["source"], 120))}</small>'
-
-
 SENT = re.compile(r'(?<=\))\.\s+|(?<=[a-z]{4})\.\s+(?=[A-Z])')  # not after M.Sc., B.A., Dr.
 LANGUAGE = re.compile(r'\b(native|fluent|bilingual|conversational|proficient|intermediate|basic)\b', re.I)
 
@@ -253,11 +241,6 @@ def cert_row(item):
 def skill_row(label, text, limit):
     words = [w.strip() for w in re.split(r'\s*[,·;]\s*|\s+and\s+', text or '') if w.strip()]
     return row(label, esc(', '.join(words[:limit]))) if words else ''
-
-
-def item_html(item, limit=CLIP):
-    return (f'<div class="item"><strong>{tag_html(item)}{esc(item["title"])}</strong>'
-            f'<p>{esc(clip(item["text"], limit))}</p>{trail_html(item)}</div>')
 
 
 def block(title, inner):

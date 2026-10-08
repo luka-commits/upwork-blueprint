@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""The plan diagram as a drawing, before anyone renders or publishes it.
+"""The plan diagram as a drawing, before anyone renders it.
 
     python3 code/graph_sketch.py jobs/<id>/pitch-graph.json
     python3 code/graph_sketch.py jobs/<id>/pitch-graph.json --list
 
-A pitch page's diagram is the part a client studies, and it used to be judged for the
-first time as a rendered image on a public URL. That is the wrong moment: by then the
-page exists, the deploy ran, and changing the flow means doing all of it again.
+A one-pager's diagram is the part a client studies in the Loom, and judging it first
+as a rendered page is the wrong moment: by then the page exists, and changing the flow
+means building it again.
 
 So it is drawn here, in boxes and arrows, from the same file the page is built from. An
 indented list is not a diagram and cannot be judged like one: a fork that does not fork,
@@ -102,42 +102,6 @@ def place(text, column, width):
     """One label written into a blank line at a column, kept inside the width."""
     column = max(0, min(column, width - len(text)))
     return column, text
-
-
-def connectors(pairs, source_centres, target_centres, width, labels):
-    """Four lines: out of each source, across, the edge labels, then into each target.
-
-    Labels get their own line on purpose. Written onto the horizontal run they collide
-    with it and with each other, and a fork whose second label silently vanished is
-    exactly the defect this drawing exists to expose.
-    """
-    down = [' '] * width
-    across = [' '] * width
-    tags = [' '] * width
-    into = [' '] * width
-    for source, target in pairs:
-        a, b = source_centres[source], target_centres[target]
-        down[a] = '|'
-        into[b] = 'v'
-        lo, hi = sorted((a, b))
-        for x in range(lo, hi + 1):
-            if across[x] == ' ':
-                across[x] = '-'
-        # A source that fans out sideways gets a corner even on its straight edge,
-        # so a fork never reads as a single line that happens to touch a branch.
-        fans = any(source_centres[s] != target_centres[t] for s, t in pairs if s == source)
-        across[a] = '+' if fans else '|'
-        across[b] = '+' if a != b else across[b]
-    for (source, target), text in labels.items():
-        if not text:
-            continue
-        word = text[:INNER]
-        at = max(0, min(target_centres[target] - len(word) // 2, width - len(word)))
-        while at and any(tags[at + i] != ' ' for i in range(len(word)) if at + i < width):
-            at -= 1
-        tags[at:at + len(word)] = list(word)
-    return [line.rstrip() for line in (''.join(down), ''.join(across), ''.join(tags), ''.join(into))
-            if line.strip()]
 
 
 def columns_of(nodes, edges, graph):

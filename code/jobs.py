@@ -4,14 +4,14 @@
     python3 code/jobs.py window                                   # hours to search back, starts the run
     python3 code/jobs.py pause                                    # five seconds between Upwork calls
     python3 code/jobs.py candidates data/search/*.json [--window-hours 10]
-    python3 code/jobs.py score [--min 50]                         # merges data/fit.json, logs
+    python3 code/jobs.py score [--min 7]                          # merges data/fit.json, logs
     python3 code/jobs.py detail <job_id> <find_jobs-get-response.json>
     python3 code/jobs.py lessons                                  # your past calls, to calibrate
 
-A job's score is out of 100: niche fit 40 (Claude, from data/fit.json), client
-trust 30, deal quality 20, recency 10 (all three counted here). A job under 20
-on niche fit is never logged, whatever the rest says: a great client does not
-rescue an irrelevant job.
+A job's score is out of ten: Claude's fit from data/fit.json, minus at most two
+for client trust, deal quality and recency (counted here), plus or minus one from
+past lessons. A job under fit 6 is never logged, whatever the rest says: a great
+client does not rescue an irrelevant job.
 """
 import argparse
 import collections
@@ -113,11 +113,6 @@ def member_rate():
     profile = load_json(DATA / 'profile.json', {})
     personal = profile.get('data', {}).get('personalData', {})
     return money_value((personal.get('chargeRate') or {}).get('rawValue')) or me_number('Hourly rate')
-
-
-def member_floor():
-    """The smallest project the member said is worth taking, or the shipped default."""
-    return me_number('Smallest project worth taking') or FIXED_FLOOR
 
 
 def member_limits():

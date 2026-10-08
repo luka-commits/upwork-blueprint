@@ -15,12 +15,15 @@ won. A lead that skipped a stage still counts for the stages it reached.
 """
 import argparse
 import collections
+import functools
 import json
 import os
 import pathlib
+import re
 
 import pipeline
 
+ME = pathlib.Path(os.environ.get('BLUEPRINT_ME') or pathlib.Path(__file__).resolve().parents[1] / 'context' / 'me.md')
 MIN_APPLIED = 8          # below this a dimension is noise, not a lesson
 MAX_POINTS = 5           # the most a lesson may move a score, in either direction
 STAGES = ('applied', 'replied', 'offer', 'won')
@@ -51,12 +54,33 @@ def branch(slug):
     return 'search theme'
 
 
+@functools.lru_cache(maxsize=1)
+def picked_branches():
+    """The member's branches from `**Branches you picked:**`, keyed by the slug of their track.
+
+    `/find-jobs` labels each branch's track with the branch name, so the file a lead was
+    found in (`query-<slug>`) names its branch.
+    """
+    try:
+        text = ME.read_text(encoding='utf-8')
+    except OSError:
+        return {}
+    match = re.search(r'^\*\*Branches you picked:\*\*[ \t]*(.*)$', text, re.M | re.I)
+    if not match or 'not answered yet' in match.group(1).lower():
+        return {}
+    names = [name.strip() for name in re.split(r'\s*[·|]\s*', match.group(1)) if name.strip()]
+    return {re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-'): name for name in names}
+
+
 def dimensions(job):
     """Every bucket this lead belongs to, as (dimension, value) pairs."""
     out = []
     for slug in tracks(job):
         out.append(('found via', slug))
         out.append(('search branch', branch(slug)))
+        picked = picked_branches().get(re.sub(r'^(?:query|title|search)-', '', slug))
+        if picked:
+            out.append(('your branch', picked))
     client = job.get('client') or {}
     if client.get('country'):
         out.append(('client country', str(client['country'])))

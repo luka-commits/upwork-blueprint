@@ -164,52 +164,18 @@ Costs no Upwork call, because it reads the files the run already saved.
 
 ## Ready-made tracks
 
-`/about-me` writes the `Search:` line of each picked branch in
-[templates/profile/lanes.md](../templates/profile/lanes.md) into `context/me.md` as the member's tracks,
-and `/find-jobs` runs them in the same run without asking. A custom direction has no line there;
-build it from the catalog above.
+The `Search:` line of each branch in [templates/profile/lanes.md](../templates/profile/lanes.md)
+is that branch's track, and the only place its terms live. `/find-jobs` reads
+`**Branches you picked:**` in `context/me.md`, writes one track per picked branch with the
+branch heading as its label, and runs them in the same run without asking. A custom direction
+has no line there; build it from the catalog above.
 
-**1. GoHighLevel CRM automations**
-```
-- GoHighLevel: GoHighLevel · GHL · HighLevel snapshot
-- CRM problem: missed call text back · appointment booking · CRM setup
-- Role: GoHighLevel expert · marketing automation specialist
-```
+An industry the member prefers adds one track per picked branch, the trade plus that branch's
+service word (`gym SEO`, `gym Google Ads`, `gym website`), only while there is room.
 
-**2. Website building**
-```
-- Website: WordPress · Elementor · landing page
-- Website problem: website redesign · site speed · mobile friendly
-```
-
-**3. SEO**
-```
-- Local SEO: Google Business Profile · Google Maps ranking · local SEO
-- SEO problem: not showing on Google · organic traffic · keyword research
-```
-
-**4. Google Ads**
-```
-- Google Ads: Google Ads · Performance Max · conversion tracking
-- Ads problem: wasted ad spend · cost per lead · Google Ads audit
-```
-
-**5. Automations**
-```
-- Automation: Make · n8n · Zapier
-- Automation problem: manual data entry · connect two tools · API integration
-- AI: AI chatbot · voice agent · OpenAI API
-```
-
-Every picked branch adds one industry line from the member's industries in `context/me.md`,
-the trade plus that branch's service word (`gym SEO`, `gym Google Ads`, `gym website`).
-
-**Several branches, one budget of terms.** A member with two or three branches gets terms from
-each on the first run, ten to twelve in total, so every branch is measured. What stays is three
-to five tracks, whichever branches they come from: every track is one search call per page, and
-more tracks buy coverage at the cost of depth per term, which is how a run stops finding the
-fresh postings that are the whole point. The rotating slot for a new candidate term retests a
-picked branch whose terms did not survive.
+**At most five tracks.** Every track is one search call per page, and more tracks buy coverage
+at the cost of depth per term, which is how a run stops finding the fresh postings that are the
+whole point. Branches go first in the member's order; a branch left out is named in the report.
 
 ## The member's limits, sent with the query
 

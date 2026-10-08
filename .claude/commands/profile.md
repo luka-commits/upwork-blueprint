@@ -19,7 +19,7 @@ Read first [references/profile.md](../../references/profile.md), the profile sec
 
 ## Step 1 · Read your facts
 
-`context/me.md` holds background, offer, terms and provable results (`/about-me` writes it; this command interviews nobody). Build everything from its recorded direction (lead branch, offer, audience, country). Never reopen it or suggest another lead branch; a proof/direction mismatch is one line under "Decide first". Ask only for role-model addresses, the rate and a yes per field.
+`context/me.md` holds background, offer, terms and provable results (`/about-me` writes it; this command interviews nobody). Build everything from its recorded direction (lead branch, offer, audience, country); the lead branch is the first name on `**Branches you picked:**`. Never reopen it or suggest another lead branch; a proof/direction mismatch is one line under "Decide first". Ask only for role-model addresses, the rate and a yes per field.
 
 Run `python3 code/context_check.py`. Open questions never stop you: draft from what exists and list every gap under "# Decide first" atop `profile.md`. **One exception: a line naming the proof interview stops the draft.** Say which questions are open and send the member to `/about-me proof`; a question answered "none" is answered. If `python3 code/context_check.py --status` says untouched, `/about-me` comes first.
 
@@ -51,7 +51,7 @@ Call `get_profile` action `get`, save as returned to `data/profile.json`, then `
 
 Start from the role models: borrow how titles are built, overviews open and close, and what the first lines carry; structure, never sentences.
 
-For SEO, Google Ads, WordPress or GoHighLevel, first read the matching file in `templates/profile/` (orientation and vocabulary, never text to paste). Title, hook, skills, portfolio titles and video all follow the recorded direction; if the live profile points elsewhere, write for the recorded direction and say so.
+First read the file the lead branch's `Profile orientation:` line names in `templates/profile/lanes.md` (orientation and vocabulary, never text to paste); a branch with none, or a custom direction, has no file. Title, hook, skills, portfolio titles and video all follow the recorded direction; if the live profile points elsewhere, write for the recorded direction and say so.
 
 Fix every Step 2 finding in the draft. A finding needing the member's hands becomes a line in `## Profile fields` or `## Completeness` with its cost. Never copy a finding into the file: a checklist in a client-facing overview is a bug.
 

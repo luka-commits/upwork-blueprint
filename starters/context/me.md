@@ -24,6 +24,7 @@ thing a new profile has.
 ## What you do
 
 **Profession:** not answered yet
+**Branches you picked:** not answered yet
 **The one thing you want to be hired for:** not answered yet
 **Services you sell:** not answered yet
 **Per service, what the client gets, the price, how long, which tool:** not answered yet
@@ -55,7 +56,7 @@ decision easy, use concrete commitments, and never pressure the client.
 
 ## Job search tracks
 
-Not set yet. /find-jobs proposes them from your profile the first time it runs. One short line each, a tool or role a client would put in a job title.
+Not set yet. /find-jobs builds them from the branches you picked the first time it runs. One short line each, a tool or role a client would put in a job title.
 
 ## Proof interview
 

@@ -19,6 +19,11 @@ Every claim carries its measurement date. **MEASURED** means called against a re
    with three. What is never allowed is a loop that keeps asking, which is the
    pattern Upwork's policy names, not the total.
 7. Full job details one job at a time, when a job is opened or before applying, never for a list.
+   Every Upwork call waits for the answer to the one before: never two at once, never spread
+   across subagents, never a sweep of terms beyond the run's own searches. MEASURED 8 October
+   2026: about 45 title searches in two minutes, partly parallel, from five subagents, got the
+   account's search "restricted due to violations of our Terms of Service", far below the
+   published 300 a minute. The pattern triggers it, not the count.
 8. No contact information before the contract starts, given or asked for (checked 12 September 2026). A link to your work is allowed, so every page this repo publishes for a client carries no email, phone, WhatsApp, booking link, contact form or social profile, and says "reply here on Upwork" instead. Meetings run on Upwork's own video calls. Exception: Enterprise plan on either side.
 9. Pipeline state is written only through `python3 code/pipeline.py`.
 

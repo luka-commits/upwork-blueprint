@@ -26,16 +26,17 @@ Keep the prefix: `python3 code/jobs.py rules` counts a reason only when the note
 3. `list_accounts`. If the Upwork tools are missing, walk the member through connecting as `CLAUDE.md` says and stop.
 4. `python3 code/jobs.py window` prints the hours to look back (24 on a first run); keep the number as `<window>`. `jobs.py clean` in Step 7 saves the time of this run, so a run must finish for the next window to narrow.
 5. **Tracks.** Read `context/me.md` under "Job search tracks" (lines like `- Theme: term · term`, written by `/about-me`). If there are none, build them now without asking:
-   - Take the `Search:` line of each branch the member picked, from [templates/profile/lanes.md](../../templates/profile/lanes.md), as one theme per branch (`- GoHighLevel: GoHighLevel · HighLevel CRM · GHL automation`).
+   - Read `**Branches you picked:**` in `context/me.md`, the names joined by ` · ` in the member's order. A file written before that line existed names its branches under "What you do" instead.
+   - Each name headed in [templates/profile/lanes.md](../../templates/profile/lanes.md) becomes one theme: the heading as label, its `Search:` line as terms (`- GoHighLevel CRM automations: GoHighLevel · HighLevel CRM · GHL automation · CRM automation`).
+   - A name with no heading is a custom direction: draw terms from its services, tools and roles in `context/me.md`.
    - If `context/me.md` names an industry the member prefers (in "What you do" or their strengths), add one theme for it per picked branch: the trade plus the branch's service word (`- Gyms: gym SEO · gym Google Ads`). Without one, skip it.
-   - A custom direction has no lane: draw terms from the services, tools and roles in `context/me.md`.
-   - Write the lines under "Job search tracks" in `context/me.md` (each starting with `- `, the only lines `jobs.py rules` reads), tell the member in one line that these are the searches and that they can change them, and continue in this run. Keep at most five themes: each branch's own line first, industry themes only while there is room.
+   - Keep at most five themes: branches in the line's order first, industry themes only while there is room; name any branch left out in the report. Write the lines under "Job search tracks" in `context/me.md` (each starting with `- `, the only lines `jobs.py rules` reads), tell the member in one line that these are the searches and that they can change them, and continue in this run.
 
    Then run `python3 code/jobs.py rules`: its `themes` are what you search. Limits keep their script defaults unless the member set them in `context/me.md`; ask about none.
 
 ## Step 2 · Search
 
-For each theme, call `find_jobs` action `search` with `query` the `query` that `jobs.py rules` printed for the theme (the grouped terms in one call, never split), `sort` `recency`, `verified_payment_only` true. State the call budget in the ROADMAP (themes, pages, at most ten details, one dashboard check) and stop and report if a run would pass it. Send `proposals_max`, `budget_min` or `rate_min` only when `context/me.md` records that boundary as the member's choice; a filter removes jobs before anyone scores them.
+For each theme, call `find_jobs` action `search` with `query` the `query` that `jobs.py rules` printed for the theme (the grouped terms in one call, never split), `sort` `recency`, `verified_payment_only` true. One call at a time, each after the last one answered, never in parallel ([references/upwork.md](../../references/upwork.md), constraint 7). State the call budget in the ROADMAP (themes, pages, at most ten details, one dashboard check) and stop and report if a run would pass it. Send `proposals_max`, `budget_min` or `rate_min` only when `context/me.md` records that boundary as the member's choice; a filter removes jobs before anyone scores them.
 
 1. Fetch page 1 of every theme and save its `jobs` list to `data/search/query-<slug>.json` as `{"jobs": [...]}`, jobs as returned, with the theme's short name `slug` from `jobs.py rules` (the file name becomes the job's "found via").
 2. Run `python3 code/tracks.py measure data/search/*.json`: the density per term, since a live term returns ten postings in hours and a dead one reaches back weeks.

@@ -5,15 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>{{TITLE}}</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #ece5d7; --paper: #fbf9f4; --ink: #1c1712; --text: #2a231b; --muted: #6f6656;
     --faint: #9a9081; --accent: #c1663e; --rule: #e6ded0; --open: #b08968;
     --screen: #231d17; --screen-text: #f6f1e7; --screen-muted: #b7ab98;
+    /* The house font stack, as in website/app/tokens.css. */
+    --display: "Tiempos Text", Georgia, "Iowan Old Style", "Times New Roman", ui-serif, serif;
+    --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); padding: 24px 12px 56px;
-         font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+         font: 13px/1.5 var(--sans);
          -webkit-font-smoothing: antialiased; }
   p { margin: 0; }
 
@@ -23,7 +28,7 @@
            display: flex; flex-direction: column; }
 
   .head { border-bottom: 1.5px solid var(--ink); padding-bottom: 4mm; margin-bottom: 7mm; }
-  h1 { font-family: "Tiempos Text", Georgia, "Iowan Old Style", ui-serif, serif; font-weight: 500;
+  h1 { font-family: var(--display); font-weight: 500;
        color: var(--ink); font-size: 26px; line-height: 1.15; margin: 0 0 1.5mm; }
   .sub { color: var(--muted); font-size: 11.5px; }
 
@@ -41,7 +46,7 @@
                   border-left-color: #fff; border-width: 2.6mm 0 2.6mm 4.2mm; }
   .video b { display: block; font-size: 15px; font-weight: 600; margin-bottom: 1mm; }
   .video span { font-size: 11.5px; color: var(--screen-muted); }
-  .video .len { position: absolute; right: 5mm; bottom: 4mm; font: 600 10.5px/1 ui-monospace, Menlo, monospace;
+  .video .len { position: absolute; right: 5mm; bottom: 4mm; font: 600 10.5px/1 var(--mono);
                 color: var(--screen-muted); }
   .video .missing { color: #d9b48f; }
 
@@ -57,7 +62,7 @@
   .part ol { margin: 0; padding-left: 4.5mm; }
   .part ol li { padding-left: 1mm; }
   .part ol li + li { margin-top: .8mm; }
-  .part.cost .v strong { font-family: "Tiempos Text", Georgia, serif; font-weight: 500; font-size: 15px;
+  .part.cost .v strong { font-family: var(--display); font-weight: 500; font-size: 15px;
                          font-variant-numeric: tabular-nums; }
 
   .foot { border-top: 1px solid var(--rule); padding-top: 5mm; margin-top: 4mm; display: flex;

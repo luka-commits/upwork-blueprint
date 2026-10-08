@@ -17,7 +17,16 @@ type Sort = { key: SortKey; desc: boolean } | null;
 const LAYOUT_KEY = 'cockpit-layout';
 // How fresh a posting is, in hours. A dense search term turns over ten postings in
 // two hours, so "today" is not a useful bucket and these are.
-const FRESH: [number, string][] = [[0, 'Any age'], [4, '4h'], [6, '6h'], [12, '12h'], [24, '24h']];
+const FRESH: [number, string][] = [[0, 'Any age'], [1, '1h'], [4, '4h'], [12, '12h'], [24, '24h'], [72, '3d'], [168, '7d']];
+// A custom age is typed as a number with an optional unit: 90m, 36h, 2d. No unit means hours.
+function parseAge(text: string): number | null {
+  const m = /^\s*(\d+(?:\.\d+)?)\s*(m|min|h|d)?\s*$/i.exec(text);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  const unit = (m[2] || 'h').toLowerCase();
+  const hours = unit.startsWith('m') ? n / 60 : unit === 'd' ? n * 24 : n;
+  return hours > 0 ? hours : null;
+}
 // The list holds the leads still to decide on; everything from Applied on lives on the board.
 // The title column is gone (27.09.2026): an Upwork title is the client's own SEO line
 // and says the same thing forty times over, while the summary is the sentence that
@@ -46,6 +55,7 @@ export default function ListPage() {
   const [dueOnly, setDueOnly] = useState(false);
   // Hours: 0 shows everything.
   const [fresh, setFresh] = useState(0);
+  const [custom, setCustom] = useState('');
   const all: any[] = state?.jobs || [];
   const pool = useMemo(() => all.filter(j => (layout === 'board' ? BOARD : LIST).includes(j.status)), [all, layout]);
   // Due means a task is waiting on the member now, not a follow-up set for later.
@@ -89,11 +99,16 @@ export default function ListPage() {
       </label>
       <button type="button" className={`due-toggle${dueOnly ? ' on' : ''}`} aria-pressed={dueOnly}
         onClick={() => setDueOnly(v => !v)}>{dueTotal ? `Needs me · ${dueTotal}` : 'Needs me'}</button>
-      {layout === 'board' ? null : <div className="seg wide" role="group" aria-label="Posted within"
-        style={{ '--segment-index': FRESH.findIndex(([h]) => h === fresh),
-                 '--segment-count': FRESH.length } as React.CSSProperties}>
-        {FRESH.map(([hours, label]) => <button key={label} onClick={() => setFresh(hours)}
-          aria-pressed={fresh === hours}>{label}</button>)}
+      {layout === 'board' ? null : <div className="age" role="group" aria-label="Posted within">
+        {FRESH.map(([hours, label]) => <button key={label} type="button"
+          onClick={() => { setCustom(''); setFresh(hours); }}
+          aria-pressed={!custom && fresh === hours}>{label}</button>)}
+        <input className={`age-custom${custom ? ' on' : ''}`} placeholder="Custom, e.g. 36h" aria-label="Custom age"
+          value={custom} onChange={e => {
+            setCustom(e.target.value);
+            const hours = parseAge(e.target.value);
+            setFresh(e.target.value.trim() === '' ? 0 : hours ?? fresh);
+          }} />
       </div>}
       <span className="count" aria-live="polite">{jobs.length === pool.length ? `${pool.length} ${noun}` : `${jobs.length} of ${pool.length} ${noun}`}</span>
     </div>

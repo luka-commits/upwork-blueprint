@@ -93,7 +93,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
     <CockpitContext.Provider value={value}>
       <header className="top">
         <div className="top-inner">
-          <span className="brand"><img src="/icon.png" width="30" height="30" alt="" />Automatable Cockpit</span>
+          <span className="brand"><img src="/icon.svg" width="30" height="30" alt="" />Automatable Cockpit</span>
           <nav className="tabs" aria-label="Sections" style={{ '--section-index': Number(pathname === '/analytics') } as CSSProperties}>
             <Link href="/" aria-current={pathname === '/' ? 'page' : undefined}>Leads</Link>
             <Link href="/analytics" aria-current={pathname === '/analytics' ? 'page' : undefined}>Analytics</Link>

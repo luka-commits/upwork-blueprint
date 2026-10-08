@@ -48,7 +48,7 @@
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   // Editorial skin, after the diagram-design system (MIT, Cathryn Lavery):
   // hairline strokes, one accent, small monospace sublabels, crisp corners.
-  var MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+  var MONO = '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace';
   var HAIR = 1, HAIR_ON = 1.75, RADIUS = 6;
   function tok(name, fb) {
     var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -56,12 +56,12 @@
   }
   function readTokens() {
     P = {
-      card: tok('--card', '#fbf9f4'), border: tok('--border', '#e2d9c8'),
-      text: tok('--text', '#262019'), muted: tok('--text-3', '#6f6656'),
-      accent: tok('--accent', '#c1663e'), tint: tok('--dg-tint', '#f3e4db'),
-      tintStroke: tok('--dg-tint-stroke', '#d8b69f'), edge: tok('--dg-edge', '#898276'),
-      bg: tok('--bg', '#f3efe6'), bgBand: tok('--bg-band', '#ece5d7'),
-      text2: tok('--text-2', '#5c5347')
+      card: tok('--card', '#ffffff'), border: tok('--border', '#d1cfc5'),
+      text: tok('--text', '#141413'), muted: tok('--text-3', '#87867f'),
+      accent: tok('--accent', '#c96442'), tint: tok('--dg-tint', '#f6e4dc'),
+      tintStroke: tok('--dg-tint-stroke', '#e8b7a3'), edge: tok('--dg-edge', '#87867f'),
+      bg: tok('--bg', '#faf9f5'), bgBand: tok('--bg-band', '#f5f4ed'),
+      text2: tok('--text-2', '#5e5d59')
     };
   }
   function snap(v) { return Math.round(v / GRID) * GRID; }

@@ -18,7 +18,7 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--page-alt); color: var(--ink); font: 400 14.5px/1.45 var(--sans); -webkit-font-smoothing: antialiased; }
   main { max-width: 1080px; margin: 0 auto; padding: 26px 22px 30px; }
-  .top { display: grid; grid-template-columns: 1fr auto; gap: 14px 22px; align-items: center; }
+  .top { display: grid; grid-template-columns: 1fr; }
   .kicker { font: 400 10.5px/1 var(--mono); letter-spacing: 2.2px; text-transform: uppercase; color: var(--clay-deep); margin: 0 0 8px; }
   h1 { font: 500 clamp(24px, 3.4vw, 34px)/1.08 var(--display); letter-spacing: -.8px; margin: 0; }
   .lede { margin: 6px 0 0; color: var(--muted); font-size: 15.5px; }
@@ -37,7 +37,7 @@
   .next { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-top: 12px; padding: 14px 20px; border-radius: 14px; background: var(--ink); color: var(--on-ink); }
   .next p { margin: 0; } .next .offer { font: 500 18px/1.25 var(--display); flex: 1; min-width: 220px; } .next .sub { color: var(--on-ink-2); font-size: 13.5px; }
   .cta { background: var(--clay-fill); color: #fff; text-decoration: none; padding: 9px 18px; border-radius: 10px; font-weight: 600; }
-  @media (max-width: 720px) { main { padding: 18px 14px 24px; } .top { grid-template-columns: 1fr; } }
+  @media (max-width: 720px) { main { padding: 18px 14px 24px; } }
   @media print { @page { size: A4; margin: 9mm; } body { background: #fff; font-size: 9.6px; } main { padding: 0; max-width: none; }
     h1 { font-size: 21px; } .lede { font-size: 10.6px; } .watch { display: none; } .who { margin: 8px 0 8px; } .next { margin-top: 8px; padding: 9px 14px; }
     .next .offer { font-size: 12.5px; } .dg-tools, .dg-legend, .dg-editbar, .dg-foot { display: none !important; } }
@@ -53,7 +53,7 @@
       1. Title and lede in the client's words: the business type and its biggest leak.
       2. The graph is templates/pitch/graphs/ghl-funnel.json, cut down to what the posting needs.
       3. The chips come from the Results and Reviews sections of context/me.md. A chip with nothing behind it is deleted.
-      4. Photo: python3 code/photo.py ~/photo.jpg --into <page>. The Loom link and the profile URL are the member's own.
+      4. Photo: python3 code/photo.py ~/photo.jpg --into <page>. The profile URL is the member's own.
          Nothing may point anywhere but Upwork before a contract exists.
   -->
   <div class="top">
@@ -62,10 +62,7 @@
       <h1>&lt;The client's business&gt;: every enquiry answered, booked and followed up</h1>
       <p class="lede">&lt;One line on what leaks today and what runs on its own after this build&gt;</p>
     </div>
-    <a class="watch" href="https://www.loom.com/share/PUT-YOUR-LOOM-ID-HERE">
-      <span class="play" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 7.5v9l7.5-4.5z" fill="currentColor"/></svg></span>
-      <span><b>Watch the walkthrough</b><i>&lt;3 minutes&gt;</i></span>
-    </a>
+    
   </div>
   <section class="who" aria-label="Who I am">
     <div class="photo placeholder"><span>photo</span></div>

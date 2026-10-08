@@ -168,7 +168,7 @@
   .who {
     background: var(--paper); border: 1px solid var(--stone); border-radius: 16px;
     padding: 13px 16px 12px; display: grid; gap: 2px 20px; align-items: center;
-    grid-template-columns: auto minmax(240px, 1fr) auto;
+    grid-template-columns: auto minmax(240px, 1fr);
     box-shadow: var(--shadow);
   }
   .who h2 { font-size: 21px; grid-column: 2; grid-row: 1; }
@@ -267,14 +267,7 @@
     <div class="photo placeholder"><span>photo</span></div>
     <h2 id="who">&lt;Your name&gt;</h2>
     <p>&lt;What you do, in one line, for the kind of business this client runs&gt;</p>
-    <!-- The walkthrough. Paste the Loom share link; the application is built on
-         this video and application_check.py refuses a letter without it. -->
-    <a class="watch" href="https://www.loom.com/share/PUT-YOUR-LOOM-ID-HERE">
-      <span class="play" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 7.5v9l7.5-4.5z" fill="currentColor"/></svg>
-      </span>
-      <span class="watch-copy"><b>Watch the walkthrough</b><i>&lt;3 minutes, me talking through this plan&gt;</i></span>
-    </a>
+    
     <div class="chips">
       <span class="proof">&lt;A result you can back up&gt;</span>
       <span class="proof">&lt;A second one, or delete this chip&gt;</span>
@@ -319,10 +312,10 @@
   <section class="detail" aria-label="The roadmap, phase by phase">
     <div class="rm-head">
       <div class="legend">
-        <span><i class="sw" style="background:var(--c-traffic)"></i>Traffic</span>
-        <span><i class="sw" style="background:var(--c-conv)"></i>Conversion</span>
-        <span><i class="sw" style="background:var(--c-sales)"></i>Sales automation</span>
-        <span><i class="sw" style="background:var(--c-analytics)"></i>Analytics</span>
+        <span><i class="sw" style="background:var(--c-traffic)"></i>Be found</span>
+        <span><i class="sw" style="background:var(--c-conv)"></i>Get the call</span>
+        <span><i class="sw" style="background:var(--c-sales)"></i>Answer fast</span>
+        <span><i class="sw" style="background:var(--c-analytics)"></i>Measure</span>
       </div>
     </div>
     <div class="scroll">
@@ -363,17 +356,17 @@
   // only what they actually named, delete the rest, and add a row for anything
   // they asked for that this plan does not already carry.
   const ROWS = [
-    ["A", "Baseline audit", "Where you stand today, frozen as the starting line.", { from: 1, to: 1 }],
-    ["S", "5-minute auto-reply", "Every call, form and message answered within five minutes.", { from: 1, to: 1 }],
+    ["A", "Starting check", "Where you stand today, so we can measure progress.", { from: 1, to: 1 }],
+    ["S", "Reply in 5 minutes", "Every call, form and message gets an answer within five minutes.", { from: 1, to: 1 }],
     ["S", "Review system", "Review requests go out by themselves after every job.", { from: 1, to: 1 }],
-    ["T", "Google Business Profile", "Your profile done properly, plus the directories that matter.", { from: 2, to: 2 }, "&lt;their words from the posting, or delete&gt;"],
-    ["T", "Keyword map + site fixes", "What your area actually searches for, and what blocks Google.", { from: 2, to: 3 }],
-    ["C", "New website", "A fast site with tap-to-call and your proof up front.", { from: 3, to: 4 }],
-    ["T", "Service + location pages", "One page per service and area you really cover.", { from: 4, to: 6 }],
-    ["T", "Blog articles", "Answers to what customers ask before they call.", { from: 5, to: 7 }],
-    ["A", "Analytics dashboard", "Where enquiries come from and what they're worth.", { from: 7, to: 7 }]
+    ["T", "Your Google listing", "Set up properly, plus the other places people look you up.", { from: 2, to: 2 }, "&lt;their words from the posting, or delete&gt;"],
+    ["T", "What people search", "What people in your area search for, and what holds your site back.", { from: 2, to: 3 }],
+    ["C", "New website", "A fast site with a call button and your best proof at the top.", { from: 3, to: 4 }],
+    ["T", "A page per service", "One page for each service and area you really cover.", { from: 4, to: 6 }],
+    ["T", "Helpful articles", "Answers to what customers ask before they call.", { from: 5, to: 7 }],
+    ["A", "Simple report", "Where enquiries come from and what they are worth.", { from: 7, to: 7 }]
   ];
-  const MS = { 1: "First auto-reply", 3: "Plan locked", 8: "Live" };
+  const MS = { 1: "Fast replies on", 3: "Plan agreed", 8: "Live" };
 
   function cell(k, p, w) {
     let c = "";

@@ -168,7 +168,7 @@
   .who {
     background: var(--paper); border: 1px solid var(--stone); border-radius: 16px;
     padding: 13px 16px 12px; display: grid; gap: 2px 20px; align-items: center;
-    grid-template-columns: auto minmax(240px, 1fr) auto;
+    grid-template-columns: auto minmax(240px, 1fr);
     box-shadow: var(--shadow);
   }
   .who h2 { font-size: 21px; grid-column: 2; grid-row: 1; }
@@ -248,7 +248,7 @@
 <main class="wrap">
   <header>
     <span class="eyebrow">The build plan</span>
-    <h1>Ready-to-buy searches, turned into booked jobs</h1>
+    <h1>People searching to buy right now, turned into booked jobs</h1>
   </header>
 
   <!--
@@ -267,14 +267,7 @@
     <div class="photo placeholder"><span>photo</span></div>
     <h2 id="who">&lt;Your name&gt;</h2>
     <p>&lt;What you do, in one line, for the kind of business this client runs&gt;</p>
-    <!-- The walkthrough. Paste the Loom share link; the application is built on
-         this video and application_check.py refuses a letter without it. -->
-    <a class="watch" href="https://www.loom.com/share/PUT-YOUR-LOOM-ID-HERE">
-      <span class="play" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 7.5v9l7.5-4.5z" fill="currentColor"/></svg>
-      </span>
-      <span class="watch-copy"><b>Watch the walkthrough</b><i>&lt;3 minutes, me talking through this plan&gt;</i></span>
-    </a>
+    
     <div class="chips">
       <span class="proof">&lt;A result you can back up&gt;</span>
       <span class="proof">&lt;A second one, or delete this chip&gt;</span>
@@ -319,10 +312,10 @@
   <section class="detail" aria-label="The roadmap, phase by phase">
     <div class="rm-head">
       <div class="legend">
-        <span><i class="sw" style="background:var(--c-measure)"></i>Measurement</span>
-        <span><i class="sw" style="background:var(--c-page)"></i>Landing page</span>
-        <span><i class="sw" style="background:var(--c-campaigns)"></i>Campaigns</span>
-        <span><i class="sw" style="background:var(--c-loop)"></i>The weekly loop</span>
+        <span><i class="sw" style="background:var(--c-measure)"></i>Count the leads</span>
+        <span><i class="sw" style="background:var(--c-page)"></i>The page</span>
+        <span><i class="sw" style="background:var(--c-campaigns)"></i>The ads</span>
+        <span><i class="sw" style="background:var(--c-loop)"></i>Weekly improvement</span>
       </div>
     </div>
     <div class="scroll">
@@ -364,17 +357,17 @@
   // only what they actually named, delete the rest, and add a row for anything
   // they asked for that this plan does not already carry.
   const ROWS = [
-    ["M", "Conversion tracking", "Every form, call and enquiry counted exactly once.", { from: 1, to: 1 }, "&lt;their words from the posting, or delete&gt;"],
-    ["M", "Call tracking", "Calls from your ads and your website counted as leads.", { from: 1, to: 1 }],
-    ["P", "Landing page", "One fast page per service, built for the ad that feeds it.", { from: 1, to: 2 }],
-    ["K", "Keyword and ad group map", "What your area types, grouped to meet the right ad.", { from: 2, to: 2 }],
-    ["K", "Account build", "Campaigns, ads and negative lists, all built paused.", { from: 2, to: 3 }],
-    ["K", "Go live", "You switch it on after one real test form and one real call.", { from: 3, to: 3 }],
-    ["L", "Search terms and negatives", "Weekly: cut what does not belong, bid on what does.", { from: 3, to: 6 }],
-    ["L", "Bids and budget", "One change at a time, because two at once cannot be read.", { from: 4, to: 6 }],
-    ["M", "Your dashboard", "What a lead costs, and what it is worth to you.", { from: 6, to: 6 }]
+    ["M", "Counting your leads", "Every form, call and enquiry counted exactly once.", { from: 1, to: 1 }, "&lt;their words from the posting, or delete&gt;"],
+    ["M", "Counting calls", "Calls from your ads and your website counted as leads.", { from: 1, to: 1 }],
+    ["P", "A page per service", "Fast pages, each built to match the ad people click.", { from: 1, to: 2 }],
+    ["K", "Search words", "What people in your area type, matched to the right ad.", { from: 2, to: 2 }],
+    ["K", "Ad account set up", "Campaigns and ads built, all switched off until you approve.", { from: 2, to: 3 }],
+    ["K", "Go live", "You switch it on after we test one form and one call.", { from: 3, to: 3 }],
+    ["L", "Weekly clean-up", "Stop paying for the wrong searches, spend more on the right ones.", { from: 3, to: 6 }],
+    ["L", "Budget tuning", "One change at a time, so we know what worked.", { from: 4, to: 6 }],
+    ["M", "Your report", "What a lead costs, and what it is worth to you.", { from: 6, to: 6 }]
   ];
-  const MS = { 1: "Tracking verified", 3: "Live", 6: "First full report" };
+  const MS = { 1: "Counting works", 3: "Live", 6: "First full report" };
 
   function cell(k, p, w) {
     let c = "";

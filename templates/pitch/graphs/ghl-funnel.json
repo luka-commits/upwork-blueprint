@@ -1,0 +1,38 @@
+{
+  "nodes": [
+    {"id": "n1", "label": "Lead arrives", "kind": "source", "owner": "client", "note": "From ads, SEO, referrals or outreach: every source lands in the same place."},
+    {"id": "n2", "label": "Saved in the CRM", "kind": "step", "owner": "you", "note": "Source, city and time zone stored, lead assigned to a team member."},
+    {"id": "n3", "label": "Instant call, text, email", "kind": "step", "owner": "you", "note": "The lead hears back within minutes, before a competitor does."},
+    {"id": "n4", "label": "Booked a call?", "kind": "decision", "owner": "you", "note": "Booking calendar on the website, in the chat or by reply."},
+    {"id": "n5", "label": "Nurtured, kept warm", "kind": "sink", "owner": "you", "note": "A lead that does not book yet gets short follow-ups by text and email, then stays in a slow value campaign, not in the bin."},
+    {"id": "n6", "label": "Reminders before the call", "kind": "step", "owner": "you", "note": "At once, a day before and 30 minutes before; reschedule in two clicks."},
+    {"id": "n7", "label": "Showed up?", "kind": "decision", "owner": "you", "note": "The meeting start decides which path the lead takes."},
+    {"id": "n8", "label": "No-show follow-up", "kind": "step", "owner": "you", "note": "A friendly message and a rebooking link, sent automatically."},
+    {"id": "n9", "label": "Sales call, notes in CRM", "kind": "step", "owner": "client", "note": "Call notes and script live in the CRM; the stage updates itself."},
+    {"id": "n10", "label": "Contract and invoice", "kind": "step", "owner": "you", "note": "Price from the call, contract from a template, invoice right after the e-signature."},
+    {"id": "n11", "label": "Paid within 5 minutes?", "kind": "decision", "owner": "you", "note": "Checked automatically after signing."},
+    {"id": "n12", "label": "Payment reminder", "kind": "step", "owner": "you", "note": "A text and an email with the invoice link."},
+    {"id": "n13", "label": "Client won", "kind": "milestone", "owner": "you", "note": "The workflow ends and onboarding starts."},
+    {"id": "n14", "label": "Review request", "kind": "step", "owner": "you", "note": "Sent when the project is closed, by text and email."},
+    {"id": "n15", "label": "Rating?", "kind": "decision", "owner": "you", "note": "A short rating form decides where the review goes."},
+    {"id": "n16", "label": "Private feedback", "kind": "step", "owner": "you", "note": "1 to 3 stars go to the team, not to the public page."},
+    {"id": "n17", "label": "Public review page", "kind": "step", "owner": "you", "note": "4 and 5 stars are sent to the public review page."},
+    {"id": "n18", "label": "Website grows on autopilot", "kind": "sink", "owner": "you", "note": "Only the best reviews are public, and a thank-you email goes out."}
+  ],
+  "edges": [
+    {"from": "n1", "to": "n2"}, {"from": "n2", "to": "n3"}, {"from": "n3", "to": "n4"},
+    {"from": "n4", "to": "n6", "label": "yes"}, {"from": "n4", "to": "n5", "label": "not yet"},     {"from": "n6", "to": "n7"},
+    {"from": "n7", "to": "n9", "label": "yes"}, {"from": "n7", "to": "n8", "label": "no"}, {"from": "n8", "to": "n9", "dashed": true},
+    {"from": "n9", "to": "n10"}, {"from": "n10", "to": "n11"},
+    {"from": "n11", "to": "n13", "label": "yes"}, {"from": "n11", "to": "n12", "label": "no"}, {"from": "n12", "to": "n13"},
+    {"from": "n13", "to": "n14"}, {"from": "n14", "to": "n15"},
+    {"from": "n15", "to": "n17", "label": "4 to 5 stars"}, {"from": "n15", "to": "n16", "label": "1 to 3 stars"},
+    {"from": "n16", "to": "n18", "dashed": true}, {"from": "n17", "to": "n18"}
+  ],
+  "groups": [
+    {"label": "Every enquiry gets an answer", "nodes": ["n1", "n2", "n3"]},
+    {"label": "Every lead gets booked", "nodes": ["n4", "n5", "n6", "n7", "n8"]},
+    {"label": "Every call becomes a client", "nodes": ["n9", "n10", "n11", "n12", "n13"]},
+    {"label": "Every client leaves a review", "nodes": ["n14", "n15", "n16", "n17", "n18"]}
+  ]
+}

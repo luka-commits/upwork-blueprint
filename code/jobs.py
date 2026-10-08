@@ -408,6 +408,23 @@ def budget_top(job):
     return (max(values) if values else None), hourly
 
 
+def drop_kind(reason, limits):
+    """One line per kind of drop in the run summary, not one per figure.
+
+    `disqualified` names the job's own number so a single lead reads clearly; summed
+    over a run, "54 proposals" and "52 proposals" are the same reason.
+    """
+    if 'proposals, over your cap' in reason:
+        return f'over your cap of {limits["proposals"]:g} proposals'
+    if reason.startswith('pays '):
+        return 'hourly top under your share of your rate'
+    if reason.startswith('fixed budget of'):
+        return f'fixed budget under your floor of {limits["fixed_floor"]:g}'
+    if reason.startswith('client rated'):
+        return 'client rated low by freelancers'
+    return reason
+
+
 def disqualified(job, limits):
     """The short list of hard no's. A reason, or None when the posting stays in.
 
@@ -528,7 +545,7 @@ def cmd_candidates(args):
                 continue
             no = disqualified(n, limits)
             if no:
-                dropped[no] += 1
+                dropped[drop_kind(no, limits)] += 1
                 continue
             shaved, reasons = deductions(n, rate)
             n.update(recency=rec, deduction=shaved, deduction_reasons=reasons)

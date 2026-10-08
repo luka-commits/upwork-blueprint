@@ -1,0 +1,31 @@
+{
+  "nodes": [
+    {"id": "n1", "label": "A request comes in", "kind": "source", "owner": "client", "note": "By email, form, chat or file upload: whatever your team gets today."},
+    {"id": "n2", "label": "Read and sorted", "kind": "step", "owner": "you", "note": "An AI step reads it, pulls out the key details and tags what kind of request it is."},
+    {"id": "n3", "label": "Saved in one place", "kind": "step", "owner": "you", "note": "Everything lands in the sheet, customer list or database you already use."},
+    {"id": "n4", "label": "Clear enough?", "kind": "decision", "owner": "you", "note": "Simple rules decide: is anything missing or unusual?"},
+    {"id": "n5", "label": "Quick check by you", "kind": "step", "owner": "client", "note": "One click to approve in Slack or email, only when something is unclear."},
+    {"id": "n6", "label": "Handled automatically", "kind": "step", "owner": "you", "note": "The routine work runs by itself: documents, replies, records updated."},
+    {"id": "n7", "label": "Team updated", "kind": "step", "owner": "you", "note": "The right person gets a short message with everything they need."},
+    {"id": "n8", "label": "Customer confirmed", "kind": "step", "owner": "you", "note": "A clear confirmation goes out right away, in your own wording."},
+    {"id": "n9", "label": "Did it all work?", "kind": "decision", "owner": "you", "note": "Every run is checked, nothing fails silently."},
+    {"id": "n10", "label": "Alert with details", "kind": "step", "owner": "you", "note": "You get a short message: what failed, where, and what to do."},
+    {"id": "n11", "label": "Tried again", "kind": "step", "owner": "you", "note": "Most small hiccups fix themselves on the second try."},
+    {"id": "n12", "label": "Hours saved every week", "kind": "sink", "owner": "you", "note": "The work is done and a simple weekly report shows the time saved."},
+    {"id": "n13", "label": "Stopped safely", "kind": "sink", "owner": "you", "note": "If it keeps failing, nothing is lost: it waits for you with all details saved."}
+  ],
+  "edges": [
+    {"from": "n1", "to": "n2"}, {"from": "n2", "to": "n3"}, {"from": "n3", "to": "n4"},
+    {"from": "n4", "to": "n6", "label": "yes"}, {"from": "n4", "to": "n5", "label": "not sure"}, {"from": "n5", "to": "n6"},
+    {"from": "n6", "to": "n7"}, {"from": "n7", "to": "n8"}, {"from": "n8", "to": "n9"},
+    {"from": "n9", "to": "n12", "label": "yes"}, {"from": "n9", "to": "n10", "label": "no"},
+    {"from": "n10", "to": "n11"}, {"from": "n11", "to": "n12", "label": "second try works", "dashed": true},
+    {"from": "n10", "to": "n13", "label": "still failing", "dashed": true}
+  ],
+  "groups": [
+    {"label": "Work arrives by itself", "nodes": ["n1", "n2", "n3"]},
+    {"label": "The routine runs", "nodes": ["n4", "n5", "n6"]},
+    {"label": "Everyone stays informed", "nodes": ["n7", "n8", "n9"]},
+    {"label": "Nothing fails silently", "nodes": ["n10", "n11", "n12", "n13"]}
+  ]
+}

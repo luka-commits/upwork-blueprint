@@ -14,7 +14,7 @@ Read first [references/profile.md](../../references/profile.md), the profile sec
 ## Step 0 · The connector
 
 1. Run `python3 code/workspace.py`.
-2. Call `list_accounts`. If the Upwork tools are missing, walk the member through connecting per CLAUDE.md and stop; they rerun `/profile` after the restart.
+2. Call `list_accounts`. If the Upwork tools are missing, walk the member through connecting per CLAUDE.md and stop; they rerun `/profile` once the tools show up.
 3. Take the Freelancer account's `org_uid`, never write it to a file; if several, ask which.
 
 ## Step 1 · Read your facts

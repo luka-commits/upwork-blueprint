@@ -88,7 +88,7 @@ env_has KIE_AI_API_KEY || note "KIE_AI_API_KEY in .env: lets /sales-call-proposa
 echo
 echo "Your context, data and job files are yours now; git will not touch them."
 echo
-echo "Upwork is next. Start claude here and it walks you through connecting it."
+echo "Upwork is next. Open this folder in Claude Code (VS Code or terminal) and it walks you through connecting it."
 echo "(I'd tell you a joke about the connector, but it takes a few tries to get through.)"
 echo
 echo "Then /about-me. It reads this same list and tells you which of it you need"

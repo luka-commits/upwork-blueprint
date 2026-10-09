@@ -22,10 +22,17 @@ Skipping setup still works: each command walks you through its missing tools.
 
 ## Connect Upwork
 
-1. Start `claude` in this folder and approve the project's `upwork` MCP server
-   when Claude Code asks (workspace trust).
-2. Run `/mcp`, choose upwork and finish the login in the browser.
-3. Quit Claude Code and start `claude` here once more before the first command.
+This works the same in the Claude Code extension for VS Code and in the terminal.
+
+1. Open this folder in Claude Code and approve the project's `upwork` server when it
+   shows "Pending approval" (type `/mcp` to see the list).
+2. In `/mcp` choose upwork, then Authenticate, and finish the login in the browser.
+3. The Upwork tools appear in the same conversation. If a command still says they are
+   missing, start a new conversation (VS Code) or restart `claude` (terminal).
+
+Upwork added as a connector at claude.ai/customize/connectors on your subscription also
+shows up in `/mcp`. We only verified the project's `upwork` server above; a connector's
+tool names may differ.
 
 The shared allow rules apply after you accept the workspace trust dialog.
 

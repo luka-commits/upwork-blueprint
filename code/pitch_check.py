@@ -58,9 +58,11 @@ def links(page):
 def check_page(path, *, require_hero=False, ready=False):
     page = pathlib.Path(path).read_text(encoding='utf-8')
     problems = []
+    from application_check import tracking_target
     for h in links(page):
-        if CONTACT_LINKS.search(h):
-            problems.append(f'links a way to reach you off Upwork: {h[:80]}')
+        target = tracking_target(h) or h
+        if CONTACT_LINKS.search(target):
+            problems.append(f'links a way to reach you off Upwork: {target[:80]}')
     text = visible_text(page)
     for m in EMAIL.finditer(text):
         problems.append(f'shows an email address: {m.group(0)}')

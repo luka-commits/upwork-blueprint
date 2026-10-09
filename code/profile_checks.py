@@ -12,10 +12,13 @@ Where a check comes from matters, because members act on the tone:
   top-earners  the pattern three top-earning profiles and a proven bio formula
                share. Practitioner evidence, not Upwork's word.
 """
+import datetime
 import json
 import pathlib
 import re
 import sys
+
+import pipeline
 
 TAG = re.compile(r'</?untrusted_participant_content>')
 GREETING = re.compile(r"^\W*(hi|hey|hello|dear|greetings|welcome|my name|i am|i'm|i´m)\b", re.I)
@@ -56,6 +59,10 @@ def normalize(profile, highlights=None):
         'name': f'{personal.get("firstName", "")} {personal.get("lastName", "")}'.strip(),
         'title': clean(personal.get('title')),
         'overview': clean(personal.get('description')),
+        'photo': personal.get('photo') or personal.get('portrait') or data.get('photo'),
+        'video': data.get('video') if 'video' in data else personal.get('video', profile.get('video')),
+        'linked_accounts': data.get('linkedAccounts'),
+        'other_experience': data.get('otherExperiences'),
         'rate': (personal.get('chargeRate') or {}).get('rawValue'),
         'skills': [s.get('prettyName', '') for s in data.get('skills', [])],
         'employment': data.get('employmentRecords', []),
@@ -66,6 +73,48 @@ def normalize(profile, highlights=None):
         [clean(p.get('title')) for p in highlights.get('portfolio_projects', [])],
         'certificates': None if highlights is None else highlights.get('certificates', []),
     }
+
+
+def completeness(p):
+    mandatory = [('Photo', bool(p.get('photo'))), ('Overview', bool(p['overview'])),
+                 ('Employment', bool(p['employment'])), ('Skills', bool(p['skills']))]
+    pct = 50 if all(present for _, present in mandatory) else 0
+    missing = [name for name, present in mandatory if not present]
+    optional = [
+        ('Portfolio projects', min(len(p['portfolio'] or []) * 5, 20), 20),
+        ('Additional employment', min(max(len(p['employment']) - 1, 0) * 10, 20), 20),
+        ('Education', min(len(p['education']) * 10, 20), 20),
+        ('Additional skills', 10 if len(p['skills']) > 1 else 0, 10),
+        ('Intro video', 10 if p.get('video') else 0, 10),
+        ('Linked account', 10 if p.get('linked_accounts') else 0, 10),
+        ('Certificates', min(len(p['certificates'] or []) * 5, 10), 10),
+        ('Other experience', 5 if p.get('other_experience') else 0, 5),
+    ]
+    for name, points, maximum in optional:
+        pct += points
+        if points < maximum:
+            missing.append(name)
+    return {'pct': min(pct, 100), 'missing': missing}
+
+
+def save_completeness(result):
+    data = pipeline.data_dir()
+    data.mkdir(parents=True, exist_ok=True)
+    snapshot = dict(date=datetime.date.today().isoformat(), **result)
+    path = data / 'profile-history.jsonl'
+    rows = {}
+    if path.exists():
+        for line in path.read_text(encoding='utf-8').splitlines():
+            try:
+                row = json.loads(line)
+                datetime.date.fromisoformat(row['date'])
+                rows[row['date']] = row
+            except (ValueError, KeyError, TypeError):
+                continue
+    rows[snapshot['date']] = snapshot
+    temporary = path.with_suffix('.tmp')
+    temporary.write_text(''.join(json.dumps(rows[date], ensure_ascii=False) + '\n' for date in sorted(rows)), encoding='utf-8')
+    temporary.replace(path)
 
 
 def squash(text):
@@ -156,12 +205,16 @@ def main(argv):
         print(__doc__, file=sys.stderr)
         return 2
     profile, highlights = (json.loads(pathlib.Path(a).read_text(encoding='utf-8')) for a in args)
-    results = run_checks(normalize(profile, highlights))
+    normalized = normalize(profile, highlights)
+    results = run_checks(normalized)
+    score = completeness(normalized)
+    save_completeness(score)
     passed = sum(r['passed'] for r in results)
     if '--json' in argv:
-        print(json.dumps({'passed': passed, 'total': len(results), 'checks': results}, indent=2,
+        print(json.dumps({'passed': passed, 'total': len(results), 'checks': results, 'completeness': score}, indent=2,
                          ensure_ascii=False))
         return 0
+    print(f'Completeness: {score["pct"]}% · Missing: {", ".join(score["missing"]) or "none"}')
     for r in results:
         print(f'{"PASS" if r["passed"] else "FAIL"}  {r["label"]}  ({r["detail"]}; source: {r["source"]})')
     print(f'\nSCORE {passed} of {len(results)} checks passed.')

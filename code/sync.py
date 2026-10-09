@@ -128,6 +128,56 @@ def first_complete_client_message(thread):
     return min(stamps, default=None)
 
 
+def reply_gaps(thread):
+    """Seconds from each client turn to the next member turn in a complete room.
+
+    The snapshot marks invitation rooms with invitation_room/opened_by_invite,
+    or marks the first client turn kind:invite/is_invitation.
+    """
+    if thread.get('invitation_room') or thread.get('opened_by_invite'):
+        return []
+    if thread.get('messages_complete') is not True:
+        return None
+    raw = thread.get('messages') or []
+    if not isinstance(raw, list):
+        return None
+    messages, invites = [], set()
+    for item in raw:
+        if not isinstance(item, dict) or not isinstance(item.get('node', item), dict):
+            return None
+        node = item.get('node', item)
+        if (node.get('kind') in ('system', 'event') or
+                node.get('from_side') == 'system' or node.get('from') == 'system'):
+            continue
+        if 'from_side' in node and node['from_side'] not in ('client', 'freelancer') and not node.get('from_self'):
+            return None
+        stamp = verified_timestamp(node.get('createdDateTime', node.get('at')))
+        if node.get('is_invitation') or node.get('kind') in ('invite', 'invitation'):
+            invites.add(stamp)
+        messages.append(item)
+    turns = []
+    for message in thread_io.normalize(messages):
+        if message.get('kind') in ('system', 'event') or message.get('from') == 'system':
+            continue
+        stamp = verified_timestamp(message.get('at'))
+        if message.get('from') not in ('me', 'client') or not stamp:
+            return None
+        at = datetime.datetime.fromisoformat(stamp.replace('Z', '+00:00'))
+        turns.append((at, stamp, message))
+    turns.sort(key=lambda turn: turn[0])
+    if turns and turns[0][2]['from'] == 'client' and turns[0][1] in invites:
+        return []
+    gaps, pending = [], None
+    for at, _, message in turns:
+        if message['from'] == 'client':
+            if pending is None:
+                pending = at
+        elif pending is not None:
+            gaps.append(int((at - pending).total_seconds()))
+            pending = None
+    return gaps
+
+
 def source_stage(item, kind):
     key, stages = {'proposals': ('status', PROPOSAL_STAGE), 'offers': ('state', OFFER_STAGE),
                    'contracts': ('status', CONTRACT_STAGE)}[kind]
@@ -277,6 +327,21 @@ def cmd_apply(args):
     for jid, stamp in reply_observations.items():
         run_pipeline('observe', jid, 'replied', stamp, '--source', 'upwork-thread', '--verified')
 
+    # The supplied rooms must cover the job: a partial room cannot replace its aggregate.
+    room_gaps, partial_jobs = {}, set()
+    for thread in snapshot.get('threads') or []:
+        jid = str(thread.get('job_id') or '')
+        gaps = reply_gaps(thread)
+        if gaps is None:
+            partial_jobs.add(jid)
+        if jid in known and gaps is not None:
+            room_gaps.setdefault(jid, []).extend(gaps)
+    for jid, gaps in room_gaps.items():
+        if jid in partial_jobs:
+            continue
+        job = next(j for j in pipeline.load() if j['id'] == jid)
+        record_metadata(job, {'reply_gaps_s': gaps})
+
     # A sync replays message times, never poll time. Observed sends advance the
     # sequence before client replies stop it, so the same nudge is not drafted twice.
     for jid, t in threads.items():
@@ -346,6 +411,12 @@ def cmd_apply(args):
         print(f'added   {jid}  (imported Upwork history)')
     for jid in waiting:
         print(f'waiting {jid}  (the client is waiting for your reply)')
+    clicks = subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name('clicks.py'))],
+                            text=True, capture_output=True, check=False)
+    if clicks.returncode:
+        print('Click sync failed; pipeline sync completed. Retry code/clicks.py when Blob is available.')
+    elif clicks.stdout.strip():
+        print(clicks.stdout.strip())
     print(f'\n{len(moved)} moved, {len(added)} added, {len(threads)} threads saved, '
           f'{len(waiting)} waiting on you.')
 

@@ -13,6 +13,7 @@ same tested Python data as everything else. The app runs on this computer only
 import argparse
 import datetime
 import json
+import math
 import os
 import pathlib
 import re
@@ -152,13 +153,13 @@ def card(job):
 
 
 def daily_target():
-    """The member's applications-per-day goal from context/me.md, ten when they set none."""
+    """The member's applications-per-day goal from context/me.md, five when they set none."""
     me = pathlib.Path(os.environ.get('BLUEPRINT_CONTEXT') or ROOT / 'context') / 'me.md'
     if me.is_file():
         m = re.search(r'Applications per day:\*\*\s*(\d+)', me.read_text(encoding='utf-8'))
         if m:
             return int(m.group(1))
-    return 10
+    return 5
 
 
 FUNNEL = ('applied', 'replied', 'call', 'offer', 'won')
@@ -185,10 +186,14 @@ def funnel(jobs):
     # is offered without an answer. The call is the exception, because it is optional:
     # crediting it to every lead that reached an offer would invent calls nobody had.
     marks = [reached(job) for job in applications(jobs)]
-    return {stage: sum(1 for rank, had_call in marks
+    counts = {stage: sum(1 for rank, had_call in marks
                        if (had_call if stage == 'call' else rank > index))
             for index, stage in enumerate(FUNNEL)}
-
+    eligible = applications(jobs)
+    counts['proposal_sent'] = sum(bool(_when(j.get('proposal_sent_at'))) for j in eligible)
+    counts['opened'] = sum(bool(_when(j.get('opened_at')) and _when(j.get('proposal_sent_at'))
+                                and _when(j['opened_at']) > _when(j['proposal_sent_at'])) for j in eligible)
+    return counts
 
 OUTREACH_WEEKS = 12
 
@@ -248,16 +253,36 @@ def _verified(job, event):
     return None
 
 
+def call_time(job):
+    call = _when(job.get('call_at'))
+    proof = job.get('call_observation') or {}
+    if call and proof.get('source') == 'recorder' and proof.get('verified') is True:
+        return call, 'recorder'
+    call = next((_when(h.get('at')) for h in job.get('history') or []
+                 if isinstance(h, dict) and h.get('status') == 'call'), None)
+    return call, 'observed'
+
+
 def timings(jobs):
-    """Median seconds for three gaps, each with the number of leads behind it.
+    """Median seconds for five gaps, each with the number of leads behind it.
 
     Only leads whose applied time (and reply time, where used) was observed from
     Upwork count, so a stamp written when a command happened to run never moves a
     median. A median shows from MIN_MEDIAN leads, below that only n. Time to close
     ends at the won stamp, which is the member's own record, not Upwork's.
     """
-    gaps = {'speed_to_lead': [], 'client_reply': [], 'time_to_close': []}
+    gaps = {'speed_to_lead': [], 'client_reply': [], 'time_to_close': [], 'our_reply': [], 'call_to_proposal': []}
+    values = []
     for job in jobs:
+        gaps['our_reply'].extend(n for n in job.get('reply_gaps_s') or []
+                                 if isinstance(n, int) and not isinstance(n, bool) and n >= 0)
+        call, source = call_time(job)
+        proposal = _when(job.get('proposal_sent_at'))
+        if call and proposal and proposal >= call:
+            seconds = (proposal - call).total_seconds()
+            gaps['call_to_proposal'].append(seconds)
+            values.append({'seconds': seconds, 'call_source': source,
+                           'proposal_source': (job.get('proposal_sent_observation') or {}).get('source', 'member')})
         applied = _verified(job, 'applied')
         if not applied:
             continue
@@ -271,22 +296,138 @@ def timings(jobs):
                     if isinstance(h, dict) and h.get('status') == 'won'), None)
         if won and won >= applied:
             gaps['time_to_close'].append((won - applied).total_seconds())
-    return {name: {'n': len(values),
+    result = {name: {'n': len(values),
                    'median_s': int(statistics.median(values)) if len(values) >= MIN_MEDIAN else None}
             for name, values in gaps.items()}
+
+    result['call_to_proposal']['values'] = values
+    return result
+
+
+def consistency(jobs, today=None):
+    today = today or datetime.date.today()
+    goal = daily_target()
+    counts = {(today - datetime.timedelta(days=offset)).isoformat(): 0
+              for offset in range(13, -1, -1)}
+    for job in jobs:
+        day = pipeline.application_day(job)
+        if day in counts:
+            counts[day] += 1
+    days = [{'date': day, 'count': count} for day, count in counts.items()]
+    return {'goal': goal, 'days': days, 'days_on_goal': sum(n >= goal for n in counts.values()),
+            'total_days': 14}
+
+
+def profile_history():
+    path = pipeline.data_dir() / 'profile-history.jsonl'
+    history = []
+    if path.exists():
+        for line in path.read_text(encoding='utf-8').splitlines():
+            try:
+                row = json.loads(line)
+                datetime.date.fromisoformat(row['date'])
+                if (isinstance(row['pct'], (int, float)) and not isinstance(row['pct'], bool)
+                        and 0 <= row['pct'] <= 100 and isinstance(row['missing'], list)
+                        and all(isinstance(name, str) for name in row['missing'])):
+                    history.append(row)
+            except (ValueError, KeyError, TypeError):
+                continue
+    return {'latest': history[-1] if history else None, 'history': history}
+
+
+MIN_RATE = 50
+BARS = {'Volume': 10, 'Profile': 100, 'Proposal': 10, 'Loom': 100, 'Speed': 2,
+        'Messaging': 30, 'Sales call': 80, 'Call proposal': 90, 'Opened': 80}
+NEXT_ACTIONS = {
+    'Volume': 'Apply to your daily goal today.',
+    'Profile': 'Fill the missing profile items in /profile.',
+    'Proposal': 'Review your application opening against the client problem.',
+    'Loom': 'Name the client problem in the first 15 seconds of your Loom.',
+    'Speed': 'Answer the first client message sooner.',
+    'Messaging': 'Review the reply and ask for a clear call next step.',
+    'Sales call': 'Agree one next step before ending the call.',
+    'Call proposal': 'Send the agreed proposal within 24 hours of the call.',
+    'Opened': 'Review the proposal link and follow up on Upwork.',
+}
+
+
+def bars():
+    result = dict(BARS)
+    path = pathlib.Path(os.environ.get('BLUEPRINT_CONTEXT') or ROOT / 'context') / 'me.md'
+    if not path.is_file():
+        return result
+    section = False
+    for line in path.read_text(encoding='utf-8').splitlines():
+        if line.startswith('## '):
+            section = line.strip() == '## Bars'
+        elif section:
+            match = re.fullmatch(r'\s*([^:]+):\s*(\d+(?:\.\d+)?)\s*', line)
+            if match and match[1].strip() in result:
+                name, value = match[1].strip(), float(match[2])
+                maximum = 14 if name == 'Volume' else (None if name == 'Speed' else 100)
+                if math.isfinite(value) and value >= 0 and (maximum is None or value <= maximum):
+                    result[name] = value
+    return result
+
+
+def bottleneck(jobs, daily, profile, timing):
+    counts = funnel(jobs)
+    eligible = applications(jobs)
+    hooks = [job['loom_hook'] for job in eligible if job.get('loom_hook') in ('pass', 'fail')]
+    next_steps = [job['call_next_step'] for job in eligible
+                  if isinstance(job.get('call_next_step'), bool) and
+                  (reached(job)[1] or _when(job.get('call_at')))]
+    calls = [(job, call_time(job)[0]) for job in eligible]
+    calls = [(job, at) for job, at in calls if at]
+    within_day = sum(1 for job, call in calls if _when(job.get('proposal_sent_at')) and
+                     0 <= (_when(job['proposal_sent_at']) - call).total_seconds() <= 86400)
+    def rate(successes, n):
+        return 100 * successes / n if n else None
+    latest = profile['latest']
+    measures = [
+        ('Volume', daily['days_on_goal'], 14, 14),
+        ('Profile', latest['pct'] if latest else None, 1 if latest else 0, 1),
+        ('Proposal', rate(counts['replied'], counts['applied']), counts['applied'], MIN_RATE),
+        ('Loom', rate(hooks.count('pass'), len(hooks)), len(hooks), MIN_RATE),
+        ('Speed', timing['our_reply']['median_s'] / 3600 if timing['our_reply']['median_s'] is not None else None,
+         timing['our_reply']['n'], MIN_MEDIAN),
+        ('Messaging', rate(counts['call'], counts['replied']), counts['replied'], MIN_RATE),
+        ('Sales call', rate(next_steps.count(True), len(next_steps)), len(next_steps), MIN_RATE),
+        ('Call proposal', rate(within_day, len(calls)), len(calls), MIN_RATE),
+        ('Opened', rate(counts['opened'], counts['proposal_sent']), counts['proposal_sent'], MIN_RATE),
+    ]
+    limits = bars()
+    unmeasured = [stage for stage, value, n, minimum in measures if value is None or n < minimum]
+    result = {'stage': None, 'value': None, 'bar': None, 'n': 0, 'reasoned': False,
+              'next_action': 'Keep the routine and measure the next result.', 'unmeasured': unmeasured}
+    for stage, value, n, minimum in measures:
+        if stage in unmeasured:
+            continue
+        failed = value > limits[stage] if stage == 'Speed' else value < limits[stage]
+        if failed:
+            result.update(stage=stage, value=round(value, 2), bar=limits[stage], n=n,
+                          reasoned=stage not in ('Volume', 'Profile'), next_action=NEXT_ACTIONS[stage])
+            break
+    return result
 
 
 def build_state():
     jobs = pipeline.load()
+    daily = consistency(jobs)
+    profile = profile_history()
+    timing = timings(jobs)
     return {
         'generated_at': datetime.datetime.now().isoformat(timespec='seconds'),
         'jobs': [card(j) for j in jobs],
         'sync': last_sync(),
         'tracker': {'goal': daily_target(),
-                    'done': pipeline.applied_on(jobs, datetime.date.today().isoformat())},
+                    'done': daily['days'][-1]['count']},
         'funnel': funnel(jobs),
         'outreach': outreach(jobs),
-        'timings': timings(jobs),
+        'consistency': daily,
+        'profile': profile,
+        'timings': timing,
+        'bottleneck': bottleneck(jobs, daily, profile, timing),
     }
 
 

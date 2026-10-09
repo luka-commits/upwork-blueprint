@@ -39,6 +39,7 @@ import argparse
 import contextlib
 import datetime
 import json
+import math
 import os
 import pathlib
 import re
@@ -102,7 +103,7 @@ def chat_keep_hours():
 
 # Two of the member's own decisions live inside details: the bid they approved and
 # the internal estimate behind it. Pruning Upwork's content must not take them.
-MEMBER_DETAIL_FIELDS = ('bid_amount', 'price_estimate')
+MEMBER_DETAIL_FIELDS = ('bid_amount', 'price_estimate', 'connects_cost')
 
 # The video you recorded for a job. Only links a client can open on Upwork.
 
@@ -398,9 +399,12 @@ def cmd_set(args):
         job.pop('follow_up_plan', None)
     if args.follow_up or not job.get('next_follow_up'):
         job.pop('follow_up_source', None)
+    recorder_call = (job.get('call_observation') or {}).get('source') == 'recorder'
     if getattr(args, 'call_at', None):
+        if recorder_call:
+            abort('A recorder call time cannot be replaced by a scheduled date.')
         job['call_at'] = parse_follow_up(args.call_at)
-    elif args.status != 'call':
+    elif args.status != 'call' and not recorder_call:
         job.pop('call_at', None)
     if args.note:
         job['notes'] = (job.get('notes', '') + ' ' + args.note).strip()
@@ -430,7 +434,7 @@ def cmd_acted(args):
 def cmd_record(args):
     """Store connector identity and workflow markers through the sole writer."""
     value = read_json_arg(args.file)
-    allowed = {'proposal_id', 'room_id', 'contract_id', 'contract_client', 'client_slug',
+    allowed = {'loom_hook', 'call_next_step', 'loom_duration_s', 'loom_wpm', 'call_stats', 'reply_gaps_s', 'proposal_id', 'room_id', 'contract_id', 'contract_client', 'client_slug',
                'submission_checked_at', 'result_recorded_at', 'next_follow_up', 'follow_up_source'}
     if not isinstance(value, dict) or not value or set(value) - allowed:
         abort('metadata needs only ' + ', '.join(sorted(allowed)) + '.')
@@ -438,6 +442,38 @@ def cmd_record(args):
         if key == 'follow_up_source':
             if item not in (None, 'waiting'):
                 abort('follow_up_source needs waiting or null to remove it.')
+        elif key == 'loom_hook':
+            if item not in ('pass', 'fail'):
+                abort('loom_hook needs pass or fail.')
+        elif key == 'call_next_step':
+            if not isinstance(item, bool):
+                abort('call_next_step needs true or false.')
+        elif key in ('loom_duration_s', 'loom_wpm'):
+            if (not isinstance(item, (int, float)) or isinstance(item, bool)
+                    or not math.isfinite(item) or item < 0):
+                abort(f'{key} needs a non-negative finite number.')
+        elif key == 'call_stats':
+            fields = {'duration_s', 'talk_share_pct', 'question_counts', 'talk_share_basis', 'note'}
+            if not isinstance(item, dict) or set(item) - fields:
+                abort('call_stats needs derived metrics only.')
+            for name in ('duration_s', 'talk_share_pct'):
+                metric = item.get(name)
+                if metric is not None and (not isinstance(metric, (int, float))
+                                           or isinstance(metric, bool) or not math.isfinite(metric)
+                                           or metric < 0 or (name == 'talk_share_pct' and metric > 100)):
+                    abort(f'call_stats.{name} needs a non-negative finite number.')
+            if 'question_counts' in item:
+                counts = item['question_counts']
+                if (not isinstance(counts, dict) or set(counts) != {'member', 'client'} or
+                        any(not isinstance(n, int) or isinstance(n, bool) or n < 0
+                            for n in counts.values())):
+                    abort('question_counts needs member and client counts.')
+            if any(not isinstance(item[name], str) for name in ('note', 'talk_share_basis') if name in item):
+                abort('call_stats explanations need text.')
+        elif key == 'reply_gaps_s':
+            if (not isinstance(item, list) or any(
+                    not isinstance(n, int) or isinstance(n, bool) or n < 0 for n in item)):
+                abort('reply_gaps_s needs non-negative whole seconds.')
         elif key.endswith('_at'):
             value[key] = verified_timestamp(item)
         elif key == 'next_follow_up':
@@ -656,8 +692,12 @@ def verified_timestamp(value):
 
 
 def cmd_observe(args):
-    """Record one verified Upwork event without changing stage or history."""
-    expected_source = {'applied': 'upwork-proposal', 'replied': 'upwork-thread'}[args.event]
+    """Record an observed event without changing stage or history."""
+    expected_source = {'applied': 'upwork-proposal', 'replied': 'upwork-thread',
+                       'proposal_sent': 'member', 'opened': 'pitch-click',
+                       'pitch_opened': 'pitch-click', 'call': 'recorder'}[args.event]
+    if args.event == 'proposal_sent' and args.source is None:
+        args.source, args.verified = 'member', True
     if not args.verified or args.source != expected_source:
         abort(f'{args.event} observations require --verified --source {expected_source}.')
     event_at = verified_timestamp(args.timestamp)
@@ -668,6 +708,12 @@ def cmd_observe(args):
     previous_at = parse_verified_timestamp(job.get(f'{args.event}_at'))
     previous_valid = (isinstance(previous, dict) and previous.get('verified') is True
                       and previous.get('source') == expected_source and previous_at is not None)
+    if args.event in ('pitch_opened', 'opened'):
+        send = 'applied_at' if args.event == 'pitch_opened' else 'proposal_sent_at'
+        sent = parse_verified_timestamp(job.get(send))
+        if not sent or event_at <= sent:
+            abort(f'{args.event} needs a human hit after {send}.')
+        previous_valid = previous_valid and previous_at > sent
     if previous_valid and previous_at <= event_at:
         print(f'{args.job_id}: verified {args.event} time already recorded.')
         return
@@ -777,9 +823,22 @@ def cmd_list(args):
         print(f'... {total - len(shown)} more (--limit 0 shows all).')
 
 
+def application_day(job):
+    """The recorded application date in local time; no later-stage guesses."""
+    if job.get('imported') or job.get('application_date_unknown'):
+        return None
+    value = job.get('applied_at') or next(
+        (h.get('at') for h in job.get('history', [])
+         if isinstance(h, dict) and h.get('status') == 'applied'), None)
+    try:
+        stamp = datetime.datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    return (stamp.astimezone().date() if stamp.tzinfo else stamp.date()).isoformat()
+
+
 def applied_on(jobs, day):
-    return sum(1 for j in jobs if not j.get('imported') and not j.get('application_date_unknown') and str(j.get('applied_at') or next(
-        (h.get('at') for h in j.get('history', []) if h.get('status') == 'applied'), ''))[:10] == day)
+    return sum(application_day(job) == day for job in jobs)
 
 
 def cmd_summary(args):
@@ -1037,10 +1096,10 @@ def build_parser():
 
     p = sub.add_parser('observe', help='Record a verified Upwork event time without moving the job.')
     p.add_argument('job_id')
-    p.add_argument('event', choices=('applied', 'replied'))
+    p.add_argument('event', choices=('applied', 'replied', 'proposal_sent', 'opened', 'pitch_opened', 'call'))
     p.add_argument('timestamp')
-    p.add_argument('--source', required=True, choices=('upwork-proposal', 'upwork-thread'))
-    p.add_argument('--verified', action='store_true', required=True)
+    p.add_argument('--source', choices=('upwork-proposal', 'upwork-thread', 'member', 'pitch-click', 'recorder'))
+    p.add_argument('--verified', action='store_true')
     p.set_defaults(func=cmd_observe)
 
     p = sub.add_parser('set', help='Move a job to a status.')

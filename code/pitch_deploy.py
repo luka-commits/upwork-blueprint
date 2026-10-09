@@ -92,9 +92,19 @@ def write_site(folder, pages, current_id):
         target = folder / route
         target.mkdir(parents=True)
         shutil.copy2(source, target / 'index.html')
+    api = folder / 'api'
+    api.mkdir(exist_ok=True)
+    shutil.copy2(ROOT / 'api' / 'go.js', api / 'go.js')
+    registry = {}
+    for path in jobs_dir().glob('*/tracking-links.json'):
+        if re.fullmatch(r'[0-9]{6,25}', path.parent.name):
+            registry[path.parent.name] = json.loads(path.read_text(encoding='utf-8'))
+    (api / '_tracking-links.json').write_text(json.dumps(registry), encoding='utf-8')
     (folder / 'vercel.json').write_text(json.dumps({
         'cleanUrls': True,
         'trailingSlash': False,
+        'rewrites': [{'source': '/go/:job/:slug', 'destination': '/api/go?job=:job&slug=:slug'}],
+        'functions': {'api/go.js': {'includeFiles': 'api/_tracking-links.json'}},
     }), encoding='utf-8')
 
 
@@ -199,6 +209,19 @@ def publish(job_id):
             if old_problems:
                 abort(f'the previously published pitch {published_id} failed its gate: ' + '; '.join(old_problems))
             pages[published_id] = published
+
+    for record in records:
+        proposal_id = str(record.get('id') or '')
+        proposal = jobs_dir() / proposal_id / 'proposal.html'
+        registry = jobs_dir() / proposal_id / 'tracking-links.json'
+        if proposal.is_file() and registry.is_file():
+            links = json.loads(registry.read_text(encoding='utf-8'))
+            if any(urllib.parse.urlparse(link.get('target', '')).path == f'/{proposal_id}/proposal'
+                   for link in links.values()):
+                problems = pitch_check.check_page(proposal)
+                if problems:
+                    abort(f'the proposal {proposal_id} failed its gate: ' + '; '.join(problems))
+                pages[f'{proposal_id}/proposal'] = proposal
 
     vercel = shutil.which('vercel')
     if not vercel:

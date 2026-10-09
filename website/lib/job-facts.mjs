@@ -154,7 +154,7 @@ export function jobDetails(job, now = Date.now()) {
     ['Fit check', job.rationale || ''],
     ['Deal', join([budget === '–' ? '' : budget, job.job_type === 'fixed' ? 'fixed price' : job.job_type === 'hourly' ? 'hourly' : '',
       engagementText(job.engagement || d.engagement_type)])],
-    ['Connects', join([d.connects_cost != null ? `${d.connects_cost} connects` : '', d.boost_recommended != null ? `top slot +${d.boost_recommended}` : ''])],
+    ['Connects (listed cost)', join([d.connects_cost != null ? `${d.connects_cost} connects` : '', d.boost_recommended != null ? `top slot +${d.boost_recommended}` : ''])],
     ['Competition', join([bidsText(job), d.interviewing ? `${d.interviewing} interviewing` : '', d.total_hired ? `${d.total_hired} hired` : '',
       d.invites_sent ? `${d.invites_sent} invited` : ''])],
     ['Client', join([client.rating ? `★${client.rating}${client.reviews != null ? ` from ${client.reviews} reviews` : ''}` : 'no rating yet',

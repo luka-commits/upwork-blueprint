@@ -23,7 +23,10 @@ and a checker that cries wolf gets ignored.
 """
 import argparse
 import pathlib
+import json
 import re
+
+import pipeline
 import sys
 from urllib.parse import urlparse, parse_qs
 
@@ -48,9 +51,32 @@ FILLER_OPENERS = (r'i hope', r'hope you', r'my name is', r"i'?m a\b", r'i am a\b
                   r'just saw your', r'greetings')
 
 
+
+def tracking_target(candidate):
+    url = urlparse(candidate)
+    match = re.fullmatch(r'/go/([0-9]{6,25})/([a-z0-9-]{1,80})', url.path)
+    if not match or url.username or url.password:
+        return None
+    jid, slug = match.groups()
+    job = next((job for job in pipeline.load() if job['id'] == jid), None)
+    if not job:
+        return None
+    try:
+        links = json.loads((pipeline.jobs_dir() / jid / 'tracking-links.json').read_text(encoding='utf-8'))
+        link = links.get(slug, {})
+        base = urlparse(link.get('base') or job.get('pitch_url') or '')
+        if url.scheme == base.scheme == 'https' and url.netloc == base.netloc:
+            return link.get('target')
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
 def has_video(text):
     for candidate in re.findall(r'https://[^\s<>]+', text):
-        url = urlparse(candidate.rstrip(').,]'))
+        candidate = candidate.rstrip(').,]')
+        target = tracking_target(candidate)
+        url = urlparse(target or candidate)
         if url.username or url.password:
             continue
         if url.hostname in ('loom.com', 'www.loom.com') and re.fullmatch(r'/share/[^/]+', url.path):
@@ -82,6 +108,8 @@ def pc_contacts(text):
     Loom or YouTube link is not a contact detail. Everything else is.
     """
     import pitch_check  # noqa: E402  (same folder, imported where it is used)
+    text = re.sub(r'https://[^\s<>]+',
+                  lambda match: tracking_target(match.group(0).rstrip(').,]')) or match.group(0), text)
     body = re.sub(r'https?://(www\.)?(loom\.com|youtu\.be|youtube\.com)\S*', ' ', text, flags=re.I)
     problems = []
     if pitch_check.EMAIL.search(body):

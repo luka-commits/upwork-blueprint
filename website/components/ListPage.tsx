@@ -157,7 +157,7 @@ function Table({ jobs, sort, sortBy, drawerId, toggle }: {
         <td data-column="client"><span className={tone(clientTone(j))} title={(j.client || {}).rating ? undefined : 'No rating yet'}>{client}</span>
           <span className="uw-sub">{place}</span></td>
         <td data-column="competition"><span className={tone(postedTone(j))}>{posted}</span><span className={`uw-sub ${tone(bidsTone(j))}`}>{bids}</span></td>
-        <td data-column="budget"><span className={tone(budgetTone(j))}>{budgetText(j)}</span>{connects != null ? <span className="uw-sub">{connects} connects</span> : null}</td>
+        <td data-column="budget"><span className={tone(budgetTone(j))}>{budgetText(j)}</span>{connects != null ? <span className="uw-sub">{connects} connects · listed cost</span> : null}</td>
         <td data-column="step"><StepCell job={j} /></td>
       </tr>;
     })}</tbody>

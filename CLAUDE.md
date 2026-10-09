@@ -27,8 +27,9 @@ Everything after `/about-me` reads that one file.
 
 When the Upwork tools are missing, say hello in one line and walk the member through
 [README.md: Connect Upwork](README.md#connect-upwork) in the chat, one step at a time,
-then wait for them. The login and the restart are theirs; check with `list_accounts`
-after. Setup messages are short and friendly, with at most one clean dad joke each, never
+then wait for them. The login is theirs (`/mcp`, choose upwork, Authenticate, in VS Code and the terminal
+alike); check with `list_accounts`, and suggest a new conversation if the tools are still
+missing. Setup messages are short and friendly, with at most one clean dad joke each, never
 in an error, a blocker or anything about money or their account.
 
 ## Rules stay lean

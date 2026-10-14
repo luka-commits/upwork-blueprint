@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCockpit } from '@/lib/context';
+import { ANALYTICS_LEADS_PARAM, analyticsLeadIds } from '@/lib/analytics-navigation';
 import { BOARD, LABEL, LIST } from '@/lib/stages.mjs';
 import { nextStep, waitingState } from '@/lib/next-step.mjs';
 import { daysInStage, searchJobs, sortJobs } from '@/lib/list-view.mjs';
@@ -33,6 +35,10 @@ const COLUMNS: { key: SortKey | 'summary'; label: string; width?: number }[] = [
 
 export default function ListPage() {
   const { state, drawerId, openDrawer, closeDrawer } = useCockpit();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedIds = useMemo(() => analyticsLeadIds(searchParams.get(ANALYTICS_LEADS_PARAM)), [searchParams]);
+  const fromAnalytics = selectedIds !== null;
   const [layout, setLayout] = useState<Layout>('list');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<Sort>(null);
@@ -47,33 +53,39 @@ export default function ListPage() {
   // Hours: 0 shows everything.
   const [fresh, setFresh] = useState(0);
   const all: any[] = state?.jobs || [];
-  const pool = useMemo(() => all.filter(j => (layout === 'board' ? BOARD : LIST).includes(j.status)), [all, layout]);
+  const pool = useMemo(() => fromAnalytics ? all.filter(j => selectedIds.includes(String(j.id)))
+    : all.filter(j => (layout === 'board' ? BOARD : LIST).includes(j.status)), [all, layout, fromAnalytics, selectedIds]);
   // Due means a task is waiting on the member now, not a follow-up set for later.
-  const byDue = useMemo(() => dueOnly ? pool.filter(j => waitingState(j).kind === 'act') : pool, [pool, dueOnly]);
+  const byDue = useMemo(() => dueOnly && !fromAnalytics ? pool.filter(j => waitingState(j).kind === 'act') : pool, [pool, dueOnly, fromAnalytics]);
   // A posting stops being worth Connects within hours, so freshness is a filter and
   // not only a colour. Anything without a posting date stays visible: a missing field
   // is not evidence that the job is old.
   const filtered = useMemo(() => {
     // Only on the list. On the board a "posted 3 days ago" lead is a live conversation,
     // and hiding it behind an apply-time filter loses work that is already in flight.
-    if (!fresh || layout === 'board') return byDue;
+    if (fromAnalytics || !fresh || layout === 'board') return byDue;
     const cutoff = Date.now() - fresh * 3600e3;
     return byDue.filter(j => !j.posted_date || Date.parse(j.posted_date) >= cutoff);
-  }, [byDue, fresh, layout]);
-  const jobs = useMemo(() => sortJobs(searchJobs(filtered, query), layout === 'board' ? null : sort), [filtered, query, sort, layout]);
+  }, [byDue, fresh, layout, fromAnalytics]);
+  const jobs = useMemo(() => sortJobs(fromAnalytics ? filtered : searchJobs(filtered, query), layout === 'board' && !fromAnalytics ? null : sort), [filtered, query, sort, layout, fromAnalytics]);
   if (!state) return null;
 
   const choose = (next: Layout) => {
     setLayout(next);
     try { localStorage.setItem(LAYOUT_KEY, next); } catch { /* Storage is optional. */ }
   };
-  const toggle = (id: string) => drawerId === id ? closeDrawer() : openDrawer(id);
+  const toggle = (id: string) => { if (!fromAnalytics) drawerId === id ? closeDrawer() : openDrawer(id); };
   // Up, down, then back to the default order.
   const sortBy = (key: SortKey) => setSort(current => current?.key !== key ? { key, desc: false } : current.desc ? null : { key, desc: true });
   const noun = layout === 'board' ? 'in the pipeline' : 'to decide on';
   const dueTotal = pool.filter(j => waitingState(j).kind === 'act').length;
 
   return <div>
+    {fromAnalytics ? <div className="toolbar" data-analytics-leads>
+      <button type="button" onClick={() => router.back()}>← Back to Analytics</button>
+      <span className="count" aria-live="polite">{pool.length} selected {pool.length === 1 ? 'lead' : 'leads'}</span>
+      {pool.length < selectedIds.length ? <span>{selectedIds.length - pool.length} selected leads are no longer saved.</span> : null}
+    </div> : <>
     <div className="toolbar">
       <div className="seg" role="group" aria-label="Layout" style={{ '--segment-index': Number(layout === 'board') } as React.CSSProperties}>
         <button onClick={() => choose('list')} aria-pressed={layout === 'list'}>List</button>
@@ -97,7 +109,10 @@ export default function ListPage() {
       </div>}
       <span className="count" aria-live="polite">{jobs.length === pool.length ? `${pool.length} ${noun}` : `${jobs.length} of ${pool.length} ${noun}`}</span>
     </div>
-    {layout === 'board' ? <Board jobs={jobs} oldestFirst={oldestFirst} drawerId={drawerId} toggle={toggle} />
+    </>}
+    {fromAnalytics ? jobs.length ? <Table jobs={jobs} sort={sort} sortBy={sortBy} drawerId={null} toggle={toggle} readOnly />
+      : <p className="empty">No saved leads match this evidence.</p>
+      : layout === 'board' ? <Board jobs={jobs} oldestFirst={oldestFirst} drawerId={drawerId} toggle={toggle} />
       : !pool.length ? <p className="empty">No new jobs. Run /find-jobs in Claude Code.</p>
         : !jobs.length ? <p className="empty">Nothing matches “{query}”.</p>
           : <Table jobs={jobs} sort={sort} sortBy={sortBy} drawerId={drawerId} toggle={toggle} />}
@@ -127,8 +142,8 @@ function StepCell({ job }: { job: any }) {
   </>;
 }
 
-function Table({ jobs, sort, sortBy, drawerId, toggle }: {
-  jobs: any[]; sort: Sort; sortBy: (key: SortKey) => void; drawerId: string | null; toggle: (id: string) => void;
+function Table({ jobs, sort, sortBy, drawerId, toggle, readOnly = false }: {
+  jobs: any[]; sort: Sort; sortBy: (key: SortKey) => void; drawerId: string | null; toggle: (id: string) => void; readOnly?: boolean;
 }) {
   return <div className="table-card"><table className="rt-table">
     <colgroup>{COLUMNS.map(col => <col key={col.key} style={col.width ? { width: col.width } : undefined} />)}</colgroup>
@@ -142,9 +157,9 @@ function Table({ jobs, sort, sortBy, drawerId, toggle }: {
     <tbody>{jobs.map(j => {
       const id = String(j.id), [client, place] = clientLines(j), [posted, bids] = competitionLines(j);
       const connects = (j.details || {}).connects_cost;
-      return <tr key={id} className={`uw-row${id === drawerId ? ' sel' : ''}`} tabIndex={0}
-        onClick={e => { if (!(e.target as Element).closest('button, a')) toggle(id); }}
-        onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); toggle(id); } }}>
+      return <tr key={id} data-lead-id={id} className={`uw-row${id === drawerId ? ' sel' : ''}`} tabIndex={readOnly ? undefined : 0}
+        onClick={readOnly ? undefined : e => { if (!(e.target as Element).closest('button, a')) toggle(id); }}
+        onKeyDown={readOnly ? undefined : e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); toggle(id); } }}>
         <td data-column="score"><span className={`uw-score ${scoreTone(j.score)}`}>{j.score == null ? '–' : j.score}</span></td>
         <td data-column="summary">
           {/* The link goes to the posting itself. Without it a member has to search Upwork

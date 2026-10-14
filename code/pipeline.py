@@ -697,6 +697,27 @@ def cmd_acted(args):
     print(f'{args.job_id}: activity recorded.')
 
 
+REVIEW_METADATA = {'key_finding', 'pattern_sentence', 'better_line'}
+
+
+def count_free_pattern(text):
+    """Only wording is supplied; computed placeholders are the sole count tokens."""
+    if not isinstance(text, str) or not text.strip(): return False
+    wording = text.replace('{k}', '').replace('{n}', '')
+    numbers = r'(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|couple|half|hundred|twenty|thirty|forty|fifty)'
+    return not re.search(r'\d|[{}%]|\bpercent\b|\b(?:in|across)\s+\S+(?:\s+\S+){0,3}\s+(?:of|out of)\b|\b' + numbers + r'\s+(?:of|out of)\b|\b(?:' + numbers + r'|all|every|most|majority|none)\s+(?:the\s+)?(?:reviewed\s+)?(?:conversations|reviews|threads|calls|applications|proposals)\b', wording, re.I)
+
+
+def validate_review_metadata(value):
+    for field in REVIEW_METADATA:
+        if field in value and (not isinstance(value[field], str) or not value[field].strip()):
+            abort(f'{field} needs nonempty text.')
+    if 'key_finding' in value and len(value['key_finding'].split()) > 12:
+        abort('key_finding allows at most 12 words.')
+    if 'pattern_sentence' in value and not count_free_pattern(value['pattern_sentence']):
+        abort('pattern_sentence supplies wording only; counts must use computed {k}/{n} placeholders.')
+
+
 def cmd_record(args):
     """Store connector identity and workflow markers through the sole writer."""
     value = read_json_arg(args.file)
@@ -707,12 +728,17 @@ def cmd_record(args):
                'call_scheduled_at', 'call_ended_at', 'call_duration_s', 'call_session_id', 'call_sessions',
                'call_outcome', 'proposal_required', 'application_modality', 'application_sent_verified', 'submission_bid',
                'invited_at_source', 'proposal_status', 'proposal_cost', 'proposal_viewed', 'proposal_insights',
-               'call_requested_at', 'call_request', 'recap_state', 'recap_reason', 'thread_refs', 'conversation_review', 'call_review', 'tags', 'behaviour_observations'}
+               'call_requested_at', 'call_request', 'recap_state', 'recap_reason', 'thread_refs', 'application_review', 'proposal_review', 'conversation_review', 'call_review', 'tags', 'behaviour_observations'}
     if not isinstance(value, dict) or not value or set(value) - allowed:
         abort('metadata needs only ' + ', '.join(sorted(allowed)) + '.')
     jobs = load()
     job = find(jobs, args.job_id)
     for key, item in value.items():
+        if key in ('application_review', 'conversation_review', 'call_review', 'proposal_review') and isinstance(item, dict):
+            validate_review_metadata(item)
+            points = item.get('points', [])
+            for point in (points.values() if isinstance(points, dict) else points) if isinstance(points, (dict, list)) else []:
+                if isinstance(point, dict): validate_review_metadata(point)
         if key == 'tags':
             if job.get('applied_at') or job.get('application_facts') or job.get('replied_at'):
                 abort('Insight tags must be registered before applying, never after outcomes.')
@@ -817,9 +843,37 @@ def cmd_record(args):
                         or ref['source'] != 'upwork-thread'):
                     abort('thread_refs needs room identity, completeness, fetched_at, last_writer and source upwork-thread.')
                 ref['fetched_at'] = verified_timestamp(ref['fetched_at'])
+        elif key in ('application_review', 'proposal_review'):
+            fields = {'reviewable', 'points', 'state', 'reason', 'quote', 'free_read', 'next_message', 'example', 'fix', 'scope', 'price', 'decision_date'} | REVIEW_METADATA
+            if (not isinstance(item, dict) or set(item) - fields or not isinstance(item.get('points'), list)
+                    or not isinstance(item.get('reviewable'), bool)):
+                abort(f'{key} needs reviewable and recorded points, with optional coaching text.')
+            if not item['reviewable'] and item['points']:
+                abort('An unreviewable source cannot have point judgments.')
+            numbers = [point.get('point') for point in item['points'] if isinstance(point, dict)]
+            if len(numbers) != len(item['points']) or len(set(numbers)) != len(numbers):
+                abort('Review points must be distinct objects.')
+            if key == 'application_review' and item['reviewable']:
+                required = set(range(1, 4 if job.get('application_modality') == 'uma' else 7))
+                if set(numbers) not in (required, required | {7}) or any(isinstance(n, bool) for n in numbers):
+                    abort('Application review requires its six points plus optional Loom, or three Uma points.')
+            if key == 'proposal_review' and item['reviewable'] and not numbers:
+                abort('Proposal review requires recorded labelled points; no fixed rubric is invented.')
+            for point in item['points']:
+                if (set(point) - ({'point', 'label', 'state', 'quote', 'reason'} | REVIEW_METADATA)
+                        or point.get('state') not in ('met', 'partly', 'missing', 'not needed', 'not_needed')
+                        or not isinstance(point.get('point'), (str, int)) or isinstance(point.get('point'), bool)
+                        or any(not isinstance(point[field], str) for field in ('label', 'quote', 'reason') if field in point)
+                        or point['state'] in ('not needed', 'not_needed') and not point.get('reason', '').strip()
+                        or key == 'proposal_review' and not str(point.get('label') or '').strip()):
+                    abort('Review points need state and identity; proposal labels come from the original review; not needed requires a reason.')
+            if any(not isinstance(item[field], str) for field in fields - {'reviewable', 'points'} if field in item):
+                abort('Review coaching fields need text.')
+            if len(item.get('free_read', '').split()) > 150 or len(item.get('next_message', '').split()) > 100:
+                abort('Review free_read allows 150 words; next_message allows 100.')
         elif key == 'call_review':
             if (not isinstance(item, dict) or not {'reviewable', 'points'} <= set(item)
-                    or set(item) - {'reviewable', 'points', 'moments', 'fix', 'example', 'next_step', 'agreed_step', 'next_message', 'free_read'}
+                    or set(item) - ({'reviewable', 'points', 'moments', 'fix', 'example', 'next_step', 'agreed_step', 'next_message', 'free_read'} | REVIEW_METADATA)
                     or not isinstance(item['reviewable'], bool) or not isinstance(item['points'], list)):
                 abort('call_review needs reviewable and points, with optional moments and coaching text.')
             if not item['reviewable'] and item['points']:
@@ -830,9 +884,10 @@ def cmd_record(args):
                 abort('A reviewed call needs each of the nine points once.')
             for point in item['points']:
                 if (not isinstance(point, dict) or not {'point', 'state', 'quote'} <= set(point)
-                        or set(point) - {'point', 'state', 'quote', 'reason'}
+                        or set(point) - ({'point', 'label', 'state', 'quote', 'reason'} | REVIEW_METADATA)
                         or point['state'] not in ('met', 'partly', 'missing', 'not needed')
-                        or not isinstance(point['quote'], str) or not point['quote'].strip()
+                        or not isinstance(point['quote'], str)
+                        or (point['state'] in ('met', 'partly') and not point['quote'].strip())
                         or ('reason' in point and not isinstance(point['reason'], str))
                         or (point['state'] == 'not needed' and not str(point.get('reason') or '').strip())):
                     abort('Call points need point, state and quoted evidence; not needed requires its reason.')
@@ -851,7 +906,7 @@ def cmd_record(args):
         elif key == 'conversation_review':
             point_keys = {'answered_question', 'qualifying_question', 'call_times'}
             if (not isinstance(item, dict) or not {'points', 'last_writer', 'read'} <= set(item)
-                    or set(item) - {'points', 'last_writer', 'read', 'free_read', 'next_message'}
+                    or set(item) - ({'points', 'last_writer', 'read', 'free_read', 'next_message', 'example'} | REVIEW_METADATA)
                     or not isinstance(item['read'], bool) or item['last_writer'] not in ('me', 'client', 'unknown')
                     or not isinstance(item['points'], dict) or set(item['points']) != point_keys):
                 abort('conversation_review needs three content points, last_writer and a boolean read flag.')
@@ -861,7 +916,7 @@ def cmd_record(args):
             if not item['read'] and any(item.get(field, '').strip() for field in ('free_read', 'next_message')):
                 abort('An unread conversation cannot have coaching text.')
             for point in item['points'].values():
-                if (not isinstance(point, dict) or set(point) != {'state', 'quote', 'reason'}
+                if (not isinstance(point, dict) or not {'state', 'quote', 'reason'} <= set(point) or set(point) - ({'state', 'quote', 'reason', 'label'} | REVIEW_METADATA)
                         or point['state'] not in ('met', 'partly', 'missing', 'not_needed')
                         or not isinstance(point['quote'], str) or not isinstance(point['reason'], str)
                         or (point['state'] == 'not_needed' and not point['reason'].strip())
@@ -981,8 +1036,26 @@ def cmd_record(args):
         utterances = [match[2] for match in re.finditer(r'^([^:\n]+):\s*(.+)$', text, re.M)
                       if match[1].strip().casefold() not in ('duration', 'member', 'call at', 'date', 'recorder', 'speakers', 'complete', 'language')]
         for point in value['call_review']['points'] + value['call_review'].get('moments', []):
-            if not any(point['quote'] in utterance for utterance in utterances):
+            if point['quote'].strip() and not any(point['quote'] in utterance for utterance in utterances):
                 abort('Every call review quotation must occur in the saved transcript.')
+    for kind, filename in (('application', 'application.sent.md'), ('proposal', 'proposal.md')):
+        review = value.get(kind + '_review')
+        if not isinstance(review, dict) or not review.get('reviewable'): continue
+        path = jobs_dir() / args.job_id / filename
+        try: text = path.read_text(encoding='utf-8')
+        except (OSError, UnicodeError): abort(f'A reviewed {kind} requires its saved sent source.')
+        if kind == 'application':
+            if job.get('application_sent_verified') is not True:
+                abort('A reviewed application requires verified sent copy.')
+            for name in ('loom-transcript.txt', 'loom.md'):
+                extra = jobs_dir() / args.job_id / name
+                if extra.is_file(): text += '\n' + extra.read_text(encoding='utf-8')
+        elif not job.get('proposal_sent_at'):
+            abort('A reviewed proposal requires proposal_sent confirmation.')
+        for point in review['points']:
+            quote = point.get('quote', '')
+            if quote.strip() and quote not in text:
+                abort(f'Every {kind} quotation must occur in its saved sent source.')
     # Validate meeting context before mutating the job or its review history.
     session_id = value.get('call_session_id', job.get('call_session_id'))
     sessions = value.get('call_sessions', job.get('call_sessions')) or {}
@@ -1018,6 +1091,17 @@ def cmd_record(args):
             history.setdefault(prior_identity, {'review': prior, 'reviewed_at': job.get('call_reviewed_at'), 'call_at': job.get('call_held_at')})
         if 'call_review' in value:
             if identity in history:
+                # Add presentation metadata to a legacy review without re-judging
+                # any point, evidence, free read or original review timestamp.
+                original = history[identity]['review']
+                incoming = value['call_review']
+                for field in REVIEW_METADATA:
+                    if field not in original and field in incoming: original[field] = incoming[field]
+                by_point = {point['point']: point for point in incoming.get('points', [])}
+                for point in original.get('points', []):
+                    for field in REVIEW_METADATA:
+                        if field not in point and field in by_point.get(point['point'], {}):
+                            point[field] = by_point[point['point']][field]
                 value['call_review'] = history[identity]['review']
             elif value['call_review'].get('reviewable') is True:
                 import call_stats
@@ -1054,7 +1138,7 @@ def cmd_record(args):
             job.pop(key, None)
         elif (key not in ('submission_checked_at', 'result_recorded_at', 'proposal_insights') or not job.get(key)) and job.get(key) != item:
             job[key] = item
-            if key in ('call_review', 'conversation_review'):
+            if key in ('call_review', 'conversation_review', 'application_review', 'proposal_review'):
                 job[key + 'ed_at'] = (job['call_reviews'][job['call_review_session']]['reviewed_at'] if key == 'call_review' and job['call_review_session'] in job.get('call_reviews', {}) else now_iso())
             if key == 'call_no_show' and job.get('call_session_id'):
                 session = job.setdefault('call_sessions', {}).setdefault(job['call_session_id'], {})

@@ -15,6 +15,7 @@ export type CockpitApi = {
   drawerId: string | null;
   openDrawer: (id: string) => void;
   closeDrawer: () => void;
+  openAnalyticsLeads: (ids: (string | number)[]) => void;
 };
 
 export const CockpitContext = createContext<CockpitApi | null>(null);

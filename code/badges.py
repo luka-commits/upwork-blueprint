@@ -19,11 +19,15 @@ import call_stats
 
 TIERS = ('Bronze', 'Silver', 'Gold', 'Platinum', 'Legend')
 BADGE_NAMES = ('Harbour Master', 'First Mate', 'Treasure Hunter', 'Swift Sail',
-               "Ship's Bell", 'Lookout', 'Steady Anchor', 'Quick Draw',
+               "Ship's Bell", 'Lookout', 'Steady Hand', 'Quick Draw',
                'Message in a Bottle', 'True North', 'Navigator', 'Lighthouse Keeper',
                'First Doubloon', 'Back on Course')
 QUALIFYING_WEEKS = (1, 3, 6, 13, 26)
 LEDGER_KEYS = {'badge', 'tier', 'lead_id', 'at', 'reason'}
+
+
+def canonical_name(name):
+    return 'Steady Hand' if name == 'Steady Anchor' else name
 
 
 def _stamp(value):
@@ -127,13 +131,14 @@ def read_ledger():
     rows = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines()
             if line.strip()] if path.is_file() else []
     for row in rows:
+        row['badge'] = canonical_name(row.get('badge'))
         _validate(row)
     return rows
 
 
 def _validate(row):
     if (not isinstance(row, dict) or set(row) != LEDGER_KEYS or
-            row.get('badge') not in BADGE_NAMES or row.get('tier') not in TIERS or
+            canonical_name(row.get('badge')) not in BADGE_NAMES or row.get('tier') not in TIERS or
             _stamp(row.get('at')) is None or not isinstance(row.get('reason'), str) or
             not row['reason'].strip() or
             (row.get('lead_id') is not None and not isinstance(row['lead_id'], str))):
@@ -143,6 +148,7 @@ def _validate(row):
 def _append(candidates):
     """Lock read/dedup/replace together; each badge tier is earned only once."""
     for row in candidates:
+        row['badge'] = canonical_name(row.get('badge'))
         _validate(row)
     if not candidates:
         return []
@@ -314,44 +320,68 @@ def _week_date(week):
         raise ValueError('Streak week needs YYYY-Www.') from None
 
 
-def streak_history(history, week=None, test=None, current=None):
-    """Replay chronologically: the first missed week each month consumes its anchor.
+def commitment_period(row):
+    """Prefer the reported application period over the snapshot's generation label."""
+    return (row.get('kpis', {}).get('weekly_volume', {}).get('period') or
+            row.get('periods', {}).get('activity') or {})
 
-    Protected gaps keep the counter but do not add a completed week. The month is
-    the missed ISO week's Monday's calendar month. A second gap in that month
-    resets only the counter; it never touches awards. test defaults to run existence.
+
+def commitment_week(row):
+    bounds = commitment_period(row)
+    date = bounds.get('end') or bounds.get('start')
+    if date:
+        iso = dt.date.fromisoformat(date).isocalendar()
+        return f'{iso.year}-W{iso.week:02d}'
+    return row['week']
+
+
+def streak_history(history, week=None, test=None, current=None):
+    """Consecutive weekly application commitments, using each saved week's target.
+
+    Entirely off weeks are skipped. Missing completed weeks reset current, never
+    best. An incomplete ending week counts only once its commitment is met.
+    The optional predicate supports callers replaying another explicit habit.
     """
-    rows = {row['week']: row for row in history}
+    rows = {commitment_week(row): row for row in history}
     if current is not None:
-        rows[current['week']] = current
+        rows[commitment_week(current)] = current
     if not rows:
-        return {'streak_weeks': 0, 'anchors_used': []}
-    ending = _week_date(week or max(rows))
+        return {'streak_weeks': 0, 'best_streak_weeks': 0, 'weeks': [], 'anchors_used': []}
+    ending_row = current or next((row for row in reversed(history) if row.get('week') == week), None)
+    ending = _week_date(commitment_week(ending_row) if ending_row else week or max(rows))
     eligible = [_week_date(key) for key in rows if _week_date(key) <= ending]
     if not eligible:
-        return {'streak_weeks': 0, 'anchors_used': []}
+        return {'streak_weeks': 0, 'best_streak_weeks': 0, 'weeks': [], 'anchors_used': []}
     start = min(eligible)
-    predicate = test or (lambda row: True)
-    count, months, anchors, begun = 0, set(), [], False
+    def passed(row):
+        volume = row.get('kpis', {}).get('weekly_volume', {})
+        value = volume.get('value', volume.get('k'))
+        target = volume.get('target')
+        return _number(value) and _number(target) and target > 0 and value >= target
+    predicate = test or passed
+    count, best, weeks = 0, 0, []
     cursor = start
     while cursor <= ending:
         iso = cursor.isocalendar()
         key = f'{iso.year}-W{iso.week:02d}'
-        row, month = rows.get(key), (cursor.year, cursor.month)
-        if row is not None and predicate(row):
+        row = rows.get(key)
+        working = (row or {}).get('accountability', {}).get('working_days', {})
+        if 'n' not in working:
+            import analytics
+            working = {'n': len(analytics.working_dates(cursor))}
+        stamp = _stamp((row or {}).get('generated_at'))
+        reported_end = commitment_period(row or {}).get('end')
+        deadline = dt.date.fromisoformat(reported_end) if reported_end else cursor + dt.timedelta(days=6)
+        incomplete = cursor == ending and stamp is not None and deadline >= stamp.astimezone(pipeline.member_zone()).date()
+        state = 'off' if working.get('n') == 0 else 'met' if row is not None and predicate(row) else 'pending' if incomplete else 'missed'
+        if state == 'met':
             count += 1
-            begun = True
-        elif row is not None:
-            # A recorded failing habit week breaks its run; anchors cover absence only.
-            count, begun = 0, False
-        elif begun:
-            if month not in months:
-                months.add(month)
-                anchors.append(key)
-            else:
-                count, begun = 0, False
+            best = max(best, count)
+        elif state == 'missed': count = 0
+        volume = (row or {}).get('kpis', {}).get('weekly_volume', {})
+        weeks.append({'week': key, 'state': state, 'value': volume.get('value', volume.get('k')), 'target': volume.get('target')})
         cursor += dt.timedelta(weeks=1)
-    return {'streak_weeks': count, 'anchors_used': anchors}
+    return {'streak_weeks': count, 'best_streak_weeks': best, 'weeks': weeks, 'anchors_used': []}
 
 
 def streak(history, week=None, test=None, current=None):
@@ -420,11 +450,30 @@ def voyage(awards, snapshot=None):
     result = dict((snapshot.get('presentation') or {}).get('voyage') or snapshot.get('voyage') or {})
     top = {}
     for row in list(snapshot.get('badges', [])) + list(awards):
+        row = dict(row, badge=canonical_name(row.get('badge')))
         if row.get('badge') not in BADGE_NAMES or row.get('tier') not in TIERS: continue
-        if row['badge'] not in top or TIERS.index(row['tier']) >= TIERS.index(top[row['badge']]['tier']): top[row['badge']] = row
+        prior = top.get(row['badge'])
+        if prior is None or TIERS.index(row['tier']) > TIERS.index(prior['tier']):
+            top[row['badge']] = row
+        elif row['tier'] == prior['tier']:
+            # Ledger award facts remain authoritative; sparse immutable awards
+            # must not erase the current computation's progress.
+            merged = dict(prior, **row)
+            for field in ('progress_to_next', 'progress'):
+                if prior.get(field) is not None: merged[field] = prior[field]
+            top[row['badge']] = merged
     motifs = ('harbour', 'ship', 'treasure', 'hourglass', 'bell', 'spyglass', 'anchor', 'cannon', 'bottle', 'compass', 'wheel', 'lighthouse', 'doubloon', 'storm')
     requirements = catalogue_metadata()
-    old = {row.get('badge'): row for row in result.get('stations', [])}
+    old = {canonical_name(row.get('badge')): row for row in result.get('stations', [])}
+    progress_rows = snapshot.get('badge_progress', {})
+    if not progress_rows:
+        import analytics
+        history = analytics.read_lines('analytics-history.jsonl')
+        source = snapshot if snapshot.get('week') and snapshot.get('kpis') else max(history, key=lambda row: row.get('week', ''), default={})
+        if source.get('week') and source.get('kpis'):
+            replay = dict(source)
+            analytics.badge_results(replay, [], history, analytics.day(source.get('generated_at')) or dt.date.today(), snapshot_only=True)
+            progress_rows = replay.get('badge_progress', {})
     stations = []
     for name, motif in zip(BADGE_NAMES, motifs):
         metadata = requirements.get(name, {})
@@ -432,12 +481,13 @@ def voyage(awards, snapshot=None):
         award = top.get(name, {}); tier = award.get('tier'); at = _stamp(award.get('at') or award.get('earned_at')); iso = at.isocalendar() if at else None
         week = award.get('earned_week') or (f'{iso.year}-W{iso.week:02d}' if iso else None)
         progress = award.get('progress_to_next') or old.get(name, {}).get('progress_to_next')
-        slug = name.lower().replace("'", '').replace(' ', '-')
+        slug = ('Steady Anchor' if name == 'Steady Hand' else name).lower().replace("'", '').replace(' ', '-')
         image = f'/badges/{slug}-{tier.lower()}.webp' if tier else f'/badges/badge-{motif}.webp'
         stations.append({'badge': name, 'short': metadata.get('short'), 'motif': motif, 'tier': tier, 'earned': bool(tier), 'earned_week': week, 'earned_at': at.isoformat() if at else None,
                          'image': image, 'fallback_image': f'/badges/badge-{motif}.webp',
                          'locked': not bool(tier), 'requirement': requirement, 'criterion': requirement,
-                         'progress_to_next': progress, 'next_tier': TIERS[TIERS.index(tier)+1] if tier and tier != TIERS[-1] else TIERS[0] if not tier else None,
+                         'progress_to_next': progress, 'next_tier': None if name == 'Back on Course' and tier else TIERS[TIERS.index(tier)+1] if tier and tier != TIERS[-1] else TIERS[0] if not tier else None,
+                         'progress': progress_rows.get(name) or old.get(name, {}).get('progress'),
                          'evidence': [award['lead_id']] if award.get('lead_id') else []})
     result.update(stations=stations)
     return result

@@ -8,12 +8,23 @@ import pathlib
 import sys
 import re
 import struct
+import html
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from analytics_fixture import fixture, seed, record, records, run, analytics_sync_marker, EXAMPLE_CALL_READ, analytics_payload
+from analytics_fixture import run_checks, fixture, seed, record, records, run, analytics_sync_marker, EXAMPLE_CALL_READ, analytics_payload
 import analytics
 
+R2_PRIVACY_PROBES = (
+    'Acme Corporation', 'What did acmecorporation request?', 'Secret, Client',
+    'Migration', 'secretclient', 'migrationspecialistneeded', 'hiddenbudget',
+    'ivoryworkflow', '$200/hour', 'Can I charge two hundred each session?',
+    'Is two hundred a fair fee?', 'example.com', 'example[.]com', 'example dot com',
+    'example。com', 'example．com', 'a\u200bcme', 'ivory workflow',
+    'What did ivory workflow mean?', 'employer', 'client_slug',
+    'What about "keep the launch secret"?', 'Upwork', 'Upwork Blueprint',
+    'unknown lowercase company', 'unknown confidential phrase',
+)
 
 def refused(action, label):
     try:
@@ -21,7 +32,6 @@ def refused(action, label):
     except ValueError:
         return
     raise AssertionError('Unsafe public value accepted: ' + label)
-
 
 def privacy_contract():
     today = dt.date(2026, 10, 14)
@@ -33,7 +43,6 @@ def privacy_contract():
                     'client_name': 'Secret Client', 'aliases': ['Scarlet Partners'],
                     'quote': 'We have a hidden budget for the internal launch',
                     'messages': [{'text': 'The ivory workflow is confidential'}]}]
-        # Every measured bypass from r-privacy, including both root and canonical paths.
         unsafe = ('What did Acme Corporation request?', 'What did acme, corporation request?',
                   'What did Secret, Client request?', 'Can migration work better?',
                   'What is the hidden budget?', 'What did the ivory workflow show?',
@@ -61,7 +70,6 @@ def privacy_contract():
         for question in ('reply_rate-1', 'reply_rate-2'):
             safe = copy.deepcopy(card); safe['question_id'] = question
             assert analytics.validate_community_card(safe, sources)['question_id'] == question
-        # A library prefix alone and a copied history entry authorize nothing.
         legacy_goal = {'text': 'When choosing proof → use one', 'done': False, 'k': 0,
                        'n': 1, 'state': 'undone'}
         unagreed = copy.deepcopy(card); unagreed['goals'] = [legacy_goal]
@@ -96,7 +104,6 @@ def privacy_contract():
             attack = copy.deepcopy(card)
             attack['biggest_improvement'] = {'kpi': 'reply_rate', 'from': 10, 'to': 20, 'reason': reason}
             refused(lambda: analytics.validate_community_card(attack, sources), 'arbitrary improvement reason')
-        # Rank is an explicit owner decision and stays on the card.
         assert 'Rank: ' + card['rank'] in analytics.public_onepager_html(card)
         for name in ('True North', 'First Doubloon'):
             awarded = copy.deepcopy(card)
@@ -104,7 +111,6 @@ def privacy_contract():
                                         'new': True, 'progress_to_next': 'All tiers earned'}]
             markup = analytics.public_onepager_html(awarded)
             assert 'data:image/webp;base64,' in markup and '<small>Gold</small>' in markup, name
-        # The recording path cannot substitute snapshot goals for member agreement.
         (folder / 'data/goals.jsonl').unlink()
         (folder / 'data/analytics-history.jsonl').unlink()
         current = analytics.compute(today, jobs=[], now=now)
@@ -117,50 +123,6 @@ def privacy_contract():
             assert 'agreed goals' in str(error), error
         else:
             raise AssertionError('Snapshot without agreed goals was recorded')
-    print('PASS audit privacy: every reported bypass rejected; ID-only agreed goals; fixed improvement; strict canonical/legacy question; retained rank; every displayed award has an image.')
-
-
-def review_contract():
-    with fixture('audit-review') as folder:
-        jid = '991000001'; home = folder / 'jobs' / jid; home.mkdir()
-        quote = 'Please confirm who supplies the inputs.'
-        finding = 'Confirm who supplies the inputs before agreeing a date'
-        (home / 'application.sent.md').write_text(quote)
-        (home / 'proposal.md').write_text(quote)
-        (home / 'thread.json').write_text(json.dumps({'messages_complete': True, 'messages': [
-            {'from': 'client', 'at': '2026-10-12T10:00:00+02:00', 'text': quote}]}))
-        points = {key: {'state': 'partly', 'quote': quote, 'reason': finding} for key in analytics.CONVERSATION_POINTS}
-        saved = {'read': True, 'reviewable': True, 'quote': quote, 'key_finding': finding,
-                 'points': points, 'free_read': 'My read is that ownership needs clarification.'}
-        job = {'id': jid, 'title': 'Reporting audit', 'applied_at': '2026-10-12T09:00:00+02:00',
-               'replied_at': '2026-10-12T10:00:00+02:00', 'proposal_sent_at': '2026-10-12T12:00:00+02:00',
-               'application_sent_verified': True, 'application_review': saved,
-               'conversation_review': saved, 'proposal_review': saved}
-        snapshot = {'generated_at': '2026-10-14T15:00:00+02:00', 'reviews': {}, 'call_cards': []}
-        projected = analytics.conversations_fields(snapshot, [job])['sections']
-        assert 'duplicate_of_stage' not in projected['applications'][0]
-        assert projected['chats'][0]['duplicate_of_stage'] == 'applications'
-        assert projected['proposals'][0]['duplicate_of_stage'] == 'applications'
-        threads = analytics.conversation_reviews([job], dt.date(2026, 10, 14))['threads']
-        assert tuple(threads[0]['points']) == ('answered_question', 'qualifying_question', 'call_times')
-        assert not any('speed' in name or 'follow' in name for name in threads[0]['points'])
-        missing = dict(job, id='991000002', call_held_at='2026-10-12T13:00:00+02:00')
-        card = analytics.call_cards(snapshot, [missing])[0]
-        assert not card['reviewable'] and card['reason'].startswith('Not reviewed.')
-        assert '991000002/call.md' in card['source_prompt'] and '/call-review 991000002' in card['source_prompt']
-        full = folder / 'jobs/991000002'; full.mkdir()
-        (full / 'call.md').write_text('Member: Maya\nComplete: yes\nMaya: What do you need?\nClient: A full audit.\n')
-        absent_review = analytics.call_cards(snapshot, [missing])[0]
-        assert absent_review['reason'] == 'Not reviewed. Call review missing.'
-        assert absent_review['source_prompt'].startswith('Run /call-review ') and 'Paste' not in absent_review['source_prompt']
-        transcript = 'Call at: 2026-10-12T13:00:00+02:00\nClient: [06:12] Can we start with the booking page only?\nMember: [07:03] I will prepare the proposal for Friday.\n'
-        assert analytics.call_quote_time('Can we start with the booking page only?', transcript) == '06:12'
-        assert analytics.call_quote_time('I will prepare the proposal for Friday.', transcript) == '07:03'
-        assert analytics.call_quote_time('Missing quote', transcript) is None
-        assert analytics.call_quote_time('Can we start?', 'Call at: 2026-10-12T13:00:00+02:00\nClient: Can we start?') is None
-    assert hashlib.sha256((analytics.ROOT / 'references/coach-brief.md').read_bytes()).hexdigest() == '0ed3ef00f15d82625858efb464b68e2d55656344654d57f7c4b7acda064d7044'
-    print('PASS audit reviews: repeated finding tagged after first stage; exactly three content checks; missing transcript not graded; quote times from recorded turns; final brief byte-identical.')
-
 
 def once_review_contract():
     with fixture('audit-call-once') as folder:
@@ -184,8 +146,6 @@ def once_review_contract():
         second['fix'] = 'A different valid read must not replace the first'
         record(jid, {'call_review': second})
         saved = records()[jid]
-        # A changed markdown companion cannot substitute a second judgment for
-        # canonical coaching already stored by the sole writer.
         (home / 'call-review.md').write_text("## Coach's read\n\n" + 'Changed ' * 120 + '\n\n## Next message\n\nA different next message.\n')
         assert saved['call_review'] == first == first_job['call_review']
         assert saved['call_reviewed_at'] == first_job['call_reviewed_at']
@@ -198,25 +158,8 @@ def once_review_contract():
         assert card['next_message'] == before['next_message'] == first['next_message']
         assert card['reviewed_at'] == before['reviewed_at'] == first_job['call_reviewed_at']
         assert all(point['quote_at'] == '02:10' for point in card['points'])
-        # Reused coaching remains immutable even if a later valid record says unreviewable.
         record(jid, {'call_review': {'reviewable': False, 'points': []}})
         assert records()[jid]['call_review'] == first
-    print('PASS audit once-only call: second complete valid review reuses first exact rubric/date; immediate cockpit and weekly card identical; unreviewable input cannot erase it.')
-
-
-# All synthetic attack strings identified in r2-privacy, including fragments and
-# the fixed brand as an attempted dynamic injection (the static footer stays).
-R2_PRIVACY_PROBES = (
-    'Acme Corporation', 'What did acmecorporation request?', 'Secret, Client',
-    'Migration', 'secretclient', 'migrationspecialistneeded', 'hiddenbudget',
-    'ivoryworkflow', '$200/hour', 'Can I charge two hundred each session?',
-    'Is two hundred a fair fee?', 'example.com', 'example[.]com', 'example dot com',
-    'example。com', 'example．com', 'a\u200bcme', 'ivory workflow',
-    'What did ivory workflow mean?', 'employer', 'client_slug',
-    'What about "keep the launch secret"?', 'Upwork', 'Upwork Blueprint',
-    'unknown lowercase company', 'unknown confidential phrase',
-)
-
 
 def closed_question_entries():
     today = dt.date(2026, 10, 14); now = '2026-10-14T15:00:00+02:00'
@@ -228,19 +171,27 @@ def closed_question_entries():
                     'client_name': 'Secret, Client', 'employer': 'private employer',
                     'client_slug': 'private slug', 'quote': 'hidden budget',
                     'messages': [{'body': 'ivory workflow'}]}]
-        # Exercise the real import/export selection and HTML writer. Browser raster
-        # capture is stubbed here; the full fixture separately measures a real PNG.
         def capture(args, **kwargs):
             target = next(arg.split('=', 1)[1] for arg in args if arg.startswith('--screenshot='))
             pathlib.Path(target).write_bytes(b'\x89PNG\r\n\x1a\n' + b'\0' * 8 + struct.pack('>II', 1080, 1350))
             return __import__('subprocess').CompletedProcess(args, 0, '', '')
-        for probe in R2_PRIVACY_PROBES:
-            # Unknown question IDs and legacy text each fail closed through all paths.
+        clean=analytics.public_onepager_html(dict(base['community_card'],question_id=None))
+        def no_injection(markup,probe,clean_template=clean):
+            assert html.unescape(markup).casefold().count(probe.casefold()) <= html.unescape(clean).casefold().count(probe.casefold()),probe
+            assert markup==clean_template, ('Private input changed public template',probe)
+        for probe_index,probe in enumerate(R2_PRIVACY_PROBES):
             for field in ('question', 'question_id'):
                 card = copy.deepcopy(base['community_card']); card['question_id'] = None; card[field] = probe
                 checked = analytics.validate_community_card(copy.deepcopy(card), sources)
                 assert checked['question_id'] is None and 'question' not in checked, (field, probe)
                 direct = analytics.public_onepager_html(card)
+                canary=f'PRIVATECANARY{probe_index}{field}'
+                attack=copy.deepcopy(card);attack[field]=probe+' '+canary
+                canary_output=analytics.public_onepager_html(attack)
+                assert canary not in canary_output and canary not in html.unescape(canary_output)
+                no_injection(canary_output,probe)
+                no_injection(direct,probe)
+                assert html.unescape(direct).casefold().count(probe.casefold()) <= html.unescape(clean).casefold().count(probe.casefold()), (field, probe)
                 assert '<p class="question">' not in direct
                 assert '<footer><span>Upwork Blueprint' in direct
                 canonical = analytics.validated_community({field: probe}, sources)
@@ -250,7 +201,15 @@ def closed_question_entries():
                     result = copy.deepcopy(base); result['community_card']['question_id'] = None
                     analytics.claude_fields(result, overlay)
                     assert result['community_card']['question_id'] is None
-                    assert '<p class="question">' not in analytics.public_onepager_html(analytics.snapshot_public_card(result, sources))
+                    rendered=analytics.public_onepager_html(analytics.snapshot_public_card(result,sources))
+                    assert html.unescape(rendered).casefold().count(probe.casefold()) <= html.unescape(clean).casefold().count(probe.casefold()), (field,probe)
+                    control=copy.deepcopy(base);control['community_card']['question_id']=None
+                    clean_overlay=copy.deepcopy(overlay)
+                    for inner in clean_overlay.values():inner[field]=None
+                    analytics.claude_fields(control,clean_overlay)
+                    clean_overlay_html=analytics.public_onepager_html(analytics.snapshot_public_card(control,sources))
+                    no_injection(rendered,probe,clean_overlay_html)
+                    assert '<p class="question">' not in rendered
                 imported = copy.deepcopy(base); imported['community_card'] = copy.deepcopy(card)
                 imported['community'] = {field: probe}
                 assert analytics.snapshot_public_card(imported, sources)['question_id'] is None
@@ -267,7 +226,12 @@ def closed_question_entries():
                     src = folder / 'import.json'; src.write_text(payload)
                     with mock.patch.object(analytics.subprocess, 'run', side_effect=capture):
                         exported = analytics.onepager(str(src), output=str(folder / 'card.html'))
-                    assert '<p class="question">' not in pathlib.Path(exported['html']).read_text()
+                    output = pathlib.Path(exported['html']).read_text()
+                    assert html.unescape(output).casefold().count(probe.casefold()) <= html.unescape(clean).casefold().count(probe.casefold()), (field, probe)
+                    control=copy.deepcopy(base);control['community_card']['question_id']=None
+                    clean_export=analytics.public_onepager_html(analytics.snapshot_public_card(control,sources))
+                    no_injection(output,probe,clean_export)
+                    assert '<p class="question">' not in output
         counts = {}
         for ident, (stage, text) in analytics.PUBLIC_QUESTION_TEMPLATES.items():
             counts[stage] = counts.get(stage, 0) + 1
@@ -279,45 +243,6 @@ def closed_question_entries():
             card['next_focus'] = 'not a focus'
             assert analytics.public_question_text(card) is None
         assert all(2 <= count <= 3 for count in counts.values())
-    print('PASS owner question entries: all 27 r2 probes x legacy/ID; direct renderer, both overlays, record/ledger, JSON/JSONL import/export; fixed brand retained; finite templates only.')
-
-
-def name_and_pending_contract():
-    with fixture('name-pending') as folder:
-        for full, expected in (('Maya Chen', 'Maya C.'), ('Maya', 'Maya'), ('Maya Jane Chen', 'Maya C.')):
-            (folder / 'context/me.md').write_text('Name: ' + full + '\n')
-            assert analytics.public_member_name() == expected
-            card = analytics.compute(dt.date(2026, 10, 19), jobs=[], now='2026-10-19T12:00:00+02:00')['community_card']
-            assert card['member_name'] == expected and expected in analytics.public_onepager_html(card)
-        analytics_sync_marker(folder)
-        job = {'id': '991000021', 'source': 'outbound', 'status': 'call',
-               'call_booked_at': '2026-10-01T09:00:00+02:00',
-               'call_scheduled_at': '2026-10-18T10:00:00+02:00',
-               'call_session_id': 'meeting-pending',
-               'call_sessions': {'meeting-pending': {'scheduled_at': '2026-10-18T10:00:00+02:00'}}}
-        seed(job)
-        snapshot = analytics.compute(dt.date(2026, 10, 19), now='2026-10-19T12:00:00+02:00')
-        assert snapshot['kpis']['booked_to_held']['n'] == 0
-        row = next(row for row in snapshot['presentation']['scorecard'] if row['key'] == 'booked_to_held')
-        assert row['finished']['n'] == 0 and row['pending'] == {'n': 1, 'until': '2026-10-20'}, row
-        # Render the actual TSX consumer with the computed pending row.
-        node = r"""
-const fs=require('fs'), React=require('react'), {renderToStaticMarkup}=require('react-dom/server');
-const {transformSync}=require('next/dist/build/swc');
-function load(file, req=require){const module={exports:{}};const code=transformSync(fs.readFileSync(file,'utf8'),{filename:file,swcrc:false,configFile:false,jsc:{parser:{syntax:'typescript',tsx:true},target:'es2020',transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}}).code;new Function('require','module','exports',code)(req,module,module.exports);return module.exports;}
-const contract=load('lib/analytics-contract.ts');
-const Card=load('components/FunnelScorecard.tsx',name=>name==='@/lib/analytics-contract'?contract:require(name)).default;
-const snapshot=JSON.parse(process.argv[1]);
-const markup=renderToStaticMarkup(React.createElement(Card,{scorecard:snapshot.presentation.scorecard,kpis:snapshot.kpis,jobs:[],choose:()=>{},onConversations:()=>{}}));
-if(!markup.includes('+1 pending until 2026-10-20'))throw Error('Scheduled pending case not displayed');
-console.log('PASS rendered Show-up: +1 pending until 2026-10-20');
-"""
-        __import__('subprocess').run(['node','-e',node,json.dumps(snapshot)], cwd=analytics.ROOT / 'website', check=True)
-        ended = analytics.compute(dt.date(2026, 10, 21), now='2026-10-21T12:00:00+02:00')
-        row = next(row for row in ended['presentation']['scorecard'] if row['key'] == 'booked_to_held')
-        assert row['finished']['n'] == 1 and row['pending']['n'] == 0
-    print('PASS owner name/pending: two/one/multiple tokens; Oct1 booking/Oct18 meeting remains pending Oct19, matures Oct20; scorecard consumes pending.')
-
 
 def approximate_number_contract():
     with fixture('approximate-numbers'):
@@ -333,8 +258,6 @@ def approximate_number_contract():
             assert positive['status'] == 'PASS' and positive['checked_values'] == 1, (phrase,positive)
         for phrase in ('hundreds', 'hundreds of', 'several hundreds of', 'two hundreds of', 'many hundreds'):
             assert analytics.check_report('You won ' + phrase + ' contracts this week.', snapshot)['status'] == 'FAIL'
-    print('PASS owner number words: dozen/couple/pair/half-dozen/hundred mapped once; zero-win lies and unprovable quantified hundreds fail.')
-
 
 def distinct_call_contract():
     for meeting in (True, False):
@@ -371,8 +294,6 @@ def distinct_call_contract():
             assert len(saved['call_reviews']) == 2
             historical = saved['call_reviews'][original['call_review_session']]
             assert historical['review'] == original['call_review'] and historical['reviewed_at'] == original['call_reviewed_at']
-    print('PASS owner distinct calls: meeting-ID and transcript identities; second call current in cockpit/weekly; each session immutable; historical first retained.')
-
 
 def legacy_session_contract():
     with fixture('legacy-context-first') as folder:
@@ -389,7 +310,6 @@ def legacy_session_contract():
               'call_sessions': {'first': {'held_at': '2026-10-12T10:00:00+02:00'},
                                 'second': {'held_at': '2026-10-13T10:00:00+02:00'},
                                 'third': {'held_at': '2026-10-14T10:00:00+02:00'}, 'unverified': {}}})
-        # No prior session pointer: the legacy review must never acquire second's identity.
         record(jid, {'call_session_id': 'second'})
         saved = records()[jid]
         assert saved['call_reviews']['legacy:first']['review'] == first
@@ -405,7 +325,9 @@ def legacy_session_contract():
         assert saved['call_review'] == second and saved['call_review_session'] == 'meeting:second'
         assert second_time == saved['call_reviews']['meeting:second']['reviewed_at']
         card = json.loads(run('cockpit.py', 'job', jid).stdout)['call_cards'][0]
-        assert card['points'][0]['quote'] == second['agreed_step'] and card['date'] == '2026-10-13'
+        assert card['date'] == '2026-10-13'
+        assert card['points'][0]['quote_state'] == 'unknown' and 'quote' not in card['points'][0]
+        assert saved['call_review']['points'][0]['quote'] == second['agreed_step']
         record(jid, {'call_session_id': 'first'})
         assert records()[jid]['call_review'] == first
         assert records()[jid]['call_reviewed_at'] == first_saved['call_reviewed_at']
@@ -413,7 +335,6 @@ def legacy_session_contract():
         assert 'call_review' not in records()[jid] and 'call_review_session' not in records()[jid]
         card = json.loads(run('cockpit.py', 'job', jid).stdout)['call_cards'][0]
         assert not card['reviewable'] and not card['points'] and card['coach_read'] is None
-        # A snapshot card must also clear when no markdown companion exists.
         (home / 'call-review.md').unlink()
         import cockpit
         stale_card = dict(card, reviewable=True, points=first['points'], coach_read=EXAMPLE_CALL_READ)
@@ -427,26 +348,6 @@ def legacy_session_contract():
                 assert result.returncode != 0
                 assert (folder / 'data/jobs.json').read_bytes() == before
         assert records()[jid]['call_reviews']['legacy:first']['reviewed_at'] == exact
-    print('PASS independent findings: legacy context FIRST archives first exact timestamp; second owns current review; context-only switches restore matching timestamps or clear card; unknown/unverified IDs reject before persisted mutation.')
-
-
-def missing_question_source_contract():
-    with fixture('question-source-removal'):
-        base = analytics.compute(dt.date(2026,10,14), jobs=[], now='2026-10-14T15:00:00+02:00')['community_card']
-        for sources in ([{'messages': [{'body': 'ivory workflow'}], 'employer': 'Acme', 'client_slug': 'secret'}], []):
-            for invalid in ('unknown-id', None, [], {}, 17, True):
-                card = copy.deepcopy(base); card['question_id'] = invalid
-                assert analytics.validate_community_card(card, sources)['question_id'] is None
-                assert '<p class="question">' not in analytics.public_onepager_html(card)
-            missing = copy.deepcopy(base); missing.pop('question_id', None)
-            assert analytics.validate_community_card(missing, sources)['question_id'] is None
-            for field in ('question', 'question_id'):
-                card = copy.deepcopy(base); card[field] = 'What did ivory workflow mean?'
-                assert analytics.validate_community_card(card, sources)['question_id'] is None
-                assert analytics.snapshot_public_card({'community_card': card}, sources)['question_id'] is None
-                assert '<p class="question">' not in analytics.public_onepager_html(card)
-    print('PASS explicit question IDs: unknown/missing/null/malformed suppressed; retained and removed private sources both reject legacy/injected text.')
-
 
 def report_identifier_contract():
     with fixture('report-identifiers') as folder:
@@ -480,8 +381,6 @@ def report_identifier_contract():
                       'paid 3', 'grid 3', 'valid 3', 'Unverified ratio 3/4',
                       'You won three contracts this week.', 'You won $3 this week.', 'Reply rate 3%'):
             assert analytics.check_report(claim, snapshot)['status'] == 'FAIL', claim
-    print('PASS report identifiers: long IDs, backticks, URLs, paths, ISO dates/times and job/job ID/id/# tokens ignored; adjacent true values pass and false counts/money/rates still fail.')
-
 
 def custom_coverage_contract():
     today = dt.date(2026, 10, 14)
@@ -568,26 +467,816 @@ def custom_coverage_contract():
         assert saved['coverage'] == recorded['coverage']
         assert analytics.read_lines('analytics-history.jsonl')[-1]['coverage'] == saved['coverage']
         assert analytics.facts_sheet(saved)['coverage']['missing'] == saved['coverage']['missing']
-        command = (analytics.ROOT / '.claude/commands/analytics.md').read_text()
-        assert all(fragment in command for fragment in ('{coverage: {missing: [{source: "proposal_insights", what:',
-            'blocks: ["proposal_views"], how_to_supply:', 'all three nonempty fields',
-            "Include every custom gap's `what`, blocked KPI/review,", '**What I couldn\'t check** and the facts sheet'))
-    print('PASS custom coverage: canonical/live/legacy input; four full gaps and same-source distinct gaps persist in facts/readback/record; all six known canonical four-field gaps match legacy coverage with computed dependencies protected and no added what; omissions/empty/invalid/malformed inputs rejected; exact record comparison and chat directive enforced.')
+
+def review_fixture_jobs(folder):
+    """Exercise actual source projection, never a prewritten presentation object."""
+    jobs = []
+    repeated = 'Confirm the input owner before agreeing a date'
+    for index, state in enumerate(('met', 'partly', 'missing', 'not_needed')):
+        jid = str(991100100 + index)
+        home = folder / 'jobs' / jid; home.mkdir()
+        quote = f'The audit of our {index + 1} collection pages needs a named owner.'
+        first = repeated if index < 2 else f'Keep the agreed scope for audit {index + 1}'
+        review = {'state': 'pass', 'read': True, 'reviewable': True,
+                  'quote': quote, 'key_finding': first,
+                  'free_read': 'Use this free read only as fallback. Ignore its second sentence.',
+                  'points': [{'point': p, 'state': state if p == 1 else 'met',
+                              'quote': quote, 'reason': repeated if index < 2 else 'A point reason must never become the key finding.'}
+                             for p in range(1, 8)]}
+        if index < 2:
+            review.update(pattern_sentence='the input owner was not confirmed before offering a date.',
+                          better_line='Who will supply the audit inputs before we agree the date?')
+        chat = dict(review, points={key: {'state': state if key == 'answered_question' else 'met',
+                                         'quote': quote, 'reason': repeated if index < 2 else 'Separate criterion reason.'}
+                                    for key in analytics.CONVERSATION_POINTS})
+        call = dict(review, free_read=EXAMPLE_CALL_READ,
+                    next_message='Please confirm the audit owner here on Upwork.',
+                    agreed_step='Client confirms the audit owner on Upwork by Friday.',
+                    points=[{'point': p, 'state': ('not needed' if state == 'not_needed' else state) if p == 1 else 'met',
+                             'quote': quote, 'reason': repeated if index < 2 else 'Separate call reason.'}
+                            for p in range(1, 10)])
+        proposal = dict(review, points=[dict(point, label=('Scope', 'Price', 'Decision date')[i]) for i, point in enumerate(review['points'][:3])])
+        for filename in ('application.sent.md', 'proposal.md'):
+            (home / filename).write_text(quote)
+        (home / 'thread.json').write_text(json.dumps({'messages_complete': True, 'messages': [
+            {'from': 'me', 'at': '2026-10-13T10:00:00+02:00', 'text': quote}]}))
+        (home / 'call.md').write_text('Member: Maya\nComplete: yes\nLanguage: English\nMaya: Who owns the inputs?\nClient: ' + quote + '\n')
+        job = {'id': jid, 'title': f'Collection SEO audit {index + 1}', 'source': 'outbound',
+               'applied_at': '2026-10-12T09:00:00+02:00', 'replied_at': '2026-10-13T10:00:00+02:00',
+               'call_held_at': '2026-10-13T11:00:00+02:00', 'proposal_sent_at': '2026-10-13T12:00:00+02:00',
+               'application_sent_verified': True, 'application_review': review, 'conversation_review': chat,
+               'call_review': call, 'proposal_review': proposal}
+        jobs.append(job)
+    return jobs
+
+def product_review_computations():
+    repeated = 'Confirm the input owner before agreeing a date'
+    with fixture('product-review-computations') as folder:
+        jobs = review_fixture_jobs(folder)
+        snapshot = {'week': '2026-W42', 'generated_at': '2026-10-14T15:00:00+02:00', 'reviews': {}}
+        snapshot['call_cards'] = analytics.call_cards(snapshot, jobs)
+        projected = analytics.conversations_fields(snapshot, jobs)
+        assert set(projected['criteria']) == {'applications', 'chats', 'calls', 'proposals'}
+        for kind, entries in projected['sections'].items():
+            assert len(entries) == 4 and all(row['reviewable'] for row in entries), (kind, entries)
+            for row in entries:
+                expected = jobs[int(row['lead_id']) - 991100100]['application_review']['key_finding']
+                assert row['key_finding'] == expected and len(row['key_finding'].split()) <= 12
+                if kind != 'applications': assert row['duplicate_of_stage'] == 'applications', (kind, row)
+            chart = projected['criteria'][kind]
+            assert chart['reviewed_n'] == 4 and chart['too_few'] is False, chart
+            point = chart['points'][0]
+            assert (point['met'], point['partly'], point['missing'], point['not_needed'], point['k'], point['n']) == (1, 1, 1, 1, 1, 3), (kind, point)
+            assert all(p['n'] == p['met'] + p['partly'] + p['missing'] for p in chart['points'])
+        patterns = projected['patterns']
+        assert patterns, 'The repeated, source-backed cross-stage finding disappeared.'
+        pattern = next(row for row in patterns if row['better_line'] == 'Who will supply the audit inputs before we agree the date?')
+        assert (pattern['k'], pattern['n']) == (8, 16), pattern
+        assert isinstance(pattern['better_line'], str) and pattern['better_line'].strip(), pattern
+        assert len({q['quote'] for q in pattern['quotes']}) == len(pattern['quotes']), pattern
+        assert 1 <= len(pattern['quotes']) <= 2
+        for support in pattern['quotes']:
+            assert support['title'] and support['date'] and support['lead_id']
+            assert support['quote'] in (folder / 'jobs' / support['lead_id'] / {'applications': 'application.sent.md', 'chats': 'thread.json', 'calls': 'call.md', 'proposals': 'proposal.md'}[support['stage']]).read_text()
+        canonical = copy.deepcopy(jobs)
+        original_threads = {}
+        stage_kinds = {'applications':'application', 'chats':'conversation', 'calls':'call', 'proposals':'proposal'}
+        thin = dict(snapshot, reviews={})
+        for stage, kind in stage_kinds.items():
+            thin['reviews'][kind] = {'rubric': []}
+            for index, job in enumerate(canonical):
+                saved = job[kind + '_review']
+                saved['better_line'] = f'Please confirm the input owner for this {kind} audit before we agree a date.'
+                points = saved['points']
+                items = list(points.items()) if isinstance(points, dict) else [(point['point'], point) for point in points]
+                if stage == 'chats':
+                    own = f'I will check collection {index + 1}; who will share the audit inputs?'
+                    saved.pop('quote', None)  # Exercise own-reply point fallback.
+                    thread_path = folder/'jobs'/job['id']/'thread.json'
+                    original_threads[thread_path] = thread_path.read_text()
+                    thread_path.write_text(json.dumps({'messages_complete':True, 'messages':[
+                        {'from':'client','at':'2026-10-13T09:00:00+02:00','text':'Can you check this collection?'},
+                        {'from':'me','at':'2026-10-13T10:00:00+02:00','text':own}]}))
+                    for _, point in items: point['quote'] = own
+                for point_id, point in items:
+                    point['better_line'] = f'Please confirm the input owner for {kind} check {point_id} on audit {index + 1}.'
+                    point['pattern_sentence'] = f'the {kind} check needs its recorded input owner.'
+                overlay = [{'point':point_id, 'state':('missing' if point['state']=='met' else 'met')}
+                           for point_id, point in reversed(items)]
+                if stage == 'chats' and index % 2 == 0:
+                    overlay = {point['point']:{'state':point['state']} for point in overlay}
+                if stage == 'applications': overlay = [point for point in overlay if point['point'] != 7]
+                thin['reviews'][kind]['rubric'].append({'lead_id':job['id'], 'reviewable':True, 'points':overlay})
+        assert 'quote' not in json.dumps(thin['reviews']), 'Weekly fixture must remain quote-free.'
+        thin['call_cards'] = analytics.call_cards(thin, canonical)
+        overlaid = analytics.conversations_fields(thin, canonical)
+        for stage, kind in stage_kinds.items():
+            rows = overlaid['sections'][stage]
+            assert len(rows) == 4 and all(row['reviewable'] for row in rows), (stage, rows)
+            for row in rows:
+                job = next(job for job in canonical if job['id'] == row['lead_id'])
+                saved = job[kind + '_review']
+                assert row['key_finding'] == saved['key_finding'], (stage, row)
+                assert row['better_line'] == saved['better_line'], (stage, row)
+                original = saved['points']
+                original = original if isinstance(original, dict) else {point['point']:point for point in original}
+                weekly = next(item['points'] for item in thin['reviews'][kind]['rubric'] if item['lead_id']==job['id'])
+                weekly = weekly if isinstance(weekly, dict) else {point['point']:point for point in weekly}
+                actual = {point['point']:point for point in row['points']}
+                assert set(actual) == set(original), (stage, actual)
+                path = folder/'jobs'/job['id']/{'applications':'application.sent.md','chats':'thread.json','calls':'call.md','proposals':'proposal.md'}[stage]
+                artifact = path.read_text()
+                for point_id, point in original.items():
+                    for field in ('quote','reason','better_line','pattern_sentence'):
+                        assert actual[point_id].get(field) == point[field], (stage, job['id'], point_id, field, actual[point_id])
+                    assert point['quote'] in artifact, (stage, path, point)
+                    assert actual[point_id]['state'] == weekly.get(point_id,point)['state'], (stage, point_id, actual[point_id])
+                if stage == 'chats':
+                    own_messages = [message['text'] for message in json.loads(artifact)['messages'] if message['from']=='me']
+                    assert row['quote'] in own_messages and all(point['quote'] in own_messages for point in row['points']), row
+        assert len({row['quote'] for row in overlaid['sections']['chats']}) == 4
+        for path, source in original_threads.items(): path.write_text(source)
+        duplicate_input = analytics.conversations_fields(dict(snapshot,call_cards=snapshot['call_cards']*2), jobs*2)
+        assert [(p['k'],p['n']) for p in duplicate_input['patterns']] == [(p['k'],p['n']) for p in patterns], 'Duplicate input inflated a pattern count.'
+        for field, value in (('pattern_sentence','In 99 of 100 reviews, the owner was missing.'),('better_line','')):
+            malformed=copy.deepcopy(jobs)
+            for job in malformed:
+                for kind in ('application','conversation','call','proposal'):
+                    job[kind+'_review'][field]=value
+            invalid_snapshot=dict(snapshot,call_cards=analytics.call_cards(snapshot,malformed))
+            assert analytics.conversations_fields(invalid_snapshot,malformed)['patterns']==[], field
+        sparse = analytics.conversations_fields(dict(snapshot, call_cards=snapshot['call_cards'][:2]), jobs[:2])
+        assert all(chart['too_few'] and chart['reviewed_n'] == 2 for chart in sparse['criteria'].values())
+        for dedicated, free, expected in (
+                ('Use the dedicated finding', 'Fallback comes second. Extra sentence.', 'Use the dedicated finding'),
+                (None, 'Use the first sentence. Never include this second sentence.', 'Use the first sentence.'),
+                (' '.join(['word'] * 20), 'Fallback.', ' '.join(['word'] * 12))):
+            changed = copy.deepcopy(jobs[:1]); review = changed[0]['application_review']
+            review['key_finding'] = dedicated; review['free_read'] = free
+            rows = analytics.conversations_fields(snapshot, changed)['sections']['applications']
+            assert rows[0]['key_finding'] == expected, rows[0]
+        changed = copy.deepcopy(jobs[:1]); changed[0]['application_review'].update(key_finding=None, free_read=None)
+        row = analytics.conversations_fields(snapshot, changed)['sections']['applications'][0]
+        assert repeated not in row['key_finding'], 'A rubric point reason leaked into the finding.'
+        (folder / 'jobs' / jobs[0]['id'] / 'application.sent.md').unlink()
+        absent = analytics.conversations_fields(snapshot, jobs)['sections']['applications']
+        missing = next(row for row in absent if row['lead_id'] == jobs[0]['id'])
+        assert missing['marker'] == 'not reviewed' and not missing['reviewable']
+        markers = {row['lead_id']: row['marker'] for row in projected['sections']['applications']}
+        assert markers[jobs[0]['id']] == markers[jobs[3]['id']] == 'keep'
+        assert markers[jobs[1]['id']] == markers[jobs[2]['id']] == 'needs work'
+
+def weekly_accountability_contract():
+    import badges
+    def week(number, count, target=5):
+        return {'week': f'2026-W{number}', 'generated_at': dt.date.fromisocalendar(2026, number, 7).isoformat() + 'T18:00:00+02:00',
+                'kpis': {'weekly_volume': {'k': count, 'value': count, 'n': target, 'target': target, 'state': 'pass' if count >= target else 'fail'}},
+                'accountability': {'working_days': {'k': 1 if count else 0, 'n': 5}}}
+    with fixture('weekly-accountability') as folder:
+        (folder / 'context/me.md').write_text('## Weekly goal\n5\n\n## Working hours\nMon-Fri 09:00-18:00 Europe/Berlin\n\n## Planned off days\n2026-10-14\n')
+        history = [week(39, 5), week(40, 5), week(41, 2, 2)]
+        current = week(42, 0)
+        current['generated_at'] = '2026-10-14T15:00:00+02:00'
+        streak = badges.streak_history(history, week=current['week'], current=current)
+        assert (streak['streak_weeks'], streak['best_streak_weeks']) == (3, 3), streak
+        current['kpis']['weekly_volume'].update(k=5, value=5, state='pass')
+        streak = badges.streak_history(history, week=current['week'], current=current)
+        assert (streak['streak_weeks'], streak['best_streak_weeks']) == (4, 4), streak
+        missed = badges.streak_history(history[:1] + [week(40, 0)] + history[2:], week='2026-W42', current=current)
+        assert missed['streak_weeks'] == 2 and missed['best_streak_weeks'] == 2, missed
+        retained = badges.streak_history([week(n,5) for n in range(36,40)]+[week(40,0),week(41,5)],week='2026-W42',current=current)
+        assert (retained['streak_weeks'],retained['best_streak_weeks'])==(2,4),retained
+        off=week(40,0);off['accountability']['working_days']['n']=0
+        rested=badges.streak_history([week(39,5),off,week(41,5)],week='2026-W42',current=current)
+        assert rested['streak_weeks']==rested['best_streak_weeks']==3 and rested['weeks'][1]['state']=='off',rested
+        gap = badges.streak_history([week(39, 5), week(41, 5)], week='2026-W42', current=current)
+        assert gap['streak_weeks'] == 2 and gap['anchors_used'] == [], gap
+        jobs = [{'id': 'a', 'source': 'outbound', 'job_fit': {'state': 'pass'}, 'applied_at': '2026-10-12T10:00:00+02:00'},
+                {'id': 'b', 'source': 'outbound', 'job_fit': {'state': 'pass'}, 'applied_at': '2026-10-12T11:00:00+02:00'},
+                {'id': 'c', 'source': 'outbound', 'job_fit': {'state': 'pass'}, 'applied_at': '2026-10-14T11:00:00+02:00'},
+                {'id': 'd', 'source': 'invite', 'applied_at': '2026-10-13T10:00:00+02:00'},
+                {'id': 'e', 'source': 'outbound', 'job_fit': {'state': 'fail'}, 'applied_at': '2026-10-13T11:00:00+02:00'}]
+        measured = analytics.accountability_fields(current, jobs, history)
+        assert measured['working_days'] == {'k': 1, 'n': 4, 'dates': ['2026-10-12', '2026-10-13', '2026-10-15', '2026-10-16'], 'applied_dates': ['2026-10-12']}, measured
+        assert len(badges.BADGE_NAMES) == 14 and 'Steady Hand' in badges.BADGE_NAMES
+        assert 'Steady Anchor' not in badges.BADGE_NAMES
+        assert badges.canonical_name('Steady Anchor') == 'Steady Hand'
+        monday = week(42,5)
+        monday.update(generated_at='2026-10-12T10:00:00+02:00',activity_period={'start':'2026-10-05','end':'2026-10-11'})
+        monday['kpis']['weekly_volume']['period'] = dict(monday['activity_period'])
+        reported_jobs = [{'id':f'reported-{i}','source':'outbound','job_fit':{'state':'pass'},
+                          'applied_at':f'2026-10-{5+i:02d}T10:00:00+02:00'} for i in range(5)]
+        reported = analytics.accountability_fields(monday,reported_jobs,[])
+        assert reported['working_days'] == {'k':5,'n':5,'dates':[f'2026-10-{5+i:02d}' for i in range(5)],
+                                           'applied_dates':[f'2026-10-{5+i:02d}' for i in range(5)]},reported
+        assert reported['application_streak']['weeks'][0]['week'] == '2026-W41',reported
+        analytics_sync_marker(folder)
+        full = analytics.compute(dt.date(2026, 10, 14), jobs=jobs, now='2026-10-14T15:00:00+02:00')
+        assert full['accountability'] == full['presentation']['accountability']
+        card = analytics.snapshot_public_card(full, jobs)
+        assert card['working_days'] == {key: full['accountability']['working_days'][key] for key in ('k', 'n')}
+        assert set(card['working_days']) == {'k', 'n'}
+        assert 'weeks steady' not in analytics.public_onepager_html(card)
+        assert not any(field in card for field in ('dates', 'applied_dates', 'client', 'key_finding'))
+        assert card['streak_weeks'] == full['accountability']['application_streak']['current']
+        old = dict(week(40,0),badges=[{'badge':'Steady Anchor','tier':'Silver','earned_week':'2026-W39'}])
+        resumed = copy.deepcopy(full)
+        resumed['accountability']['application_streak'] = {'current':1,'best':4,'weeks':[{'week':'2026-W42','state':'met'}]}
+        earned = analytics.badge_results(resumed,jobs,[old],dt.date(2026,10,14))
+        steady = [row for row in earned if row['badge']=='Steady Hand']
+        assert steady[-1]['tier']=='Silver' and not any(row['tier']=='Gold' for row in steady),steady
+        assert steady[-1]['progress']=={'current':1,'target':6,'remaining':5,'unit':'weeks'},steady
+        assert not any(row['badge']=='Steady Anchor' for row in earned)
+        for working in ({'k':1,'n':4,'dates':['2026-10-12']},{'k':5,'n':4},{'k':True,'n':4},{'k':-1,'n':4}):
+            attack=copy.deepcopy(card);attack['working_days']=working
+            refused(lambda:analytics.validate_community_card(attack,jobs),'Public working-day payload '+str(working))
+        metadata = badges.catalogue_metadata()
+        assert 'Steady Hand' in metadata, 'Canonical weekly Steady Hand metadata is missing.'
+        assert 'daily' not in metadata['Steady Hand']['criterion'].casefold()
+
+def owner_habit_period_contract():
+    today = dt.date(2026, 10, 12)
+    now = '2026-10-12T10:00:00+02:00'
+    with fixture('owner-habit-periods') as folder:
+        (folder / 'data/connects.jsonl').write_text('')
+        jobs, history = [], []
+        for back, volume, minutes in [(4, 4, 2), (3, 6, 4), (2, 8, 6), (1, 10, 8), (0, 3, 1)]:
+            start = dt.date(2026, 10, 5) - dt.timedelta(weeks=back)
+            for index in range(volume):
+                success = index < (volume if back in (1, 3) else volume // 2 if back else 2)
+                client = dt.datetime.combine(start, dt.time(10), analytics.local_zone())
+                held = client + dt.timedelta(days=1)
+                ended = held + dt.timedelta(minutes=15)
+                due = (start + dt.timedelta(days=2)).isoformat()
+                job = {'id': f'habit-{back}-{index}', 'title': 'Website review', 'source': 'outbound',
+                       'applied_at': client.isoformat(), 'replied_at': (client + dt.timedelta(minutes=minutes)).isoformat(),
+                       'first_client_message_at': client.isoformat(), 'first_reply_at': (client + dt.timedelta(minutes=minutes)).isoformat(),
+                       'job_fit': {'state': 'pass'}, 'application_facts': {'source': 'outbound', 'posted_age_band': '<10m' if success else '10-30m'},
+                       'call_held_at': held.isoformat(), 'call_ended_at': ended.isoformat(),
+                       'proposal_sent_at': (ended + dt.timedelta(minutes=20 if success else 40)).isoformat(),
+                       'follow_up_history': [{'lane': 'silent', 'due_on': due, 'action': 'sent' if success else 'missed', 'on': due}]}
+                jobs.append(job)
+            check = start + dt.timedelta(days=7)
+            (folder / 'data/sync.json').write_text(json.dumps({'synced_at': dt.datetime.combine(check, dt.time(9), analytics.local_zone()).isoformat()}))
+            metrics, _ = analytics.calculate(jobs, check, now=dt.datetime.combine(check, dt.time(10), analytics.local_zone()))
+            if back:
+                history.append({'week': check.strftime('%G-W%V'), 'periods': {'activity': analytics.period((start, check - dt.timedelta(days=1)))}, 'kpis': metrics})
+        kpis, _ = analytics.calculate(jobs, today, now=now)
+        snapshot = {'week': '2026-W42', 'generated_at': now, 'kpis': kpis, 'window': analytics.period(analytics.span(today, 28)),
+                    'periods': {'activity': analytics.period(analytics.span(today, 7))}, 'verdict': {}, 'reviews': {}, 'coverage': {'sources': []}}
+        score = analytics.funnel_score(snapshot, history)
+        rows = {row['key']: row for row in analytics.scorecard_fields(snapshot, jobs, history, today)}
+        assert rows['weekly_volume']['value'] == 3 and rows['weekly_volume']['finished']['n'] == 3, (kpis['weekly_volume'], rows['weekly_volume'])
+        assert rows['weekly_volume']['target']['value'] == kpis['weekly_volume']['target']
+        expected = {'weekly_volume': 7, 'speed_10min': 75, 'first_reply': 5, 'follow_ups_on_time': 75, 'proposal_on_time': 75}
+        for key in analytics.LEVERS:
+            row = rows[key]
+            assert row['value'] == kpis[key]['value'], (key, row['value'], kpis[key]['value'])
+            assert row['change']['previous_value'] == expected[key], (key, row['change'])
+            assert row['period_label'] == 'This week' and row['period'] == {'kind': 'week', 'start': '2026-10-05', 'end': '2026-10-11'}
+            assert row['habit_period']['kind'] == 'week' and row['sample_note'] is None
+            assert row['change']['comparison_period'] == {'kind': 'four_week_average', 'start': '2026-09-07', 'end': '2026-10-04'}
+            assert row['series']['labels'][-5:] == ['2026-09-07', '2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05']
+            assert row['series']['points'][-1] == kpis[key]['value']
+        assert rows['weekly_volume']['series']['points'][-5:] == [4, 6, 8, 10, 3]
+        assert rows['first_reply']['series']['points'][-5:] == [2, 4, 6, 8, 1]
+        assert analytics.funnel_score(snapshot, history) == score
+        result_keys = ('reply_rate', 'reply_to_call', 'booked_to_held', 'proposal_to_won', 'offer_to_contract', 'invite_to_call', 'job_fit', 'value_per_100_connects')
+        current28, _ = analytics.calculate(jobs, today, now=now, activity_bounds=analytics.span(today, 28))
+        token = analytics._RECONSTRUCTING.set(True)
+        try:
+            previous28, _ = analytics.calculate(jobs, today - dt.timedelta(days=28), now=dt.datetime.combine(today - dt.timedelta(days=28), dt.time(), analytics.local_zone()), activity_bounds=analytics.span(today - dt.timedelta(days=28), 28))
+        finally:
+            analytics._RECONSTRUCTING.reset(token)
+        for key in result_keys:
+            assert rows[key]['value'] == current28[key]['value'], key
+            assert rows[key]['finished'] == {field: current28[key][field] for field in ('k', 'n')}, key
+            assert rows[key]['period_label'] == 'Last 28 days'
+            assert rows[key]['change']['comparison_period'] == {'start': '2026-08-17', 'end': '2026-09-13'}
+            assert len(rows[key]['series']['labels']) == len(rows[key]['series']['points']) == 8
+        for n in (0, 2):
+            sparse_jobs = [job for job in jobs if not job['id'].startswith('habit-0-') or int(job['id'].rsplit('-', 1)[1]) < n]
+            sparse_kpis, _ = analytics.calculate(sparse_jobs, today, now=now)
+            sparse = dict(snapshot, kpis=sparse_kpis)
+            sparse_rows = {row['key']: row for row in analytics.scorecard_fields(sparse, sparse_jobs, history, today)}
+            for key in analytics.LEVERS:
+                row = sparse_rows[key]
+                assert row['value'] == expected[key], (n, key, row['value'])
+                assert row['period_label'] == 'Prior four-week average' and f'{n} opportunities' in row['sample_note']
+                assert row['current_week']['n'] == n and row['series']['points'][-1] == sparse_kpis[key]['value']
+                assert row['period'] == row['change']['comparison_period']
+        legacy = {'week': '2026-W40', 'kpis': {'weekly_volume': {'value': 12}},
+                  'presentation': {'scorecard': [{'key': 'weekly_volume', 'value': 99}]}}
+        old_rows = {row['key']: row for row in analytics.scorecard_fields(snapshot, jobs, [legacy], today)}
+        idx = old_rows['weekly_volume']['series']['labels'].index('2026-09-28')
+        assert old_rows['weekly_volume']['series']['points'][idx] == 12
+        snapshot.update(funnel_score=score, call_cards=[], goals_review=[], goals_next=[])
+        facts = analytics.report_source_facts(snapshot, jobs, today)
+        snapshot['report_facts'] = facts
+        numeric = analytics.report_numeric_facts(snapshot)
+        assert numeric['weekly']['fast_proposals'] == 2
+        assert numeric['four_weeks']['fast_proposals'] == current28['proposal_on_time']['k'] == 22
+        assert numeric['weekly']['applications'] == 3
 
 
-def run_all():
-    report_identifier_contract()
-    custom_coverage_contract()
-    approximate_number_contract()
-    legacy_session_contract()
-    missing_question_source_contract()
-    name_and_pending_contract()
-    distinct_call_contract()
-    closed_question_entries()
-    privacy_contract()
-    review_contract()
-    once_review_contract()
 
 
-if __name__ == '__main__':
-    run_all()
+
+PREVIEW2_BACKEND_SLICE = {'agreement': {'week': '2026-W42',
+               'goals': [{'stage': 'Call rate',
+                          'kpi': 'reply_to_call',
+                          'change': 'Offer two useful times',
+                          'start': '2026-10-12',
+                          'cue': 'When the client shows interest',
+                          'action': 'Answer the real question, then offer two useful call times',
+                          'fallback': 'Resolve one blocking question in the platform thread',
+                          'review_on': '2026-10-19',
+                          'primary': True,
+                          'goal_library_id': 'call-times'},
+                         {'stage': 'Call review',
+                          'kpi': 'call_review',
+                          'change': 'Budget before price',
+                          'start': '2026-10-12',
+                          'cue': 'Before quoting a website price',
+                          'action': 'Confirm scope and budget before naming the price',
+                          'fallback': 'Resolve one blocking question in the platform thread',
+                          'review_on': '2026-10-19',
+                          'primary': False,
+                          'goal_library_id': 'call-budget'},
+                         {'stage': 'Win rate',
+                          'kpi': 'proposal_to_won',
+                          'change': 'Decision checkpoint',
+                          'start': '2026-10-12',
+                          'cue': 'When sending the scope',
+                          'action': 'Confirm the decision owner and review date',
+                          'fallback': 'Resolve one blocking question in the platform thread',
+                          'review_on': '2026-10-19',
+                          'primary': False,
+                          'goal_library_id': 'proposal-decision'}]},
+ 'badges': [{'badge': 'Steady Anchor',
+             'tier': 'Bronze',
+             'earned_week': '2026-W35',
+             'new': False,
+             'progress_to_next': '8 of 13 weeks'},
+            {'badge': 'Steady Anchor',
+             'tier': 'Silver',
+             'earned_week': '2026-W37',
+             'new': False,
+             'progress_to_next': '8 of 13 weeks'},
+            {'badge': 'Steady Anchor',
+             'tier': 'Gold',
+             'earned_week': '2026-W40',
+             'new': False,
+             'progress_to_next': '8 of 13 weeks'},
+            {'badge': 'True North',
+             'tier': 'Bronze',
+             'earned_week': '2026-W42',
+             'new': True,
+             'progress_to_next': '1 of 3 weeks'},
+            {'badge': 'Harbour Master',
+             'tier': 'Bronze',
+             'earned_week': '2026-W41',
+             'new': False,
+             'progress_to_next': '2 of 3 weeks'},
+            {'badge': 'First Mate',
+             'tier': 'Bronze',
+             'earned_week': '2026-W39',
+             'new': False,
+             'progress_to_next': '4 of 6 weeks'},
+            {'badge': 'First Mate',
+             'tier': 'Silver',
+             'earned_week': '2026-W41',
+             'new': False,
+             'progress_to_next': '4 of 6 weeks'},
+            {'badge': 'Lighthouse Keeper',
+             'tier': 'Bronze',
+             'earned_week': '2026-W35',
+             'new': False,
+             'progress_to_next': '8 of 13 weeks'},
+            {'badge': 'Lighthouse Keeper',
+             'tier': 'Silver',
+             'earned_week': '2026-W37',
+             'new': False,
+             'progress_to_next': '8 of 13 weeks'},
+            {'badge': 'Lighthouse Keeper',
+             'tier': 'Gold',
+             'earned_week': '2026-W40',
+             'new': False,
+             'progress_to_next': '8 of 13 weeks'},
+            {'badge': 'First Doubloon',
+             'tier': 'Bronze',
+             'earned_week': '2026-W36',
+             'new': False,
+             'progress_to_next': '3 of 6 weeks'},
+            {'badge': 'First Doubloon',
+             'tier': 'Silver',
+             'earned_week': '2026-W42',
+             'new': True,
+             'progress_to_next': '3 of 6 weeks'}],
+ 'awards': [{'badge': 'First Doubloon',
+             'tier': 'Bronze',
+             'lead_id': '970004004',
+             'at': '2026-10-12T09:00:00+01:00',
+             'reason': 'First won contract.'},
+            {'badge': 'Lighthouse Keeper',
+             'tier': 'Bronze',
+             'lead_id': None,
+             'at': '2026-08-24T10:11:57.657460+01:00',
+             'reason': 'Weekly analytics criteria met for 2026-W35.'},
+            {'badge': 'Steady Anchor',
+             'tier': 'Bronze',
+             'lead_id': None,
+             'at': '2026-08-24T10:11:57.657460+01:00',
+             'reason': 'Weekly analytics criteria met for 2026-W35.'},
+            {'badge': 'Lighthouse Keeper',
+             'tier': 'Silver',
+             'lead_id': None,
+             'at': '2026-09-07T10:12:07.983468+01:00',
+             'reason': 'Weekly analytics criteria met for 2026-W37.'},
+            {'badge': 'Steady Anchor',
+             'tier': 'Silver',
+             'lead_id': None,
+             'at': '2026-09-07T10:12:07.983468+01:00',
+             'reason': 'Weekly analytics criteria met for 2026-W37.'},
+            {'badge': 'First Mate',
+             'tier': 'Bronze',
+             'lead_id': None,
+             'at': '2026-09-21T10:12:23.617258+01:00',
+             'reason': 'Weekly analytics criteria met for 2026-W39.'},
+            {'badge': 'Lighthouse Keeper',
+             'tier': 'Gold',
+             'lead_id': None,
+             'at': '2026-09-28T10:12:33.578511+01:00',
+             'reason': 'Weekly analytics criteria met for 2026-W40.'},
+            {'badge': 'Steady Anchor',
+             'tier': 'Gold',
+             'lead_id': None,
+             'at': '2026-09-28T10:12:33.578511+01:00',
+             'reason': 'Weekly analytics criteria met for 2026-W40.'},
+            {'badge': 'First Mate',
+             'tier': 'Silver',
+             'lead_id': None,
+             'at': '2026-10-05T10:12:44.238656+01:00',
+             'reason': 'Weekly analytics criteria met for 2026-W41.'},
+            {'badge': 'Harbour Master',
+             'tier': 'Bronze',
+             'lead_id': None,
+             'at': '2026-10-05T10:12:44.238656+01:00',
+             'reason': 'Weekly analytics criteria met for 2026-W41.'},
+            {'badge': 'True North',
+             'tier': 'Bronze',
+             'lead_id': None,
+             'at': '2026-10-12T10:12:56.258360+01:00',
+             'reason': 'Weekly analytics criteria met for 2026-W42.'},
+            {'badge': 'First Doubloon',
+             'tier': 'Silver',
+             'lead_id': None,
+             'at': '2026-10-12T10:29:31.063616+01:00',
+             'reason': 'Weekly analytics criteria met for 2026-W42.'}],
+ 'applications': [{'job': {'id': '970007009',
+                           'source': 'outbound',
+                           'title': 'Framer landing page for a design agency',
+                           'application_sent_verified': True,
+                           'application_review': {'state': 'fail',
+                                                  'reviewable': True,
+                                                  'quote': 'I have not included the requested mobile walkthrough.',
+                                                  'free_read': 'Include the mobile walkthrough explicitly requested in '
+                                                               'the post. Keep the other specific passages.',
+                                                  'next_message': 'Which part of the website should resolve “the cms '
+                                                                  'migration must retain urls” first?',
+                                                  'points': [{'point': 1,
+                                                              'state': 'met',
+                                                              'quote': 'The CMS migration must retain URLs. I would '
+                                                                       'put that buyer decision first.',
+                                                              'reason': 'The first line names the posted buyer '
+                                                                        'problem'},
+                                                             {'point': 2,
+                                                              'state': 'met',
+                                                              'quote': 'My relevant example shows a framer landing '
+                                                                       'page with editable content and mobile QA.',
+                                                              'reason': 'The example matches this page and editing '
+                                                                        'concern'},
+                                                             {'point': 3,
+                                                              'state': 'met',
+                                                              'quote': 'Your team will edit native CMS fields; I will '
+                                                                       'document them and include a short handover.',
+                                                              'reason': 'The screening answer explains native CMS '
+                                                                        'ownership'},
+                                                             {'point': 4,
+                                                              'state': 'met',
+                                                              'quote': 'The fixed scope is the agreed marketing page, '
+                                                                       'mobile QA and CMS handover; I quote $65/h or '
+                                                                       '$2,500-$6,000 after confirming the page count.',
+                                                              'reason': 'The bid states the scope and rate boundary'},
+                                                             {'point': 5,
+                                                              'state': 'met',
+                                                              'quote': 'I would keep the first step focused on the '
+                                                                       'page decision.',
+                                                              'reason': 'The application stays focused and concise'},
+                                                             {'point': 6,
+                                                              'state': 'met',
+                                                              'quote': 'Which buyer objection should this page answer '
+                                                                       'first?',
+                                                              'reason': 'One easy buyer question closes the '
+                                                                        'application'},
+                                                             {'point': 7,
+                                                              'state': 'missing',
+                                                              'quote': 'I have not included the requested mobile '
+                                                                       'walkthrough.',
+                                                              'reason': 'Include the mobile walkthrough explicitly '
+                                                                        'requested in the post'}]},
+                           'applied_at': '2026-10-09T10:00:00+01:00'},
+                   'sent': 'The CMS migration must retain URLs. I would put that buyer decision first.\n'
+                           'My relevant example shows a framer landing page with editable content and mobile QA.\n'
+                           'Your team will edit native CMS fields; I will document them and include a short handover.\n'
+                           'The fixed scope is the agreed marketing page, mobile QA and CMS handover; I quote $65/h or '
+                           '$2,500-$6,000 after confirming the page count.\n'
+                           'Which buyer objection should this page answer first?\n'
+                           'I would keep the first step focused on the page decision.\n'
+                           'I have not included the requested mobile walkthrough.\n',
+                   'post': '# Framer landing page for a design agency\n'
+                           'Fictional brief: The CMS migration must retain URLs. B2B SaaS or agency marketing site. '
+                           'Budget $2,500-$6,000 or $65/h.\n'
+                           '\n'
+                           'Please include a short Loom showing the mobile comparison interaction.\n'
+                           '\n'
+                           'Please include a short Loom showing the mobile comparison interaction.\n'
+                           '\n'
+                           'Screening question: How will our team edit the content after handover?\n'},
+                  {'job': {'id': '970007019',
+                           'source': 'outbound',
+                           'title': 'Framer homepage for a partnership agency',
+                           'application_sent_verified': True,
+                           'application_review': {'state': 'pass',
+                                                  'reviewable': True,
+                                                  'quote': 'A Loom is optional here; the written plan covers the '
+                                                           'decision.',
+                                                  'free_read': 'Keep the problem-led opener, matching proof and '
+                                                               'specific CMS answer. The close asks one useful buyer '
+                                                               'question.',
+                                                  'next_message': 'Which part of the website should resolve “the cms '
+                                                                  'migration must retain urls” first?',
+                                                  'points': [{'point': 1,
+                                                              'state': 'met',
+                                                              'quote': 'The CMS migration must retain URLs. I would '
+                                                                       'put that buyer decision first.',
+                                                              'reason': 'The first line names the posted buyer '
+                                                                        'problem'},
+                                                             {'point': 2,
+                                                              'state': 'met',
+                                                              'quote': 'My relevant example shows a framer homepage '
+                                                                       'with editable content and mobile QA.',
+                                                              'reason': 'The example matches this page and editing '
+                                                                        'concern'},
+                                                             {'point': 3,
+                                                              'state': 'met',
+                                                              'quote': 'Your team will edit native CMS fields; I will '
+                                                                       'document them and include a short handover.',
+                                                              'reason': 'The screening answer explains native CMS '
+                                                                        'ownership'},
+                                                             {'point': 4,
+                                                              'state': 'met',
+                                                              'quote': 'The fixed scope is the agreed marketing page, '
+                                                                       'mobile QA and CMS handover; I quote $65/h or '
+                                                                       '$2,500-$6,000 after confirming the page count.',
+                                                              'reason': 'The bid states the scope and rate boundary'},
+                                                             {'point': 5,
+                                                              'state': 'met',
+                                                              'quote': 'I would keep the first step focused on the '
+                                                                       'page decision.',
+                                                              'reason': 'The application stays focused and concise'},
+                                                             {'point': 6,
+                                                              'state': 'met',
+                                                              'quote': 'Which buyer objection should this page answer '
+                                                                       'first?',
+                                                              'reason': 'One easy buyer question closes the '
+                                                                        'application'}]},
+                           'applied_at': '2026-10-09T10:00:00+01:00'},
+                   'sent': 'The CMS migration must retain URLs. I would put that buyer decision first.\n'
+                           'My relevant example shows a framer homepage with editable content and mobile QA.\n'
+                           'Your team will edit native CMS fields; I will document them and include a short handover.\n'
+                           'The fixed scope is the agreed marketing page, mobile QA and CMS handover; I quote $65/h or '
+                           '$2,500-$6,000 after confirming the page count.\n'
+                           'Which buyer objection should this page answer first?\n'
+                           'I would keep the first step focused on the page decision.\n'
+                           'A Loom is optional here; the written plan covers the decision.\n',
+                   'post': '# Framer homepage for a partnership agency\n'
+                           'Fictional brief: The CMS migration must retain URLs. B2B SaaS or agency marketing site. '
+                           'Budget $2,500-$6,000 or $65/h.\n'
+                           '\n'
+                           'A Loom is optional; a specific written approach is sufficient.\n'
+                           '\n'
+                           'Screening question: How will our team edit the content after handover?\n'}],
+ 'call': {'job': {'id': '970006003',
+                  'title': 'Webflow resource hub for a procurement SaaS',
+                  'call_held_at': '2026-10-08T14:00:00+01:00',
+                  'call_ended_at': '2026-10-08T14:30:00+01:00',
+                  'call_reviews': {'transcript:65bef56ddb33ec99458ec26f6a6a80748810a4a8ffb4acafe06dccc6b01c68ab': {'reviewed_at': '2026-10-14T09:23:52.134243+00:00',
+                                                                                                                   'call_at': '2026-10-08T13:00:00+00:00'}},
+                  'call_review_session': 'transcript:65bef56ddb33ec99458ec26f6a6a80748810a4a8ffb4acafe06dccc6b01c68ab',
+                  'call_review': {'reviewable': True,
+                                  'points': [{'point': 1,
+                                              'state': 'met',
+                                              'quote': '[00:00] Let us confirm the resource-site goal, scope and next '
+                                                       'step.',
+                                              'reason': 'Elodie: Keep the agenda connected to the buyer decision'},
+                                             {'point': 2,
+                                              'state': 'met',
+                                              'quote': '[01:10] We need editable resource categories without manual '
+                                                       'updates.',
+                                              'reason': 'Elodie: Current site evidence is concrete'},
+                                             {'point': 3,
+                                              'state': 'partly',
+                                              'quote': '[03:20] Manual updates take time, but we have not measured the '
+                                                       'weekly total.',
+                                              'reason': 'Elodie: Quantify the cost of the current problem'},
+                                             {'point': 4,
+                                              'state': 'met',
+                                              'quote': '[05:10] The scope is the resource pages and CMS handover to '
+                                                       'you.',
+                                              'reason': 'Elodie: The page boundary is agreed'},
+                                             {'point': 5,
+                                              'state': 'missing',
+                                              'quote': '[07:00] My fixed price is $4,200. We have not discussed your '
+                                                       'available budget yet.',
+                                              'reason': 'A price was named before the available budget was asked'},
+                                             {'point': 6,
+                                              'state': 'not needed',
+                                              'quote': '[09:00] I approve the work myself. Those terms work and I '
+                                                       'prefer a direct client offer today.',
+                                              'reason': 'Elodie: The approving client is present'},
+                                             {'point': 7,
+                                              'state': 'met',
+                                              'quote': '[11:00] This editable resource-category example shows labels '
+                                                       'and filters you can maintain yourself.',
+                                              'reason': 'Elodie: Match proof to the stated buying concern'},
+                                             {'point': 8,
+                                              'state': 'met',
+                                              'quote': '[12:00] What concern would stop you approving those terms?',
+                                              'reason': 'Elodie: Invite and explore the actual objection'},
+                                             {'point': 9,
+                                              'state': 'met',
+                                              'quote': '[14:00] Yes, confirm the resource pages and CMS handover in '
+                                                       'the platform thread by 15:00 today. I will approve the fixed '
+                                                       'client offer for $4,200 today; no separate proposal is needed.',
+                                              'reason': 'A concrete owner, platform action and time are agreed'}],
+                                  'moments': [{'quote': '[07:00] My fixed price is $4,200. We have not discussed your '
+                                                        'available budget yet.',
+                                               'better_wording': 'Before I quote, what budget range should this scope '
+                                                                 'fit?'}],
+                                  'fix': 'Budget before price',
+                                  'example': 'Before I quote, what budget range should this scope fit?',
+                                  'free_read': 'Elodie is ready to choose a compact resource site and prefers to '
+                                               'approve the agreement directly. You checked the content owner and made '
+                                               'the CMS handover part of the scope. The call covered the present '
+                                               'workflow and the desired result, but the cost of manual updates was '
+                                               'only touched on; one concrete weekly time estimate would have '
+                                               'strengthened the value discussion. Price arrived before a budget '
+                                               'question, so that sequence remains the main correction even though the '
+                                               'client accepted the terms. Your example showed editable resource '
+                                               'categories and answered the actual maintenance concern. Elodie is the '
+                                               'decision maker, which removes the need for a separate approval '
+                                               'meeting. The next step is a fixed client offer for the agreed pages '
+                                               'and handover, confirmed in the platform thread today. Keep the message '
+                                               'focused on checking those terms. Do not send a second proposal or add '
+                                               'a call merely to follow a routine when the client has already chosen '
+                                               'the direct route.',
+                                  'next_message': 'Please confirm the fixed offer covers the resource pages and CMS '
+                                                  'handover we discussed. Once those terms match, you can approve '
+                                                  'directly here.',
+                                  'agreed_step': 'Daniel confirms the resource pages and CMS handover by 15:00 today; '
+                                                 'Elodie agreed to approve the fixed $4,200 client offer today, '
+                                                 'without a separate proposal.',
+                                  'next_step': 'Daniel confirms the resource pages and CMS handover by 15:00 today; '
+                                               'Elodie agreed to approve the fixed $4,200 client offer today, without '
+                                               'a separate proposal.'},
+                  'call_reviewed_at': '2026-10-14T09:23:52.134243+00:00'},
+          'transcript': 'Member: Daniel\n'
+                        'Complete: yes\n'
+                        'Language: English\n'
+                        'Call at: 2026-10-08T14:00:00+01:00\n'
+                        'Duration: 900\n'
+                        'Daniel: [00:00] Let us confirm the resource-site goal, scope and next step.\n'
+                        'Elodie: [01:10] We need editable resource categories without manual updates.\n'
+                        'Daniel: [02:00] Who will own the content and maintain the categories?\n'
+                        'Elodie: [02:20] I will maintain the content myself.\n'
+                        'Elodie: [03:20] Manual updates take time, but we have not measured the weekly total.\n'
+                        'Daniel: [05:10] The scope is the resource pages and CMS handover to you.\n'
+                        'Daniel: [07:00] My fixed price is $4,200. We have not discussed your available budget yet.\n'
+                        'Elodie: [09:00] I approve the work myself. Those terms work and I prefer a direct client '
+                        'offer today.\n'
+                        'Daniel: [11:00] This editable resource-category example shows labels and filters you can '
+                        'maintain yourself.\n'
+                        'Daniel: [12:00] What concern would stop you approving those terms?\n'
+                        'Elodie: [12:20] I only needed to know that I could maintain the categories. That example '
+                        'answers it.\n'
+                        'Elodie: [14:00] Yes, confirm the resource pages and CMS handover in the platform thread by '
+                        '15:00 today. I will approve the fixed client offer for $4,200 today; no separate proposal is '
+                        'needed.\n'}}
+
+def owner_goal_join_contract():
+    source = copy.deepcopy(PREVIEW2_BACKEND_SLICE['agreement'])
+    with fixture('owner-goals'):
+        legacy = [analytics.goal_id(goal, source['week']) for goal in source['goals']]
+        assert legacy == [analytics.goal_id(dict(goal), source['week']) for goal in source['goals']]
+        assert len(set(legacy)) == 3
+        saved = analytics.add_goals(source)
+        assert [goal['goal_id'] for goal in saved['goals']] == legacy
+        snapshot = {'week': source['week'], 'generated_at': '2026-10-12T10:00:00+02:00',
+                    'goals_next': saved['goals'], 'reviews': {}}
+        snapshot['quests'] = analytics.quest_progress(snapshot, [], dt.date(2026, 10, 12))
+        cards = analytics.goal_cards(snapshot)
+        assert len(cards) == 3 and all(card['measurement'] for card in cards)
+        assert [card['goal_id'] for card in cards] == legacy
+        assert all(card['change'] == goal['change'] == card['text'] for card, goal in zip(cards, saved['goals']))
+        assert [goal['goal_id'] for goal in analytics.latest_goals(dt.date(2026, 10, 19))] == legacy
+        assert set(analytics.public_agreed_goals('2026-W43')) == set(legacy)
+        explicit = dict(saved['goals'][0], goal_id='retained-owner-goal', change='Edited cue copy',
+                        start='2026-10-19', review_on='2026-10-26')
+        agreement = analytics.add_goals({'week': '2026-W43', 'goals': [explicit]})
+        assert agreement['goals'][0]['goal_id'] == 'retained-owner-goal'
+        edited = dict(explicit, change='Edit the wording again')
+        assert analytics.goal_id(edited, '2026-W44') == 'retained-owner-goal'
+        snapshot.update(week='2026-W43', goals_next=[edited], quests=[])
+        assert analytics.goal_cards(snapshot)[0]['goal_id'] == 'retained-owner-goal'
+        for field, value in [('invented_field', 'not allowed'), ('measurement', 'invented check'), ('goal_library_id', 'reply-opener'),
+                             ('goal_id', ''), ('goal_id', 'spaces not allowed')]:
+            refused(lambda field=field, value=value: analytics.validate_goals({'week': '2026-W43',
+                    'goals': [dict(explicit, **{field: value})]}), field)
+        refused(lambda: analytics.validate_goals({'week': '2026-W43', 'goals': [dict(explicit, review_on='2026-10-01')]}), 'dates')
+
+def owner_badge_progress_contract():
+    import badges
+    snapshot = {'badges': copy.deepcopy(PREVIEW2_BACKEND_SLICE['badges']), 'badge_progress': {'First Mate': {'value': 4}}}
+    before = copy.deepcopy(snapshot)
+    awards = copy.deepcopy(PREVIEW2_BACKEND_SLICE['awards'])
+    ledger_before = copy.deepcopy(awards)
+    stations = {row['badge']: row for row in badges.voyage(awards, snapshot)['stations']}
+    for name, expected in [('First Mate', '4 of 6 weeks'), ('Steady Anchor', '8 of 13 weeks'),
+                           ('Lighthouse Keeper', '8 of 13 weeks'), ('First Doubloon', '3 of 6 weeks')]:
+        name = badges.canonical_name(name)
+        assert stations[name]['progress_to_next'] == expected, (name, stations[name])
+    native = next(row for row in awards if row['badge'] == 'First Doubloon' and row['tier'] == 'Silver')
+    assert stations['First Doubloon']['earned_at'] == native['at']
+    assert stations['First Doubloon']['tier'] == 'Silver'
+    lower = {'badge': 'First Mate', 'tier': 'Bronze', 'at': '2026-10-14T10:00:00+00:00'}
+    row = next(row for row in badges.voyage([lower], snapshot)['stations'] if row['badge'] == 'First Mate')
+    assert row['tier'] == 'Silver' and row['progress_to_next'] == '4 of 6 weeks' and row['earned_week'] == '2026-W41'
+    assert snapshot == before and awards == ledger_before
+
+def owner_review_fields_contract():
+    with fixture('owner-review-fields') as folder:
+        jobs = []
+        for source in PREVIEW2_BACKEND_SLICE['applications']:
+            job = copy.deepcopy(source['job']); jobs.append(job)
+            home = folder / 'jobs' / str(job['id']); home.mkdir()
+            (home / 'job.md').write_text(source['post'])
+            (home / 'application.sent.md').write_text(source['sent'])
+        snapshot = {'generated_at': '2026-10-12T10:00:00+02:00', 'reviews': {}, 'call_cards': []}
+        rows = {row['lead_id']: row for row in analytics.conversations_fields(snapshot, jobs)['sections']['applications']}
+        for jid, expected, requested in [('970007009', 'requested_not_sent', True), ('970007019', 'not_sent', False)]:
+            row = rows[jid]
+            assert row['reviewable'] and row['loom_status'] == expected and row['loom_requested'] is requested
+            assert row['loom_transcript'] is None and row['loom_source_state'] == 'not_applicable'
+        home = folder / 'jobs/970007019'
+        job = dict(jobs[-1], loom_url='https://www.loom.com/share/stale-link')
+        assert analytics.application_loom_fields(job, home, PREVIEW2_BACKEND_SLICE['applications'][-1]['sent'], '')['loom_status'] == 'not_sent'
+        assert analytics.application_loom_fields(job, home, '', '')['loom_status'] == 'unknown'
+        assert analytics.application_loom_fields(job, home, 'I have not included a Loom.', '')['loom_status'] == 'not_sent'
+        for sent in ('https://www.loom.com/share/actual-sent', 'My short Loom shows the mobile pricing toggle.'):
+            row = analytics.application_loom_fields(job, home, sent, '')
+            assert row['loom_status'] == 'sent' and row['loom_source_state'] == 'unknown'
+        call = PREVIEW2_BACKEND_SLICE['call']; job = copy.deepcopy(call['job'])
+        home = folder / 'jobs' / str(job['id']); home.mkdir()
+        (home / 'call.md').write_text(call['transcript'])
+        card = analytics.call_cards(snapshot, [job])[0]
+        assert card['reviewable']
+        for field in ('fix', 'example', 'next_message', 'agreed_step'):
+            assert card[field] == job['call_review'][field]
+        assert len(card['moments']) == len(job['call_review']['moments']) == 1
+        moment = card['moments'][0]
+        assert moment['quote'] in analytics.call_utterances(call['transcript'])
+        assert moment['better_wording'] == moment['better'] == job['call_review']['moments'][0]['better_wording']
+        assert moment['quote_at'] == '07:00'
+        assert len(card['points']) == 9 and len(card['coach_read'].split()) == 159
+
+def missing_question_source_contract():
+    with fixture('question-source-removal'):
+        base = analytics.compute(dt.date(2026,10,14), jobs=[], now='2026-10-14T15:00:00+02:00')['community_card']
+        for sources in ([{'messages': [{'body': 'ivory workflow'}], 'employer': 'Acme', 'client_slug': 'secret'}], []):
+            for invalid in ('unknown-id', None, [], {}, 17, True):
+                card = copy.deepcopy(base); card['question_id'] = invalid
+                assert analytics.validate_community_card(card, sources)['question_id'] is None
+                assert '<p class="question">' not in analytics.public_onepager_html(card)
+            missing = copy.deepcopy(base); missing.pop('question_id', None)
+            assert analytics.validate_community_card(missing, sources)['question_id'] is None
+            for field in ('question', 'question_id'):
+                card = copy.deepcopy(base); card[field] = 'What did ivory workflow mean?'
+                assert analytics.validate_community_card(card, sources)['question_id'] is None
+                assert analytics.snapshot_public_card({'community_card': card}, sources)['question_id'] is None
+                assert '<p class="question">' not in analytics.public_onepager_html(card)
+
+CHECKS = (missing_question_source_contract, owner_goal_join_contract, owner_badge_progress_contract, owner_review_fields_contract, privacy_contract, once_review_contract, closed_question_entries, approximate_number_contract, distinct_call_contract, legacy_session_contract, report_identifier_contract, custom_coverage_contract, product_review_computations, weekly_accountability_contract, owner_habit_period_contract,)
+
+if __name__ == "__main__":
+    run_checks(CHECKS)

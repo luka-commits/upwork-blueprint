@@ -1,6 +1,6 @@
 /** Analytics values and selections belong to the snapshot writer. The UI only
  * formats them and draws chart geometry. Fields are optional for older weeks. */
-export type AnalyticsPeriod = string | { start?: string; end?: string };
+export type AnalyticsPeriod = string | { start?: string; end?: string; kind?: string };
 export type AnalyticsEvidence = string[];
 export type AnalyticsInsight = {
   kind?: string;
@@ -20,7 +20,8 @@ export type AnalyticsScorecardRow = {
   period_label: string; period?: AnalyticsPeriod; currency?: string; value: number | null; state?: string;
   finished: { k: number | null; n: number | null }; pending: { n: number; until?: string | null };
   change: { previous_value: number | null; comparison_label: string; text?: string };
-  series: { label: string; unit: string; points: (number | null)[] };
+  series: { label: string; unit: string; points: (number | null | {week?: string; date?: string; value: number | null})[]; labels?: string[] };
+  sample_note?: string | null; habit_period?: AnalyticsPeriod; current_week?: Record<string, unknown> | null;
   target: { kind: 'habit' | 'ladder'; value: number | null; level: number | null; thresholds: number[] };
   next_action: { text: string; lead_filter: { kpi: string; lead_ids: string[] } } | null;
   split: Record<string, unknown>[]; focus: { reason: string } | null;
@@ -28,6 +29,7 @@ export type AnalyticsScorecardRow = {
   evidence?: string[]; insight?: string; counting?: string;
 };
 export type AnalyticsPresentation = {
+  accountability?: AnalyticsAccountability;
   rank_progress?: { rank?: string; score?: number | null; next_rank?: string | null; next_threshold?: number | null; held_weeks?: number; required_weeks?: number; progress?: number };
   rank?: string | { rolling_score?: number | null; score?: number | null; name?: string; next_name?: string | null; next_threshold?: number | null; progress?: number | { percent?: number; current?: number; target?: number }; state?: string; weeks?: number };
   scorecard?: AnalyticsScorecardRow[];
@@ -55,6 +57,10 @@ export type AnalyticsPresentation = {
 };
 export type AnalyticsCallCard = {
   lead_id: string;
+  key_finding?: string;
+  duplicate_of_stage?: string;
+  better_line?: string;
+  marker?: string;
   coach_read?: string | null;
   as_of?: string;
   reviewed_at?: string;
@@ -92,23 +98,36 @@ export type AnalyticsCallCard = {
 export type AnalyticsBadge = {
   name?: string; badge?: string; tier?: string; short?: string;
   earned?: boolean; locked?: boolean; earned_week?: string; week?: string; as_of_week?: string; as_of?: string; earned_at?: string;
-  progress?: number | { percent?: number; current?: number; target?: number };
+  progress?: number | { percent?: number; current?: number; target?: number; remaining?: number; unit?: string };
   image?: string; fallback_image?: string; motif?: string;
   progress_text?: string; next_tier?: string;
-  progress_to_next?: string | { text?: string; qualifying_weeks?: number; required_weeks?: number };
+  progress_to_next?: string | { text?: string; qualifying_weeks?: number; required_weeks?: number; current?: number; target?: number; remaining?: number; unit?: string };
   rule?: string; requirement?: string; exact_rule?: string; next_rule?: string;
 };
 export type AnalyticsProgress = {
   score_history?: { week: string; value?: number | null; score?: number | null }[];
-  biggest_change?: { kind?: string; direction?: string; key?: string; value?: number; previous?: number | null; unit?: string; name?: string; label?: string; text?: string; sentence?: string; change_text?: string; comparison_text?: string; delta_text?: string; evidence?: AnalyticsEvidence } | null;
+  biggest_change?: { kind?: string; direction?: string; key?: string; value?: number; previous?: number | null; previous_n?: number; n?: number; new?: boolean; unit?: string; name?: string; label?: string; text?: string; sentence?: string; change_text?: string; comparison_text?: string; delta_text?: string; evidence?: AnalyticsEvidence } | null;
   newest_badge?: AnalyticsBadge | null;
   badges?: AnalyticsBadge[];
 };
 export type AnalyticsConversationPattern = {
   text?: string; sentence?: string; read?: string; quote?: string;
-  quotes?: (string | { quote?: string; text?: string; lead_id?: string })[];
+  k?: number; n?: number; better_line?: string;
+  quotes?: (string | { quote?: string; text?: string; lead_id?: string; stage?: string; title?: string; date?: string })[];
+};
+export type AnalyticsAccountability = {
+  working_days?: { k: number; n: number; dates?: string[]; applied_dates?: string[] };
+  application_streak?: { current: number; best: number; weeks?: string[] };
+  streak_weeks?: number;
+  best_streak_weeks?: number;
+};
+export type AnalyticsCriteria = {
+  points: { point: number; label: string; met: number; partly: number; missing: number; not_needed: number; k: number; n: number; lead_ids: string[]; reason?: string }[];
+  reviewed_n: number;
+  too_few: boolean;
 };
 export type AnalyticsConversations = {
+  criteria?: Partial<Record<'applications' | 'chats' | 'calls' | 'proposals', AnalyticsCriteria>>;
   sections?: { applications?: Record<string, any>[]; chats?: Record<string, any>[]; calls?: AnalyticsCallCard[]; proposals?: Record<string, any>[] };
   patterns?: AnalyticsConversationPattern[];
   applications?: Record<string, any>[];
@@ -145,6 +164,7 @@ export function analyticsMemberText(value: unknown): string {
   const text = value == null ? 'unknown' : typeof value === 'object'
     ? String((value as any).text || (value as any).label || (value as any).reason || 'unknown') : String(value);
   const translate = (part: string) => part.replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g, key => ANALYTICS_FIELD_LABELS[key] || key.replace(/_/g, ' '))
+    .replace(/Too few (?:finished|mature) cases to decide against the next rung\.?/gi, 'More completed cases are needed to check the next step.')
     .replace(/Writer['’]s comparison not supplied/gi, 'Comparison unavailable')
     .replace(/\bSYNTHETIC\b/gi, 'example').replace(/saved review/gi, 'review')
     .replace(/Writer['’]s/gi, 'Review').replace(/\bWilson lower bound\b/gi, 'lower end of the measured range').replace(/\bWilson(?: interval)?\b/gi, 'measured range')

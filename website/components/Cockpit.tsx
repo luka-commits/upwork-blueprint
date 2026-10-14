@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Drawer from '@/components/Drawer';
 import { CockpitContext, type CockpitApi, type State } from '@/lib/context';
 import { revealContent } from '@/lib/surface-motion.mjs';
+import { ANALYTICS_LEADS_PARAM, analyticsLeadsHref, rememberAnalyticsReturn } from '@/lib/analytics-navigation';
 
 const CONNECTION_LOST = 'The cockpit lost its connection. Start it again with /dashboard, then reload.';
 
@@ -71,6 +72,9 @@ function DailyVoyage({ state }: { state: State | null }) {
 
 export function CockpitProvider({ token, children }: { token: string; children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const analyticsOrigin = searchParams.has(ANALYTICS_LEADS_PARAM);
   const [state, setState] = useState<State | null>(null);
   const [connectionLost, setConnectionLost] = useState(false);
   const [drawerId, setDrawerId] = useState<string | null>(null);
@@ -120,8 +124,17 @@ export function CockpitProvider({ token, children }: { token: string; children: 
     setConnectionLost(false);
   }, [api]);
 
-  const openDrawer = useCallback((id: string) => setDrawerId(id), []);
+  const openDrawer = useCallback((id: string) => {
+    if (pathname === '/analytics' || analyticsOrigin) return;
+    setDrawerId(id);
+  }, [pathname, analyticsOrigin]);
   const closeDrawer = useCallback(() => setDrawerId(null), []);
+  const openAnalyticsLeads = useCallback((ids: (string | number)[]) => {
+    const activeTab = document.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    rememberAnalyticsReturn(Number(activeTab?.id.replace('analytics-tab-', '') || 0));
+    setDrawerId(null);
+    router.push(analyticsLeadsHref(ids));
+  }, [router]);
 
   useEffect(() => {
     void load();
@@ -132,12 +145,12 @@ export function CockpitProvider({ token, children }: { token: string; children: 
     return () => window.clearInterval(poll);
   }, [load]);
 
-  useEffect(() => { if (pathname !== '/') setDrawerId(null); }, [pathname]);
+  useEffect(() => { if (pathname !== '/' || analyticsOrigin) setDrawerId(null); }, [pathname, analyticsOrigin]);
   useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); }, []);
 
   const value = useMemo<CockpitApi>(() => ({
-    token, state, load, api, toast, drawerId, openDrawer, closeDrawer,
-  }), [api, closeDrawer, drawerId, load, openDrawer, state, toast, token]);
+    token, state, load, api, toast, drawerId, openDrawer, closeDrawer, openAnalyticsLeads,
+  }), [api, closeDrawer, drawerId, load, openDrawer, openAnalyticsLeads, state, toast, token]);
 
   const sync = syncText(state?.sync?.synced_at);
   const tracker = state?.tracker || {};
@@ -166,7 +179,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
         {connectionLost ? <div className="empty-state" role="alert"><strong>Connection lost</strong><p>{CONNECTION_LOST}</p><button onClick={() => void load()}>Try again</button></div>
           : state ? children : <p className="empty" role="status">Loading cockpit.</p>}
       </main>
-      <Drawer />
+      {pathname !== '/analytics' && !analyticsOrigin ? <Drawer /> : null}
       <div className={`toast${toastVisible ? ' show' : ''}`} role="status">{toastMessage}</div>
     </CockpitContext.Provider>
   );

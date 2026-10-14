@@ -789,7 +789,9 @@ def cmd_record(args):
             if any(not isinstance(item[field], str) for field in ('fix', 'example', 'next_step', 'agreed_step', 'next_message', 'free_read') if field in item):
                 abort('Call coaching fields need text.')
             if len(item.get('next_message', '').split()) > 100 or len(item.get('free_read', '').split()) > 180:
-                abort('Call next_message allows 100 words; free_read allows 180.')
+                abort('Call next_message allows 100 words; free_read allows 120 to 180.')
+            if item['reviewable'] and 'free_read' in item and len(item['free_read'].split()) < 120:
+                abort('Call free_read needs 120 to 180 words.')
         elif key == 'conversation_review':
             point_keys = {'answered_question', 'qualifying_question', 'call_times'}
             if (not isinstance(item, dict) or not {'points', 'last_writer', 'read'} <= set(item)

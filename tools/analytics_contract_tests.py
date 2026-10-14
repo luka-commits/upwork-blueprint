@@ -7,9 +7,107 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from analytics_fixture import fixture, run, seed, record, records, analytics_stamp
+from analytics_fixture import fixture, run, seed, record, records, analytics_stamp, EXAMPLE_CALL_READ
 
 POINTS = ('answered_question', 'qualifying_question', 'call_times')
+
+
+def assert_rank_projection(snapshot):
+    """The same code-owned stable rank reaches private and allowlisted public views."""
+    import analytics
+    rank = snapshot['rank']
+    assert rank in dict(analytics.RANK_LEVELS)
+    assert snapshot['rank_progress']['rank'] == rank
+    assert snapshot['rank_progress']['required_weeks'] == 4
+    assert snapshot['presentation']['voyage']['rank'] == rank
+    assert snapshot['community_card']['rank'] == rank
+    assert snapshot['community_card']['rank_progress'] == snapshot['rank_progress']
+
+
+def rank_contract():
+    import analytics
+    end = dt.date(2026, 10, 12)
+    def weeks(values):
+        return [{'week': (end-dt.timedelta(weeks=len(values)-1-index)).strftime('%G-W%V'),
+                 'funnel_score': {'score': value}} for index, value in enumerate(values)]
+    def result(values):
+        rows = weeks(values)
+        return analytics.rank_fields(rows[-1], rows[:-1])
+    for score, expected in ((0,'Deckhand'),(39.999,'Deckhand'),(40,'Boatswain'),
+                            (59.999,'Boatswain'),(60,'Officer'),(74.999,'Officer'),
+                            (75,'Captain'),(89.999,'Captain'),(90,'Admiral'),(100,'Admiral')):
+        row = result([score]*7)
+        assert row['rank'] == expected, (score, row)
+        assert row['required_weeks'] == 4 and 0 <= row['progress'] <= 100
+        if expected == 'Admiral': assert row['next_rank'] is None
+    assert result([100]*4)['rank'] == 'Deckhand', 'One complete average cannot prove four holds.'
+    assert result([100]*6)['held_weeks'] == 3
+    assert result([0,0,0,100,100,100,100])['rank'] == 'Deckhand', 'Use rolling averages, never latest score.'
+    assert result([60,100,100,100,60,100,100])['rank'] == 'Admiral', 'Each rolling mean is 90.'
+    assert result([100,100,None,100,100,100,100])['rank'] == 'Deckhand'
+    rows = weeks([100]*7)
+    missing = rows[:2]+rows[3:]
+    assert analytics.rank_fields(missing[-1], missing[:-1])['rank'] == 'Deckhand'
+    future = {'week':'2026-W43','funnel_score':{'score':100}}
+    assert analytics.rank_fields(rows[-1], rows[:-1]+[future]) == analytics.rank_fields(rows[-1], rows[:-1])
+    for bad in (-1,101,float('inf'),float('nan'),True):
+        assert result([100,100,bad,100,100,100,100])['rank'] == 'Deckhand', bad
+    print('PASS rank: thresholds, rolling averages, four holds, missing/invalid/future history.')
+
+
+def progress_and_layout_contract():
+    import analytics
+    from analytics_fixture import this_week_height_budget, feature_command, ROOT
+    from analytics_forbidden_terms import self_check
+    self_check()
+    def row(key, value, previous, unit='%'):
+        return {'key':key,'name':key.replace('_',' ').title(),'value':value,'state':'observed',
+                'finished':{'n':20},'change':{'previous_value':previous},'series':{'unit':unit}}
+    model={'week':'2026-W42','kpis':{'first_reply':{'direction':'down'}},'presentation':{
+        'scorecard':[row('missing_baseline',10000,None),row('reply_rate',21.428571,18.333333)],
+        'voyage':{'stations':[]}}}
+    gain=analytics.progress_strip(model)['biggest_change']
+    assert gain['key']=='reply_rate' and gain['previous']==18.333333
+    assert gain['text']=='Reply Rate 18% -> 21%' and gain['change_text']=='vs the 4 weeks before'
+    assert gain['value']==21.428571, 'Only display is rounded; preserve measured precision.'
+    half_percent={'week':'2026-W42','kpis':{},'presentation':{'scorecard':[row('reply_rate',18.5,12.5)]}}
+    assert analytics.progress_strip(half_percent)['biggest_change']['text']=='Reply Rate 13% -> 19%'
+    assert half_percent['presentation']['scorecard'][0]['value']==18.5
+    assert half_percent['presentation']['scorecard'][0]['change']['previous_value']==12.5
+    assert analytics.check_report('Reply rate 19%, up from 13%.',half_percent)['status']=='PASS'
+    for wrong in ('Reply rate 18%, up from 13%.','Reply rate 19%, up from 12%.'):
+        assert analytics.check_report(wrong,half_percent)['status']=='FAIL'
+    rounded_display={'week':'2026-W42','kpis':{'first_reply':{'value':4.25,'state':'pass'}},
+        'north_star':{'value':4200.5,'wins':3,'currency':'USD'}}
+    for correct in ('First replies took 4.3 minutes on median.',
+                    'You signed 3 new contracts worth $4,201.'):
+        assert analytics.check_report(correct,rounded_display)['status']=='PASS'
+    for wrong in ('First replies took 4.4 minutes on median.',
+                  'You signed 3 new contracts worth $4,202.'):
+        assert analytics.check_report(wrong,rounded_display)['status']=='FAIL'
+    assert rounded_display['kpis']['first_reply']['value']==4.25
+    assert rounded_display['north_star']['value']==4200.5
+    model['presentation']['scorecard']=[row('missing_baseline',10000,None),row('reply_rate',10,20)]
+    assert analytics.progress_strip(model)['biggest_change']['direction']=='decline'
+    model['presentation']['scorecard']=[row('missing_baseline',10000,None)]
+    assert analytics.progress_strip(model)['biggest_change'] is None
+    model['presentation']['voyage']['stations']=[{'badge':'Swift Sail','earned':True,'earned_week':'2026-W41'}]
+    assert analytics.progress_strip(model)['newest_badge'] is None, 'Badge highlight is this week only.'
+    model['presentation']['voyage']['stations'][0]['earned_week']='2026-W42'
+    assert analytics.progress_strip(model)['newest_badge']['badge']=='Swift Sail'
+    for width, guideline, fail in ((1440,1900,2470),(390,3400,4420)):
+        assert this_week_height_budget(width,guideline,900)['page']=='PASS'
+        assert this_week_height_budget(width,guideline+1,900)['page']=='WARN'
+        assert this_week_height_budget(width,fail,900)['page']=='WARN'
+        assert this_week_height_budget(width,fail+1,900)['page']=='FAIL'
+        assert this_week_height_budget(width,guideline,2000)['first_screen']=='WARN'
+    for path in (ROOT/'.claude/commands').glob('*.md'):
+        if path.name not in ('analytics.md','call-review.md'):
+            # Unchanged commands need no analytics hook; changed commands keep main plus <=3 lines.
+            baseline=__import__('subprocess').run(['git','diff','--numstat','f7e43b0','--',str(path)],
+                cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip()
+            if baseline: feature_command(path.name)
+    print('PASS regressions: missing baseline never wins, whole-percent display, one-week badge, height warning/+30%, command footprint.')
 
 
 def thread_references():
@@ -198,14 +296,13 @@ def badge_calibration():
         assert not any(row['badge']=='Swift Sail' for row in analytics.badge_results(copy.deepcopy(base),low_quality,[],today))
         none=copy.deepcopy(base);none['kpis']['speed_10min'].update(n=0,value=None,state='no opportunities')
         assert not any(row['badge']=='Swift Sail' for row in analytics.badge_results(none,[],[],today))
-        assert not hasattr(badges, 'rank')
-        assert 'rank' not in base and 'rank' not in base['presentation']['voyage']
+        assert_rank_projection(base)
         points=[{'point':p,'state':'met','quote':'Proof'} for p in range(1,10)]
         points[8].update(state='not needed',reason='Informed disqualification; proposal not appropriate.')
         assert badges._call_fraction(points)==1
         points[8].pop('reason')
         assert badges._call_fraction(points) is None
-    print('PASS B/K: accumulated1/3/6/13/26, pauses retain progress, first-week max2, content gate, zero-opportunity neutrality, rank absent and reasoned disqualification.')
+    print('PASS B/K: accumulated1/3/6/13/26, pauses retain progress, first-week max2, content gate, zero-opportunity neutrality, stable rank projection and reasoned disqualification.')
 
 
 def catchup_contract():
@@ -247,7 +344,7 @@ def immediate_call_review_writer():
         quote='Three hours of manual work each week.'
         text='Member: Maya\nComplete: yes\nLanguage: English\nMaya: What changes when this is solved?\nClient: '+quote+'\n'
         (path/'call.md').write_text(text)
-        (path/'call-review.md').write_text("## Coach's read\n\nExample saved call review.\n\n## Nine points\n\nSaved via pipeline.\n\n## Next step\n\nReview Friday.\n")
+        (path/'call-review.md').write_text("## Coach's read\n\n"+EXAMPLE_CALL_READ+"\n\n## Nine points\n\nSaved via pipeline.\n\n## Next step\n\nReview Friday.\n")
         review={'reviewable':True,'points':[{'point':p,'state':'met','quote':quote} for p in range(1,10)],
                 'moments':[{'quote':quote,'better_wording':'Ask what the saved time enables.'}],
                 'fix':'Confirm the owner','example':'Who owns the next step?','next_step':'Review Friday.'}
@@ -255,7 +352,7 @@ def immediate_call_review_writer():
         view=json.loads(run('cockpit.py','job',jid).stdout)
         assert not (folder/'data/analytics-history.jsonl').exists()
         card=view['call_cards'][0]
-        assert card['coach_read']=='Example saved call review.' and len(card['points'])==9
+        assert card['coach_read']==EXAMPLE_CALL_READ and 120<=len(card['coach_read'].split())<=180 and len(card['points'])==9
         assert all(point['quote']==quote for point in card['points'])
         for change in ('duplicate','invented-quote','not-needed-no-reason','partial-source'):
             broken=copy.deepcopy(review)
@@ -337,7 +434,7 @@ def frozen_projection_contract():
     today=dt.date(2026,10,14)
     with fixture('frozen-content-projections') as folder:
         jid='945000080'; quote='The audit needs one agreed owner.'; reason='Confirm the owner before offering a date.'
-        seed({'id':jid,'source':'outbound','status':'call','applied_at':analytics_stamp(today-dt.timedelta(days=2)),
+        seed({'id':jid,'title':'Build an audit dashboard in Airtable','source':'outbound','status':'call','applied_at':analytics_stamp(today-dt.timedelta(days=2)),
               'replied_at':analytics_stamp(today-dt.timedelta(days=2)),
               'call_held_at':analytics_stamp(today-dt.timedelta(days=1)),
               'proposal_sent_at':analytics_stamp(today-dt.timedelta(days=1),11),
@@ -351,7 +448,7 @@ def frozen_projection_contract():
         (path/'loom.md').write_text('EXAMPLE Loom source: '+quote)
         (path/'proposal.md').write_text(quote)
         (path/'call.md').write_text('Member: Maya\nComplete: yes\nLanguage: English\nMaya: Who owns the audit?\nClient: '+quote+'\n')
-        (path/'call-review.md').write_text("## Coach's read\n\nSaved call read.\n\n## Next message\n\nCan you confirm the audit owner?\n\n## Next step agreed on the call\n\nClient confirms the owner by Friday.\n\n## Nine points\n\nSaved below.\n")
+        (path/'call-review.md').write_text("## Coach's read\n\n"+EXAMPLE_CALL_READ+"\n\n## Next message\n\nCan you confirm the audit owner?\n\n## Next step agreed on the call\n\nClient confirms the owner by Friday.\n\n## Nine points\n\nSaved below.\n")
         call={'reviewable':True,'points':[{'point':p,'state':'met','quote':quote,'reason':reason} for p in range(1,10)]}
         record(jid,{'call_review':call})
         run('sync.py','apply','--file','-',value={'threads':[{'job_id':jid,'room_id':'projection','messages_complete':True,
@@ -380,9 +477,17 @@ def frozen_projection_contract():
         for stage in ('applications','chats','proposals'):
             entry=sections[stage][0]
             assert entry['reviewable'] and entry['quote']==quote and entry['read'].startswith('Saved '), (stage,entry)
-            required={'lead_id','label','date','reviewable','source_prompt','points','quote','read','next_message','as_of','reviewed_at'}
+            required={'lead_id','label','date','reviewable','source_prompt','points','quote','read','next_message','as_of','reviewed_at','title','key_finding','marker','importance','this_week'}
             assert set(entry)==required | {'applications':{'sent_copy','loom_transcript'},'chats':{'last_writer'},'proposals':{'scope','price','decision_date'}}[stage]
-        assert sections['calls']==snapshot['call_cards']
+        # Frozen section14 rows add titles, short findings, week filter and importance.
+        for rows in sections.values():
+            assert [row['importance'] for row in rows]==sorted(row['importance'] for row in rows)
+            for row in rows:
+                assert row['title']=='Build an audit dashboard in Airtable'
+                assert 0<len(row['key_finding'].split())<=12
+                assert row['marker'] in ('needs work','keep') and isinstance(row['this_week'],bool)
+        assert all({key:value for key,value in row.items() if key not in ('title','key_finding','marker','importance','this_week')} == {key:value for key,value in saved.items() if key not in ('title','key_finding','marker','importance','this_week')}
+                   for row,saved in zip(sections['calls'],snapshot['call_cards']))
         card=sections['calls'][0]
         assert card['agreed_step']=='Client confirms the owner by Friday.'
         assert card['next_message']=='Can you confirm the audit owner?'
@@ -391,12 +496,10 @@ def frozen_projection_contract():
         assert len(patterns)==1 and patterns[0]['text']==reason
         assert {q['stage'] for q in patterns[0]['quotes']}=={'applications','chats','calls','proposals'}
         assert all(q['quote']==quote for q in patterns[0]['quotes'])
-        assert 'rank' not in snapshot and 'rank' not in snapshot['community_card']
-        stale=dict(snapshot,rank='obsolete')
-        stale['presentation']=dict(snapshot['presentation'],rank='obsolete',voyage={'rank':'obsolete','rank_progress':{}})
-        visible=cockpit.snapshot_view(stale)
-        assert 'rank' not in visible and 'rank' not in visible['presentation'] and 'rank' not in visible['presentation']['voyage']
-        assert not hasattr(badges,'rank')
+        assert_rank_projection(snapshot)
+        visible=cockpit.snapshot_view(snapshot)
+        assert_rank_projection(visible)
+        assert visible['rank_progress']==snapshot['rank_progress']
         catalogue=badges.catalogue_metadata()
         assert set(catalogue)==set(badges.BADGE_NAMES)
         for row in catalogue.values():
@@ -425,13 +528,13 @@ def frozen_projection_contract():
     model={'kpis':{'first_reply':{'direction':'down'},'reply_rate':{'direction':'up'}},
            'presentation':{'scorecard':[mover('first_reply',2,10),mover('reply_rate',9,10)]}}
     strip=analytics.progress_strip(model)
-    assert strip['biggest_change']=={'key':'first_reply','name':'first_reply','text':'first_reply: 2, was 10','direction':'gain','value':2,'previous':10}
+    assert strip['biggest_change']=={'key':'first_reply','name':'first_reply','text':'first_reply 10 -> 2','change_text':'vs the 4 weeks before','direction':'gain','value':2,'previous':10}
     model['presentation']['scorecard']=[mover('first_reply',20,10),mover('reply_rate',9,10)]
     assert analytics.progress_strip(model)['biggest_change']['key']=='first_reply'
     assert analytics.progress_strip(model)['biggest_change']['direction']=='decline'
     model['presentation']['scorecard']=[mover('reply_rate',100,None),mover('first_reply',1,10,0),mover('reply_rate',100,10,state='missing')]
     assert analytics.progress_strip(model)=={'biggest_change':None,'newest_badge':None,'newest_badge_basis':'No earned badge recorded.'}
-    print('PASS frozen25–34: exact content keys and limits, retained gate, parsed call fields, quoted four-stage projection/patterns, source refusals, gain/decline/unknown, short catalogue and rank absence.')
+    print('PASS frozen25–34: exact content keys and limits, retained gate, parsed call fields, quoted four-stage projection/patterns, source refusals, gain/decline/unknown, short catalogue and rank preservation.')
 
 
 def supervised_corrections():
@@ -449,6 +552,14 @@ def supervised_corrections():
         (path/'call.md').write_text(transcript)
         (path/'application.sent.md').write_text(quote)
         call={'reviewable':True,'points':[{'point':p,'state':'met','quote':quote} for p in range(1,10)]}
+        minimum=dict(call,free_read='word '*120)
+        record(jid,{'call_review':minimum})
+        assert analytics.call_coverage([dict(minimum,lead_id=jid)],today)
+        too_short=dict(call,free_read='word '*119)
+        assert run('pipeline.py','record',jid,'--file','-',value={'call_review':too_short},success=False).returncode
+        try:analytics.call_coverage([dict(too_short,lead_id=jid)],today)
+        except ValueError:pass
+        else:raise AssertionError('A 119-word full call read was accepted.')
         for field,limit in (('free_read',180),('next_message',100)):
             allowed=dict(call,**{field:'word '*limit})
             record(jid,{'call_review':allowed})
@@ -477,6 +588,7 @@ def supervised_corrections():
             card=analytics.call_cards({'generated_at':analytics_stamp(today),'reviews':{'call':{'rubric':[dict(call,lead_id=jid)]}}},list(records().values()))[0]
             assert not card['reviewable'] and card['coach_read'] is None and card['agreed_step'] is None
         (path/'call.md').write_text(transcript)
+        (path/'call-review.md').write_text("## Coach's read\n\n"+EXAMPLE_CALL_READ+"\n")
         record(jid,{'call_review':call})
         snapshot=analytics.compute(today)
         card=snapshot['call_cards'][0]
@@ -494,9 +606,8 @@ def supervised_corrections():
         lead['log'][0]['text']='analytics application_review: '+json.dumps(dict(saved,state='unverified'))
         assert not analytics.conversations_fields(snapshot,[lead])['sections']['applications'][0]['reviewable']
         stale=copy.deepcopy(snapshot)
-        stale.update(rank='Deckhand',rank_progress={'x':1},proposal_insights={'rank':3})
-        for container in (stale['presentation'],stale['presentation']['voyage'],stale['community_card']):
-            container.update(rank='Admiral',rank_progress={'x':2})
+        assert_rank_projection(snapshot)
+        stale.update(proposal_insights={'rank':3})
         stale['conversation_review']['threads']=[{'points':{'answered_question':{'state':'met'},'fast_answer':{'state':'met'},'follow_ups':{'state':'met'}}}]
         stale['conversations']['sections']['chats']=[copy.deepcopy(stale['conversation_review']['threads'][0])]
         ledger=folder/'data/analytics-history.jsonl';ledger.write_text(json.dumps(stale)+'\n')
@@ -505,14 +616,14 @@ def supervised_corrections():
         for visible in views:
             assert visible['proposal_insights']['rank']==3
             assert visible['kpis']==stale['kpis'] and visible['coverage']==stale['coverage']
-            for container in (visible,visible['presentation'],visible['presentation']['voyage'],visible['community_card']):
-                assert not {'rank','rank_progress'} & set(container)
+            assert_rank_projection(visible)
+            assert visible['rank_progress']==stale['rank_progress']
             for container in (visible['conversation_review']['threads'][0],visible['conversations']['sections']['chats'][0]):
                 assert set(container['points'])=={'answered_question'}
         assert hashlib.sha256(ledger.read_bytes()).hexdigest()==before
-        try:analytics.validate_community_card(dict(snapshot['community_card'],rank='Admiral'))
+        try:analytics.validate_community_card(dict(snapshot['community_card'],rank='Secret Client Name'))
         except ValueError:pass
-        else:raise AssertionError('Public rank injection accepted.')
+        else:raise AssertionError('Public rank leaked arbitrary identity.')
         goal={'stage':analytics.LABELS['reply_to_call'],'kpi':'reply_to_call','change':'Agree a useful call',
               'start':today.isoformat(),'review_on':(today+dt.timedelta(days=7)).isoformat(),
               'primary':True,'cue':'a client asks about the audit','action':'ask who owns it','fallback':'ask one question'}
@@ -530,41 +641,33 @@ def supervised_corrections():
         else:raise AssertionError('Canonical goal schema loosened.')
         assert analytics.CONVERSATION_POINTS==POINTS and set(analytics.CALL_POINT_LABELS)==set(range(1,10))
         assert analytics.CALL_POINT_LABELS[7]=='Why you' and analytics.CALL_POINT_LABELS[9]=='Next step on Upwork'
-    model={'presentation':{'voyage':{'stations':[
+    model={'week':'2026-W42','presentation':{'voyage':{'stations':[
         {'badge':'First Doubloon','tier':'Gold','earned':True,'earned_week':'2026-W42','earned_at':'2026-10-13T10:00:00+02:00'},
         {'badge':'True North','tier':'Bronze','earned':True,'earned_week':'2026-W42','earned_at':'2026-10-14T10:00:00+02:00'}]}}}
     assert analytics.progress_strip(model)['newest_badge']['tier']=='Bronze'
     for row in model['presentation']['voyage']['stations']:row.pop('earned_at')
+    model['week']='2026-W43'
     strip=analytics.progress_strip(model)
     assert strip['newest_badge'] is None and 'unknown' in strip['newest_badge_basis']
+    model['week']='2026-W42'
+    for row in model['presentation']['voyage']['stations']:row['earned_at']='2026-10-14T10:00:00+02:00'
+    tied=analytics.progress_strip(model)
+    assert tied['newest_badge']['badge']=='First Doubloon' and tied['newest_badge']['tier']=='Gold'
+    assert 'no chronology claimed' in tied['newest_badge_basis']
     print('PASS supervised corrections:180/181 and100/101; summary/incomplete/unread source gates; Loom source refusal; exact projections; log assessment verification; read-only historical migration preserves statistical rank and funnel evidence; strict goals/matching example/measurement; timestamp chronology and tie unknown; canonical rubric definitions.')
 
 
 def compact_community_contract():
-    from html.parser import HTMLParser
     import analytics
+    from analytics_forbidden_terms import assert_member_copy, self_check
     from analytics_fixture import analytics_payload, analytics_sync_marker
     from analytics_replay import maya_card_example
-    class MemberText(HTMLParser):
-        def __init__(self):
-            super().__init__(convert_charrefs=True)
-            self.excluded = 0
-            self.parts = []
-        def handle_starttag(self, tag, attrs):
-            if tag in ('head', 'style', 'script', 'template', 'title'): self.excluded += 1
-        def handle_endtag(self, tag):
-            if tag in ('head', 'style', 'script', 'template', 'title'): self.excluded -= 1
-        def handle_data(self, data):
-            if not self.excluded: self.parts.append(data)
-    def member_text(markup):
-        parser = MemberText()
-        parser.feed(markup)
-        return ' '.join(' '.join(parser.parts).split())
+    self_check()
     def plain_member_text(markup):
-        text = member_text(markup)
-        for forbidden in ('7-day follow-up', '3/3 steps', 'steps', 'No clear change', 'finished cases', 'window', 'Target ', '—', 'not supplied', 'undecided', 'eligible', "Writer's", 'cohort', 'Execution and effect apart', 'stage starts', 'reply_rate', 'reply_to_call', 'done_k', 'done_n', 'goal_id'):
-            assert forbidden.casefold() not in text.casefold(), (forbidden, text)
-        return text
+        return assert_member_copy(markup, 'community', (
+            '7-day follow-up', '3/3 steps', 'steps', 'No clear change',
+            'finished cases', 'window', 'Target ', '—',
+        ))
     today=dt.date(2026,10,14)
     with fixture('part1-compact-community') as folder:
         analytics_sync_marker(folder)
@@ -575,13 +678,16 @@ def compact_community_contract():
         analytics.add_goals({'week':'2026-W43','goals':[dict(goal,start='2026-10-19',review_on='2026-10-26') for goal in example['goals_next']]})
         card=analytics.snapshot_public_card(example,[])
         assert card['member_name']=='Maya R.' and card['applications']==31
-        assert [(card[key]['k'],card[key]['n']) for key in ('reply_rate','reply_to_call','booked_to_held','proposal_to_won')] == [(29,140),(9,29),(8,9),(3,8)]
+        assert [(card[key]['k'],card[key]['n']) for key in ('reply_rate','reply_to_call','booked_to_held','proposal_to_won')] == [(29,140),(9,29),(8,9),(3,6)]
         html=analytics.public_onepager_html(card)
         text=plain_member_text(html)
         assert 'Funnel Score 88, was 81' in html.split('</header>')[0] and 'weeks in a row' not in html
         assert all(label in text for label in ('Reply rate','Call rate','Show-up rate','Win rate','leak'))
         assert all(label in text for label in ('Applications', 'Replies', 'Calls booked', 'Calls held', 'Proposals', 'Won'))
-        assert all(count in text for count in ('29 of 140', '9 of 29', '8 of 9', '3 of 8'))
+        assert all(count in text for count in ('29 of 140', '9 of 29', '8 of 9', '3 of 6'))
+        win_row=next(row for row in example['presentation']['scorecard'] if row['key']=='proposal_to_won')
+        assert win_row['finished']=={'k':3,'n':6} and win_row['pending']=={'n':2}
+        assert win_row['finished']['n']+win_row['pending']['n']==8
         assert card['reply_rate']['entry_period']=={'start':'2026-09-21','end':'2026-10-18'}
         assert '2026-10-12 to 2026-10-18' in text and '2026-09-21 to 2026-10-18' in text and 'width:min(100%,600px)' in html
         top_steps=copy.deepcopy(card);top_steps['reply_rate']['rung_reached']=3
@@ -623,6 +729,32 @@ def compact_community_contract():
         for question in ('What did Secret Client Name request?','Who owns Private Tender Name?',
                          'Could confidential spoken client material change?', ' '.join(['word']*15),'Email private@example.test'):
             assert analytics.snapshot_public_card(dict(legacy,community={'question':question}),sources)['question'] is None
+        assert card['rank'] in dict(analytics.RANK_LEVELS) and 'Rank: '+card['rank'] in text
+        badge_names=('Swift Sail','Quick Draw','True North')
+        for count in (0,1,3):
+            weekly=copy.deepcopy(card)
+            weekly['new_badge']=None
+            weekly['earned_badges']=[{'badge':name,'tier':'Bronze','earned_week':card['week'],
+                'new':True,'progress_to_next':'1 of 3 weeks'} for name in badge_names[:count]]
+            weekly['more_badges']=2 if count==3 else 0
+            weekly['next_badge']={'name':'Swift Sail','tier':'Gold','weeks_remaining':2}
+            output=plain_member_text(analytics.public_onepager_html(weekly))
+            assert ('+2 more' in output)==(count==3)
+            if count==0: assert '2 weeks to Swift Sail Gold' in output
+            else:
+                assert '2 weeks to Swift Sail Gold' not in output
+                for name in badge_names[:count]: assert name in output
+        for mutation in ('bad-rank','private-rank-field','bad-score','bad-hold','four-badges','wrong-week'):
+            bad=copy.deepcopy(card)
+            if mutation=='bad-rank': bad['rank']='Secret Client Name'
+            elif mutation=='private-rank-field': bad['rank_progress']['client_name']='Secret Client Name'
+            elif mutation=='bad-score': bad['rank_progress']['score']=101
+            elif mutation=='bad-hold': bad['rank_progress']['held_weeks']=5
+            elif mutation=='four-badges': bad['earned_badges']*=4
+            else: bad['earned_badges'][0]['earned_week']='2026-W41'
+            try: analytics.validate_community_card(bad,[])
+            except ValueError: pass
+            else: raise AssertionError(('Public rank/badge boundary accepted',mutation))
         empty=copy.deepcopy(snapshot['community_card'])
         html=analytics.public_onepager_html(empty)
         text=plain_member_text(html)
@@ -741,7 +873,79 @@ def job_fit_contract():
     print('PASS PART2 job fit: both halves confirmed, single half early, small/unknown silent, frozen-only bands/costs, seven-day/date boundaries, caps and plain member copy.')
 
 
+def maya_numeric_truth_contract():
+    import analytics
+    from analytics_replay import maya_card_example
+    from analytics_fixture import ROOT
+    from analytics_forbidden_terms import member_text
+    with fixture('maya-numeric-truth') as folder:
+        me=folder/'context/me.md'
+        me.write_text('Name: Maya Rivers\n'+me.read_text())
+        example=maya_card_example(analytics.compute(dt.date(2026,10,19)))
+        analytics.add_goals({'week':'2026-W43','goals':[dict(goal,start='2026-10-19',review_on='2026-10-26') for goal in example['goals_next']]})
+        rows={row['key']:row for row in example['presentation']['scorecard']}
+        assert all(row['period_label']=='Last 28 days' for row in rows.values())
+        for key in ('speed_10min','job_fit','first_reply','follow_ups_on_time'):
+            assert rows[key]['value'] is None and rows[key]['state']=='missing'
+            assert rows[key]['finished']=={'k':None,'n':None}
+        assert rows['speed_10min']['known_weekly']=={'k':26,'n':31}
+        efficiency=rows['value_per_100_connects']
+        assert efficiency['value'] is None and efficiency['finished']=={'k':None,'n':None}
+        assert example['report_facts']['four_weeks']['connects_spend']==384
+        assert example['report_facts']['four_weeks']['application_contract_value']==4400
+        assert '$384' in efficiency['counting'] and 'quantity' in efficiency['counting']
+        assert rows['proposal_to_won']['finished']=={'k':3,'n':6}
+        assert rows['proposal_to_won']['pending']=={'n':2}
+        assert example['community_card']['proposal_to_won']['value']==50
+        assert example['community_card']['first_reply_median_min'] is None
+        assert example['report_facts']['weekly']['first_reply_minutes']==4
+        volumes=example['community_card']['stage_counts']
+        assert volumes=={'applications':140,'replies':29,'calls_booked':9,'calls_held':8,
+                         'proposals':8,'won':3,'pending_proposals':2}
+        public_html=analytics.public_onepager_html(example['community_card'])
+        for label in ('Calls held','Proposals'):
+            assert __import__('re').search(r'<div class="stage"><span>'+label+r'</span>.*?<b>8</b>',public_html),label
+        assert '2 still open' in public_html and '3 of 6' in public_html
+        assert '4 min first reply' not in public_html
+        half_public=copy.deepcopy(example['community_card'])
+        half_public['reply_rate'].update(value=18.5,k=37,n=200)
+        half_public['stage_counts'].update(applications=200,replies=37)
+        half_public['biggest_improvement']={'kpi':'reply_rate','from':12.5,'to':18.5}
+        half_html=analytics.public_onepager_html(half_public)
+        half_text=member_text(half_html)
+        assert '13% → 19%' in half_text and 'Reply rate 19%' in half_text
+        assert half_public['reply_rate']['value']==18.5
+        text=(ROOT/'references/chat-report-example.md').read_text()
+        checked=analytics.check_report(text,example)
+        assert checked['status']=='PASS' and checked['checked_values']>=70,checked
+        for wrong in (text.replace('31 applications this week','25 applications this week'),
+                      text.replace('**$4,200**','**$3,500**'),
+                      text.replace("that's 21%","that's 18%"),
+                      'Last week you sent 31 applications.',
+                      'Last month you won $4,200.',
+                      'Funnel Score 88, down from 81.',
+                      text.replace('4 minutes on median','4 minutes on average'),
+                      text.replace('one is now a call on Thursday','two are now calls on Thursday'),
+                      text+'\nYou sent 42 applications this week.'):
+            rejected=analytics.check_report(wrong,example)
+            assert rejected['status']=='FAIL' and rejected['errors'],rejected
+        slow=copy.deepcopy(example)
+        slow['report_facts']['weekly'].update(invite_reply_minutes=120,invites_within_hour=3)
+        rejected=analytics.check_report(text,slow)
+        assert rejected['status']=='FAIL' and rejected['errors'],rejected
+        wrong_currency=copy.deepcopy(example)
+        wrong_currency['north_star']['currency']='EUR'
+        rejected=analytics.check_report(text,wrong_currency)
+        assert rejected['status']=='FAIL' and rejected['errors'],rejected
+        rejected=analytics.check_report(text.replace('**$4,200**','**EUR 4,200**'),example)
+        assert rejected['status']=='FAIL' and rejected['errors'],rejected
+    print('PASS Maya facts: weekly observations stay weekly; incomplete 28-day habits and Connects quantity unknown; 3/6 finished wins plus 2 pending; actual stage volumes; report metric, period, direction, statistic, currency and invite negative controls.')
+
+
 def main():
+    maya_numeric_truth_contract()
+    rank_contract()
+    progress_and_layout_contract()
     thread_references()
     score_contract()
     scorecard_missing_and_cards()

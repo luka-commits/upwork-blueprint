@@ -133,7 +133,7 @@ over all fitting held calls. Preserve that population and its split, never a
 separate result row. The Call rate row detail contains only the link
 "Why these replies stalled → Conversations", without a thread list. Keep links
 in both directions; review content lives once in Conversations. Missing row values display "unknown", never zero or an estimate.
-No new segment findings or expectation tests: KPIs 20–21 say “nothing new” until package 4.
+Use the computed job-fit patterns from finished applications in the last 12 weeks: confirmed only when they hold in the older and newer six weeks, otherwise an early signal with n, and nothing below 15 cases. Show at most two apply recommendations and one skip recommendation.
 
 Read each evidence lead with `python3 code/pipeline.py get <id>`, its sent application,
 thread, Loom transcript, call and sent proposal where relevant. On the first run, prepare the evidence inventory. On routine runs, review at most
@@ -278,6 +278,8 @@ or state by hand. Omit live judgments for sources whose computed coverage is cor
 
 ## Step 4 · Weekly coaching and report
 
+Run `python3 code/analytics.py facts` and use that read-only facts sheet as the numeric source for the Monday report. After writing the report, run `python3 code/analytics.py check-report <file>` against the same snapshot; correct every rejected value before showing it. The check verifies values, never wording.
+
 Use [references/coach-brief.md](../../references/coach-brief.md) for judgment and
 [references/chat-report-example.md](../../references/chat-report-example.md) as a tone
 example, not a form. No fixed paragraph order, sentence count or stock rubric verdict.
@@ -294,7 +296,7 @@ opening line. Give top, middle, bottom, inbound and money spent at least one sen
 each with its period. Include the call read across calls and the conversation pattern
 when one repeats; at most two supported patterns with numbers; forecast basis as a
 guide; open deals first, then one to three habits phrased as cue and action. Keep
-each item once and use about 280 words without dropping a source gap. Distinguish fixed won value,
+each item once; choose the length needed to carry the facts and source gaps clearly. Distinguish fixed won value,
 hourly terms and billed earnings; unknown terms stay unknown. Include every carried
 brief item even when its source is missing, as a gap rather than a result.
 
@@ -318,7 +320,7 @@ receive a review." Never invent a defect to fill this shape.
 The first four weekly experiences, grounded in actual records:
 1. Make the next application better: explain baseline collection and no previous
    four-week comparison, review a sent passage and agree one usable practice goal.
-   Within the frozen tabs, goal cards carry the review/action; the collapsed
+   Within the frozen tabs, goal cards carry the review/action; the always-visible
    scorecard carries actual activity, fit and Connects spent, with baseline
    collection and no recorded calls where true. The community card
    shows actual activity, baseline collection and the goal, without improvement claims.
@@ -336,7 +338,7 @@ The first four weekly experiences, grounded in actual records:
 4. Decide what to keep and change: review commitments, actual application changes,
    supported outcomes and Connects spent; choose keep, adjust or stop with evidence.
    Four elapsed weeks do not establish conversion improvement. Use actual completed
-   reviews and never imply a badge was earned merely by attending. The drawer
+   reviews and never imply a badge was earned merely by attending. Achievements
    shows available history and goal cards the next commitment; uncertain outcomes
    stay unclear.
    The card shows supported progress and next focus; unestablished improvement
@@ -358,54 +360,54 @@ Pauses and weeks without opportunities neither advance nor erase progress; never
 award on 0 of 0. Conversion badges use the full mature population. True North credits
 informed disqualification and excludes reasoned `not needed` points. A clean
 disqualification is a valid informed call outcome, not a failed sale. Preserve
-the treasure map in the drawer, Lighthouse Keeper and Back on Course.
+the treasure map in Achievements, Lighthouse Keeper and Back on Course.
 Weekly compute checks tiers from reviewed evidence; record persists awards. Never
 repeat an instant award already printed or call an old earned tier new. Badge
 failure leaves a named gap and does not fail the data write.
 
-## App content contract · frozen items 29–34
+## App content contract · frozen section 14
 
-Exactly two tabs: **This week** and **Conversations**. Use only
+Exactly three tabs: **This week**, **Conversations** and **Achievements**. Use only
 saved code-produced values; unknown sources display "unknown" and their exact
-supply instructions. No graph, forecast chart, to-dos or voyage view in Analytics.
-To-dos belong to `/brief` and the lead list/board.
+supply instructions. No funnel graphic, forecast chart or to-dos in Analytics.
 
 **This week**, in this order:
-1. A slim weekly strip: Funnel Score with its 8-week sparkline and previous value;
-   won this week with forecast as a half sentence ("likely next 30 days about
-   $3,500" only when sourced); biggest gain against own four weeks, or biggest
-   decline when nothing improved; newest badge plus progress to its next tier;
-   link **All badges**. Badge text is name, tier, one plain sentence of at most
-   eight words and progress; exact rule only on click. No "Island revealed".
-2. Focus as a headline with its reason in one line.
-3. One to three agreed goal cards, each with cue ("when this happens"), action
-   ("do this"), coach example and how it will be measured next week.
-4. Last goals checked, with execution and effect separate; keep/adjust/stop and
-   unresolved older goals stay visible. First run without goals gets one line
-   pointing to `/analytics`, without invented completion.
-5. One collapsed scorecard grouped top, middle and bottom, with the focus row
-   tinted. Preserve the scorecard's period, comparison and evidence contract.
-   Call rate detail is only **Why these replies stalled → Conversations**.
+1. A slim progress strip with exactly three parts: Funnel Score with its 8-week
+   sparkline and previous value; won this week with forecast as a half sentence;
+   biggest gain against the four weeks before, or biggest decline if nothing improved.
+   A KPI without a previous value is excluded, never "was 0". Rates use whole
+   percentages, for example "Reply rate 18% -> 21%", with "vs the 4 weeks before"
+   beneath. A newly earned badge appears as a one-week highlight linking to Achievements.
+2. One **This week: <focus>** block with the focus heading and one numeric reason line.
+   It includes one to three goal cards, with cue, action, quoted coach example and
+   "Checked: ...". Continuing goals show last week's execution and effect separately;
+   other goals say "New this week". Goals that ended last week share one line below.
+   Remove the header stat line and methodology sentence; methodology opens from a small info icon.
+3. The complete scorecard grouped top, middle and bottom. Every row is always visible;
+   only its details stay collapsed. Tint the focus row. Preserve period, previous
+   value, targets and evidence. Call rate detail links to **Why these replies stalled -> Conversations**.
 
-**All badges** opens a side drawer containing the treasure map with all badges
-and the history of which goals worked. This is their single home.
+**Conversations** starts with one to three supported cross-stage patterns with quotes.
+Sections are Applications, Chats, Calls and Proposals. Each row shows the real job
+title, key finding of at most 12 words, needs work / keep marker and date.
+Show this week by default, sort by importance, show at most three per section plus
+**Show all**. Open the full review on click; empty sections state exactly how to supply
+their source. Keep review content here and link to the relevant funnel row.
 
-**Conversations** starts with one to three repeated patterns across stages,
-each supported by quotes; if no pattern is supported, say so. Below, exactly:
-Applications (actual sent copy, screening answers/bid and used Loom transcript,
-application rubric); Chats (the three content points, last writer and free read
-above); Calls (saved call reviews and their nine-point scan/coverage); Proposals
-(actual sent proposal's scope, price and decision date). Each section shows at
-most three entries plus **Show all**, and each entry opens its review card.
-Missing evidence shows what to supply, not a fabricated judgment. Link back to
-its funnel row without copying review content into the scorecard.
+**Achievements** shows rank and progress to the next, the complete badge gallery,
+Funnel Score over all weeks and goals that worked. Earned badges have colour, tier
+and next-tier progress; locked badges are faint with their short sentence. Rank uses
+the four-week rolling Funnel Score: Deckhand below 40, Boatswain 40, Officer 60,
+Captain 75 and Admiral 90, each held over four weeks. Preserve the treasure map.
 
-At 1440×900 with details collapsed, strip, focus, goals and last goals fit within
-the first 900 px; each tab's total document.scrollHeight is at most 1,900 px.
-At 390 px each tab is at most four screens/3,400 px. Card paragraphs are at most
-two lines. Every block answers its tab's question. The build report must measure
-document.scrollHeight for each tab at each width; over budget is FAIL. A command
-alone cannot claim these UI measurements or real-account acceptance.
+Measure document.scrollHeight per tab at 1440x900 and 390px. This week's heights
+are guidelines: about 1,900px desktop and 3,400px mobile. Warn above the guideline;
+fail only beyond +30% (2,470px and 4,420px). Never cut readability or spacing to hit
+these numbers. Inspect screenshots for overflow, clipping, raw numbers, placeholders
+and old content. Rendered member text excludes not supplied, undecided, eligible,
+Writer's, cohort, SYNTHETIC, saved review and internal field names; never show raw
+floats with three or more decimal places. A command cannot claim measured UI proof
+or real-account acceptance.
 
 ## Step 5 · Agree and put the goals into practice
 
@@ -460,7 +462,10 @@ label weekly applications separately. Show route and k/n, level reached, step co
 and progress against the member's own baseline; no target pass/fail flags, default
 target ticks or external target ticks. Peer rates do not adjust for job mix or price.
 Money appears only when `Share money: yes`. Retain last week's applicable goals
-with done marks, newly earned badge and at most five highest badge tiers.
+with done marks. Show badges earned that week, at most three with image and tier
+then `+n more`; when none were earned, show the next badge in reach with weeks
+remaining. Show the code-produced rank and Funnel Score with previous value.
+No streaks and no historical highest-tier badge list.
 
 Re-run `python3 code/analytics.py compute --file -` with the completed object after
 agreement, so code incorporates the agreed goals and recomputes review-based

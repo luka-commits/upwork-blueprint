@@ -28,6 +28,8 @@ export type AnalyticsScorecardRow = {
   evidence?: string[]; insight?: string; counting?: string;
 };
 export type AnalyticsPresentation = {
+  rank_progress?: { rank?: string; score?: number | null; next_rank?: string | null; next_threshold?: number | null; held_weeks?: number; required_weeks?: number; progress?: number };
+  rank?: string | { rolling_score?: number | null; score?: number | null; name?: string; next_name?: string | null; next_threshold?: number | null; progress?: number | { percent?: number; current?: number; target?: number }; state?: string; weeks?: number };
   scorecard?: AnalyticsScorecardRow[];
   /** Exactly the writer-selected overview keys; the browser never ranks them. */
   number_keys?: string[];
@@ -89,6 +91,8 @@ export type AnalyticsCallCard = {
 
 export type AnalyticsBadge = {
   name?: string; badge?: string; tier?: string; short?: string;
+  earned?: boolean; locked?: boolean; earned_week?: string; week?: string; as_of_week?: string; as_of?: string; earned_at?: string;
+  progress?: number | { percent?: number; current?: number; target?: number };
   image?: string; fallback_image?: string; motif?: string;
   progress_text?: string; next_tier?: string;
   progress_to_next?: string | { text?: string; qualifying_weeks?: number; required_weeks?: number };
@@ -96,7 +100,7 @@ export type AnalyticsBadge = {
 };
 export type AnalyticsProgress = {
   score_history?: { week: string; value?: number | null; score?: number | null }[];
-  biggest_change?: { kind?: string; direction?: string; key?: string; value?: number; previous?: number; name?: string; label?: string; text?: string; sentence?: string; change_text?: string; comparison_text?: string; delta_text?: string; evidence?: AnalyticsEvidence } | null;
+  biggest_change?: { kind?: string; direction?: string; key?: string; value?: number; previous?: number | null; unit?: string; name?: string; label?: string; text?: string; sentence?: string; change_text?: string; comparison_text?: string; delta_text?: string; evidence?: AnalyticsEvidence } | null;
   newest_badge?: AnalyticsBadge | null;
   badges?: AnalyticsBadge[];
 };
@@ -140,11 +144,16 @@ export const ANALYTICS_FIELD_LABELS: Record<string, string> = {
 export function analyticsMemberText(value: unknown): string {
   const text = value == null ? 'unknown' : typeof value === 'object'
     ? String((value as any).text || (value as any).label || (value as any).reason || 'unknown') : String(value);
-  const translate = (part: string) => part.replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g, key => ANALYTICS_FIELD_LABELS[key] || key)
+  const translate = (part: string) => part.replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g, key => ANALYTICS_FIELD_LABELS[key] || key.replace(/_/g, ' '))
     .replace(/Writer['’]s comparison not supplied/gi, 'Comparison unavailable')
+    .replace(/\bSYNTHETIC\b/gi, 'example').replace(/saved review/gi, 'review')
+    .replace(/Writer['’]s/gi, 'Review').replace(/\bWilson lower bound\b/gi, 'lower end of the measured range').replace(/\bWilson(?: interval)?\b/gi, 'measured range')
+    .replace(/\bdenominator\b/gi, 'finished cases').replace(/\bmature\b/gi, 'finished')
+    .replace(/(-?\d+\.\d+)\s*%/g, (_, n) => `${Math.round(Number(n))}%`)
+    .replace(/\b(-?\d+\.\d{3,})\b/g, (_, n) => new Intl.NumberFormat('en-US', {maximumFractionDigits: 1}).format(Number(n)))
     .replace(/not supplied/gi, 'unavailable').replace(/undecided/gi, 'Not clear yet')
     .replace(/eligible/gi, 'fitting').replace(/cohorts/gi, 'groups').replace(/cohort/gi, 'group')
     .replace(/Execution and effect apart/gi, 'What you did and what changed')
-    .replace(/unreviewable/gi, 'Cannot check yet').replace(/stage starts/gi, 'next fitting opportunity comes up').replace(/—/g, ',');
+    .replace(/unreviewable/gi, 'Cannot check yet').replace(/stage starts/gi, 'next fitting opportunity comes up').replace(/\s*—\s*/g, ', ');
   return text.split(/(“[^”]*”|"[^"]*")/g).map((part, index) => index % 2 ? part : translate(part)).join('');
 }

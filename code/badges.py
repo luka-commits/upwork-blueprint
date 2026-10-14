@@ -439,8 +439,6 @@ def voyage(awards, snapshot=None):
                          'locked': not bool(tier), 'requirement': requirement, 'criterion': requirement,
                          'progress_to_next': progress, 'next_tier': TIERS[TIERS.index(tier)+1] if tier and tier != TIERS[-1] else TIERS[0] if not tier else None,
                          'evidence': [award['lead_id']] if award.get('lead_id') else []})
-    result.pop('rank', None)
-    result.pop('rank_progress', None)
     result.update(stations=stations)
     return result
 

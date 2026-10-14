@@ -16,7 +16,7 @@ from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'tools'), str(ROOT / 'code')]
-from analytics_fixture import analytics_rows, analytics_payload, run
+from analytics_fixture import analytics_rows, analytics_payload, run, EXAMPLE_CALL_READ
 import analytics
 
 
@@ -42,11 +42,11 @@ def maya_card_example(snapshot):
     card = value['community_card']
     card.update(week=value['week'], member_name='Maya R.', applications=31,
                 activity_period={'start':'2026-10-12','end':'2026-10-18'},
-                next_focus=analytics.LABELS['reply_to_call'], first_reply_median_min=4,
+                next_focus=analytics.LABELS['reply_to_call'], first_reply_median_min=None,
                 biggest_improvement={'kpi':'reply_rate','from':18,'to':21}, won_value=None)
     bounds = analytics.period(analytics.span(dt.date(2026,10,19),28))
     for key, k, n in (('reply_rate',29,140),('reply_to_call',9,29),('booked_to_held',8,9),
-                      ('call_to_won',3,8),('proposal_to_won',3,8)):
+                      ('call_to_won',3,6),('proposal_to_won',3,6)):
         row=card[key]
         row.update(k=k,n=n,value=round(100*k/n),entry_period=copy.deepcopy(bounds),
                    state=analytics.rate_state(k,n,row['target']),trend='undecided',
@@ -61,6 +61,15 @@ def maya_card_example(snapshot):
     card['new_badge']={'badge':'Swift Sail','tier':'Silver','earned_week':value['week'],
                        'new':True,'progress_to_next':'3 of 6 weeks'}
     card['top_badges']=[]
+    card['stage_counts']={'applications':140,'replies':29,'calls_booked':9,
+        'calls_held':8,'proposals':8,'won':3,'pending_proposals':2}
+    # Frozen example scores 81 then 88 do not prove a four-week held rank.
+    value['rank_progress']=analytics.rank_fields({'week':value['week'],'funnel_score':card['funnel_score']},
+        [{'week':'2026-W41','funnel_score':{'score':81}}])
+    value['rank']=value['rank_progress']['rank']
+    card.update(rank=value['rank'],rank_progress=copy.deepcopy(value['rank_progress']),
+        earned_badges=[copy.deepcopy(card['new_badge'])],more_badges=0,
+        next_badge={'name':'Swift Sail','tier':'Gold','weeks_remaining':3})
     value['funnel_score']=copy.deepcopy(card['funnel_score'])
     commitments = [
         ('reply_to_call', 'Offer two call times', 'an interested client replies',
@@ -90,15 +99,15 @@ def maya_card_example(snapshot):
         forecast={'next_30_days':3500}, pipeline={'live':11},
         verdict={'kpi':'reply_to_call','headline':'Turn replies into calls',
                  'reason':'29 replies led to 9 booked calls over four weeks; 20 did not book. Of those, 6 are still talking, 9 went quiet and 5 said no or were not a fit.'},
-        goals_review=[{'goal_id':'maya-last-call-times','change':'Offer two call times','done_k':7,'done_n':9,
+        goals_review=[{'goal_id':'maya-last-call-times','kpi':'reply_to_call','change':'Offer two call times','done_k':7,'done_n':9,
             'effect':'undecided','effect_text':'4 of those 7 booked a call; neither of the other 2 did. Promising, but too few conversations to be sure.',
             'decision':'Keep it','evidence':[]},
-            {'goal_id':'maya-last-budget','change':'Budget before price','done_k':1,'done_n':4,
+            {'goal_id':'maya-last-budget','kpi':'call_review','change':'Budget before price','done_k':1,'done_n':4,
              'effect':'undecided','effect_text':'Price came before budget in 3 calls. Keep practising this week.',
              'decision':'Carry over','evidence':[]}])
     # Keep illustrative UI counts separate from the eight measured replay weeks.
     counts={'reply_rate':(29,140),'reply_to_call':(9,29),'booked_to_held':(8,9),
-            'proposal_to_won':(3,8),'weekly_volume':(140,100),'job_fit':(31,31),
+            'proposal_to_won':(3,6),'weekly_volume':(140,100),'job_fit':(31,31),
             'speed_10min':(26,31),'first_reply':(4,9),'follow_ups_on_time':(8,9),
             'proposal_on_time':(7,8),'invite_to_call':(1,4),'offer_to_contract':(1,1),
             'value_per_100_connects':(4400,384)}
@@ -107,11 +116,11 @@ def maya_card_example(snapshot):
     for saved in snapshot.get('presentation',{}).get('scorecard',[]):
         key=saved['key']; k,n=counts[key]
         unit='min' if key=='first_reply' else '$' if key=='value_per_100_connects' else '' if key=='weekly_volume' else '%'
-        current=4 if key=='first_reply' else 35 if key=='weekly_volume' else round(100*k/n,1)
+        current=4 if key=='first_reply' else 35 if key=='weekly_volume' else round(100*k/n)
         target=25 if key=='weekly_volume' else saved['target']['value']
         value['kpis'][key]={'label':saved['name'],'unit':unit,'direction':'down' if key=='first_reply' else 'up','target':target}
         rows.append({'key':key,'group':saved['group'],'name':saved['name'],'stage_label':saved.get('stage_label'),
-            'period_label':'This week' if key in ('speed_10min','job_fit') else 'Last 28 days','value':None if key=='offer_to_contract' else current,
+            'period_label':'Last 28 days','value':None if key=='offer_to_contract' else current,
             'finished':{'k':None if key in ('first_reply','offer_to_contract') else k,'n':None if key in ('first_reply','offer_to_contract') else n},'pending':{'n':0},'state':'missing' if key=='offer_to_contract' else 'observed',
             'change':{'previous_value':18 if key=='reply_rate' else None,'comparison_label':'Previous four weeks'},
             'target':{'kind':saved['target']['kind'],'value':target,'level':card[key]['rung_reached'] if key in card and isinstance(card[key],dict) and 'rung_reached' in card[key] else saved['target']['level'],'thresholds':saved['target']['thresholds']},
@@ -119,14 +128,49 @@ def maya_card_example(snapshot):
             'split':[{'label':'Held calls to proposal','k':8,'n':8}] if key=='proposal_on_time' else [],
             'focus':{'reason':value['verdict']['reason']} if key=='reply_to_call' else None,
             'evidence':[], 'market':None,'next_action':None})
+    # The brief supplies only this week's habits, not the earlier 109 application
+    # observations. Missing older sources cannot become a four-week estimate.
+    incomplete_habits = {'speed_10min', 'job_fit', 'first_reply', 'follow_ups_on_time'}
+    for row in rows:
+        if row['key'] == 'proposal_to_won':
+            row['pending'] = {'n':2}
+            row['counting'] = 'Three won and three lost proposals have finished. Two open proposals stay pending and never count as lost.'
+        if row['key'] in incomplete_habits:
+            row.update(value=None, state='missing', finished={'k':None,'n':None},
+                known_weekly={'k':counts[row['key']][0], 'n':counts[row['key']][1]},
+                counting='This week is known; earlier observations in the last 28 days are missing. Supply those records to compare four-week habits.')
+        if row['key'] == 'value_per_100_connects':
+            row.update(value=None, state='missing', finished={'k':None,'n':None},
+                counting='The four-week cost is $384 and contract value is $4,400. The number of Connects is unknown; dollars spent cannot replace that quantity.')
     value['presentation']={'scorecard':rows,'focus':{'headline':value['verdict']['headline'],'reason':value['verdict']['reason']},
         'activity_summary':'31 applications this week against a goal of 25; 26 sent within 10 minutes. All fit your lane and rate.',
         'live_leads_text':'11 live leads: 6 still talking, 3 calls booked and 2 proposals waiting.',
         'goal_cards':copy.deepcopy(goal_displays),
         'progress_strip':{'score_history':[{'week':'2026-W41','value':81},{'week':value['week'],'value':88}],
-            'biggest_change':{'text':'Reply rate 18% → 21%','change_text':'Compared with the previous four weeks'},
-            'newest_badge':{'name':'Swift Sail','tier':'Silver','short':'Quick, qualified applications',
+            'biggest_change':{'key':'reply_rate','name':'Reply rate','previous':18,'value':21,'direction':'gain','text':'Reply rate 18% -> 21%','change_text':'vs the 4 weeks before'},
+            'newest_badge':{'name':'Swift Sail','tier':'Silver','earned_week':value['week'],'short':'Quick, qualified applications',
                             'progress_text':'3 of 6 weeks to Gold'}},'next_run_day':'Monday'}
+    # Private numeric truth for the freely written frozen Maya report. These are
+    # illustrative facts, separate from the eight measured replay snapshots.
+    value['report_facts'] = {
+        'weekly': {'applications':31,'goal':25,'fast':26,'fast_minutes':10,
+            'first_reply_minutes':4,'followups_done':8,'followups_due':9,
+            'invites':4,'invites_answered':4,'invite_reply_minutes':60,
+            'invites_within_hour':4,'invite_calls':1,
+            'calls':5,'transcripts_read':4,'price_before_budget':3,'price_read_calls':4,
+            'cautious_clients':2,'proposal_wins':2,'direct_offer_wins':1},
+        'four_weeks': {'applications':140,'replies':29,'reply_rate':21,
+            'previous_reply_rate':18,'booked_calls':9,'active_chats':6,'quiet_chats':9,
+            'declined_chats':5,'held_calls':8,'no_shows':1,'proposals':8,
+            'fast_proposals':7,'fast_proposal_minutes':30,'proposal_wins':3,
+            'open_proposals':2,'lost_proposals':3,'decision_dates':2,'ended_leads':8,
+            'price_losses':4,'fixed_price_ceiling':500,'connects_spend':384,
+            'application_contract_value':4400},
+        'pattern': {'reply_rate':31,'comparison_reply_rate':15,'jobs':64,'start_week':39},
+        'live': {'total':11,'chats':6,'calls':3,'proposals':2,'quiet_to_reopen':4,'quiet_days':30},
+        'goal': {'offered_times':7,'replies':9,'booked':4,'no_times':2,'no_times_booked':0,
+            'budget_first':1,'calls':4},
+        'forecast': {'days':30,'value':3500}}
     return value
 
 
@@ -176,7 +220,7 @@ def main():
                 if row.get('call_held_at'):
                     (path/'call.md').write_text('Member: Maya\nComplete: yes\nLanguage: English\nMaya: '+own+'\nClient: '+quote+'\nMaya: Let us agree the next step.\n')
                     if row['id'] in reviewed:
-                        (path/'call-review.md').write_text("## Coach's read\n\nExample review: the client wants fewer manual checks. The stated cost is three hours each week. The question made the desired outcome concrete. Ask who will own the audit inputs. Confirm the review date before sending the scope.\n\n## Next message\n\nWho will own the audit inputs before Friday?\n\n## Agreed step\n\nClient reviews scope on Friday.\n\n## Nine points\n\nSee the saved nine-point rubric.\n")
+                        (path/'call-review.md').write_text("## Coach's read\n\n"+EXAMPLE_CALL_READ+"\n\n## Next message\n\nWho will own the audit inputs before Friday?\n\n## Agreed step\n\nClient reviews scope on Friday.\n\n## Nine points\n\nSee the saved nine-point rubric.\n")
             run('pipeline.py', 'add', '--file', '-', value=new)
             rubrics=[]
             for jid in reviewed:
@@ -224,7 +268,9 @@ def main():
         counts={stage:sum(row.get('reviewable') is True for row in entries) for stage,entries in last['conversations']['sections'].items()}
         assert all(count>=4 for count in counts.values()), counts
         assert last['conversations']['patterns'] and all(len({quote['stage'] for quote in row['quotes']})>=2 for row in last['conversations']['patterns'])
-        assert 'rank' not in last and 'rank' not in last['community_card']
+        from analytics_contract_tests import assert_rank_projection
+        assert_rank_projection(last)
+        assert last['rank_progress'] == analytics.rank_fields(last, analytics.read_lines('analytics-history.jsonl'))
         (folder/'community-card.html').write_text(analytics.public_onepager_html(analytics.snapshot_public_card(last)), encoding='utf-8')
         example=maya_card_example(last)
         # Approve these synthetic texts in the isolated goal writer, never real data.

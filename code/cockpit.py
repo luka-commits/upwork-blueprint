@@ -459,20 +459,14 @@ def snapshot_aliases(value):
     return row
 
 
-def snapshot_view(snapshot):
+def snapshot_view(snapshot, history=None):
     """Only aliases of prepared fields; missing old snapshots need a writer rerun."""
-    result = snapshot_aliases(analytics.saved_snapshot_view(snapshot))
+    result = snapshot_aliases(analytics.saved_snapshot_view(snapshot, history))
     presentation = dict(result['presentation']) if isinstance(result.get('presentation'), dict) else {}
-    result.pop('rank', None)
-    presentation.pop('rank', None)
     for key in ('voyage', 'funnel', 'next_run_day', 'next_run_on'):
         if key not in presentation and key in result:
             presentation[key] = result[key]
     result['presentation'] = presentation
-    for container in (result.get('voyage'), presentation.get('voyage')):
-        if isinstance(container, dict):
-            container.pop('rank', None)
-            container.pop('rank_progress', None)
     if isinstance(result.get('conversation_review'), dict):
         for thread in result['conversation_review'].get('threads', []):
             thread['points'] = {key: value for key, value in thread.get('points', {}).items() if key in analytics.CONVERSATION_POINTS}
@@ -485,8 +479,9 @@ def snapshot_view(snapshot):
 def analytics_state(today):
     """The cockpit reads the writer's numbers; it never runs weekly compute."""
     errors = []
-    snapshots = [snapshot_view(row) for row in saved_rows('analytics-history.jsonl', errors)]
-    history = snapshots[-12:]
+    raw_snapshots = saved_rows('analytics-history.jsonl', errors)
+    snapshots = [snapshot_view(row, raw_snapshots) for row in raw_snapshots]
+    history = snapshots
     latest = max(history, key=lambda row: _when(row.get('generated_at')) or
                  datetime.datetime.min.replace(tzinfo=datetime.timezone.utc), default=None)
     if latest is not None:

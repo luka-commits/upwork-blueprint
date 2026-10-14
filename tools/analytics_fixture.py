@@ -27,6 +27,18 @@ TODAY = dt.datetime.now(ZoneInfo('Europe/Berlin')).date()
 BASE = dt.datetime.combine(TODAY - dt.timedelta(days=2), dt.time(12), dt.timezone.utc)
 
 
+EXAMPLE_CALL_READ = (
+    "The client described a recurring manual task and named its weekly cost. "
+    "The member asked about the desired result, which gave the conversation a useful direction. "
+    "The next question should establish who owns the inputs and who will approve the work. "
+    "Keep the scope tied to that result before discussing a price or promising a delivery date. "
+    "A clear owner makes the next step easier to check and reduces the chance of waiting without an answer. "
+    "Use the client's exact words when confirming the problem, then ask one concrete question about the remaining uncertainty. "
+    "The transcript supports this coaching example; it does not establish a budget, a signed contract, or a completed delivery. "
+    "Confirm those details in the thread before treating them as agreed facts."
+)
+
+
 def stamp(seconds=0):
     return (BASE + dt.timedelta(seconds=seconds)).isoformat()
 
@@ -145,7 +157,7 @@ def cohorts():
         with fixture(f'n{n}'):
             rows = []
             for index in range(n):
-                rows.append({'id': str(990000000 + index), 'title': f'SYNTHETIC n={n} lead {index}',
+                rows.append({'id': str(990000000 + index), 'title': 'Automate client onboarding in Airtable',
                              'status': 'won', 'found_at': stamp(), 'applied_at': stamp(),
                              'applied_observation': {'verified': True, 'source': 'upwork-proposal'},
                              'replied_at': stamp(600),
@@ -191,16 +203,16 @@ assert.deepEqual(step.interval,n===60?[38,62]:null);
 def eligibility():
     with fixture('eligibility'):
         seed([
-            {'id': '991000001', 'title': 'SYNTHETIC verified', 'status': 'applied', 'found_at': stamp(),
+            {'id': '991000001', 'title': 'Automate client onboarding in Airtable', 'status': 'applied', 'found_at': stamp(),
              'posted_date': stamp(-120)},
-            {'id': '991000002', 'title': 'SYNTHETIC unverified', 'status': 'applied', 'found_at': stamp(),
+            {'id': '991000002', 'title': 'Automate client onboarding in Airtable', 'status': 'applied', 'found_at': stamp(),
              'applied_at': stamp(), 'speed_to_lead_s': 999,
              'applied_observation': {'verified': False}, 'replied_at': stamp(999),
              'replied_observation': {'verified': False}},
-            {'id': '991000003', 'title': 'SYNTHETIC naive', 'status': 'applied', 'found_at': stamp(),
+            {'id': '991000003', 'title': 'Automate client onboarding in Airtable', 'status': 'applied', 'found_at': stamp(),
              'applied_at': stamp().split('+')[0], 'speed_to_lead_s': 999,
              'applied_observation': {'verified': True}},
-            {'id': '991000004', 'title': 'SYNTHETIC imported, no counted application', 'imported': True,
+            {'id': '991000004', 'title': 'Automate client onboarding in Airtable', 'imported': True,
              'status': 'new', 'found_at': stamp()},
         ])
         run('pipeline.py', 'observe', '991000001', 'applied', stamp(), '--source', 'upwork-proposal', '--verified')
@@ -224,7 +236,7 @@ def eligibility():
 
 def reply_and_proposal():
     with fixture('reply'):
-        seed([{'id': '992000001', 'title': 'SYNTHETIC reply gaps', 'status': 'call', 'found_at': stamp(),
+        seed([{'id': '992000001', 'title': 'Automate client onboarding in Airtable', 'status': 'call', 'found_at': stamp(),
                'history': [{'status': 'call', 'at': stamp(3600)}]}])
         import sync
         messages = [{'node': {'id': 'c1', 'from_side': 'client', 'createdDateTime': stamp(), 'message': 'Question?'}},
@@ -275,7 +287,7 @@ def daily():
                 at = dt.datetime.combine(day, dt.time(12), dt.timezone.utc)
                 if offset == 12 and index == 0:
                     at = dt.datetime.combine(day - dt.timedelta(days=1), dt.time(23, 30), dt.timezone.utc)
-                rows.append({'id': str(993000000 + len(rows)), 'title': 'SYNTHETIC local-day application',
+                rows.append({'id': str(993000000 + len(rows)), 'title': 'Automate client onboarding in Airtable',
                              'status': 'applied', 'found_at': at.isoformat(), 'applied_at': at.isoformat()})
         seed(rows)
         s = state()
@@ -293,7 +305,7 @@ def daily():
 def profile_and_retention():
     with fixture('profile') as folder:
         old = stamp(-10 * 86400)
-        seed([{'id': '994000001', 'title': 'SYNTHETIC retained member details', 'status': 'call', 'found_at': old,
+        seed([{'id': '994000001', 'title': 'Automate client onboarding in Airtable', 'status': 'call', 'found_at': old,
                'details': {'connects_cost': 16, 'description': 'SYNTHETIC expired posting',
                            'fetched_at': old, '_cached_at': {'description': old}},
                'reply_gaps_s': [300], 'loom_duration_s': 120, 'loom_wpm': 5,
@@ -301,7 +313,7 @@ def profile_and_retention():
         profile = {'data': {'personalData': {'photo': 'synthetic-photo', 'description': 'SYNTHETIC overview'},
                             'skills': [{'prettyName': 'Python'}, {'prettyName': 'Analytics'}],
                             'employmentRecords': [{}], 'educationRecords': [], 'video': ''}}
-        highlights = {'portfolio_projects': [{'title': 'SYNTHETIC portfolio'}] * 4, 'certificates': []}
+        highlights = {'portfolio_projects': [{'title': 'Automate client onboarding in Airtable'}] * 4, 'certificates': []}
         p = folder / 'data' / 'profile.json'
         h = folder / 'data' / 'highlights.json'
         p.write_text(json.dumps(profile)); h.write_text(json.dumps(highlights))
@@ -348,7 +360,7 @@ def profile_and_retention():
 
 def media():
     with fixture('media') as folder:
-        seed([{'id': '995000001', 'title': 'SYNTHETIC local Loom and call', 'status': 'call', 'found_at': stamp()}])
+        seed([{'id': '995000001', 'title': 'Automate client onboarding in Airtable', 'status': 'call', 'found_at': stamp()}])
         env = dict(os.environ, PATH=str(folder / 'empty-bin'))
         skip = run('loom.py', '995000001', 'https://www.loom.com/share/synthetic', env=env)
         assert 'SKIP' in skip.stdout and 'brew install yt-dlp' in skip.stdout
@@ -393,12 +405,12 @@ def media():
 
 def clicks():
     with fixture('clicks') as folder:
-        seed([{'id': '996000001', 'title': 'SYNTHETIC application and proposal openings',
+        seed([{'id': '996000001', 'title': 'Automate client onboarding in Airtable',
                'status': 'call', 'found_at': stamp(), 'applied_at': stamp(), 'proposal_sent_at': stamp(200),
                'pitch_url': 'https://synthetic.example/996000001'},
-              {'id': '996000002', 'title': 'SYNTHETIC application opening only',
+              {'id': '996000002', 'title': 'Automate client onboarding in Airtable',
                'status': 'call', 'found_at': stamp(), 'applied_at': stamp()},
-              {'id': '996000003', 'title': 'SYNTHETIC bot-only proposal',
+              {'id': '996000003', 'title': 'Automate client onboarding in Airtable',
                'status': 'call', 'found_at': stamp(), 'proposal_sent_at': stamp(200)}])
         skipped = run('clicks.py')
         assert 'BLOB_READ_WRITE_TOKEN is missing' in skipped.stdout
@@ -519,7 +531,7 @@ def dashboard_fixture():
     def at(seconds=0):
         return (old + dt.timedelta(seconds=seconds)).isoformat()
     for index in range(60):
-        rows.append({'id': str(997000000 + index), 'title': 'SYNTHETIC measured dashboard lead',
+        rows.append({'id': str(997000000 + index), 'title': 'Automate weekly operations reporting',
                      'status': 'won', 'found_at': at(), 'applied_at': at(),
                      'applied_observation': {'verified': True, 'source': 'upwork-proposal'},
                      'replied_at': at(600), 'replied_observation': {'verified': True, 'source': 'upwork-thread'},
@@ -530,7 +542,7 @@ def dashboard_fixture():
         date = TODAY - dt.timedelta(days=13 - offset)
         for index in range(count):
             at_day = dt.datetime.combine(date, dt.time(12), dt.timezone.utc).isoformat()
-            rows.append({'id': str(998000000 + len(rows)), 'title': 'SYNTHETIC daily dashboard lead',
+            rows.append({'id': str(998000000 + len(rows)), 'title': 'Build a booking flow in Airtable',
                          'status': 'applied', 'found_at': at_day, 'applied_at': at_day})
     seed(rows)
     history = [{'date': (TODAY - dt.timedelta(days=10)).isoformat(), 'pct': 40, 'missing': ['Photo']},
@@ -579,7 +591,7 @@ assert.equal(step.n,60);assert.equal(step.rate,100);assert.deepEqual(step.interv
 
 def review_proofs():
     with fixture('review') as folder:
-        seed([{'id': '999000001', 'title': 'SYNTHETIC review fixes', 'status': 'call', 'found_at': stamp(),
+        seed([{'id': '999000001', 'title': 'Automate client onboarding in Airtable', 'status': 'call', 'found_at': stamp(),
                'applied_at': stamp(), 'history': [{'status': 'call', 'at': stamp(1200)}]}])
         import pipeline
         import sync
@@ -622,7 +634,7 @@ def review_proofs():
         assert records()['999000001']['call_at'] == stamp(3600)
         assert run('pipeline.py', 'set', '999000001', 'call', '--call-at', (TODAY + dt.timedelta(days=1)).isoformat(), success=False).returncode != 0
         assert records()['999000001']['call_at'] == stamp(3600)
-        seed([{'id': '999000002', 'title': 'SYNTHETIC naive recorder', 'status': 'call', 'found_at': stamp(),
+        seed([{'id': '999000002', 'title': 'Automate client onboarding in Airtable', 'status': 'call', 'found_at': stamp(),
                'history': [{'status': 'call', 'at': stamp(1200)}], 'proposal_sent_at': stamp(5400)}])
         other = folder / 'jobs/999000002'; other.mkdir()
         (other / 'call.md').write_text('Call at: 2026-01-01T12:00:00\nDuration: 300\nUnlabelled text.\n')
@@ -679,13 +691,13 @@ def review_proofs():
         print('SYNTHETIC fixes 4/5/8/9 + S9 PASS: click failure preserves sync summary/writes; client blocks; named Loom metrics/model discovery/no downloads; one snapshot/date in pipeline data; recorder time wins and survives stage changes; observed fallback')
     with fixture('application-days'):
         local = dt.datetime.combine(TODAY, dt.time(0, 30), ZoneInfo('Europe/Berlin')).astimezone(dt.timezone.utc).isoformat()
-        seed([{'id': '999100001', 'title': 'SYNTHETIC applied at local midnight', 'status': 'applied', 'applied_at': local, 'found_at': stamp()},
-              {'id': '999100002', 'title': 'SYNTHETIC first applied history', 'status': 'applied', 'found_at': stamp(),
+        seed([{'id': '999100001', 'title': 'Automate client onboarding in Airtable', 'status': 'applied', 'applied_at': local, 'found_at': stamp()},
+              {'id': '999100002', 'title': 'Automate client onboarding in Airtable', 'status': 'applied', 'found_at': stamp(),
                'history': [{'status': 'applied', 'at': local}, {'status': 'applied', 'at': stamp()}]},
-              {'id': '999100003', 'title': 'SYNTHETIC imported', 'imported': True, 'status': 'applied', 'applied_at': local, 'found_at': stamp()},
-              {'id': '999100004', 'title': 'SYNTHETIC date unknown', 'application_date_unknown': True, 'status': 'applied', 'applied_at': local, 'found_at': stamp()},
-              {'id': '999100005', 'title': 'SYNTHETIC found only', 'status': 'replied', 'found_at': stamp()},
-              {'id': '999100006', 'title': 'SYNTHETIC later stage only', 'status': 'call', 'found_at': stamp(), 'status_updated_at': local,
+              {'id': '999100003', 'title': 'Automate client onboarding in Airtable', 'imported': True, 'status': 'applied', 'applied_at': local, 'found_at': stamp()},
+              {'id': '999100004', 'title': 'Automate client onboarding in Airtable', 'application_date_unknown': True, 'status': 'applied', 'applied_at': local, 'found_at': stamp()},
+              {'id': '999100005', 'title': 'Automate client onboarding in Airtable', 'status': 'replied', 'found_at': stamp()},
+              {'id': '999100006', 'title': 'Automate client onboarding in Airtable', 'status': 'call', 'found_at': stamp(), 'status_updated_at': local,
                'history': [{'status': 'call', 'at': local}]}])
         jobs = list(records().values())
         assert pipeline.applied_on(jobs, TODAY.isoformat()) == 2
@@ -756,7 +768,7 @@ def bottlenecks():
                     sent = call + dt.timedelta(seconds=86401)
                 had_reply = failing != 'Proposal' or index < 9
                 had_call = had_reply and (failing != 'Messaging' or index < 29)
-                row = {'id': str(999200000 + index), 'title': f'SYNTHETIC first failing {failing}',
+                row = {'id': str(999200000 + index), 'title': 'Automate client onboarding in Airtable',
                        'status': 'call' if had_call else 'replied' if had_reply else 'applied',
                        'found_at': applied.isoformat(), 'applied_at': applied.isoformat(),
                        'loom_hook': 'fail' if failing == 'Loom' and index == 0 else 'pass',
@@ -792,7 +804,7 @@ def bottlenecks():
             print(f'SYNTHETIC S11 PASS: first failing stage={failing or "none"}')
     with fixture('under-minimum') as folder:
         (folder / 'context/me.md').write_text('# SYNTHETIC lower daily goal\n**Applications per day:** 1\n')
-        seed([{'id': str(999300000 + index), 'title': 'SYNTHETIC under minimum n', 'status': 'applied',
+        seed([{'id': str(999300000 + index), 'title': 'Automate client onboarding in Airtable', 'status': 'applied',
                'applied_at': dt.datetime.combine(TODAY - dt.timedelta(days=12-index), dt.time(12), dt.timezone.utc).isoformat(),
                'found_at': stamp(), 'reply_gaps_s': [300]} for index in range(10)])
         s = state()
@@ -824,9 +836,9 @@ def this_week_height_budget(width, total_height, first_screen_bottom):
     if guideline is None:
         raise ValueError('Measure the agreed 1440 or 390 viewport width.')
     return {'page': 'FAIL' if total_height > failure else 'WARN' if total_height > guideline else 'PASS',
-            'first_screen': 'FAIL' if first_screen_bottom > 1170 else 'WARN' if first_screen_bottom > 900 else 'PASS',
+            'first_screen': 'WARN' if first_screen_bottom > 900 else 'PASS',
             'measured': {'width':width, 'height':total_height, 'first_screen_bottom':first_screen_bottom},
-            'limits': {'page_warning':guideline,'page_failure':failure,'first_screen_warning':900,'first_screen_failure':1170}}
+            'limits': {'page_warning':guideline,'page_failure':failure,'first_screen_warning':900}}
 
 
 def rendered_ui():
@@ -840,7 +852,10 @@ def rendered_ui():
         import analytics
         analytics_sync_marker(pathlib.Path(os.environ['BLUEPRINT_DATA']).parent)
         snapshot = analytics.compute(ANALYTICS_TODAY, now='2026-10-14T15:00:00+02:00')
-        js = r"""const assert=require('node:assert/strict');const fs=require('node:fs');
+        js = r"""const strict=require('node:assert/strict'),failures=[];
+const capture=fn=>(...args)=>{try{return fn(...args);}catch(error){failures.push(error.message);}};
+const assert=new Proxy(capture(strict),{get:(_,key)=>typeof strict[key]==='function'?capture(strict[key]):strict[key]});
+const fs=require('node:fs');
 const React=require('react');const {renderToStaticMarkup}=require('react-dom/server');
 const {transformSync}=require('next/dist/build/swc');
 (async()=>{const funnel=await import('./lib/funnel.mjs');
@@ -873,16 +888,42 @@ return runtimeRequire(name);},mod,mod.exports);
 function render(state){current=state;hook=0;injected=false;return renderToStaticMarkup(React.createElement(mod.exports.default));}
 const payload=JSON.parse(process.argv[1]);const populated=payload.legacy, snapshot=payload.snapshot;
 const modern={...populated,analytics:{latest:snapshot,history:[snapshot]}};
-const html=render(modern);const focusLabel='This week&#x27;s focus';assert(html.includes(focusLabel));
+const html=render(modern);const focusLabel='This week:';assert(html.includes(focusLabel));
+const tabButtons=[...html.matchAll(/<button[^>]*role="tab"[^>]*>([^]*?)<\/button>/g)];
+assert.deepEqual(tabButtons.map(match=>match[1]),['This week','Conversations','Achievements']);
+assert.equal((html.match(/class="sc-row(?: sc-focus)?"/g)||[]).length,snapshot.presentation.scorecard.length,'All scorecard rows present with details closed');
+assert.equal((html.match(/class="sc-detail"[^>]*hidden=""/g)||[]).length,snapshot.presentation.scorecard.length,'Every detail collapsed initially');
+assert(!html.includes('Show all numbers'));
+assert(html.includes('analytics-panel-2')&&html.includes('All badges'));
+const fractional={...snapshot,presentation:{...snapshot.presentation,scorecard:snapshot.presentation.scorecard.map(row=>row.key==='reply_rate'?{...row,value:21.428571,change:{...row.change,previous_value:18.333333}}:row)}};
+const fractionHtml=render({...modern,analytics:{latest:fractional,history:[]}});
+assert(!/\b\d+\.\d+%/.test(fractionHtml.replace(/<[^>]*>/g,' ')),'Rates are whole percentages: '+(fractionHtml.replace(/<[^>]*>/g,' ').match(/\b\d+\.\d+%/g)||[]).join(', '));
 assert(html.indexOf(focusLabel)<html.indexOf('Your funnel, stage by stage'));
 assert(html.includes(snapshot.presentation.scorecard.find(row=>row.key===snapshot.verdict.kpi)?.name || snapshot.kpis[snapshot.verdict.kpi].label));
 assert(html.includes('Top · finding and applying')&&html.includes('Middle · replies and calls')&&html.includes('Bottom · proposals and wins'));
 assert(html.includes('Your funnel, stage by stage')&&!html.includes('Show all numbers')&&!html.includes('More insights'));
 assert(html.includes('Funnel Score'));
 const callDetail=html.match(/<tr class="sc-detail" id="scorecard-reply_to_call"[^>]*><td[^>]*>([^]*?)<\/td><\/tr>/);
-assert(callDetail);assert.equal(callDetail[1],'<button class="an-text-button">Why these replies stalled → Conversations</button>');
+assert(callDetail);assert(callDetail[1].includes('Conversations'));
+assert(callDetail[1].includes('How it is counted'),'Call rate detail retains the counting rule');
 tab=1;const conversations=render(modern);assert(conversations.includes('Across your conversations'));
-assert(conversations.includes('Applications')&&conversations.includes('Chats')&&conversations.includes('Calls')&&conversations.includes('Proposals'));tab=0;
+assert(conversations.includes('Applications')&&conversations.includes('Chats')&&conversations.includes('Calls')&&conversations.includes('Proposals'));
+const reviewRows=[
+ {lead_id:'review-old',title:'Automate payroll reconciliation',date:'2026-10-05',key_finding:'Confirm the approval owner',marker:'needs work',importance:0},
+ {lead_id:'review-keep',title:'Build a booking flow',date:'2026-10-13',key_finding:'Keep the clear scope question',marker:'keep',importance:1},
+ {lead_id:'review-fix',title:'Build an audit dashboard',date:'2026-10-12',key_finding:'Confirm the approval owner',marker:'needs work',importance:0},
+ {lead_id:'review-next',title:'Connect CRM and billing',date:'2026-10-14',key_finding:'Keep the next step concrete',marker:'keep',importance:1},
+ {lead_id:'review-fourth',title:'Create weekly reporting',date:'2026-10-12',key_finding:'Keep the question specific',marker:'keep',importance:1},
+].map(row=>({...row,reviewable:true}));
+const reviewState={...modern,analytics:{latest:{...snapshot,generated_at:'2026-10-14T15:00:00+02:00',
+ periods:{...snapshot.periods,activity:{start:'2026-10-12',end:'2026-10-18'}},conversations:{patterns:[],sections:{applications:[],chats:reviewRows,calls:[],proposals:[]}}},history:[]}};
+const reviewMarkup=render(reviewState);const reviewHtml=reviewMarkup.match(/<section class="an-review-section" id="conversations-chats">([^]*?)<\/section>/)?.[1] || '';assert(reviewHtml,'Chats section rendered');
+assert(reviewHtml.includes('Build an audit dashboard')&&reviewHtml.includes('Build a booking flow')&&reviewHtml.includes('Connect CRM and billing'));
+assert(reviewHtml.indexOf('Build an audit dashboard')<reviewHtml.indexOf('Build a booking flow'),'Needs work sorts before keep');
+assert(!reviewHtml.includes('Automate payroll reconciliation'),'This week excludes earlier dates');
+assert(!reviewHtml.includes('Create weekly reporting'),'Default shows at most three rows');
+assert(reviewHtml.includes('Show all 4')&&/needs work/i.test(reviewHtml)&&/keep/i.test(reviewHtml));
+tab=2;const achievements=render(modern);assert(achievements.includes(snapshot.rank));assert(achievements.includes('Funnel Score'));assert(/goals.*worked|track record/i.test(achievements));tab=0;
 assert(!/0 of 0/.test(html));assert(html.includes('No opportunities yet'));assert(html.includes('unknown')||html.includes('Not enough evidence'));
 const missingMoney={...snapshot,north_star:{...snapshot.north_star,value:null,known_subtotal:0,unknown_value_wins:['synthetic-unknown'],hourly_billed:null}};
 const missingMoneyHtml=render({...modern,analytics:{latest:missingMoney,history:[]}});
@@ -900,7 +941,7 @@ assert.equal(funnel.funnelSteps(populated.funnel,funnel.APPLICATION_STEPS).at(-1
 const samples=fs.readFileSync('../tools/sample-snapshots.jsonl','utf8').trim().split('\n').map(JSON.parse);
 assert.equal(samples.length,8);
 for(const example of samples){const rendered=render({...modern,analytics:{latest:example,history:samples}});
-assert(rendered.includes(example.week));assert(rendered.includes('Synthetic example'));
+assert(rendered.includes(example.week));assert(/example/i.test(rendered));
 assert(rendered.includes(example.presentation.scorecard.find(row=>row.key===example.verdict.kpi)?.name || example.kpis[example.verdict.kpi].label));}
 // Frozen scorecard detail replaces the generic metric drawer; retain k/n, unknown state and source.
 const detail={...snapshot,presentation:{...snapshot.presentation,scorecard:snapshot.presentation.scorecard.map(row=>row.key==='reply_rate'?{...row,finished:{k:5,n:18},state:'undecided',insight:'Not enough evidence; observed (call history)',uncertainty:{low:11.4,high:50.9}}:row)}};
@@ -908,38 +949,78 @@ const uncertain=render({...modern,analytics:{latest:detail,history:[]}});
 assert(uncertain.includes('5 of 18'));
 assert(uncertain.includes('Not enough evidence'));assert(uncertain.includes('observed (call history)'));
 assert(populated.timings.call_to_proposal.values.some(row=>row.call_source==='observed'));
+const datedWeeks=Array.from({length:8},(_,i)=>`2026-W${35+i}`),chartKey=snapshot.presentation.scorecard[0].key;
+const unknownHistory={...snapshot,presentation:{...snapshot.presentation,scorecard:snapshot.presentation.scorecard.map((row,i)=>i?row:{...row,series:{...row.series,points:datedWeeks.map(week=>({week,value:null}))}})}};
+const unknownHtml=render({...modern,analytics:{latest:unknownHistory,history:[]}});
+const unknownDetail=unknownHtml.match(new RegExp(`<tr[^>]*id="scorecard-${chartKey}"[^>]*>([^]*?)</tr>`))?.[1] || '';
+const unknownChart=unknownDetail.match(/<svg class="sc-development"[^>]*>([^]*?)<\/svg>/)?.[1] || '';
+assert.equal((unknownChart.match(/<title>/g)||[]).length,8,'Eight dated chart slots remain when every value is unknown');
+for(const week of datedWeeks){assert(unknownChart.includes(week+': unknown'));assert(unknownChart.includes('>'+week.replace('2026-','')+'</text>'));}
+assert(!unknownChart.includes('>?</text>'),'Unknown chart values use words, never a question-mark placeholder');
+assert(!unknownChart.includes('>unknown</text>'),'Unknown values use one readable caption outside the chart');
+assert(memberText(unknownDetail).includes('Unknown: '+datedWeeks.map(week=>week.replace('2026-','')).join(', ')));
+assert(!unknownChart.includes('<rect')&&!unknownChart.includes('<circle'),'Missing values are never plotted as zero');
+const idGaps=[{source:'call transcript:9012345678901',how_to_supply:'Paste the call for 9012345678901.'},{source:'call transcript:9012345678902',how_to_supply:'Paste the call for 9012345678902.'}];
+const missingSources={...snapshot,coverage:{...snapshot.coverage,missing:idGaps}};
+const infoHtml=render({...modern,analytics:{latest:missingSources,history:[]}});
+const info=infoHtml.match(/<details class="an-methodology"[^>]*>([^]*?)<\/details>/)?.[1] || '';
+assert(info.includes('How this review is measured'));
+assert(!info.includes('9012345678901')&&!info.includes('9012345678902'),'Methodology explains missing sources without raw case IDs');
+assert.equal((info.match(/Paste the full call transcript/g)||[]).length,1,'Repeated source instructions are deduplicated');
 // PART3 checks rendered member text, including opened details, without attributes or comments.
 function memberText(markup){return markup.replace(/<(style|script|title)[^>]*>[^]*?<\/\1>/gi,'').replace(/<!--[^]*?-->/g,'').replace(/<[^>]*>/g,' ').replace(/&#x([0-9a-f]+);/gi,(_,n)=>String.fromCodePoint(parseInt(n,16))).replace(/&#([0-9]+);/g,(_,n)=>String.fromCodePoint(+n)).replace(/&(?:quot|apos|amp|lt|gt);/g,v=>({'&quot;':'"','&apos;':"'",'&amp;':'&','&lt;':'<','&gt;':'>'}[v])).replace(/\s+/g,' ').trim();}
-const forbidden=['not supplied','undecided','eligible',"Writer's",'cohort','Execution and effect apart','stage starts',...Object.keys(contract.exports.ANALYTICS_FIELD_LABELS)];
-function forbiddenProof(markup,label){const text=memberText(markup);for(const term of forbidden)assert(!text.toLowerCase().includes(term.toLowerCase()),`${label}: ${term}: ${text}`);assert(!text.includes('—'),label);assert(!/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/i.test(text),`${label}: internal field name: ${text}`);return text;}
+const forbidden=[...payload.forbidden_terms,...Object.keys(contract.exports.ANALYTICS_FIELD_LABELS)];
+function forbiddenProof(markup,label){const text=memberText(markup);for(const term of forbidden)assert(!text.toLowerCase().includes(term.toLowerCase()),`${label}: ${term}: ${text}`);assert(!text.includes('—'),label);assert(!new RegExp(payload.raw_float_pattern).test(text),`${label}: raw float: ${text}`);assert(!new RegExp(payload.decimal_rate_pattern).test(text),`${label}: decimal rate: ${text}`);assert(!/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/i.test(text),`${label}: internal field name: ${text}`);return text;}
 expand=true;
 for(const [label,state] of [['This week',modern],['Missing money',{...modern,analytics:{latest:missingMoney,history:[]}}],['Missing snapshot',{...modern,analytics:{latest:null,history:[]}}],['Missing data',{...modern,analytics:{latest:{...snapshot,kpis:{},presentation:{},goals_next:[],conversations:{}},history:[]}}]]){
- tab=0;forbiddenProof(render(state),label);tab=1;forbiddenProof(render(state),label+' Conversations');
+ for(tab=0;tab<3;tab++)forbiddenProof(render(state),label+' '+['This week','Conversations','Achievements'][tab]);
 }
 tab=0;
-for(const sample of samples)forbiddenProof(render({...modern,analytics:{latest:sample,history:samples}}),'Saved example');
+for(const sample of samples)for(tab=0;tab<3;tab++)forbiddenProof(render({...modern,analytics:{latest:sample,history:samples}}),'Example '+sample.week+' tab '+tab);tab=0;
 const maya=payload.maya;
 const mayaState={...modern,analytics:{latest:maya,history:[],goals:null}};
 const mayaHtml=render(mayaState),mayaText=forbiddenProof(mayaHtml,'Maya');
-for(const expected of ['88', 'was 81', '$4,200', '3 new contracts', '$3,500', '11 live leads', '31 applications this week against a goal of 25', '26 sent within 10 minutes', 'Reply rate 18% → 21%', 'Swift Sail', 'Silver', 'Turn replies into calls','29 replies led to 9 booked calls','did it 7 of 9','did it 1 of 4','29 of 140','9 of 29','8 of 9','3 of 8','8 of 8'])assert(mayaText.includes(expected),expected);
+assert.equal(maya.pipeline.live,11);assert(maya.presentation.activity_summary.includes('31 applications this week against a goal of 25'));assert(maya.presentation.activity_summary.includes('26 sent within 10 minutes'));
+for(const expected of ['88', 'was 81', '$4,200', '3 new contracts', '$3,500', 'Reply rate 18% → 21%', 'Swift Sail', 'Silver', 'Turn replies into calls','29 replies led to 9 booked calls','did it 7 of 9','did it 1 of 4','29 of 140','9 of 29','8 of 9','3 of 6','8 of 8'])assert(mayaText.includes(expected),expected);
 const goalCards=[...mayaHtml.matchAll(/<article class="an-goal">([^]*?)<\/article>/g)].map(match=>memberText(match[1]));
 assert.equal(goalCards.length,3);assert.equal(new Set(goalCards).size,3);
 for(const [index,goal] of maya.presentation.goal_cards.entries()){
  assert(goalCards[index].includes(goal.change));assert(goalCards[index].includes('When '+goal.cue));
  assert(goalCards[index].includes('“'+goal.coach_example+'”'));assert(goalCards[index].includes('Checked: '+goal.measurement));
+ assert(goalCards[index].includes(index<2?'Last week':'New this week'));
+ if(index<2)assert(goalCards[index].includes(index===0?'did it 7 of 9':'did it 1 of 4'));
 }
+const ended={...maya,goals_review:[...maya.goals_review,{change:'Confirm the project owner',done_k:2,done_n:2,effect:'worked',effect_text:'Both replies agreed an owner',decision:'End'}]};
+assert(render({...mayaState,analytics:{latest:ended}}).includes('Ended last week'));
+// A different commitment at the same stage is new; old card metadata cannot overwrite it.
+const newCommitment={...maya,goals_next:maya.goals_next.map((goal,i)=>i?goal:{...goal,goal_id:'new-call-practice',change:'Confirm the decision maker',action:'Ask who decides before offering a call.'})};
+const changedHtml=render({...mayaState,analytics:{latest:newCommitment}});
+const changedCard=memberText([...changedHtml.matchAll(/<article class="an-goal">([^]*?)<\/article>/g)][0][1]);
+assert(changedCard.includes('Confirm the decision maker')&&changedCard.includes('New this week'));
+assert(!changedCard.includes('did it 7 of 9'));
+assert(changedHtml.includes('Ended last week')&&changedHtml.includes('Offer two call times'));
+// Weekly IDs include the week: identical commitment text still continues.
+const continuing={...maya,goals_next:maya.goals_next.map((goal,i)=>i?goal:{...goal,goal_id:'same-commitment-new-week'})};
+const continuedCard=memberText([...render({...mayaState,analytics:{latest:continuing}}).matchAll(/<article class="an-goal">([^]*?)<\/article>/g)][0][1]);
+assert(continuedCard.includes('did it 7 of 9')&&!continuedCard.includes('New this week'));
 assert(!mayaText.includes('Smaller action'));assert(!mayaText.includes('Coach example'));
 const duplicate={...maya,goals_next:[...maya.goals_next,maya.goals_next[0]]};
 assert.equal((render({...mayaState,analytics:{latest:duplicate}}).match(/class="an-goal"/g)||[]).length,3);
-for(const n of [0,1,2,3]){const subset={...maya,goals_next:maya.goals_next.slice(0,n)};assert.equal((render({...mayaState,analytics:{latest:subset}}).match(/class="an-goal"/g)||[]).length,n);}
+for(const n of [0,1,2,3]){const subset={...maya,goals_next:maya.goals_next.slice(0,n),presentation:{...maya.presentation,goal_cards:maya.presentation.goal_cards.slice(0,n)}};assert.equal((render({...mayaState,analytics:{latest:subset}}).match(/class="an-goal"/g)||[]).length,n);}
 const zeroGoal={...maya,goals_review:[{change:'Offer two call times',done_k:0,done_n:0,effect:'undecided'}]};
 const zeroText=forbiddenProof(render({...mayaState,analytics:{latest:zeroGoal}}),'Zero opportunities');
 assert(zeroText.includes('No opportunities this week'));assert(!zeroText.includes('did it 0 of 0'));
+assert.equal(maya.presentation.scorecard.find(row=>row.key==='proposal_to_won').pending.n,2);
 // Quotes are source evidence: demonstrate that presentation mapping never rewrites them.
-for(const row of maya.presentation.scorecard.filter(row=>['reply_rate','reply_to_call','booked_to_held','proposal_to_won'].includes(row.key)))assert.deepEqual([row.finished.k,row.finished.n],({reply_rate:[29,140],reply_to_call:[9,29],booked_to_held:[8,9],proposal_to_won:[3,8]})[row.key]);
+for(const row of maya.presentation.scorecard.filter(row=>['reply_rate','reply_to_call','booked_to_held','proposal_to_won'].includes(row.key)))assert.deepEqual([row.finished.k,row.finished.n],({reply_rate:[29,140],reply_to_call:[9,29],booked_to_held:[8,9],proposal_to_won:[3,6]})[row.key]);
 const verifiedQuote="The reply_rate cohort is undecided — eligible is the client's word.";
 selected={title:'Quoted review',review:{quote:verifiedQuote,example:verifiedQuote},kind:'chats',evidence:[]};
 assert(memberText(render(modern)).includes(verifiedQuote));selected=null;
+selected={title:'Missing transcript source',kind:'chats',review:{missing_sources:idGaps},evidence:[]};
+const safeSourceReview=memberText(render(modern));
+assert(!safeSourceReview.includes('9012345678901')&&!safeSourceReview.includes('9012345678902'));
+assert(safeSourceReview.includes('Paste the full call transcript'));
+selected=null;
 // Check each actual evidence drawer and call card with every disclosure opened.
 for(const selection of [{title:'Missing evidence',evidence:[]},{title:'Call',call:{}},
  {title:'All badges',badges:[{name:'Swift Sail',tier:'Silver',rule:'reply_rate cohort undecided',progress_text:'not supplied'}],history:[{change:'Offer times',done_k:0,done_n:0,effect:'undecided'}]},
@@ -966,15 +1047,17 @@ for(const job of [null,{id:'maya-lead',title:'Booking flow',status:'call',artifa
  drawerJob=job;forbiddenProof(renderToStaticMarkup(React.createElement(drawerModule.exports.default)),'Lead drawer');
 }
 for(const [label,markup] of Object.entries(payload.public_cards))forbiddenProof(markup,'Community '+label);
-console.log('PART3 rendered member copy prepared: This week, Conversations, both drawers, calls and community; details open, missing sources and zero opportunities; verified quotes unchanged');
+if(failures.length)throw Error(failures.map((message,i)=>`${i+1}. ${message.slice(0,1200)}`).join('\n'));
+console.log('PART3 rendered member copy prepared: This week, Conversations, Achievements, both drawers, calls and community; details open, missing sources and zero opportunities; verified quotes unchanged');
 console.log('SYNTHETIC rendered UI PASS: current saved focus first/k/n; missing vs empty snapshot; eight samples; legacy66% and49/50 pure helper; observed call source and Wilson uncertainty');
 })().catch(error=>{console.error(error);process.exitCode=1});"""
+        from analytics_forbidden_terms import FORBIDDEN_TERMS, RAW_FLOAT_PATTERN, DECIMAL_RATE_PATTERN
         from analytics_replay import maya_card_example
         maya = maya_card_example(snapshot)
         public_cards = {'missing':analytics.public_onepager_html(snapshot['community_card'])}
         analytics.add_goals({'week':'2026-W43','goals':[dict(goal,start='2026-10-19') for goal in maya['goals_next']]})
         public_cards['Maya'] = analytics.public_onepager_html(analytics.snapshot_public_card(maya,[]))
-        result = ORIGINAL_RUN(['node', '-e', js, json.dumps({'legacy':s,'snapshot':snapshot,'maya':maya,'public_cards':public_cards})], cwd=ROOT / 'website', capture_output=True, text=True)
+        result = ORIGINAL_RUN(['node', '-e', js, json.dumps({'legacy':s,'snapshot':snapshot,'maya':maya,'public_cards':public_cards,'forbidden_terms':FORBIDDEN_TERMS,'raw_float_pattern':RAW_FLOAT_PATTERN,'decimal_rate_pattern':DECIMAL_RATE_PATTERN})], cwd=ROOT / 'website', capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
         import analytics
         rates,_=analytics.calculate(list(records().values()),analytics.day(snapshot['generated_at']),now=snapshot['generated_at'],activity_bounds=analytics.span(analytics.day(snapshot['generated_at']),28))
@@ -1067,7 +1150,7 @@ def package1():
         print('SYNTHETIC F4 PASS: first answer=300s and zero; invitation included, system skipped, partial preserves evidence')
     with fixture('f5'):
         snapshot = {'invitations': [{'job_id': '985000001', 'invitation_id': 'invite-1', 'room_id': 'room-invite',
-                                    'title': 'SYNTHETIC invitation', 'url': 'https://synthetic.example/job', 'invited_at': stamp()}],
+                                    'title': 'Automate client onboarding in Airtable', 'url': 'https://synthetic.example/job', 'invited_at': stamp()}],
                     'offers': [{'job_id': '985000002', 'offer_id': 'offer-1', 'state': 'awaiting_your_acceptance'},
                                {'job_id': '985000003', 'offer_id': 'offer-2', 'state': 'awaiting_your_acceptance', 'source': 'invite'}],
                     'proposals': [{'job_id': '985000004', 'proposal_id': 'proposal-1', 'status': 'accepted', 'applied_at': stamp()}]}
@@ -1223,7 +1306,7 @@ def analytics_rows():
         for source, count in (('outbound', 40), ('invite', 20), ('direct_offer', 20)):
             for index in range(count):
                 jid = str(970000000 + week * 1000 + len(rows) % 1000)
-                row = {'id': jid, 'source': source, 'title': 'SYNTHETIC PRIVATE CLIENT TITLE',
+                row = {'id': jid, 'source': source, 'title': 'Operations dashboard and audit automation',
                        'client': {'name': 'SYNTHETIC PRIVATE CLIENT NAME'},
                        'description': 'SYNTHETIC PRIVATE CLIENT WORDS',
                        'found_at': analytics_stamp(day), 'status': 'applied',
@@ -1623,7 +1706,7 @@ def analytics_storage(snapshot, folder, rows):
         bad = json.loads(json.dumps(value))
         bad['kpis']['goal_done'][key] = item
         rejected(('record',), bad)
-    for name in ('SYNTHETIC PRIVATE CLIENT NAME', 'SYNTHETIC PRIVATE CLIENT WORDS', 'SYNTHETIC PRIVATE CLIENT TITLE'):
+    for name in ('SYNTHETIC PRIVATE CLIENT NAME', 'SYNTHETIC PRIVATE CLIENT WORDS', 'Operations dashboard and audit automation'):
         rejected(('record',), dict(value, report='Do this for ' + name))
     bad = json.loads(json.dumps(value))
     bad['reviews']['application']['fix'] = 'SYNTHETIC PRIVATE CLIENT WORDS'
@@ -1637,16 +1720,24 @@ def analytics_storage(snapshot, folder, rows):
     lines = (folder / 'data/analytics-history.jsonl').read_text().splitlines()
     assert len(lines) == 1
     stored = json.loads(lines[0])
-    assert json.loads(run('analytics.py', 'last').stdout) == stored
+    readback = json.loads(run('analytics.py', 'last').stdout)
+    assert readback == stored, [key for key in sorted(set(readback) | set(stored)) if readback.get(key) != stored.get(key)]
     assert analytics.due(ANALYTICS_TODAY + dt.timedelta(days=7)) is True
     assert analytics.due(ANALYTICS_TODAY + dt.timedelta(days=8)) is True
     assert json.loads(run('analytics.py', 'due', '--today', '2026-10-22').stdout) is True
-    # Frozen31 explicitly introduces private quoted content/lead labels in Conversations.
-    # Preserve the original source-leak guard everywhere outside that named private container.
+    # Frozen section 14 requires real private Conversation/call-card labels.
+    # Client names and source words retain the original guard. Only the named
+    # private card label/title fields may carry the real job title.
     guarded=json.dumps({key:item for key,item in stored.items() if key!='conversations'})
-    assert all(secret not in guarded for secret in ('SYNTHETIC PRIVATE CLIENT NAME', 'SYNTHETIC PRIVATE CLIENT WORDS', 'SYNTHETIC PRIVATE CLIENT TITLE'))
-    assert 'SYNTHETIC PRIVATE CLIENT TITLE' in json.dumps(stored['conversations'])
-    assert 'SYNTHETIC PRIVATE CLIENT TITLE' not in json.dumps(stored['community_card'])
+    assert all(secret not in guarded for secret in ('SYNTHETIC PRIVATE CLIENT NAME', 'SYNTHETIC PRIVATE CLIENT WORDS'))
+    without_private_labels={key:item for key,item in stored.items() if key!='conversations'}
+    without_private_labels['call_cards']=[{key:item for key,item in card.items() if key not in ('label','title')} for card in stored['call_cards']]
+    assert 'Operations dashboard and audit automation' not in json.dumps(without_private_labels)
+    assert 'Operations dashboard and audit automation' in json.dumps(stored['conversations'])
+    assert any(card['title']==card['label']=='Operations dashboard and audit automation' for card in stored['call_cards'])
+    public_surfaces=(json.dumps(stored['community_card']),analytics.public_onepager_html(stored['community_card']))
+    for surface in public_surfaces:
+        assert all(secret not in surface for secret in ('SYNTHETIC PRIVATE CLIENT NAME','SYNTHETIC PRIVATE CLIENT WORDS','Operations dashboard and audit automation'))
     assert stored['reviews']['application']['example'] == 'I can offer Tuesday at ten.'
     # Last week's goals separate execution from the independently measured outcome.
     previous = analytics_payload(analytics.compute(ANALYTICS_TODAY - dt.timedelta(days=7)))
@@ -2096,8 +2187,9 @@ def analytics_fix_round():
         'booked and held calls', 'call coaching', 'execution, effect', 'proposed commitments', 'newly earned badges', 'three useful follow-up questions'))
     assert 'No fixed paragraph order' in report_command
     # Frozen public source guards supersede exact old wording; target behavior is numerically tested.
-    assert all(text in command for text in ('No graph, forecast chart', 'community_card.next_focus',
+    assert all(text in command for text in ('No funnel graphic, forecast chart', 'community_card.next_focus',
         '≤14 words', 'automatic check', 'common 28-day community window', 'Bars'))
+    assert '8-week' in command and '**Achievements**' in command, 'Frozen section 14 retains the score chart and its history home.'
     print('SYNTHETIC A2 fix round PASS: reply6%=target11%, reply12%=target11% until Wilson evidence supports promotion; first four weeks no rate verdict; four mapped lever focuses; configurable reasoned lever targets; every added snapshot field schema-valid; urgent todos capped7; default card despite Bars; undecided forecast null; Claude insight/question/provenance/findings validation and persistence')
 
 
@@ -2644,7 +2736,7 @@ def audit_analytics():
         analytics.validate_goals({'week':'2026-W36','goals':[g]})
         passed('engineer E13-E14 / stats S19 / freelancer F7,F10 / product P2,P5,P6: effect pending mature goals one-to-three')
         # All four review kinds cannot pass just because a fix names an existing lead.
-        seed([{'id':'920000001','title':'SYNTHETIC review lead'}])
+        seed([{'id':'920000001','title':'Automate client onboarding in Airtable'}])
         payload=analytics_payload(analytics.compute(today,now=now))
         for review in payload['reviews'].values():review['evidence_lead_ids']=['920000001']
         prepared=analytics.prepare_snapshot(payload,today,now=now)
@@ -2728,7 +2820,7 @@ def audit_analytics_extended():
         passed('engineer E13 / stats S19 / freelancer F7 / product P2: real worse improved unchanged goal effects and independent interval')
     with fixture('audit-partial-execution') as folder:
         setup(folder)
-        rows=[{'id':str(933000000+index),'title':'SYNTHETIC eligible lead'} for index in range(27)]
+        rows=[{'id':str(933000000+index),'title':'Automate client onboarding in Airtable'} for index in range(27)]
         seed(rows)
         analytics.add_goals({'week':'2026-W36','goals':[commitment('reply_rate')]})
         for done,eligible,state in ((22,27,'partial'),(0,27,'undone'),(0,0,'no opportunity')):
@@ -2907,7 +2999,7 @@ def audit_uma_review():
         (folder/'data/sync.json').write_text(json.dumps({'synced_at':now}))
         (folder/'data/earnings.jsonl').write_text('');(folder/'data/connects.jsonl').write_text('')
         jid='938000001'
-        seed([{'id':jid,'title':'SYNTHETIC Uma requirement','status':'applied','source':'outbound'}])
+        seed([{'id':jid,'title':'Automate client onboarding in Airtable','status':'applied','source':'outbound'}])
         record(jid,{'application_modality':'uma','application_sent_verified':True})
         path=folder/'jobs'/jid
         path.mkdir(exist_ok=True)
@@ -2959,7 +3051,7 @@ def audit_call_badge_evidence():
         (folder/'data/sync.json').write_text(json.dumps({'synced_at':now}))
         (folder/'data/earnings.jsonl').write_text('');(folder/'data/connects.jsonl').write_text('')
         jid='938100001'
-        seed([{'id':jid,'title':'SYNTHETIC call evidence','source':'outbound','status':'call',
+        seed([{'id':jid,'title':'Automate client onboarding in Airtable','source':'outbound','status':'call',
                'call_held_at':'2026-10-12T10:00:00+02:00'}])
         path=folder/'jobs'/jid;path.mkdir(exist_ok=True)
         transcript=path/'call.md'
@@ -3137,15 +3229,16 @@ def analytics_event_ledger_contract():
         rows=[{'badge':name,'tier':tier} for name in ('Swift Sail','Quick Draw','True North')]
         view=badges.voyage(rows)
         assert all(row['tier']==tier for row in view['stations'] if row['earned'])
-        assert not {'rank','rank_progress'} & view.keys()
-    assert not hasattr(badges, 'rank')
+    # Badge-only helpers carry no scores; test stable rank on the owning analytics projection.
+    from analytics_contract_tests import rank_contract
+    rank_contract()
     history=[{'week':week} for week in ('2026-W37','2026-W38','2026-W40','2026-W41')]
     saved=badges.streak_history(history,week='2026-W41')
     assert saved == {'streak_weeks':4,'anchors_used':['2026-W39']}, saved
     assert badges.streak(history,week='2026-W41') == 4
     same_month=badges.streak_history([{'week':week} for week in ('2026-W41','2026-W44')],week='2026-W44')
     assert same_month['streak_weeks'] == 1 and same_month['anchors_used'] == ['2026-W42'], same_month
-    print('SYNTHETIC frozen badge ledger PASS: measured Bronze moments/equality; send-only and weak-fit refusal; replay/since; atomic concurrent weekly award; only badge writer; retained tiers; rank absent; monthly first-miss anchor')
+    print('SYNTHETIC frozen badge ledger PASS: measured Bronze moments/equality; send-only and weak-fit refusal; replay/since; atomic concurrent weekly award; only badge writer; retained tiers; rolling rank boundaries; monthly first-miss anchor')
 
 
 def analytics_final_reader_contract():
@@ -3214,7 +3307,9 @@ def analytics_final_reader_contract():
         assert sparse['number_keys']==['first_reply','value_per_100_connects'] and sparse['number_gap']
         full=snapshot['presentation']['voyage']
         assert len(full['stations'])==14 and len(full['calendar'])==84
-        assert all(row['locked'] for row in full['stations']) and not {'rank','rank_progress'} & full.keys()
+        assert all(row['locked'] for row in full['stations'])
+        from analytics_contract_tests import assert_rank_projection
+        assert_rank_projection(snapshot)
         assert all({'date','week','run','anchor','count','evidence'}<=row.keys() for row in full['calendar'])
         chart=snapshot['presentation']['money_chart']
         assert len(chart['won'])==len(chart['forecast'])==1

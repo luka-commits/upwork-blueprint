@@ -5,7 +5,8 @@ argument-hint: "<job id> [more job ids] | <job id> submitted"
 
 # /proposal
 
-**`/proposal <id> submitted`:** only run `python3 code/pipeline.py set <id> applied`
+**`/proposal <id> submitted`:** run `python3 code/pipeline.py sent <id>` (if it reports the
+letter missing, say so and go on), then `python3 code/pipeline.py set <id> applied`
 and report `Upwork calls: 0`, then stop before any other step. It records the member's submission.
 
 **Several ids run one after another.** Each page gets its own sketch, its own approval and its own publish: the repetition is the command's, never the member's yes.
@@ -286,6 +287,10 @@ That stage rests on their word; `/brief` checks once if no proposal ever shows u
 Run `python3 code/pipeline.py prune` first, because Step 1 fetched the full job. Then the completion report as CLAUDE.md defines it, with the public page and
 application linked. Say what the application costs in Connects and what the balance leaves.
 Next: record the Loom and return its URL here; add it to the page and replace [LOOM LINK] in the letter.
+On the recorded URL, run `python3 code/loom.py <id> <url>`. Missing tools or a model:
+say its install line and continue. When `jobs/<id>/loom.md` exists, read it for the
+reasoned hook check: problem named within 15 s and one ask at the end. Record
+`{"loom_hook":"pass"}` or `{"loom_hook":"fail"}` through `pipeline.py record <id> --file -`.
 Then run `python3 code/pitch_check.py page jobs/<id>/pitch.html --ready` and the ready
 application check again. Republish with `python3 code/pitch_deploy.py <id>` under the
 member's publish approval, confirm the live URL and say it was republished with the Loom.

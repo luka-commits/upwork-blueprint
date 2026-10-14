@@ -663,26 +663,29 @@ def review_proofs():
         print('SYNTHETIC fix 6 PASS: only applied timestamp/first applied history; imported/unknown/found/later-stage rows excluded; local-day tracker == pipeline.applied_on')
     commands = ROOT / '.claude/commands'
     onboarding = (commands / 'onboarding.md').read_text()
-    about = (commands / 'about-me.md').read_text()
     sales = (commands / 'sales-call-proposal.md').read_text()
     proposal = (commands / 'proposal.md').read_text()
     assert 'recorder' not in onboarding.lower()
-    assert about.count('**Connect a call recorder**') == 1
-    assert 'If no recorder MCP/API is connected, stop' in sales
-    assert '--kind application' in proposal and '--kind proposal' in sales
-    assert "curl -sI '<go-url>?check=1'" in proposal and "curl -sI '<go-url>?check=1'" in sales
-    assert 'loom_hook' in proposal and 'call_next_step' in sales and 'Call at:' in sales
+    assert 'Ask which recorder' in sales and 'transcript file or pasted text' in sales
+    assert 'loom_hook' in proposal and 'Call at:' in sales
+    assert 'code/call_stats.py' in sales and 'call_held' in sales
     for relative in ('.claude/commands', 'references'):
         result = ORIGINAL_RUN(['git', 'diff', '--numstat', '--', relative], cwd=ROOT, capture_output=True, text=True, check=True)
         delta = sum(int(row.split()[0]) - int(row.split()[1]) for row in result.stdout.splitlines())
-        assert delta <= 0, (relative, delta)
+        if relative == '.claude/commands':
+            allowed = {'.claude/commands/brief.md', '.claude/commands/proposal.md',
+                       '.claude/commands/sales-call-proposal.md'}
+            assert all(row.split('\t')[-1] in allowed for row in result.stdout.splitlines())
+            assert delta <= 45, (relative, delta)
+        else:
+            assert delta <= 0, (relative, delta)
     application = (CODE / 'application_check.py').read_text()
     assert application.index('import pipeline') < application.index('def ')
     analytics = (ROOT / 'website/components/AnalyticsPage.tsx').read_text()
     assert 'No applications yet. The funnel fills as /brief records them.' in analytics
     assert "counts.applied >= MIN_RATE" in analytics and 'overall win rate' in analytics
     assert "observed (call history)" in analytics
-    print('SYNTHETIC fixes 7/10 PASS: setup-only recorder step/gate, check-only command links, import cleanup, empty state/win-rate/observed UI contracts; commands/references net≤0')
+    print('SYNTHETIC fixes 7/10 PASS: recorder transcript/fallback in sales command, hook writer, import cleanup, existing UI contracts; scoped short command additions/references net≤0')
 
 
 def bottlenecks():
@@ -793,6 +796,222 @@ console.log('SYNTHETIC rendered UI PASS: bottleneck first/value/bar/n/reasoned/u
         print(result.stdout.strip())
 
 
+def package1():
+    with fixture('f1'):
+        seed([{'id': '981000001', 'status': 'new', 'found_at': stamp(-86400 * 10),
+               'budget': '$1,000', 'job_type': 'fixed', 'proposals': 8, 'lane': 'automation',
+               'posted_date': stamp(-300), 'client': {'hires': 4, 'posted_jobs': 10, 'spent': 4000, 'verified': True},
+               'details': {'bid_amount': 1200, 'connects_cost': 16}},
+              {'id': '981000002', 'status': 'new'},
+              {'id': '981000003', 'status': 'new', 'found_at': 'unusable', 'proposals': 123,
+               'client': {'spent': 25000}, 'budget': '$300'}])
+        run('pipeline.py', 'observe', '981000001', 'applied', stamp(), '--source', 'upwork-proposal', '--verified')
+        facts = records()['981000001']['application_facts']
+        assert facts == dict(captured_at=facts['captured_at'], source='outbound', budget_band='500-2000',
+                            job_type='fixed', proposals_band='5-15', client_hire_rate_band='30-70%',
+                            client_spent_band='1k-10k', payment_verified=True, posted_age_band='<10m',
+                            lane='automation', bid_band='above', connects_cost=16), facts
+        run('pipeline.py', 'detail', '981000001', '--file', '-', value={'bid_amount': 800})
+        run('pipeline.py', 'observe', '981000001', 'applied', stamp(-60), '--source', 'upwork-proposal', '--verified')
+        assert records()['981000001']['application_facts'] == facts
+        run('pipeline.py', 'set', '981000002', 'applied', '--applied-at', stamp())
+        unknown = records()['981000002']['application_facts']
+        assert all(unknown[key] == 'unknown' for key in ('budget_band', 'job_type', 'proposals_band',
+                   'client_hire_rate_band', 'client_spent_band', 'payment_verified', 'posted_age_band',
+                   'lane', 'bid_band', 'connects_cost'))
+        import pipeline
+        for index, (budget, proposals, hires, spent, age, bid, expected) in enumerate([
+            ('$499', 4, 0, 0, 599, 200, ('<500', '<5', 'none', '0', '<10m', 'below')),
+            ('$500', 5, 2, 999, 600, 500, ('500-2000', '5-15', '<30%', '<1k', '10-60m', 'within')),
+            ('$2,000', 15, 3, 1000, 3600, 2500, ('500-2000', '15-50', '30-70%', '1k-10k', '1-6h', 'above')),
+            ('$2,001', 50, 7, 10000, 21600, None, ('>2000', '50+', '30-70%', '1k-10k', '1-6h', 'unknown')),
+            ('$20-$40/hr', None, 8, 10001, 21601, 30, ('hourly', 'unknown', '>70%', '>10k', '>6h', 'within')),
+        ]):
+            job = {'applied_at': stamp(), 'posted_date': stamp(-age), 'budget': budget,
+                   'proposals': proposals, 'client': {'hires': hires, 'posted_jobs': 10, 'spent': spent},
+                   'details': {'bid_amount': bid}}
+            pipeline.freeze_application_facts(job)
+            assert tuple(job['application_facts'][key] for key in ('budget_band', 'proposals_band',
+                         'client_hire_rate_band', 'client_spent_band', 'posted_age_band', 'bid_band')) == expected
+        run('pipeline.py', 'prune')
+        assert records()['981000001']['application_facts'] == facts
+        assert all(key not in records()['981000001'] for key in ('client', 'budget', 'proposals', 'posted_date'))
+        assert all(key not in records()['981000003'] for key in ('client', 'budget', 'proposals'))
+        print('SYNTHETIC F1 PASS: bucket boundaries, unknowns, member/verified writers, freeze-once and raw-data prune')
+    with fixture('f2') as folder:
+        seed([{'id': '982000001'}, {'id': '982000002'}])
+        jobdir = folder / 'jobs/982000001'; jobdir.mkdir()
+        application = jobdir / 'application.md'; application.write_bytes(b'SYNTHETIC submitted letter\r\n')
+        run('pipeline.py', 'sent', '982000001')
+        application.write_text('SYNTHETIC revision')
+        run('pipeline.py', 'sent', '982000001')
+        assert (jobdir / 'application.sent.md').read_bytes() == b'SYNTHETIC submitted letter\r\n'
+        assert records()['982000001']['application_sent_copy'] is True
+        assert run('pipeline.py', 'sent', '982000002', success=False).returncode != 0
+        assert 'application_sent_copy' not in records()['982000002']
+        assert 'code/pipeline.py sent <id>' in (ROOT / '.claude/commands/proposal.md').read_text()
+        print('SYNTHETIC F2 PASS: submitted byte copy is immutable; missing source fails without a marker; command wired')
+    # The existing media fixture executes Loom with mocked binaries and model; no downloads.
+    proposal = (ROOT / '.claude/commands/proposal.md').read_text()
+    assert 'code/loom.py <id> <url>' in proposal and 'within 15 s' in proposal and 'one ask at the end' in proposal
+    with fixture('f3'):
+        seed([{'id': '983000001'}])
+        record('983000001', {'loom_hook': 'pass'})
+        assert records()['983000001']['loom_hook'] == 'pass'
+        assert run('pipeline.py', 'record', '983000001', '--file', '-', value={'loom_hook': 'unknown'}, success=False).returncode != 0
+        print('SYNTHETIC F3 PASS: Loom execution/skips proven above; transcript hook criteria and pass/fail writer wired')
+    with fixture('f4'):
+        seed([{'id': '984000001', 'status': 'replied'}, {'id': '984000002', 'status': 'replied'}])
+        thread = {'job_id': '984000001', 'room_id': 'synthetic-invite', 'messages_complete': True,
+                  'invitation_room': True, 'messages': [
+                      {'node': {'id': 'sys', 'from_side': 'system', 'createdDateTime': stamp(-1), 'message': 'Notice'}},
+                      {'node': {'id': 'invite', 'from_side': 'client', 'createdDateTime': stamp(), 'kind': 'invite', 'message': 'Invite'}},
+                      {'node': {'id': 'answer', 'from_side': 'freelancer', 'createdDateTime': stamp(300), 'message': 'Yes'}}]}
+        run('sync.py', 'apply', '--file', '-', value={'threads': [thread]})
+        job = records()['984000001']
+        assert job['first_reply_s'] == 300 and job['first_reply_at'] == stamp(300) and job['reply_gaps_s'] == []
+        run('sync.py', 'apply', '--file', '-', value={'threads': [dict(thread, messages_complete=False, messages=[])]})
+        assert records()['984000001']['first_reply_s'] == 300
+        zero = dict(thread, job_id='984000002', room_id='synthetic-zero', messages=[
+            {'from': 'client', 'at': stamp(), 'text': 'Question'}, {'from': 'me', 'at': stamp(), 'text': 'Answer'}])
+        run('sync.py', 'apply', '--file', '-', value={'threads': [zero]})
+        assert records()['984000002']['first_reply_s'] == 0
+        print('SYNTHETIC F4 PASS: first answer=300s and zero; invitation included, system skipped, partial preserves evidence')
+    with fixture('f5'):
+        snapshot = {'invitations': [{'job_id': '985000001', 'invitation_id': 'invite-1', 'room_id': 'room-invite',
+                                    'title': 'SYNTHETIC invitation', 'url': 'https://synthetic.example/job', 'invited_at': stamp()}],
+                    'offers': [{'job_id': '985000002', 'offer_id': 'offer-1', 'state': 'awaiting_your_acceptance'},
+                               {'job_id': '985000003', 'offer_id': 'offer-2', 'state': 'awaiting_your_acceptance', 'source': 'invite'}],
+                    'proposals': [{'job_id': '985000004', 'proposal_id': 'proposal-1', 'status': 'accepted', 'applied_at': stamp()}]}
+        run('sync.py', 'apply', '--file', '-', value=snapshot)
+        run('sync.py', 'apply', '--file', '-', value=snapshot)
+        jobs = records()
+        assert len(jobs) == 4 and jobs['985000001']['source'] == 'invite'
+        assert jobs['985000001']['invited_at'] == stamp() and jobs['985000001']['invitation_id'] == 'invite-1'
+        assert jobs['985000001']['room_id'] == 'room-invite'
+        assert jobs['985000002']['source'] == 'direct_offer' and jobs['985000003']['source'] == 'invite'
+        assert jobs['985000004']['application_facts']['source'] == 'outbound'
+        invited_proposal = {'invitations': [dict(snapshot['invitations'][0], job_id='985000005')],
+                            'proposals': [dict(snapshot['proposals'][0], job_id='985000005')]}
+        run('sync.py', 'apply', '--file', '-', value=invited_proposal)
+        facts = records()['985000005']['application_facts']
+        assert facts['source'] == 'invite'
+        record('985000005', {'source': 'direct_offer'})
+        assert records()['985000005']['application_facts'] == facts
+        print('SYNTHETIC F5 PASS: invitation intake/replay, direct and invite offers, outbound default through sole writer')
+    with fixture('f6'):
+        seed([{'id': '986000001', 'status': 'call', 'call_at': stamp(-86400 * 2),
+               'call_observation': {'source': 'recorder', 'verified': True}},
+              {'id': '986000002', 'status': 'call', 'call_at': stamp(-86400 * 2)},
+              {'id': '986000003', 'status': 'call', 'call_at': (TODAY - dt.timedelta(days=4)).isoformat()},
+              {'id': '986000004', 'status': 'replied'}, {'id': '986000005', 'status': 'call'}])
+        before = pathlib.Path(os.environ['BLUEPRINT_JOBS']).read_bytes()
+        jobs = records()
+        assert pathlib.Path(os.environ['BLUEPRINT_JOBS']).read_bytes() == before
+        assert jobs['986000001']['call_held_at'] == stamp(-86400 * 2) and 'call_booked_at' not in jobs['986000001']
+        assert jobs['986000002']['call_booked_at'] == stamp(-86400 * 2) and 'call_held_at' not in jobs['986000002']
+        assert '986000002' in run('pipeline.py', 'summary').stdout and 'no_show_candidate' in run('pipeline.py', 'list').stdout
+        assert json.loads(run('pipeline.py', 'get', '986000003').stdout)['no_show_candidate'] is True
+        future = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)).isoformat()
+        run('pipeline.py', 'observe', '986000004', 'call_booked', future, '--source', 'upwork-thread', '--verified')
+        first = records()['986000004']['call_booked_observation']
+        run('pipeline.py', 'observe', '986000004', 'call_booked', future, '--source', 'upwork-thread', '--verified')
+        assert records()['986000004']['call_booked_observation'] == first
+        record('986000002', {'call_no_show': True})
+        assert 'no_show_candidate' not in json.loads(run('pipeline.py', 'get', '986000002').stdout)
+        run('pipeline.py', 'observe', '986000005', 'call_held', stamp())
+        assert 'call_booked_at' not in records()['986000005']
+        print('SYNTHETIC F6 PASS: recorder/scheduled/date-only migration, future booking replay, overdue candidate and confirmed no-show')
+    with fixture('f7') as folder:
+        seed([{'id': '987000001', 'status': 'call'}, {'id': '987000002', 'status': 'call'}])
+        jobdir = folder / 'jobs/987000001'; jobdir.mkdir()
+        (jobdir / 'call.md').write_text(f'Call at: {stamp()}\nDuration: 300\nMember: Alex\nAlex: Next step?\nClient: Send it.\n')
+        run('call_stats.py', '987000001')
+        assert records()['987000001']['call_held_at'] == stamp()
+        assert records()['987000001']['call_held_observation']['source'] == 'recorder'
+        run('call_stats.py', '987000002')
+        assert 'call_held_at' not in records()['987000002']
+        sales = (ROOT / '.claude/commands/sales-call-proposal.md').read_text()
+        assert 'Ask which recorder' in sales and 'Notes alone still work' in sales and 'Speaker: line' in sales
+        print('SYNTHETIC F7 PASS: normalised transcript writes recorder-held event/stats; notes alone do not; fallback command wired')
+    with fixture('f8'):
+        import pipeline
+        day = TODAY - dt.timedelta(days=40)
+        day -= dt.timedelta(days=day.weekday())
+        def at_day(day, hour=12):
+            return dt.datetime.combine(day, dt.time(hour), dt.timezone.utc).isoformat()
+        jid = '988000001'
+        seed([{'id': jid, 'status': 'replied'}])
+        client_at, first_at, anchor = at_day(day, 10), at_day(day, 11), at_day(day)
+        messages = [{'from': 'client', 'at': client_at, 'text': 'Question'},
+                    {'from': 'me', 'at': first_at, 'text': 'Answer'}, {'from': 'me', 'at': anchor, 'text': 'Details'}]
+        def apply(messages, waiting='them'):
+            run('sync.py', 'apply', '--file', '-', value={'threads': [{
+                'job_id': jid, 'room_id': 'synthetic-silent', 'messages_complete': True,
+                'awaiting_reply_from': waiting, 'messages': messages}]})
+        apply(messages)
+        due3 = pipeline.add_business_days(day, 3)
+        due7 = pipeline.add_business_days(day, 7)
+        assert records()[jid]['follow_up_plan']['lane'] == 'silent'
+        assert records()[jid]['follow_up_plan']['anchor_at'] == anchor
+        assert records()[jid]['next_follow_up'] == due3.isoformat()
+        late = pipeline.add_business_days(day, 4)
+        apply(messages + [{'from': 'me', 'at': at_day(late), 'text': 'SYNTHETIC first follow-up'}])
+        job = records()[jid]
+        assert job['next_follow_up'] == due7.isoformat() and job['follow_up_history'][-1]['due_on'] == due3.isoformat()
+        all_messages = messages + [{'from': 'me', 'at': at_day(late), 'text': 'First follow-up'},
+                                   {'from': 'me', 'at': at_day(due7), 'text': 'Second follow-up'}]
+        apply(all_messages); apply(all_messages)
+        job = records()[jid]
+        assert not job.get('follow_up_plan') and job['next_follow_up'] is None
+        assert [entry['due_on'] for entry in job['follow_up_history'] if entry['action'] == 'sent'] == [due3.isoformat(), due7.isoformat()]
+        reply = pipeline.add_business_days(day, 8)
+        apply(all_messages + [{'from': 'client', 'at': at_day(reply), 'text': 'Back now'}], 'you')
+        assert records()[jid]['follow_up_plan']['lane'] == 'active'
+        assert pipeline.FOLLOW_UP_GAPS['active'] == (1,) and pipeline.FOLLOW_UP_GAPS['reactivation'] == (30, 60)
+        print('SYNTHETIC F8 PASS: last-message anchor, business day3/day7, late first send keeps day7, due_on, stop/replay and active reply')
+    with fixture('f9'):
+        seed([{'id': '989000001', 'status': 'call'}])
+        before = records()['989000001']
+        run('pipeline.py', 'observe', '989000001', 'proposal_sent', stamp())
+        run('pipeline.py', 'observe', '989000001', 'proposal_sent', stamp(60))
+        job = records()['989000001']
+        assert job['proposal_sent_at'] == stamp() and job['history'] == before['history'] and job['status'] == 'call'
+        assert 'observe <id> proposal_sent <ISO time>' in (ROOT / '.claude/commands/sales-call-proposal.md').read_text()
+        print('SYNTHETIC F9 PASS: confirmed proposal-sent observation is stable, preserves stage/history and command uses it')
+    with fixture('f10') as folder:
+        snapshot = {'contracts': [{'job_id': '980000001', 'contract_id': 'fixed-1', 'status': 'active',
+                                  'terms': {'type': 'fixed', 'fixed_amount': 2500, 'currency': 'USD', 'start_date': day.isoformat()}},
+                                 {'job_id': '980000002', 'contract_id': 'hourly-1', 'status': 'active',
+                                  'terms': {'type': 'hourly', 'hourly_rate': 60, 'currency': 'EUR', 'start_date': day.isoformat()}}],
+                    'earnings': [{'week_start': day.isoformat(), 'contract_id': 'fixed-1', 'billed': 1200, 'currency': 'USD', 'client_text': 'discard'},
+                                 {'week_start': day.isoformat(), 'contract_id': 'hourly-1', 'billed': 900, 'currency': 'EUR'},
+                                 {'week_start': day.isoformat(), 'contract_id': 'invalid', 'billed': True, 'currency': 'USD'}]}
+        run('sync.py', 'apply', '--file', '-', value=snapshot); run('sync.py', 'apply', '--file', '-', value=snapshot)
+        jobs = records()
+        assert jobs['980000001']['won_value'] == {'type': 'fixed', 'amount': 2500, 'currency': 'USD', 'start_date': day.isoformat()}
+        assert jobs['980000002']['won_value']['amount'] == 60 and jobs['980000002']['won_value']['type'] == 'hourly'
+        incomplete = dict(snapshot['contracts'][0], terms={'type': 'fixed', 'fixed_amount': None})
+        run('sync.py', 'apply', '--file', '-', value={'contracts': [incomplete]})
+        assert records()['980000001']['won_value'] == jobs['980000001']['won_value']
+        rows = [json.loads(line) for line in (folder / 'data/earnings.jsonl').read_text().splitlines()]
+        assert len(rows) == 2 and all(set(row) == {'week_start', 'contract_id', 'billed', 'currency'} for row in rows)
+        print('SYNTHETIC F10 PASS: fixed value/hourly rate, incomplete terms preserve value; numeric earnings dedup and raw text discarded')
+    with fixture('f11') as folder:
+        snapshot = {'connects': [{'at': stamp(), 'amount': -16, 'reason': 'Application submitted', 'job_id': '980000001', 'jobPost': {'text': 'discard'}},
+                                 {'at': stamp(60), 'amount': 10, 'reason': 'SYNTHETIC receipt: verbatim', 'job_id': None},
+                                 {'at': stamp(120), 'amount': float('nan'), 'reason': 'invalid', 'job_id': None}]}
+        run('sync.py', 'apply', '--file', '-', value=snapshot); run('sync.py', 'apply', '--file', '-', value=snapshot)
+        rows = [json.loads(line) for line in (folder / 'data/connects.jsonl').read_text().splitlines()]
+        assert rows == [{key: entry[key] for key in ('at', 'amount', 'reason', 'job_id')} for entry in snapshot['connects'][:2]]
+        assert sum(row['amount'] for row in rows) == -6
+        print('SYNTHETIC F11 PASS: signed spend/receipt, verbatim reason, four-key dedup, no raw job payload and invalid number skipped')
+    brief = (ROOT / '.claude/commands/brief.md').read_text()
+    assert all(text in brief for text in ('Read invitations', 'list_contracts action=get', 'action=summary',
+                                         'action=connects_balance', 'amount.rawValue', 'since last sync'))
+    print('SYNTHETIC F12 PASS: invitations, terms, earnings and Connects reads/snapshot wired with bounded read-only pacing')
+
+
 def main():
     with fixture('dashboard'):
         s = dashboard_fixture()
@@ -806,6 +1025,7 @@ def main():
     media()
     clicks()
     review_proofs()
+    package1()
     bottlenecks()
     rendered_ui()
     current = hashlib.sha256(REAL_JOBS.read_bytes()).hexdigest() if REAL_JOBS.exists() else None

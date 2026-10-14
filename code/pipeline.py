@@ -57,6 +57,7 @@ CLOSED = ('won', 'lost', 'skipped')
 # morning cannot silently stretch or compress the sequence.
 FOLLOW_UP_GAPS = {
     'active': (1,),
+    'silent': (3, 4),
     'reactivation': (30, 60),
 }
 # 'active' has no last step: while a client is in touch the follow-up comes nearly every
@@ -70,7 +71,18 @@ KEEP = 500
 # Upwork's terms cap caching of their content at 24 hours. These fields hold
 # Upwork's words and numbers; score, rationale, status, notes and history are
 # the member's own work and stay.
-CACHED_FIELDS = ('description', 'client', 'budget', 'job_type', 'posted_date', 'details')
+CACHED_FIELDS = ('description', 'client', 'budget', 'job_type', 'posted_date', 'details',
+                 'proposals', 'proposal_count', 'proposals_tier')
+
+APPLICATION_BANDS = {
+    'budget_band': ('<500', '500-2000', '>2000', 'hourly', 'unknown'),
+    'proposals_band': ('<5', '5-15', '15-50', '50+', 'unknown'),
+    'client_hire_rate_band': ('none', '<30%', '30-70%', '>70%', 'unknown'),
+    'client_spent_band': ('0', '<1k', '1k-10k', '>10k', 'unknown'),
+    'posted_age_band': ('<10m', '10-60m', '1-6h', '>6h', 'unknown'),
+    'bid_band': ('below', 'within', 'above', 'unknown'),
+}
+LEAD_SOURCES = ('outbound', 'invite', 'direct_offer')
 
 
 CHAT_KEEP_HOURS = 2160
@@ -145,9 +157,98 @@ def load():
     if not path.is_file():
         return []
     try:
-        return json.loads(path.read_text(encoding='utf-8'))
+        jobs = json.loads(path.read_text(encoding='utf-8'))
+        for job in jobs:
+            migrate_call(job)
+        return jobs
     except json.JSONDecodeError:
         abort(f'{path} is not valid JSON. Nothing was changed.')
+
+
+def migrate_call(job):
+    """Split legacy scheduled and recorded calls without writing during a read."""
+    if not job.get('call_at') or job.get('call_booked_at') or job.get('call_held_at'):
+        return
+    observation = job.get('call_observation') or {}
+    event = 'call_held' if observation.get('source') == 'recorder' else 'call_booked'
+    job.setdefault(f'{event}_at', job['call_at'])
+    job.setdefault(f'{event}_observation', observation or {'source': 'member', 'verified': True})
+
+
+def numeric(value):
+    """A finite non-negative number, or None when the source did not give one."""
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return value if math.isfinite(value) and value >= 0 else None
+    from jobs import money_value
+    number = money_value(value) if isinstance(value, str) else None
+    return number if number is not None and math.isfinite(number) else None
+
+
+def freeze_application_facts(job):
+    """Keep application-time categories once, never cached client numbers."""
+    if job.get('application_facts') or not job.get('applied_at'):
+        return
+    from jobs import budget_top, numbers
+    details = job.get('details') or {}
+    client = job.get('client') or {}
+    client_record = details.get('client_record') or {}
+    if isinstance(client_record, dict):
+        client = {**client_record, **client}
+    budget, hourly = budget_top(job)
+    budget_band = ('hourly' if hourly else 'unknown' if budget is None else
+                   '<500' if budget < 500 else '500-2000' if budget <= 2000 else '>2000')
+    raw_proposals = job.get('proposals', job.get('proposal_count', job.get('proposals_tier')))
+    proposals = numeric(raw_proposals)
+    proposal_band = 'unknown'
+    if raw_proposals in APPLICATION_BANDS['proposals_band']:
+        proposal_band = raw_proposals
+    elif isinstance(raw_proposals, str) and len(numbers(raw_proposals)) > 1:
+        # A reported range maps only when every endpoint belongs to the same band.
+        low, high = min(numbers(raw_proposals)), max(numbers(raw_proposals))
+        if low >= 5 and high <= 15:
+            proposal_band = '5-15'
+        elif low >= 15 and high <= 50:
+            proposal_band = '15-50'
+    elif proposals is not None:
+        proposal_band = '<5' if proposals < 5 else '5-15' if proposals < 15 else '15-50' if proposals < 50 else '50+'
+    hires = numeric(client.get('hires', client.get('total_hires')))
+    posted = numeric(client.get('posted_jobs', client.get('total_posted_jobs')))
+    hire_band = 'unknown'
+    if hires is not None and posted is not None and posted > 0:
+        rate = hires / posted
+        hire_band = 'none' if hires == 0 else '<30%' if rate < .3 else '30-70%' if rate <= .7 else '>70%'
+    spent = numeric(client.get('spent', client.get('total_spent')))
+    spent_band = ('unknown' if spent is None else '0' if spent == 0 else '<1k' if spent < 1000
+                  else '1k-10k' if spent <= 10000 else '>10k')
+    payment = client.get('verified', client.get('payment_verified'))
+    if not isinstance(payment, bool):
+        verification = client.get('verification_status')
+        payment = verification == 'VERIFIED' if verification in ('VERIFIED', 'UNVERIFIED') else 'unknown'
+    age_band = 'unknown'
+    applied = parse_verified_timestamp(job.get('applied_at'))
+    posted_at = parse_verified_timestamp(job.get('posted_date'))
+    if applied and posted_at:
+        age = (datetime.datetime.fromisoformat(applied) - datetime.datetime.fromisoformat(posted_at)).total_seconds()
+        if age >= 0:
+            age_band = '<10m' if age < 600 else '10-60m' if age < 3600 else '1-6h' if age <= 21600 else '>6h'
+    bid = numeric(details.get('bid_amount'))
+    budget_values = numbers(job.get('budget'))
+    bid_band = 'unknown'
+    if bid is not None and budget_values:
+        low, high = min(budget_values), max(budget_values)
+        bid_band = 'below' if bid < low else 'above' if bid > high else 'within'
+    job['application_facts'] = {
+        'captured_at': now_iso(), 'source': job.get('source') or 'outbound',
+        'budget_band': budget_band, 'job_type': job.get('job_type') or ('hourly' if hourly else 'unknown'),
+        'proposals_band': proposal_band, 'client_hire_rate_band': hire_band,
+        'client_spent_band': spent_band, 'payment_verified': payment,
+        'posted_age_band': age_band, 'lane': job.get('lane') or 'unknown', 'bid_band': bid_band,
+        'connects_cost': numeric(details.get('connects_cost', job.get('connects_cost'))),
+    }
+    if job['application_facts']['connects_cost'] is None:
+        job['application_facts']['connects_cost'] = 'unknown'
 
 
 def save(jobs):
@@ -307,6 +408,7 @@ def cmd_add(args):
         rec.setdefault('last_activity_at', rec['status_updated_at'])
         rec.setdefault('next_follow_up', None)
         rec.setdefault('notes', '')
+        freeze_application_facts(rec)
         add_history(rec, rec['status'], rec['found_at'])
         jobs.append(rec)
         known.add(jid)
@@ -378,6 +480,7 @@ def cmd_set(args):
                     abort('--applied-at expects an ISO timestamp or unknown.')
             job['applied_at'] = observed or job['status_updated_at']
             job.pop('application_date_unknown', None)
+    freeze_application_facts(job)
     lane = (job.get('follow_up_plan') or {}).get('lane')
     if args.status in ('applied', 'lost', 'skipped'):
         job['next_follow_up'] = None
@@ -404,8 +507,8 @@ def cmd_set(args):
         if recorder_call:
             abort('A recorder call time cannot be replaced by a scheduled date.')
         job['call_at'] = parse_follow_up(args.call_at)
-    elif args.status != 'call' and not recorder_call:
-        job.pop('call_at', None)
+        job['call_booked_at'] = job['call_at']
+        job['call_booked_observation'] = {'source': 'member', 'verified': True, 'observed_at': now_iso()}
     if args.note:
         job['notes'] = (job.get('notes', '') + ' ' + args.note).strip()
     save(jobs)
@@ -435,11 +538,32 @@ def cmd_record(args):
     """Store connector identity and workflow markers through the sole writer."""
     value = read_json_arg(args.file)
     allowed = {'loom_hook', 'call_next_step', 'loom_duration_s', 'loom_wpm', 'call_stats', 'reply_gaps_s', 'proposal_id', 'room_id', 'contract_id', 'contract_client', 'client_slug',
-               'submission_checked_at', 'result_recorded_at', 'next_follow_up', 'follow_up_source'}
+               'submission_checked_at', 'result_recorded_at', 'next_follow_up', 'follow_up_source',
+               'first_reply_s', 'first_reply_at', 'source', 'invitation_id', 'invited_at',
+               'call_no_show', 'won_value'}
     if not isinstance(value, dict) or not value or set(value) - allowed:
         abort('metadata needs only ' + ', '.join(sorted(allowed)) + '.')
     for key, item in value.items():
-        if key == 'follow_up_source':
+        if key == 'source':
+            if item not in LEAD_SOURCES:
+                abort('source needs outbound, invite or direct_offer.')
+        elif key == 'call_no_show':
+            if item is not True:
+                abort('call_no_show needs true on member confirmation.')
+        elif key == 'first_reply_s':
+            if not isinstance(item, int) or isinstance(item, bool) or item < 0:
+                abort('first_reply_s needs non-negative whole seconds.')
+        elif key == 'won_value':
+            if (not isinstance(item, dict) or set(item) != {'type', 'amount', 'currency', 'start_date'}
+                    or item.get('type') not in ('fixed', 'hourly') or numeric(item.get('amount')) is None
+                    or not isinstance(item.get('amount'), (int, float))
+                    or not isinstance(item.get('currency'), str) or not item['currency'].strip()):
+                abort('won_value needs type, numeric amount, currency and start_date.')
+            try:
+                datetime.date.fromisoformat(item['start_date'])
+            except (ValueError, TypeError):
+                abort('won_value.start_date needs YYYY-MM-DD.')
+        elif key == 'follow_up_source':
             if item not in (None, 'waiting'):
                 abort('follow_up_source needs waiting or null to remove it.')
         elif key == 'loom_hook':
@@ -523,7 +647,8 @@ def cmd_follow_up(args):
         # The lane's own first gap, not whatever date happened to be passed: gaps[0]
         # existed and was never used, so step 1 was the one step nobody measured.
         first = FOLLOW_UP_GAPS[lane][0]
-        earliest = add_business_days(datetime.date.today(), first)
+        anchor = verified_timestamp(args.at) if args.at else now_iso()
+        earliest = add_business_days(datetime.date.fromisoformat(anchor[:10]), first)
         due = parse_follow_up(args.due)
         if datetime.date.fromisoformat(due) < earliest:
             abort(f'a {lane} follow-up waits {first} business day(s), so the earliest is '
@@ -536,7 +661,8 @@ def cmd_follow_up(args):
             'step': 1,
             'max_steps': None if lane in UNBOUNDED else len(FOLLOW_UP_GAPS[lane]),
             'reason': reason[:500],
-            'reviewed_at': now_iso(),
+            'reviewed_at': anchor,
+            **({'anchor_at': anchor} if lane == 'silent' else {}),
         }
         job['next_follow_up'] = due
         save(jobs)
@@ -585,7 +711,8 @@ def cmd_follow_up(args):
     job['last_activity_at'] = max(job.get('last_activity_at') or '', stamp)
     job.setdefault('follow_up_history', []).append({
         'action': 'sent', 'at': stamp, 'on': sent_day.isoformat(), 'lane': lane, 'step': step,
-        'confirmation': confirmation,
+        'confirmation': confirmation, 'due_on': job.get('next_follow_up'),
+        **({'anchor_at': plan['anchor_at']} if lane == 'silent' else {}),
         'completed': last and step == len(gaps),
     })
     if last and step == len(gaps):
@@ -594,7 +721,8 @@ def cmd_follow_up(args):
         message = f'{args.job_id}: {lane} sequence complete after follow-up {step}.'
     else:
         next_step = step + 1
-        due = add_business_days(sent_day, gaps[min(next_step, len(gaps)) - 1]).isoformat()
+        base_day = datetime.date.fromisoformat(job['next_follow_up']) if lane == 'silent' else sent_day
+        due = add_business_days(base_day, gaps[min(next_step, len(gaps)) - 1]).isoformat()
         plan['step'] = next_step
         plan['reviewed_at'] = stamp
         job['next_follow_up'] = due
@@ -693,21 +821,39 @@ def verified_timestamp(value):
 
 def cmd_observe(args):
     """Record an observed event without changing stage or history."""
-    expected_source = {'applied': 'upwork-proposal', 'replied': 'upwork-thread',
-                       'proposal_sent': 'member', 'opened': 'pitch-click',
-                       'pitch_opened': 'pitch-click', 'call': 'recorder'}[args.event]
-    if args.event == 'proposal_sent' and args.source is None:
+    if args.event == 'call':
+        args.event = 'call_held'
+    expected_sources = {'applied': ('upwork-proposal',), 'replied': ('upwork-thread',),
+                        'proposal_sent': ('member',), 'opened': ('pitch-click',),
+                        'pitch_opened': ('pitch-click',), 'call_booked': ('member', 'upwork-thread'),
+                        'call_held': ('recorder', 'member')}
+    sources = expected_sources[args.event]
+    if args.event in ('proposal_sent', 'call_booked', 'call_held') and args.source is None:
         args.source, args.verified = 'member', True
-    if not args.verified or args.source != expected_source:
-        abort(f'{args.event} observations require --verified --source {expected_source}.')
-    event_at = verified_timestamp(args.timestamp)
+    if not args.verified or args.source not in sources:
+        abort(f'{args.event} observations require --verified --source {"|".join(sources)}.')
+    try:
+        call_time = datetime.datetime.fromisoformat(args.timestamp.replace('Z', '+00:00'))
+    except ValueError:
+        call_time = None
+    if args.event == 'call_booked' and call_time and call_time.tzinfo is not None:
+        event_at = call_time.astimezone(datetime.timezone.utc).isoformat()
+    else:
+        event_at = verified_timestamp(args.timestamp)
     jobs = load()
     job = find(jobs, args.job_id)
     evidence_key = f'{args.event}_observation'
     previous = job.get(evidence_key)
     previous_at = parse_verified_timestamp(job.get(f'{args.event}_at'))
+    if args.event == 'call_booked' and job.get('call_booked_at'):
+        try:
+            booked = datetime.datetime.fromisoformat(job['call_booked_at'].replace('Z', '+00:00'))
+            if booked.tzinfo is not None:
+                previous_at = booked.astimezone(datetime.timezone.utc).isoformat()
+        except ValueError:
+            pass
     previous_valid = (isinstance(previous, dict) and previous.get('verified') is True
-                      and previous.get('source') == expected_source and previous_at is not None)
+                      and previous.get('source') in sources and previous_at is not None)
     if args.event in ('pitch_opened', 'opened'):
         send = 'applied_at' if args.event == 'pitch_opened' else 'proposal_sent_at'
         sent = parse_verified_timestamp(job.get(send))
@@ -723,7 +869,12 @@ def cmd_observe(args):
         'verified': True,
         'observed_at': now_iso(),
     }
+    if args.event in ('call_booked', 'call_held'):
+        if args.event == 'call_held' or not job.get('call_held_at'):
+            job['call_at'] = event_at
+            job['call_observation'] = job[evidence_key]
     if args.event == 'applied':
+        freeze_application_facts(job)
         job.pop('application_date_unknown', None)
         # posted_date is Upwork content and prune deletes it after 24 hours, so the
         # one number it is for is worked out here, while it is still there.
@@ -804,9 +955,42 @@ def cmd_pitch_url(args):
     print(f'{args.job_id}: pitch link {"removed" if value == "-" else "saved"}.')
 
 
+def cmd_sent(args):
+    """Freeze the member's submitted letter, without replacing an earlier copy."""
+    jobs = load()
+    job = find(jobs, args.job_id)
+    folder = jobs_dir() / args.job_id
+    sent = folder / 'application.sent.md'
+    if not sent.exists():
+        application = folder / 'application.md'
+        if not application.is_file():
+            abort(f'{application} is missing; the sent application was not recorded.')
+        with sent.open('xb') as handle:
+            handle.write(application.read_bytes())
+    job['application_sent_copy'] = True
+    save(jobs)
+    print(f'{args.job_id}: sent application kept at {shown(sent)}.')
+
+
+def no_show_candidate(job):
+    """An overdue booking needs member confirmation, never an inferred no-show."""
+    if job.get('call_held_at') or job.get('call_no_show'):
+        return False
+    try:
+        at = datetime.datetime.fromisoformat(str(job.get('call_booked_at')).replace('Z', '+00:00'))
+    except ValueError:
+        return False
+    if at.tzinfo is None:
+        at = at.replace(tzinfo=datetime.timezone.utc)
+    return at + datetime.timedelta(hours=24) < datetime.datetime.now(datetime.timezone.utc)
+
+
 def cmd_get(args):
     """Exactly one record as JSON. The cheap way to one job."""
-    print(json.dumps(find(load(), args.job_id), indent=2, ensure_ascii=False))
+    job = dict(find(load(), args.job_id))
+    if no_show_candidate(job):
+        job['no_show_candidate'] = True
+    print(json.dumps(job, indent=2, ensure_ascii=False))
 
 
 def cmd_list(args):
@@ -817,8 +1001,9 @@ def cmd_list(args):
     total = len(jobs)
     shown = jobs[:args.limit] if args.limit else jobs
     for j in shown:
+        candidate = '  no_show_candidate' if no_show_candidate(j) else ''
         follow = f'  follow up {j["next_follow_up"]}' if j.get('next_follow_up') else ''
-        print(f'{j.get("score", "?"):>3}  {j.get("status", "?"):<8} {j.get("id")}  {j.get("title", "")[:70]}{follow}')
+        print(f'{j.get("score", "?"):>3}  {j.get("status", "?"):<8} {j.get("id")}  {j.get("title", "")[:70]}{follow}{candidate}')
     if len(shown) < total:
         print(f'... {total - len(shown)} more (--limit 0 shows all).')
 
@@ -869,6 +1054,12 @@ def cmd_summary(args):
         for j in due[:10]:
             print(f'  {j["next_follow_up"]}  {j.get("id")}  {j.get("title", "")[:60]}')
 
+    candidates = [j for j in jobs if no_show_candidate(j)]
+    if candidates:
+        print('\nno_show_candidate (confirm with the member):')
+        for j in candidates:
+            print(f'  {j["id"]}  booked {j["call_booked_at"]}')
+
     best = sorted((j for j in jobs if j.get('status') == 'new'),
                   key=lambda j: j.get('score') or 0, reverse=True)[:8]
     if best:
@@ -908,7 +1099,9 @@ def cmd_prune(args):
         try:
             found = datetime.datetime.fromisoformat(str(j.get('found_at', '')).replace('Z', '+00:00'))
         except ValueError:
-            continue
+            found = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+        if found.tzinfo is None:
+            found = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
         if found >= cutoff:
             continue
         present = [f for f in CACHED_FIELDS if j.get(f) not in (None, '', {}) and not (f == 'details' and fresh_details == details)]
@@ -1096,7 +1289,7 @@ def build_parser():
 
     p = sub.add_parser('observe', help='Record a verified Upwork event time without moving the job.')
     p.add_argument('job_id')
-    p.add_argument('event', choices=('applied', 'replied', 'proposal_sent', 'opened', 'pitch_opened', 'call'))
+    p.add_argument('event', choices=('applied', 'replied', 'proposal_sent', 'opened', 'pitch_opened', 'call', 'call_booked', 'call_held'))
     p.add_argument('timestamp')
     p.add_argument('--source', choices=('upwork-proposal', 'upwork-thread', 'member', 'pitch-click', 'recorder'))
     p.add_argument('--verified', action='store_true')
@@ -1151,6 +1344,10 @@ def build_parser():
     p.add_argument('job_id')
     p.add_argument('url', help='Public HTTPS URL, or "-" to remove it.')
     p.set_defaults(func=cmd_pitch_url)
+
+    p = sub.add_parser('sent', help='Keep the application as submitted, once.')
+    p.add_argument('job_id')
+    p.set_defaults(func=cmd_sent)
 
     p = sub.add_parser('get', help='One record as JSON.')
     p.add_argument('job_id')

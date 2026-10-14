@@ -44,6 +44,14 @@ The status filter is unreliable: classify each returned status.
    even if a matched proposal has no room; it can be checked directly by proposal id next run.
 3. Without an id, read `list_offers` action `list_mine` and `list_contracts` action
    `search` with `contract_statuses` `ACTIVE`, one page each. Keep their stable IDs and client names.
+   Read invitations as the connector exposes them; keep job/invitation/room IDs and
+   `invited_at`. Mark offers `source: invite|direct_offer` only with evidence.
+   For selected contracts missing saved terms, `list_contracts action=get`: fixed
+   `terms.fixedPriceTerms[].fixedAmount`, or returned hourly terms; keep type, amount,
+   currency and start date. Read weekly `get_freelancer_financials action=summary`
+   since last sync (current week on first sync), and `action=connects_balance`
+   transactions paged only back to last sync (one page on first sync). Use fresh
+   local state first; state the call budget and stop when covered. Missing reads are gaps.
 4. Refresh every selected thread by stored `room_id`, even when its proposal was not listed.
    Use `get_messages` action `list_messages`, newest 30 messages. Read room cards for
    `awaiting_reply_from`; page `list_rooms` only until selected rooms are covered or pages end.
@@ -57,6 +65,12 @@ Write one JSON object as the docstring of `code/sync.py` describes (proposals wi
 ids checked this run; offers with `offer_id`, `state`; contracts with `contract_id`, `status`; both with `client_name`; threads
 with `job_id`, `room_id`, `awaiting_reply_from`, `messages_complete` and the messages as
 `from` client or me, `name`, `at`, `text`, oldest first), then:
+
+Add `invitations`, contract `terms: {type, fixed_amount|hourly_rate, currency, start_date}`,
+`earnings: [{week_start, contract_id, billed, currency}]` and
+`connects: [{at, amount, reason, job_id}]` as returned. Connects map
+`createdDateTime`, `amount.rawValue`, verbatim `reason` and `jobPost`'s ID only;
+financial records keep numbers and identifiers, no job/client text.
 
 `python3 code/sync.py apply --file -`
 
@@ -95,9 +109,13 @@ Name the moment, because it decides the next command:
   `python3 code/pipeline.py set <id> call`. A time in the thread, an accepted
   invitation or a "spoke yesterday" all count; a vague "happy to jump on a call"
   does not. When the thread names a date, add `--call-at <YYYY-MM-DD>`: until that
-  day the lead is left alone, and from the day after, its task is the one-pager,
+  day the lead is left alone, and after a held call its task is the one-pager,
   `/sales-call-proposal <id> <transcript path or notes>`.
-- **Nothing was scheduled and the client owes an answer:** unless its sequence finished or stopped, the cockpit asks every two days from `last_activity_at`; recording the send resets the count. Use `--follow-up` only for a date the conversation gives, such as "call me after the 12th".
+  Record an agreed time with `pipeline.py observe <id> call_booked <zoned ISO time>
+  --source upwork-thread --verified`; recorder evidence or member confirmation alone
+  writes `call_held`. Check `pipeline.py summary` for `no_show_candidate` after 24 h;
+  only on member confirmation record `{"call_no_show":true}` through `pipeline.py record`.
+- **Nothing was scheduled and the client owes an answer:** sync plans the `silent` lane on business days 3 and 7 after the unanswered message, then stops. Use `--follow-up` only for a date the conversation gives, such as "call me after the 12th".
 - **A call is requested:** the drafts confirm a time on Upwork.
 - **An offer arrived:** the drafts answer open questions only; the member reviews the offer terms on Upwork. **Read `jobs/<id>/proposal.md` when it exists**; a draft must not contradict the scope, price and milestones already sent.
 - **An applied lead older than three days has no `proposal_id` and no `submission_checked_at`:** record `submission_checked_at` with the current ISO time through `pipeline.py record`, then ask once, as a single choice, whether it was submitted. On a no, run `python3 code/pipeline.py set <id> skipped --note "never submitted"`.

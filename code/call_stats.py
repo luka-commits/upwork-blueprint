@@ -74,7 +74,7 @@ def main(argv=None):
     call_at = result.pop('call_at', None)
     if call_at:
         subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name('pipeline.py')),
-                        'observe', args.job_id, 'call', call_at, '--source', 'recorder', '--verified'],
+                        'observe', args.job_id, 'call_held', call_at, '--source', 'recorder', '--verified'],
                        text=True, check=True)
     subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name('pipeline.py')),
                     'record', args.job_id, '--file', '-'],

@@ -317,7 +317,8 @@ def normalize(job, track):
         'client': {
             'country': c.get('country'), 'rating': c.get('rating'), 'reviews': c.get('total_reviews'),
             'spent': money_value(c.get('total_spent')), 'posted_jobs': c.get('total_posted_jobs'),
-            'hires': c.get('total_hires'), 'verified': c.get('verification_status') == 'VERIFIED',
+            'hires': c.get('total_hires'), 'verified': (c['verification_status'] == 'VERIFIED'
+                         if c.get('verification_status') in ('VERIFIED', 'UNVERIFIED') else None),
         },
     }
 

@@ -32,7 +32,13 @@ Run `python3 code/workspace.py` and `python3 code/pipeline.py get <job id>`.
 Require `replied`, `call`, or `offer` when `jobs/<id>/proposal.md` does not exist yet.
 At offer with an existing proposal, `/brief` owns the thread. Read the second argument
 as a file when it is a path; otherwise treat it as pasted
-notes. Without a call record, ask for the transcript or notes and stop.
+notes. Ask which recorder the member used for this call. If its connector or API is
+available, pull the transcript; otherwise ask for a transcript file or pasted text.
+Normalise a transcript to `jobs/<id>/call.md`, one `Speaker: line` per turn; preserve
+`Call at: <zoned ISO time>`, `Duration: seconds` and `Member: name` only when known.
+Run `python3 code/call_stats.py <id>`. Notes alone still work, but do not write
+`call_held` unless the member confirms it took place; then use
+`pipeline.py observe <id> call_held <ISO time>`. Without any call record, ask and stop.
 
 Read the whole call. Separate what both sides agreed from what the client wished
 for and what the member only floated. When the call shows no mutual agreement on
@@ -159,7 +165,7 @@ command writes the document, and `/brief` owns the thread. The member
 copies the proposal from the cockpit panel and sends it on Upwork. Do not move
 the stage to offer: that stage means a client offer exists, and `/brief` sets it.
 After the member confirms they pasted it on Upwork, record
-`python3 code/pipeline.py acted <id> --note "Proposal sent on Upwork"`.
+`python3 code/pipeline.py observe <id> proposal_sent <ISO time>` with the confirmed send time.
 
 ## Step 7 · Report
 

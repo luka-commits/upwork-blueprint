@@ -13,9 +13,13 @@ thread is Upwork content, so `pipeline.py prune` deletes it after KEEP_CHAT_HOUR
 
 The snapshot, one JSON object (every list optional):
     {"proposals": [{"job_id", "proposal_id", "room_id", "title", "url", "status", "applied_at"}],
+     "invitations": [{"job_id", "invitation_id", "title", "url", "invited_at", "room_id"}],
      "no_rooms":  ["job_id"],
-     "offers":    [{"job_id", "offer_id", "title", "state", "client_name"}],
-     "contracts": [{"job_id", "contract_id", "title", "status", "client_name"}],
+     "offers":    [{"job_id", "offer_id", "title", "state", "client_name", "source": "invite"|"direct_offer"}],
+     "contracts": [{"job_id", "contract_id", "title", "status", "client_name",
+                    "terms": {"type": "fixed"|"hourly", "fixed_amount", "hourly_rate", "currency", "start_date"}}],
+     "earnings": [{"week_start", "contract_id", "billed", "currency"}],
+     "connects": [{"at", "amount", "reason", "job_id"}],
      "threads":   [{"job_id", "room_id", "awaiting_reply_from", "messages_complete", "messages":
                     [{"from": "client"|"me", "name", "at", "text"}]}]}
 Offers and contracts without a job_id are matched by stored contract id or unique
@@ -28,6 +32,7 @@ import argparse
 import datetime
 import hashlib
 import json
+import math
 import os
 import pathlib
 import subprocess
@@ -109,23 +114,50 @@ def first_complete_client_message(thread):
     """
     if thread.get('messages_complete') is not True:
         return None
-    stamps = []
-    for message in thread.get('messages') or []:
-        if not isinstance(message, dict):
+    turns = complete_turns(thread)
+    if turns is None:
+        return None
+    return next((at for at, message in turns if message['from'] == 'client'), None)
+
+
+def complete_turns(thread):
+    """Validate a complete room, skip system events and preserve invitation turns."""
+    if thread.get('messages_complete') is not True or not isinstance(thread.get('messages'), list):
+        return None
+    raw = []
+    for item in thread['messages']:
+        if not isinstance(item, dict) or not isinstance(item.get('node', item), dict):
             return None
-        author = message.get('from')
-        if author == 'me':
+        node = item.get('node', item)
+        if node.get('kind') in ('system', 'event') or node.get('from_side') == 'system' or node.get('from') == 'system':
             continue
-        # An unknown author could be an earlier client reply. An explicit client
-        # message without a valid timestamp could be earlier too. Either gap
-        # means this complete window still cannot prove the first reply time.
-        if author != 'client':
+        if 'from_side' in node and node['from_side'] not in ('client', 'freelancer') and not node.get('from_self'):
             return None
-        stamp = verified_timestamp(message.get('at'))
-        if stamp is None:
+        raw.append(item)
+    turns = []
+    for message in thread_io.normalize(raw):
+        if message.get('kind') in ('system', 'event') or message.get('from') == 'system':
+            continue
+        at = verified_timestamp(message.get('at'))
+        if message.get('from') not in ('me', 'client') or at is None:
             return None
-        stamps.append(stamp)
-    return min(stamps, default=None)
+        turns.append((at, message))
+    return sorted(turns, key=lambda turn: turn[0])
+
+
+def first_reply(thread):
+    """The first client turn to the first member answer, including invitations."""
+    turns = complete_turns(thread)
+    if turns is None:
+        return None
+    client_at = None
+    for at, message in turns:
+        if message['from'] == 'client' and client_at is None:
+            client_at = at
+        elif message['from'] == 'me' and client_at is not None:
+            seconds = int((datetime.datetime.fromisoformat(at) - datetime.datetime.fromisoformat(client_at)).total_seconds())
+            return {'first_reply_s': seconds, 'first_reply_at': at, 'client_at': client_at}
+    return None
 
 
 def reply_gaps(thread):
@@ -221,7 +253,8 @@ def evidence(snapshot, jobs):
         for item in snapshot.get(kind) or []:
             note(matched_id(item, jobs), item.get('title'), source_stage(item, kind))
     for t in snapshot.get('threads') or []:
-        if any(isinstance(m, dict) and m.get('from') == 'client' for m in t.get('messages') or []):
+        if any(m.get('from') == 'client' and m.get('kind') not in ('system', 'event')
+               for m in thread_io.normalize(t.get('messages') or [])):
             note(t.get('job_id'), None, 'replied')
     return seen
 
@@ -239,6 +272,68 @@ def target(current, stages):
     return None
 
 
+def contract_value(terms):
+    """Use only complete member-owned contract terms; never guess missing money."""
+    if not isinstance(terms, dict) or terms.get('type') not in ('fixed', 'hourly'):
+        return None
+    amount = terms.get('fixed_amount' if terms['type'] == 'fixed' else 'hourly_rate')
+    if not isinstance(amount, (int, float)) or isinstance(amount, bool) or not math.isfinite(amount) or amount < 0:
+        return None
+    if not isinstance(terms.get('currency'), str) or not terms['currency'].strip():
+        return None
+    try:
+        datetime.date.fromisoformat(terms.get('start_date'))
+    except (ValueError, TypeError):
+        return None
+    return {'type': terms['type'], 'amount': amount, 'currency': terms['currency'], 'start_date': terms['start_date']}
+
+
+def append_financials(snapshot):
+    """Append deduplicated money records with no cached job or client payloads."""
+    data_dir().mkdir(parents=True, exist_ok=True)
+    for name, keys in (('earnings', ('week_start', 'contract_id', 'billed', 'currency')),
+                       ('connects', ('at', 'amount', 'reason', 'job_id'))):
+        path = data_dir() / f'{name}.jsonl'
+        existing = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()] if path.exists() else []
+        identity = ('week_start', 'contract_id') if name == 'earnings' else keys
+        seen = {tuple(row.get(key) for key in identity) for row in existing}
+        rows = []
+        for item in snapshot.get(name) or []:
+            if not isinstance(item, dict):
+                continue
+            row = {key: item.get(key) for key in keys}
+            number = row['billed' if name == 'earnings' else 'amount']
+            if not isinstance(number, (int, float)) or isinstance(number, bool) or not math.isfinite(number):
+                continue
+            if name == 'earnings':
+                try:
+                    datetime.date.fromisoformat(row['week_start'])
+                except (ValueError, TypeError):
+                    continue
+                if (not row['contract_id'] or not isinstance(row['contract_id'], (str, int))
+                        or isinstance(row['contract_id'], bool) or not isinstance(row['currency'], str)
+                        or not row['currency'].strip()):
+                    continue
+                row['contract_id'] = str(row['contract_id'])
+            else:
+                at = verified_timestamp(row['at'])
+                if not at or not isinstance(row['reason'], str):
+                    continue
+                row['at'] = at
+                if row['job_id'] is not None:
+                    if not isinstance(row['job_id'], (str, int)) or isinstance(row['job_id'], bool):
+                        continue
+                    row['job_id'] = str(row['job_id'])
+            key = tuple(row[field] for field in identity)
+            if key not in seen:
+                rows.append(row)
+                seen.add(key)
+        if rows:
+            with path.open('a', encoding='utf-8') as handle:
+                for row in rows:
+                    handle.write(json.dumps(row, ensure_ascii=False) + '\n')
+
+
 def cmd_apply(args):
     raw = sys.stdin.read() if args.file == '-' else pathlib.Path(args.file).read_text(encoding='utf-8')
     snapshot = json.loads(raw)
@@ -247,12 +342,13 @@ def cmd_apply(args):
     first_import = not (data_dir() / 'sync.json').is_file()
 
     added = []
-    for kind in ('proposals', 'offers', 'contracts'):
+    proposal_jobs = {str(item.get('job_id')) for item in snapshot.get('proposals') or [] if item.get('job_id')}
+    for kind in ('invitations', 'proposals', 'offers', 'contracts'):
         for item in snapshot.get(kind) or []:
             jid = matched_id(item, jobs)
-            stage = source_stage(item, kind)
+            stage = 'new' if kind == 'invitations' else source_stage(item, kind)
             if not jid and stage:
-                identity = item.get('contract_id') or item.get('offer_id')
+                identity = item.get('contract_id') or item.get('offer_id') or item.get('invitation_id')
                 if identity:
                     # A decimal local id works with every lead command. The source
                     # kind is included so unrelated platform ids cannot collide.
@@ -275,7 +371,23 @@ def cmd_apply(args):
                     known.add(jid)
                     jobs = pipeline.load()
             if jid in known:
-                metadata = {key: str(item[key]) for key in ('proposal_id', 'room_id', 'contract_id') if item.get(key)}
+                metadata = {key: str(item[key]) for key in ('proposal_id', 'room_id', 'contract_id', 'invitation_id') if item.get(key)}
+                job = next(j for j in jobs if j['id'] == jid)
+                if kind == 'invitations':
+                    metadata['source'] = 'invite'
+                    invited = verified_timestamp(item.get('invited_at'))
+                    if invited:
+                        metadata['invited_at'] = invited
+                elif kind == 'offers':
+                    source = item.get('source')
+                    if source in ('invite', 'direct_offer'):
+                        metadata['source'] = source
+                    elif jid not in proposal_jobs and not job.get('proposal_id') and not job.get('applied_at') and not job.get('source'):
+                        metadata['source'] = 'direct_offer'
+                if kind == 'contracts':
+                    value = contract_value(item.get('terms'))
+                    if value is not None:
+                        metadata['won_value'] = value
                 if item.get('client_name'):
                     metadata['contract_client'] = str(item['client_name'])
                 if metadata:
@@ -327,6 +439,21 @@ def cmd_apply(args):
     for jid, stamp in reply_observations.items():
         run_pipeline('observe', jid, 'replied', stamp, '--source', 'upwork-thread', '--verified')
 
+    # First-answer timing is a separate metric, and a partial room changes nothing.
+    first_answers, incomplete = {}, set()
+    for thread in snapshot.get('threads') or []:
+        jid = str(thread.get('job_id') or '')
+        if complete_turns(thread) is None:
+            incomplete.add(jid)
+        answer = first_reply(thread)
+        if jid in known and answer:
+            if jid not in first_answers or answer['client_at'] < first_answers[jid]['client_at']:
+                first_answers[jid] = answer
+    for jid, answer in first_answers.items():
+        if jid not in incomplete:
+            job = next(j for j in pipeline.load() if j['id'] == jid)
+            record_metadata(job, {key: answer[key] for key in ('first_reply_s', 'first_reply_at')})
+
     # The supplied rooms must cover the job: a partial room cannot replace its aggregate.
     room_gaps, partial_jobs = {}, set()
     for thread in snapshot.get('threads') or []:
@@ -351,8 +478,9 @@ def cmd_apply(args):
         thread_io.save(jid, t.get('messages') or [], t.get('room_id'), t.get('awaiting_reply_from'))
         if t.get('room_id'):
             record_metadata(job, {'room_id': str(t['room_id'])})
-        messages = [(verified_timestamp(m.get('at')), m) for m in t.get('messages') or []
-                    if isinstance(m, dict) and m.get('from') in ('me', 'client') and m.get('kind') != 'event']
+        normalized = thread_io.normalize(t.get('messages') or [])
+        messages = [(verified_timestamp(m.get('at')), m) for m in normalized
+                    if isinstance(m, dict) and m.get('from') in ('me', 'client') and m.get('kind') not in ('event', 'system')]
         messages = sorted((pair for pair in messages if pair[0]), key=lambda pair: pair[0])
         activity_at = verified_timestamp(job.get('last_activity_at')) or ''
         new_messages = [pair for pair in messages if pair[0] > activity_at]
@@ -363,7 +491,8 @@ def cmd_apply(args):
         for stamp, message in (pair for pair in messages if follow_up_at and pair[0] > follow_up_at):
             plan = job.get('follow_up_plan') or {}
             reviewed = verified_timestamp(plan.get('reviewed_at'))
-            if message.get('from') == 'me' and reviewed and stamp > reviewed:
+            silent_due = plan.get('lane') != 'silent' or stamp[:10] >= (job.get('next_follow_up') or '9999-12-31')
+            if message.get('from') == 'me' and reviewed and stamp > reviewed and silent_due:
                 if run_pipeline('follow-up', jid, 'sent', '--on', stamp[:10], '--at', stamp):
                     job = next(j for j in pipeline.load() if j['id'] == jid)
             last = (job.get('follow_up_history') or [{}])[-1]
@@ -379,7 +508,7 @@ def cmd_apply(args):
                              'Client replied on Upwork.' if message.get('from') == 'client' else 'Member sent a message on Upwork.')
         job = next(j for j in pipeline.load() if j['id'] == jid)
         if t.get('awaiting_reply_from') == 'you' and job.get('status') not in ('lost', 'skipped'):
-            if job.get('follow_up_plan'):
+            if job.get('follow_up_plan') and job['follow_up_plan'].get('lane') != 'active':
                 run_pipeline('follow-up', jid, 'clear', '--reason', 'The client replied; review the new message first.')
                 job = next(j for j in pipeline.load() if j['id'] == jid)
             if job.get('status') in ('replied', 'call', 'offer', 'won') and record_metadata(
@@ -387,6 +516,33 @@ def cmd_apply(args):
                 waiting.append(jid)
         elif not job.get('follow_up_plan') and job.get('follow_up_source') == 'waiting':
             record_metadata(job, {'next_follow_up': None, 'follow_up_source': None})
+        # Silent sequences are anchored to the original unanswered turn, not poll time.
+        if messages and job.get('status') in ('replied', 'call', 'offer'):
+            latest_at, latest = messages[-1]
+            plan = job.get('follow_up_plan') or {}
+            if latest['from'] == 'me' and t.get('awaiting_reply_from') != 'you':
+                last_client = max((at for at, message in messages if message['from'] == 'client'), default='')
+                prior = [entry for entry in job.get('follow_up_history') or []
+                         if entry.get('lane') == 'silent' and entry.get('anchor_at')
+                         and entry['anchor_at'] > last_client]
+                anchor = (plan.get('anchor_at') if plan.get('lane') == 'silent' else
+                          prior[-1]['anchor_at'] if prior else latest_at)
+                completed = any(entry.get('lane') == 'silent' and entry.get('completed')
+                                and (verified_timestamp(entry.get('at')) or '') >= (anchor or '')
+                                for entry in job.get('follow_up_history') or [])
+                if anchor and not completed and plan.get('lane') != 'silent':
+                    due = pipeline.add_business_days(datetime.date.fromisoformat(anchor[:10]), 3).isoformat()
+                    run_pipeline('follow-up', jid, 'plan', '--lane', 'silent', '--due', due,
+                                 '--at', anchor, '--reason', 'The member wrote last; the client has not answered.')
+            elif latest['from'] == 'client' and plan.get('lane') != 'reactivation':
+                due = pipeline.add_business_days(datetime.date.fromisoformat(latest_at[:10]), 1).isoformat()
+                if plan.get('lane') != 'active':
+                    run_pipeline('follow-up', jid, 'plan', '--lane', 'active', '--due', due,
+                                 '--at', latest_at, '--reason', 'The client replied; resume the active conversation.')
+                    if t.get('awaiting_reply_from') == 'you':
+                        record_metadata(next(j for j in pipeline.load() if j['id'] == jid),
+                                        {'next_follow_up': today, 'follow_up_source': 'waiting'})
+
 
     # Expiration needs fresh evidence that this exact proposal was checked and
     # still has no room. Absence from a limited proposal page proves nothing.
@@ -400,6 +556,7 @@ def cmd_apply(args):
         if job['id'] in no_rooms and applied_expired(job):
             stale.append(job['id'])
 
+    append_financials(snapshot)
     record = {'synced_at': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),
               'moved': moved, 'added': added, 'threads': len(threads), 'awaiting_you': waiting,
               'stale_applications': stale}

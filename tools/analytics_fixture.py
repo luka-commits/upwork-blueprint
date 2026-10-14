@@ -843,8 +843,7 @@ def this_week_height_budget(width, total_height, first_screen_bottom):
 
 def rendered_ui():
     if not (ROOT / 'website/node_modules').is_dir():
-        print('audit engineer: rendered UI preflight PASS — SKIP rendered UI: website/node_modules absent; no unrelated dependency fallback')
-        return
+        raise AssertionError('Rendered UI dependencies absent: install the declared website dependencies.')
     with fixture('rendered-ui') as folder:
         me = folder / 'context/me.md'
         me.write_text('Name: Maya Rivers\n' + me.read_text())
@@ -903,6 +902,11 @@ assert(html.includes(snapshot.presentation.scorecard.find(row=>row.key===snapsho
 assert(html.includes('Top · finding and applying')&&html.includes('Middle · replies and calls')&&html.includes('Bottom · proposals and wins'));
 assert(html.includes('Your funnel, stage by stage')&&!html.includes('Show all numbers')&&!html.includes('More insights'));
 assert(html.includes('Funnel Score'));
+const unsafeMissingAdvice='Follow up immediately without an agreed next step.';
+const missingAdviceState={...modern,analytics:{latest:{...snapshot,presentation:{...snapshot.presentation,scorecard:snapshot.presentation.scorecard.map(row=>({...row,state:'missing',insight:unsafeMissingAdvice}))}},history:[]}};
+for(const disclosuresOpen of [false,true]){expand=disclosuresOpen;const missingAdviceMarkup=render(missingAdviceState);assert(!memberText(missingAdviceMarkup).includes(unsafeMissingAdvice),'Missing source never produces a behavioral diagnosis, with details '+(expand?'open':'closed'));assert(memberText(missingAdviceMarkup).includes('Add the missing records to check this, then run /analytics.'),'Missing details give the collection action');}
+expand=false;
+
 const callDetail=html.match(/<tr class="sc-detail" id="scorecard-reply_to_call"[^>]*><td[^>]*>([^]*?)<\/td><\/tr>/);
 assert(callDetail);assert(callDetail[1].includes('Conversations'));
 assert(callDetail[1].includes('How it is counted'),'Call rate detail retains the counting rule');
@@ -923,6 +927,12 @@ assert(reviewHtml.indexOf('Build an audit dashboard')<reviewHtml.indexOf('Build 
 assert(!reviewHtml.includes('Automate payroll reconciliation'),'This week excludes earlier dates');
 assert(!reviewHtml.includes('Create weekly reporting'),'Default shows at most three rows');
 assert(reviewHtml.includes('Show all 4')&&/needs work/i.test(reviewHtml)&&/keep/i.test(reviewHtml));
+const repeatedReview={lead_id:'same-lead',title:'Review repeated across stages',date:'2026-10-14',key_finding:'Confirm who supplies the inputs',marker:'needs work',reviewable:true};
+const duplicateStages={...snapshot,periods:{...snapshot.periods,activity:{start:'2026-10-12',end:'2026-10-18'}},conversations:{patterns:[{text:'Confirm the agreement',quotes:[{quote:'Who supplies the inputs?'}]}],sections:{applications:[repeatedReview],chats:[repeatedReview],calls:[repeatedReview],proposals:[{...repeatedReview,key_finding:'Agree the decision date'}]}}};
+const deduped=render({...modern,analytics:{latest:duplicateStages,history:[]}});
+assert.equal((deduped.match(/Confirm who supplies the inputs/g)||[]).length,1,'A repeated finding appears once in its first stage');
+assert(deduped.includes('Agree the decision date'),'Distinct later advice stays visible');
+assert(deduped.indexOf('Who supplies the inputs?')<deduped.indexOf('Confirm the agreement'),'Supporting quotes precede pattern prose');
 tab=2;const achievements=render(modern);assert(achievements.includes(snapshot.rank));assert(achievements.includes('Funnel Score'));assert(/goals.*worked|track record/i.test(achievements));tab=0;
 assert(!/0 of 0/.test(html));assert(html.includes('No opportunities yet'));assert(html.includes('unknown')||html.includes('Not enough evidence'));
 const missingMoney={...snapshot,north_star:{...snapshot.north_star,value:null,known_subtotal:0,unknown_value_wins:['synthetic-unknown'],hourly_billed:null}};
@@ -954,11 +964,12 @@ const unknownHistory={...snapshot,presentation:{...snapshot.presentation,scoreca
 const unknownHtml=render({...modern,analytics:{latest:unknownHistory,history:[]}});
 const unknownDetail=unknownHtml.match(new RegExp(`<tr[^>]*id="scorecard-${chartKey}"[^>]*>([^]*?)</tr>`))?.[1] || '';
 const unknownChart=unknownDetail.match(/<svg class="sc-development"[^>]*>([^]*?)<\/svg>/)?.[1] || '';
-assert.equal((unknownChart.match(/<title>/g)||[]).length,8,'Eight dated chart slots remain when every value is unknown');
-for(const week of datedWeeks){assert(unknownChart.includes(week+': unknown'));assert(unknownChart.includes('>'+week.replace('2026-','')+'</text>'));}
+assert.equal((unknownChart.match(/<title>/g)||[]).length,0,'A wholly unknown trend renders no empty chart');
+assert(unknownDetail.includes('No trend yet. Add the missing application records, then run /analytics.'),'A missing chart supplies its exact collection action');
+assert(!unknownDetail.includes('sc-unknown-weeks'),'Missing trends never repeat unknown weekly labels');
 assert(!unknownChart.includes('>?</text>'),'Unknown chart values use words, never a question-mark placeholder');
 assert(!unknownChart.includes('>unknown</text>'),'Unknown values use one readable caption outside the chart');
-assert(memberText(unknownDetail).includes('Unknown: '+datedWeeks.map(week=>week.replace('2026-','')).join(', ')));
+assert(!memberText(unknownDetail).includes('Unknown:'),'Empty trend avoids repeated unknown labels');
 assert(!unknownChart.includes('<rect')&&!unknownChart.includes('<circle'),'Missing values are never plotted as zero');
 const idGaps=[{source:'call transcript:9012345678901',how_to_supply:'Paste the call for 9012345678901.'},{source:'call transcript:9012345678902',how_to_supply:'Paste the call for 9012345678902.'}];
 const missingSources={...snapshot,coverage:{...snapshot.coverage,missing:idGaps}};
@@ -980,6 +991,9 @@ for(const sample of samples)for(tab=0;tab<3;tab++)forbiddenProof(render({...mode
 const maya=payload.maya;
 const mayaState={...modern,analytics:{latest:maya,history:[],goals:null}};
 const mayaHtml=render(mayaState),mayaText=forbiddenProof(mayaHtml,'Maya');
+assert(mayaHtml.indexOf('Start here:')<mayaHtml.indexOf('class="an-progress-strip"'),'Open deals open This week');
+assert(mayaHtml.indexOf('Start here:')<mayaHtml.indexOf('class="an-goals"'));
+assert.equal((mayaHtml.match(/Start here:/g)||[]).length,1,'Open deal instruction appears once');
 assert.equal(maya.pipeline.live,11);assert(maya.presentation.activity_summary.includes('31 applications this week against a goal of 25'));assert(maya.presentation.activity_summary.includes('26 sent within 10 minutes'));
 for(const expected of ['88', 'was 81', '$4,200', '3 new contracts', '$3,500', 'Reply rate 18% → 21%', 'Swift Sail', 'Silver', 'Turn replies into calls','29 replies led to 9 booked calls','did it 7 of 9','did it 1 of 4','29 of 140','9 of 29','8 of 9','3 of 6','8 of 8'])assert(mayaText.includes(expected),expected);
 const goalCards=[...mayaHtml.matchAll(/<article class="an-goal">([^]*?)<\/article>/g)].map(match=>memberText(match[1]));
@@ -993,6 +1007,26 @@ for(const [index,goal] of maya.presentation.goal_cards.entries()){
 const ended={...maya,goals_review:[...maya.goals_review,{change:'Confirm the project owner',done_k:2,done_n:2,effect:'worked',effect_text:'Both replies agreed an owner',decision:'End'}]};
 assert(render({...mayaState,analytics:{latest:ended}}).includes('Ended last week'));
 // A different commitment at the same stage is new; old card metadata cannot overwrite it.
+const endedTwice={...ended,goals_review:[...ended.goals_review,{change:'Confirm the source owner',done_k:1,done_n:2,effect:'undecided'}]};
+const endedHtml=render({...mayaState,analytics:{latest:endedTwice}});
+const endedLine=endedHtml.match(/<p class="an-ended-goals">([^]*?)<\/p>/)?.[1] || '';
+assert(endedLine.includes('Confirm the project owner')&&endedLine.includes('Confirm the source owner'));
+assert.equal((endedLine.match(/<button/g)||[]).length,1,'Ended goals share one evidence button');
+assert(!endedLine.includes('<article'),'Ended goals share one line, never separate cards');
+const fitExample={...maya,presentation:{...maya.presentation,scorecard:maya.presentation.scorecard.map(row=>row.key==='reply_rate'?{...row,job_fit:{period:{start:'2026-07-15',end:'2026-10-07'},pending_n:0,apply:[{dimension:'budget',band:'500-2000',n:30,k:6,low:10,high:40,text:'Apply: fitting budgets. 6 replies from 30 applications (20%, range 10% to 40%), 10 Connects per reply.',evidence:[]}],skip:[]}}:row)}};
+const fitMarkup=render({...mayaState,analytics:{latest:fitExample}});
+assert(memberText(fitMarkup).includes('range 10% to 40%'),'Job fit displays the writer interval as a plain range with n and cost');
+assert.equal((memberText(fitMarkup).match(/10% to 40%/g)||[]).length,1,'Current writer text shows its range exactly once');
+const legacyFitText='Apply: fitting budget range. 6 replies from 30 applications (20%), 10 Connects per reply.';
+function withFitBounds(low,high){return {...fitExample,presentation:{...fitExample.presentation,scorecard:fitExample.presentation.scorecard.map(row=>row.key==='reply_rate'?{...row,job_fit:{...row.job_fit,apply:row.job_fit.apply.map(pattern=>({...pattern,text:legacyFitText,low,high}))}}:row)}};}
+const legacyFitMarkup=memberText(render({...mayaState,analytics:{latest:withFitBounds(10,40)}}));
+assert(legacyFitMarkup.includes(legacyFitText)&&legacyFitMarkup.includes('Reply range: 10% to 40%.'),'Saved legacy text displays its computed numeric interval');
+assert.equal((legacyFitMarkup.match(/10% to 40%/g)||[]).length,1,'Legacy numeric range appears exactly once');
+for(const [low,high] of [[null,null],[10,null],[null,40]]){
+ const unknownFitMarkup=memberText(render({...mayaState,analytics:{latest:withFitBounds(low,high)}}));
+ assert(unknownFitMarkup.includes(legacyFitText));assert(!unknownFitMarkup.includes('Reply range:'),'Missing interval endpoints are never invented');
+}
+
 const newCommitment={...maya,goals_next:maya.goals_next.map((goal,i)=>i?goal:{...goal,goal_id:'new-call-practice',change:'Confirm the decision maker',action:'Ask who decides before offering a call.'})};
 const changedHtml=render({...mayaState,analytics:{latest:newCommitment}});
 const changedCard=memberText([...changedHtml.matchAll(/<article class="an-goal">([^]*?)<\/article>/g)][0][1]);
@@ -1015,7 +1049,7 @@ assert.equal(maya.presentation.scorecard.find(row=>row.key==='proposal_to_won').
 for(const row of maya.presentation.scorecard.filter(row=>['reply_rate','reply_to_call','booked_to_held','proposal_to_won'].includes(row.key)))assert.deepEqual([row.finished.k,row.finished.n],({reply_rate:[29,140],reply_to_call:[9,29],booked_to_held:[8,9],proposal_to_won:[3,6]})[row.key]);
 const verifiedQuote="The reply_rate cohort is undecided — eligible is the client's word.";
 selected={title:'Quoted review',review:{quote:verifiedQuote,example:verifiedQuote},kind:'chats',evidence:[]};
-assert(memberText(render(modern)).includes(verifiedQuote));selected=null;
+const sanitizedQuote=forbiddenProof(render(modern),'Quoted review');assert(!sanitizedQuote.includes(verifiedQuote));assert(!sanitizedQuote.includes('Reply rate group'));assert(sanitizedQuote.includes('Quote unavailable in this view'));selected={title:'Safe quote',review:{quote:'Please confirm the inputs.'},kind:'chats',evidence:[]};assert(memberText(render(modern)).includes('“Please confirm the inputs.”'));selected=null;
 selected={title:'Missing transcript source',kind:'chats',review:{missing_sources:idGaps},evidence:[]};
 const safeSourceReview=memberText(render(modern));
 assert(!safeSourceReview.includes('9012345678901')&&!safeSourceReview.includes('9012345678902'));
@@ -1028,6 +1062,11 @@ for(const selection of [{title:'Missing evidence',evidence:[]},{title:'Call',cal
  ...Object.entries(snapshot.conversations?.sections||{}).flatMap(([kind,entries])=>entries.map(entry=>({title:entry.label||kind,kind,...(kind==='calls'?{call:entry}:{review:entry}),evidence:[]})))]){
  selected=selection;forbiddenProof(render(modern),'Evidence drawer '+selection.title);
 }
+selected={title:'One call title',period:'DUPLICATE_CALL_DATE',call:{label:'One call title',reviewed_at:'2026-10-12T10:00:00+02:00',date:'2026-10-12',points:[{point:1,state:'met',quote:'Please confirm the inputs.',quote_at:'00:42'}]},evidence:[]};
+const singleCall=memberText(render(modern));
+assert.equal((singleCall.match(/One call title/g)||[]).length,1,'Call title is shown once');
+assert(!singleCall.includes('DUPLICATE_CALL_DATE'),'Generic evidence period does not duplicate the call date');
+assert(singleCall.includes('Call reviewed 2026-10-12T10:00:00+02:00')&&singleCall.includes('00:42'),'Call review date and source timestamp remain visible');
 selected=null;current=modern;
 for(const card of [{},...(snapshot.call_cards||[])])forbiddenProof(renderToStaticMarkup(React.createElement(mod.exports.CallCard,{card})),'Call card');
 // Render the owning lead drawer as well; local helper imports and effects make no requests.
@@ -1048,14 +1087,16 @@ for(const job of [null,{id:'maya-lead',title:'Booking flow',status:'call',artifa
 }
 for(const [label,markup] of Object.entries(payload.public_cards))forbiddenProof(markup,'Community '+label);
 if(failures.length)throw Error(failures.map((message,i)=>`${i+1}. ${message.slice(0,1200)}`).join('\n'));
-console.log('PART3 rendered member copy prepared: This week, Conversations, Achievements, both drawers, calls and community; details open, missing sources and zero opportunities; verified quotes unchanged');
+console.log('PART3 rendered member copy prepared: This week, Conversations, Achievements, both drawers, calls and community; details open, missing sources and zero opportunities; safe source quotes exact, unsafe source quotes omitted');
 console.log('SYNTHETIC rendered UI PASS: current saved focus first/k/n; missing vs empty snapshot; eight samples; legacy66% and49/50 pure helper; observed call source and Wilson uncertainty');
 })().catch(error=>{console.error(error);process.exitCode=1});"""
         from analytics_forbidden_terms import FORBIDDEN_TERMS, RAW_FLOAT_PATTERN, DECIMAL_RATE_PATTERN
         from analytics_replay import maya_card_example
         maya = maya_card_example(snapshot)
         public_cards = {'missing':analytics.public_onepager_html(snapshot['community_card'])}
-        analytics.add_goals({'week':'2026-W43','goals':[dict(goal,start='2026-10-19') for goal in maya['goals_next']]})
+        saved_public=analytics.add_goals({'week':maya['week'],'goals':[dict(goal,start='2026-10-12') for goal in maya['goals_next']]})
+        agreed=analytics.latest_goals(dt.date(2026,10,14))
+        maya['community_card']['goals']=[{'goal_id':goal['goal_id'],'goal_library_id':goal['goal_library_id'],'text':analytics.PUBLIC_GOAL_LIBRARY[goal['goal_library_id']][1],'done':False,'k':k,'n':n,'state':'partial' if k else 'undone'} for goal,(k,n) in zip(agreed,[(7,9),(1,4),(0,2)])]
         public_cards['Maya'] = analytics.public_onepager_html(analytics.snapshot_public_card(maya,[]))
         result = ORIGINAL_RUN(['node', '-e', js, json.dumps({'legacy':s,'snapshot':snapshot,'maya':maya,'public_cards':public_cards,'forbidden_terms':FORBIDDEN_TERMS,'raw_float_pattern':RAW_FLOAT_PATTERN,'decimal_rate_pattern':DECIMAL_RATE_PATTERN})], cwd=ROOT / 'website', capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
@@ -1064,8 +1105,111 @@ console.log('SYNTHETIC rendered UI PASS: current saved focus first/k/n; missing 
         for row in snapshot['presentation']['scorecard']:
             assert row['uncertainty']=={key:rates[row['key']].get(key) for key in ('low','high')}
         print(result.stdout.strip())
-        print('audit engineer E20: rendered UI preflight PASS — executed using declared website dependencies')
+        print('audit engineer E20: rendered UI preflight PASS, executed using declared website dependencies')
+        browser_ui_proof(folder,dict(s,analytics={'latest':maya,'history':[],'goals':None}))
 
+
+
+def browser_ui_proof(folder, state):
+    """Exercise the real client app with isolated GET fixtures, never member data."""
+    import copy
+    import socket
+    from playwright.sync_api import sync_playwright
+    from urllib.parse import urlparse
+    fixture_state=copy.deepcopy(state)
+    current=fixture_state['analytics']['latest']
+    lead={'id':'local-ui-lead','title':'Local booking flow proof','status':'replied','artifacts':[],
+          'call_cards':[],'lead_context':{}}
+    fixture_state['jobs']=[lead]
+    action_row=next(row for row in current['presentation']['scorecard'] if row['state']!='missing')
+    action_row['next_action']={'text':'Review selected applications','lead_filter':{'lead_ids':[lead['id']]}}
+    action_row['evidence']=[lead['id']]
+    current['presentation']['badges']=[{'name':name,'tier':'Bronze','earned':True,'image':f'/badges/{name.lower().replace(" ","-")}-bronze.webp','motif':'compass','short':'Confirm the useful next step','rule':'Review the full call source.'} for name in ('True North','First Doubloon')]
+    current['presentation']['badges'].append({'name':'Swift Sail','tier':'Bronze','earned':True,'image':'/badges/fixture-missing-image.webp','fallback_image':'/badges/badge-compass.webp','short':'Use a useful application','rule':'Apply after checking fit.'})
+    current['conversations']={'patterns':[{'text':'Confirm the inputs first','quotes':[{'quote':'Who supplies the inputs?'}]}],
+        'sections':{kind:[] for kind in ('applications','chats','calls','proposals')}}
+    current['conversations']['sections']['chats']=[{'lead_id':f'local-review-{i}','title':f'Local review {i}',
+        'date':'2026-10-14','reviewable':True,'key_finding':f'Confirm input owner {i}','marker':'keep'} for i in range(5)]
+    current['conversations']['sections']['calls']=[{'lead_id':'missing-call','title':'Local missing transcript',
+        'date':'2026-10-14','reviewable':False}]
+    with socket.socket() as sock:
+        sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+    log_path=folder/'browser-next.log'
+    with log_path.open('w') as log:
+        server=subprocess.Popen(['node','node_modules/next/dist/bin/next','dev','-H','127.0.0.1','-p',str(port)],
+            cwd=ROOT/'website',env=dict(os.environ),stdout=log,stderr=log)
+        try:
+            deadline=time.monotonic()+60
+            while True:
+                if server.poll() is not None:raise AssertionError('Fixture app failed: '+log_path.read_text()[-3000:])
+                try:
+                    with socket.create_connection(('127.0.0.1',port),timeout=.25):break
+                except OSError:
+                    if time.monotonic()>deadline:raise AssertionError('Fixture app startup timeout: '+log_path.read_text()[-3000:])
+                    time.sleep(.1)
+            with sync_playwright() as playwright:
+                browser=playwright.chromium.launch()
+                page=browser.new_page(viewport={'width':1440,'height':900},reduced_motion='reduce')
+                request_methods=[]
+                def route(request):
+                    url=urlparse(request.request.url)
+                    if url.hostname not in ('localhost','127.0.0.1'):
+                        request.abort();return
+                    if url.path.startswith('/api/'):
+                        request_methods.append(request.request.method)
+                        assert request.request.method=='GET','Local UI attempted a write'
+                        request.fulfill(json=fixture_state if url.path=='/api/state' else lead);return
+                    request.continue_()
+                page.route('**/*',route)
+                page.goto(f'http://127.0.0.1:{port}/analytics',wait_until='networkidle',timeout=60000)
+                page.get_by_role('heading',name='This week: Turn replies into calls').wait_for()
+                proof_dir=pathlib.Path(os.environ.get('ANALYTICS_UI_PROOF_DIR') or tempfile.mkdtemp(prefix='analytics-ui-proof-'))
+                proof_dir.mkdir(parents=True,exist_ok=True)
+                for width in (1440,390):
+                    page.set_viewport_size({'width':width,'height':900})
+                    page.get_by_role('tab',name='This week',exact=True).click()
+                    assert page.locator('.sc-detail:visible').count()==0
+                    dimensions=page.evaluate("""() => ({height:document.documentElement.scrollHeight,bottom:document.querySelector('.an-week-plan').getBoundingClientRect().bottom+scrollY,width:document.documentElement.scrollWidth})""")
+                    budget=this_week_height_budget(width,dimensions['height'],dimensions['bottom'])
+                    assert budget['page']!='FAIL',budget
+                    assert dimensions['width']<=width,f'Horizontal overflow: {dimensions}'
+                    page.screenshot(path=str(proof_dir/f'audit-fix-ui-{width}.png'),full_page=True)
+                    print(f"SYNTHETIC browser height {width}: {dimensions['height']}px, goals bottom {round(dimensions['bottom'])}px, {budget['page']}; screenshot {proof_dir / f'audit-fix-ui-{width}.png'}")
+                opening=page.locator('#analytics-panel-0').inner_text()
+                assert opening.index('Start here:')<opening.index('Funnel Score')<opening.index('This week:'),opening
+                page.set_viewport_size({'width':1440,'height':900})
+                first=page.get_by_role('button',name='Details for '+action_row['name'],exact=True)
+                first.click();assert first.get_attribute('aria-expanded')=='true'
+                page.get_by_role('button',name='Review selected applications',exact=False).click()
+                assert page.get_by_role('dialog').is_visible()
+                page.get_by_role('button',name='Open lead').click()
+                page.locator('#drawer-title').filter(has_text=lead['title']).wait_for()
+                assert page.locator('.drawer.open').is_visible(),'Filtered lead drawer did not open'
+                page.locator('.drawer-close').click()
+                page.get_by_role('button',name='All badges → Achievements').click()
+                assert page.get_by_role('tab',name='Achievements',exact=True).get_attribute('aria-selected')=='true'
+                for badge in page.locator('.an-badge').all():
+                    assert badge.locator('img').count()==1,'Badge without image'
+                page.wait_for_function("Array.from(document.querySelectorAll('.an-badge img')).every(image=>image.complete && image.naturalWidth>0)")
+                assert page.locator('.an-badge img[data-fallback="true"]').count()==1,'A broken tier image uses a real loaded fallback'
+                first_badge=page.locator('.an-badge').first
+                first_badge.locator('summary').click();assert first_badge.get_attribute('open') is not None
+                page.get_by_role('tab',name='Conversations',exact=True).click()
+                chats=page.locator('#conversations-chats')
+                assert chats.locator('.an-review-rows > button').count()==3
+                chats.get_by_role('button',name='Show all 5').click()
+                assert chats.locator('.an-review-rows > button').count()==5
+                assert 'Not reviewed' in page.locator('#conversations-calls').inner_text()
+                assert 'Paste the full call transcript' in page.locator('#conversations-calls').inner_text()
+                pattern=page.locator('.an-patterns article').first.inner_text()
+                assert pattern.index('Who supplies the inputs?')<pattern.index('Confirm the inputs first')
+                assert request_methods and set(request_methods)=={'GET'}
+                browser.close()
+                print('SYNTHETIC browser interactions PASS: closed details, expand, filtered lead drawer, badge navigation/rule, Show all, quote-first, missing transcript; local GET fixtures only')
+        finally:
+            server.terminate()
+            try:server.wait(timeout=10)
+            except subprocess.TimeoutExpired:server.kill();server.wait(timeout=10)
 
 def package1():
     with fixture('f1'):
@@ -1443,7 +1587,7 @@ def analytics_rate_oracle(rows, today, baseline=False):
     return expected
 
 
-def analytics_payload(snapshot):
+def analytics_payload(snapshot, agree=True):
     """A member-approved synthetic coaching addition, without client words."""
     value = json.loads(json.dumps(snapshot))
     primary = value['verdict'].get('kpi') or 'reply_rate'
@@ -1466,7 +1610,19 @@ def analytics_payload(snapshot):
                                'evidence_lead_ids': [], 'goal_ref': keys[index % 3]}
                         for index, kind in enumerate(('application', 'conversation', 'call', 'proposal'))}
     import analytics
-    return analytics.prepare_snapshot(value, dt.date.fromisoformat(value['generated_at'][:10]))
+    today=dt.date.fromisoformat(value['generated_at'][:10])
+    # This helper represents an explicit synthetic member agreement. Persist it
+    # separately from the snapshot writer, exactly as the live command must do.
+    agreement={'week':value['week'],'goals':[dict(goal,start=today.isoformat()) for goal in value['goals_next']]}
+    analytics.validate_goals(agreement)
+    ledger=analytics.read_lines('goals.jsonl')
+    prior=next((row for row in ledger if row.get('week')==value['week']),None)
+    if agree:
+        agreement_data=pathlib.Path(os.environ.get('BLUEPRINT_DATA','')).resolve()
+        assert agreement_data.is_relative_to(pathlib.Path(tempfile.gettempdir()).resolve()) and agreement_data != (ROOT/'data').resolve() and agreement_data.parent.name.startswith('blueprint-synthetic-'),'Synthetic agreement helper cannot write member storage'
+        if prior is None:analytics.add_goals(agreement)
+        else:assert prior['goals']==agreement['goals'],'Fixture needs an explicit changed goal agreement at this positive callsite'
+    return analytics.prepare_snapshot(value, today)
 
 
 def analytics_decisions():
@@ -1633,8 +1789,8 @@ def analytics_member():
             'conversation_review': (None, None, 'undecided', None),
             'call_review': (None, None, 'undecided', None),
             'proposal_review': (None, None, 'undecided', None),
-            'segments': (None, None, 'undecided', 'nothing new'),
-            'behaviour': (None, None, 'undecided', 'nothing new'),
+            'segments': (0, 25, 'observed', 0),
+            'behaviour': (0, 3, 'observed', 0),
             'lost_reasons': (0, 0, 'undecided', {'stated': 0, 'observed': 0, 'unknown': 0}),
             'goal_effect': (0, 0, 'undecided', None),
             'goal_done': (0, 0, 'undecided', None),
@@ -1672,11 +1828,13 @@ def analytics_member():
 
 def analytics_storage(snapshot, folder, rows):
     import analytics
-    value = analytics_payload(snapshot)
+    value = analytics_payload(snapshot,agree=False)
     goal_input = {'week': value['week'], 'goals': [dict(goal, start='2026-10-14') for goal in value['goals_next']]}
     def rejected(command, payload, *extra):
         result = run('analytics.py', *command, '--file', '-', *extra, value=payload, success=False)
         assert result.returncode != 0, (command, payload, result.stdout)
+    rejected(('record',),value)
+    assert not (folder/'data/goals.jsonl').exists() and not (folder/'data/analytics-history.jsonl').exists(),'Unagreed snapshot refuses without writes'
     duplicate_stage = json.loads(json.dumps(goal_input))
     duplicate_stage['goals'][1]['stage'] = duplicate_stage['goals'][0]['stage']
     rejected(('goals', 'add'), duplicate_stage)
@@ -1740,7 +1898,7 @@ def analytics_storage(snapshot, folder, rows):
         assert all(secret not in surface for secret in ('SYNTHETIC PRIVATE CLIENT NAME','SYNTHETIC PRIVATE CLIENT WORDS','Operations dashboard and audit automation'))
     assert stored['reviews']['application']['example'] == 'I can offer Tuesday at ten.'
     # Last week's goals separate execution from the independently measured outcome.
-    previous = analytics_payload(analytics.compute(ANALYTICS_TODAY - dt.timedelta(days=7)))
+    previous = analytics_payload(analytics.compute(ANALYTICS_TODAY - dt.timedelta(days=7)),agree=False)
     keys = ('booked_to_held', 'first_reply', 'follow_ups_on_time')
     previous_goals = {'week': previous['week'], 'goals': [dict(previous['goals_next'][index],
                       kpi=key, stage=snapshot['kpis'][key]['label'], start='2026-10-07')
@@ -2043,7 +2201,10 @@ def assert_analytics_additions(value):
         assert 0 <= row['k'] <= row['n']
     for row in value['segments']:
         assert {'dimension', 'value', 'k', 'n', 'observed', 'expected', 'lead_ids'} <= row.keys()
-        assert row['expected'] is None
+        total_n=sum(row[name]['reference']['n'] for name in ('discovery','confirmation'))
+        total_k=sum(row[name]['reference']['k'] for name in ('discovery','confirmation'))
+        assert row['expected']==(100*total_k/total_n if total_n else None)
+        assert 0<=total_k<=total_n
     assert {'next_30_days', 'by_stage'} <= value['forecast'].keys()
     for row in value['forecast']['by_stage']:
         assert {'stage', 'count', 'known_value', 'own_rate', 'expected'} <= row.keys()
@@ -2188,7 +2349,7 @@ def analytics_fix_round():
     assert 'No fixed paragraph order' in report_command
     # Frozen public source guards supersede exact old wording; target behavior is numerically tested.
     assert all(text in command for text in ('No funnel graphic, forecast chart', 'community_card.next_focus',
-        '≤14 words', 'automatic check', 'common 28-day community window', 'Bars'))
+        'at most 14 words', 'no digits, currency or unit text', 'agreed library goal IDs', 'never private goal wording', 'match no known client, company, job title or quote fragment', 'common 28-day community window', 'Bars'))
     assert '8-week' in command and '**Achievements**' in command, 'Frozen section 14 retains the score chart and its history home.'
     print('SYNTHETIC A2 fix round PASS: reply6%=target11%, reply12%=target11% until Wilson evidence supports promotion; first four weeks no rate verdict; four mapped lever focuses; configurable reasoned lever targets; every added snapshot field schema-valid; urgent todos capped7; default card despite Bars; undecided forecast null; Claude insight/question/provenance/findings validation and persistence')
 
@@ -2760,7 +2921,7 @@ def audit_analytics():
         else:raise AssertionError('Nested public identity accepted')
         passed('privacy V13: closed community payload fixed questions nested client rejection')
         # Directory flock protects duplicate checks; atomic rename preserves prior bytes on failure.
-        atomic_input={'week':'2026-W42','goals':[goal('weekly_volume','2026-10-14')]}
+        atomic_input={'week':'2026-W43','goals':[goal('weekly_volume','2026-10-19')]}
         def add_once(_):
             try:analytics.add_goals(atomic_input);return True
             except ValueError:return False
@@ -2789,7 +2950,7 @@ def audit_analytics_extended():
         (folder/'data/sync.json').write_text(json.dumps({'synced_at':now}))
         (folder/'data/earnings.jsonl').write_text('');(folder/'data/connects.jsonl').write_text('')
     def commitment(key,start='2026-09-01'):
-        return {'kpi':key,'stage':analytics.LABELS[key],'change':'Review applications once','start':start,
+        return {'kpi':key,'goal_library_id':{'reply_rate':'reply-proof','first_reply':'first-answer','weekly_volume':'volume-sessions'}[key],'stage':analytics.LABELS[key],'change':'Review applications once','start':start,
                 'primary':True,'cue':'When reviewing the week','action':'Review applications once',
                 'fallback':'Review one application','review_on':(dt.date.fromisoformat(start)+dt.timedelta(days=7)).isoformat()}
     with fixture('audit-real-effects') as folder:
@@ -3145,7 +3306,8 @@ def analytics_final_numerical():
         reviewed=analytics.goal_reviews(effectrows,today,now=now)[0]
         assert (reviewed['before_k'],reviewed['before_n'],reviewed['after_k'],reviewed['after_n'],reviewed['effect']) == (0,40,40,40,'worked'),reviewed
         assert reviewed['before_period']=={'start':'2026-08-04','end':'2026-08-31'}
-        assert reviewed['after_period']=={'start':'2026-09-01','end':'2026-10-06'}
+        assert reviewed['after_period']=={'start':'2026-09-01','end':'2026-09-15'}
+        assert reviewed['after_entry_period']=={'start':'2026-09-01','end':'2026-09-07'}
         empty = analytics.compute(today,jobs=[],now=now)
         assert empty['kpis']['value_per_100_connects']['state'] == 'not measurable'
         assert empty['kpis']['value_per_100_connects']['value'] is None
@@ -3238,6 +3400,25 @@ def analytics_event_ledger_contract():
     assert badges.streak(history,week='2026-W41') == 4
     same_month=badges.streak_history([{'week':week} for week in ('2026-W41','2026-W44')],week='2026-W44')
     assert same_month['streak_weeks'] == 1 and same_month['anchors_used'] == ['2026-W42'], same_month
+    month_boundary=badges.streak_history([{'week':week} for week in ('2026-W44','2026-W46','2026-W48','2026-W49','2026-W50')],week='2026-W50')
+    assert month_boundary['anchors_used']==['2026-W45'],month_boundary
+    across_month=badges.streak_history([{'week':week} for week in ('2026-W43','2026-W45','2026-W47','2026-W49')],week='2026-W49')
+    assert across_month['anchors_used']==['2026-W44','2026-W46'],across_month
+    for met,expected in ((4,False),(5,True)):
+        points=[{'point':i,'state':'met' if i<=met else 'missing' if i<=6 else 'not needed',
+                 'quote':'Synthetic local proof','reason':'Not applicable to this call' if i>6 else ''} for i in range(1,10)]
+        assert (badges._call_fraction(points)>=7/9) is expected,(met,badges._call_fraction(points))
+    with fixture('applicable-badge-threshold') as folder:
+        for met,expected in ((4,False),(5,True)):
+            jid=str(941550000+met)
+            path=folder/'jobs'/jid;path.mkdir()
+            (path/'call.md').write_text('Member: Alex\nComplete: yes\nLanguage: English\nAlex: What is the next step?\nClient: Synthetic local proof\n')
+            points=[{'point':i,'state':'met' if i<=met else 'missing' if i<=6 else 'not needed',
+                'quote':'Synthetic local proof','reason':'Not applicable to this call' if i>6 else ''} for i in range(1,10)]
+            row={'id':jid,'source':'outbound','call_held_at':analytics_stamp(today,10),
+                'call_review':{'reviewable':True,'points':points}}
+            awards=badges.check(jobs=[row],lead_id=jid,now=now)
+            assert any(award['badge']=='True North' for award in awards) is expected,(met,awards)
     print('SYNTHETIC frozen badge ledger PASS: measured Bronze moments/equality; send-only and weak-fit refusal; replay/since; atomic concurrent weekly award; only badge writer; retained tiers; rolling rank boundaries; monthly first-miss anchor')
 
 
@@ -3351,6 +3532,30 @@ def analytics_public_onepager_contract():
         windows=[card[key]['entry_period'] for key in ('reply_rate','reply_to_call','call_to_won')]
         assert windows[0] == windows[1] == windows[2]
         assert (dt.date.fromisoformat(windows[0]['end'])-dt.date.fromisoformat(windows[0]['start'])).days == 27
+        # Inclusive public boundaries apply to every rate, volume and reply median.
+        start,end=(dt.date.fromisoformat(card['reply_rate']['entry_period'][key]) for key in ('start','end'))
+        (folder/'context/me.md').write_text('## Working hours\n09:00-18:00 Mon-Sun\n')
+        population=[]
+        for index,(entry,minutes) in enumerate(((start,2),(end,8),(start-dt.timedelta(days=1),50),(end+dt.timedelta(days=1),58))):
+            population.append({'id':str(942500000+index),'source':'outbound','job_fit':{'state':'pass','reason':'Fits'},
+                'applied_at':analytics_stamp(entry,9),'replied_at':analytics_stamp(entry,9,minutes),
+                'first_client_message_at':analytics_stamp(entry,9),'first_reply_at':analytics_stamp(entry,9,minutes),'first_reply_s':minutes*60,
+                'call_booked_at':analytics_stamp(entry,10),'call_scheduled_at':analytics_stamp(entry,10),
+                'call_held_at':analytics_stamp(entry,11),'proposal_sent_at':analytics_stamp(entry,12),'won_at':analytics_stamp(entry,13)})
+        boundary=analytics.compute(today,jobs=population,now=now)['community_card']
+        for key in ('reply_rate','reply_to_call','call_to_won','booked_to_held','proposal_to_won'):
+            assert boundary[key]['entry_period']=={'start':start.isoformat(),'end':end.isoformat()},(key,boundary[key])
+            assert (boundary[key]['k'],boundary[key]['n'],boundary[key]['value'])==(2,2,100),(key,boundary[key])
+        assert boundary['first_reply_median_min']==5,boundary
+        assert boundary['stage_counts']=={'applications':2,'replies':2,'calls_booked':2,'calls_held':2,'proposals':2,'won':2,'pending_proposals':0},boundary
+        delayed=[{'id':'942599901','source':'outbound','call_booked_at':analytics_stamp(start-dt.timedelta(days=8)),
+                  'call_scheduled_at':analytics_stamp(start,10),'call_held_at':analytics_stamp(start+dt.timedelta(days=1),10)},
+                 {'id':'942599902','source':'outbound','call_booked_at':analytics_stamp(end-dt.timedelta(days=8)),
+                  'call_scheduled_at':analytics_stamp(end,10),'call_held_at':analytics_stamp(end+dt.timedelta(days=2),10)},
+                 {'id':'942599903','source':'outbound','call_booked_at':analytics_stamp(end-dt.timedelta(days=8)),
+                  'call_scheduled_at':analytics_stamp(end,10),'call_held_at':analytics_stamp(end+dt.timedelta(days=2),10,1)}]
+        public_attendance=analytics.compute(today,jobs=delayed,now=now)['community_card']['booked_to_held']
+        assert (public_attendance['k'],public_attendance['n'])==(2,3),public_attendance
         sources=[{'title':'Secret Tender Redtail','details':{'client':{'name':'Private Rowan'}},
                   'description':'Confidential workflow replaces manual invoice reconciliation'}]
         for question in ('What did Private Rowan request?', 'Could Secret Tender Redtail be improved?',
@@ -3359,12 +3564,16 @@ def analytics_public_onepager_contract():
             candidate=copy.deepcopy(card);candidate['question']=question
             assert analytics.validate_community_card(candidate,sources)['question'] is None,question
         improvement=copy.deepcopy(card)
-        improvement['biggest_improvement']={'kpi':'reply_rate','from':10,'to':20,'reason':'Applications explain the relevant outcome clearly'}
-        assert analytics.validate_community_card(improvement,[])['biggest_improvement']['reason']
+        improvement['biggest_improvement']={'kpi':'reply_rate','from':10,'to':20}
+        assert analytics.validate_community_card(improvement,[])['biggest_improvement']=={'kpi':'reply_rate','from':10,'to':20}
         improvement['biggest_improvement']['reason']='Private Rowan liked the application'
-        assert 'reason' not in analytics.validate_community_card(improvement,sources)['biggest_improvement']
+        try:analytics.validate_community_card(improvement,sources)
+        except ValueError:pass
+        else:raise AssertionError('Improvement free text accepted')
         improvement['biggest_improvement']['reason']=' '.join(['word']*15)
-        assert 'reason' not in analytics.validate_community_card(improvement,[])['biggest_improvement']
+        try:analytics.validate_community_card(improvement,[])
+        except ValueError:pass
+        else:raise AssertionError('Oversized improvement free text accepted')
         for mutation in ({'client_name':'Private Rowan'},{'report':'Private source'},{'unknown':0}):
             invalid=dict(card,**mutation)
             try: analytics.validate_community_card(invalid,[])
@@ -3573,6 +3782,62 @@ def analytics_pipeline_probe_contract():
         assert overlay['goals_history']==base['presentation']['voyage']['goals_history']
     print('SYNTHETIC final platform probes PASS: true/false persistent viewed context; immutable insights; exact/fallback/repair invitation; request not booking/replay; nonfatal unknown recap preserves held/no-show; all Connects debits; unique explicit goal action; confirmed/import/unknown badge gates; immediate pure14station ledger overlay')
 
+
+def analytics_report_structure_contract():
+    """Review the shipped tone example, separate from the numeric-only checker."""
+    import re
+    import analytics
+    text=(ROOT/'references/chat-report-example.md').read_text()
+    def report_proof(value):
+        paragraphs=value.strip().split('\n\n')
+        sentences=re.split(r'(?<=[.!?])\s+',paragraphs[0])
+        assert len(sentences)>=2 and 'Funnel Score' in sentences[0] and 'contracts' in sentences[0]
+        assert 'priority' in sentences[1].casefold(),'Result and priority occupy the first two sentences'
+        anchors=('Up top','The middle','On the calls','At the bottom','Inbound','One pattern worth using:',
+                 'Right now','What I couldn\'t check:','Last week','Start the week','Oh, and')
+        for anchor in anchors:assert sum(paragraph.startswith(anchor) for paragraph in paragraphs)==1,(anchor,value)
+        patterns=re.findall(r'\b(?:[Tt]he pattern is|One pattern worth using:)',value)
+        assert len(patterns)<=2 and len(patterns)>0
+        questions=paragraphs[-1]
+        assert len(re.findall(r'\?',questions))==3 and all(question.strip() for question in questions.split('?')[:-1])
+        assert 'Connects' in next(paragraph for paragraph in paragraphs if paragraph.startswith('Inbound'))
+        assert 'guide' in next(paragraph for paragraph in paragraphs if paragraph.startswith('Right now'))
+        missing=next(paragraph for paragraph in paragraphs if paragraph.startswith("What I couldn't check:"))
+        assert 'conversation pattern' in missing.casefold() and 'complete quiet-chat threads' in missing.casefold() and 'Save every page of those Upwork threads, then run /analytics.' in missing
+        calls=next(paragraph for paragraph in paragraphs if paragraph.startswith('On the calls'))
+        assert 'My read is' in calls and 'timestamped transcript' in calls and 'Friday agreement' in calls
+        assert 'Friday review' in calls and 'here on Upwork' in calls
+        goals=next(paragraph for paragraph in paragraphs if paragraph.startswith('Last week'))
+        assert re.search(r'\b(?:\d+|one|two|three) of (?:\d+|one|two|three)',goals) and re.search(r'booked|improved|uncertain|too few',goals,re.I)
+        plan=next(paragraph for paragraph in paragraphs if paragraph.startswith('Start the week'))
+        assert plan.index('open proposals')<plan.index('habits')
+        assert 1<=len(re.findall(r'^\d+\. ',plan,re.M))<=3
+    report_proof(text)
+    # Prove the structural review rejects omitted and duplicated beats, late priority,
+    # a fourth pattern/question, and habits before the open deals.
+    mutations=[text.replace('The middle','Later',1),text+'\n\nUp top duplicate.',
+        text.replace("This week's priority:","Later focus:",1),
+        text.replace('One pattern worth using:', 'The pattern is extra. The pattern is another. One pattern worth using:'),
+        text.rstrip()+' What else?',text.replace('open proposals','habits first',1)]
+    for mutation in mutations:
+        try:report_proof(mutation)
+        except (AssertionError,ValueError):pass
+        else:raise AssertionError('Report structural defect was missed')
+    with fixture('report-gap-first') as folder:
+        baseline=analytics.compute(dt.date(2026,9,16),jobs=[])
+        (folder/'data/analytics-history.jsonl').write_text(json.dumps(baseline)+'\n')
+        missing=analytics.compute_catchup(dt.date(2026,10,14),jobs=[])
+        weeks=[row['week'] for row in missing]
+        assert weeks==['2026-W39','2026-W40','2026-W41']
+        gap_report=f'It has been {len(weeks)} weeks since the last review. Here is each missed week.\n\n'+ '\n\n'.join(f"{row['week']}: What I couldn't check: add the missing historical records." for row in missing)
+        assert gap_report.startswith('It has been 3 weeks since the last review.')
+        positions=[gap_report.index(week) for week in weeks]
+        assert positions==sorted(positions) and all(gap_report.count(week)==1 for week in weeks)
+        assert all(row['gap']['weeks_missed']==3 and row['coverage']['missing'] for row in missing)
+        command=(ROOT/'.claude/commands/analytics.md').read_text()
+        assert 'opening line includes elapsed time after a gap' in command
+    print('SYNTHETIC report structure PASS: opening result/priority/score, each required beat once, two-pattern cap, open deals before three habits, three questions; mutation controls; ordered gap-first catch-up from real history computation')
+
 def main():
     for path in sorted((ROOT/'.claude/commands').glob('*.md')):
         if path.name not in ('analytics.md','call-review.md'): feature_command(path.name)
@@ -3615,6 +3880,7 @@ def main():
     analytics_public_onepager_contract()
     analytics_private_call_cards_contract()
     analytics_pipeline_probe_contract()
+    analytics_report_structure_contract()
     current = hashlib.sha256(REAL_JOBS.read_bytes()).hexdigest() if REAL_JOBS.exists() else None
     assert current == REAL_HASH, 'Real data/jobs.json changed'
     assert REAL_DATA_HASHES == {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()

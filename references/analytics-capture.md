@@ -23,12 +23,12 @@ proof), Still needed (one action and owner), omit empty sections and name every
 remaining gap. Last line is measured `Upwork calls: N`, including failed calls.
 A skip or submitted shortcut still reports its own actual call count.
 
-**CAPTURE-PRECEDENCE.** Frozen decisions 13–34 in analytics-spec-final.md apply,
+**CAPTURE-PRECEDENCE.** Frozen sections 13 and 14 in analytics-spec-final.md apply,
 with later replacements first. Use analytics.md's App content contract for the
-exact two tabs and call definitions for canonical point labels. Badge progress
+exact three tabs and call definitions for canonical point labels. Badge progress
 uses earned tiers and Funnel Score only. Earlier nautical titles are retired by
-item 33. The frozen coach brief is unchanged; analytics.md explicitly overrides
-its conversation timing scan under item 32. Transcript acquisition belongs only
+item 33. The final coach brief judges exactly three conversation content points. Response
+speed and follow-up timing belong only to the funnel, never to Conversations. Transcript acquisition belongs only
 to [call-transcript.md](call-transcript.md), including explicit pasted/file input.
 
 **CAPTURE-AWARDS.** Every pipeline/sync mutation prints returned instant badge

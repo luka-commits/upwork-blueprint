@@ -28,6 +28,7 @@ import pathlib
 import re
 import statistics
 import sys
+import unicodedata
 from zoneinfo import ZoneInfo
 
 import pipeline
@@ -503,7 +504,7 @@ def source_coverage(jobs, today, now=None):
     tracking = bool(os.environ.get('BLOB_READ_WRITE_TOKEN') or any(job.get('pitch_url') or event(job, 'opened') or event(job, 'pitch_opened') for job in jobs))
     rows = []
     for source, state, affects, fix in (
-        ('upwork', upwork, list(LABELS)[:15], 'Run /brief to sync Upwork.'),
+        ('upwork', upwork, list(LABELS)[:15] + ['segments','behaviour'], 'Run /brief to sync Upwork.'),
         ('recorder', 'ok' if recorder else 'missing', ['call_review'], 'Add a labelled call transcript or confirm held calls.'),
         ('tracking', 'ok' if tracking else 'missing', [], 'Check the tracking link and its saved click source.'),
         ('loom', 'ok' if loom else 'missing', ['application_review'] if loom_used else [], 'Add the Loom transcript when the application uses Loom.'),
@@ -834,7 +835,7 @@ def downstream_value(jobs, key, today, bounds):
 
 
 @member_clock
-def calculate(jobs, today, since=None, now=None, cohort_days=28, activity_bounds=None):
+def calculate(jobs, today, since=None, now=None, cohort_days=28, activity_bounds=None, source_now=None):
     limits, bounds, activity = bars(), span(today, cohort_days), activity_bounds or span(today, 7)
     cutoff = dt.datetime.combine(today, dt.time(), local_zone())
     kpis = {}
@@ -989,12 +990,17 @@ def calculate(jobs, today, since=None, now=None, cohort_days=28, activity_bounds
     kpis['value_per_100_connects']['currency'] = total['currency']
     for key in list(LABELS)[15:]:
         kpis[key] = metric(key, state='undecided', reason='Requires the weekly evidence review.')
-    for key in ('segments', 'behaviour'):
-        kpis[key].update(value='nothing new', state='undecided', reason='Available in package 4; nothing new this week.')
+    engine = insight_fields(jobs, today)
+    for key, dimension in (('segments', 'segment'), ('behaviour', 'behaviour')):
+        confirmed = [row for row in engine['findings'] if (row['dimension'] == 'behaviour') == (dimension == 'behaviour')]
+        observed = engine['behaviour' if key == 'behaviour' else 'segments']
+        kpis[key].update(k=len(confirmed), n=len(observed), value=len(confirmed), state='observed',
+                         evidence=sorted({jid for row in confirmed for jid in row['evidence']}),
+                         reason='Confirmed across separate six-week periods.' if confirmed else 'No confirmed pattern yet.')
     lost = [job for job in jobs if job.get('status') == 'lost' and inside(job.get('status_updated_at') or next((item.get('at') for item in reversed(job.get('history') or []) if item.get('status') == 'lost'), None), activity)]
     reasons = {kind: sum((assessment(job, 'lost_reason') or {}).get('kind', 'unknown') == kind for job in lost) for kind in ('stated', 'observed', 'unknown')}
     kpis['lost_reasons'].update(k=len(lost) - reasons['unknown'], n=len(lost), value=reasons, evidence=ids(lost))
-    coverage, _ = source_coverage(jobs, today, now)
+    coverage, _ = source_coverage(jobs, today, source_now or now)
     for source in coverage:
         if source['state'] == 'ok':
             continue
@@ -1003,6 +1009,8 @@ def calculate(jobs, today, since=None, now=None, cohort_days=28, activity_bounds
                 continue
             # Optional Loom/tracking absence leaves the whole review explicitly missing.
             kpis[key].update(state='missing', reason=f"{source['source']} source is absent. {source['fix']}", value=None)
+            if key in ('segments','behaviour') and source['state']=='missing':
+                kpis[key].update(k=None,n=None)
     if any(source['source'] == 'upwork' and source['state'] == 'missing' for source in coverage):
         weekly_value = None
     fixed['value'] = weekly_value
@@ -1122,10 +1130,11 @@ def goal_reviews(jobs, today, now=None):
                            cohort_days=28, activity_bounds=before_bounds)[0][key]
         mature_on = start + dt.timedelta(days=7 + horizon)
         mature = today >= mature_on
-        # Every post-start entry gets the same outcome horizon; recent entries stay out.
-        after_days = max(1, (today - start).days - horizon)
-        after_bounds = (start, max(start, today - dt.timedelta(days=1)))
-        after = calculate(jobs, today, since=start, now=now, cohort_days=after_days,
+        # Freeze both entries and observed outcomes at the goal's maturity date.
+        after_cutoff = min(today, mature_on)
+        after_days = max(1, (after_cutoff - start).days - horizon)
+        after_bounds = (start, max(start, after_cutoff - dt.timedelta(days=1)))
+        after = calculate(jobs, after_cutoff, since=start, now=dt.datetime.combine(after_cutoff, dt.time(), local_zone()), source_now=now or run_timestamp(today), cohort_days=after_days,
                           activity_bounds=after_bounds)[0][key]
         low, high = difference_bounds(before, after)  # descriptive change interval retained
         effect = 'undecided'
@@ -1145,7 +1154,7 @@ def goal_reviews(jobs, today, now=None):
             'before_n': before['n'], 'after_k': after['k'], 'after_n': after['n'], 'state': after['state'],
             'attainment': after['state'], 'difference_low': rounded(low), 'difference_high': rounded(high),
             'matures_on': mature_on.isoformat(), 'before_period': period(before_bounds),
-            'after_period': period((start, max(start, today - dt.timedelta(days=1 + horizon)))),
+            'after_period': period((start, min(today, mature_on))), 'after_entry_period': after.get('entry_period', period(after_bounds)),
             'effect_note': ('Count outcomes have no specified effect interval; execution is reviewed separately.' if before['unit'] == 'count' else 'Descriptive quantile change; observed change, not causal attribution.' if before['unit'] == 'min' else 'After Wilson interval versus before rate; observed change, not causal attribution.'),
             'execution_state': 'unverified', 'evidence_lead_ids': [], 'done_lead_ids': [], 'outcome_evidence': after['evidence']})
     return rows
@@ -1241,8 +1250,8 @@ def job_fit_exact_p(k, n, p):
 def job_fit_fields(jobs, today):
     """Last 84 application days, disjoint 42-day halves, seven-day reply horizon.
 
-    Section 13 supplies n20/window, exact two-sided/BH10% and 1.5/.67 effects.
-    Item37's n15 is the display floor for descriptive early signals, not confirmation.
+    Item 14.8 requires two halves and a fifteen-case display floor. The full
+    statistical gate belongs to the separate general insight engine.
     Unknown bands are excluded from that dimension, including its own-rate reference.
     Connects per reply is total frozen listed application cost / all replies, including
     costs of unsuccessful applications; incomplete cost coverage is never extrapolated.
@@ -1275,32 +1284,26 @@ def job_fit_fields(jobs, today):
                 reference = measure([job for job in known if inside(event(job, 'applied'), window)])
                 part = measure([job for job in selected if inside(event(job, 'applied'), window)])
                 p = reference['k'] / reference['n'] if reference['n'] else None
-                part.update(reference=reference, effect=(part['k'] / part['n'] / p) if part['n'] and p else None,
-                            p=job_fit_exact_p(part['k'], part['n'], p) if p is not None and part['n'] >= 20 else 1.0)
+                part.update(reference=reference, effect=(part['k'] / part['n'] / p) if part['n'] and p else None)
                 row[name] = part
             bands.append(row)
-    # All 23 registered known bands remain in each BH family, even when absent.
-    for name in windows:
-        ordered = sorted(bands, key=lambda row: row[name]['p'])
-        last = max((i for i, row in enumerate(ordered, 1) if row[name]['p'] <= .1 * i / len(ordered)), default=0)
-        accepted = {(row['dimension'], row['band']) for row in ordered[:last]}
-        for row in bands: row[name]['accepted'] = (row['dimension'], row['band']) in accepted
     recommendations = []
     for row in bands:
         effects = [row[name]['effect'] for name in windows]
-        up = all(value is not None and value >= 1.5 for value in effects)
-        down = all(value is not None and value <= .67 for value in effects)
-        confirmed = (up or down) and all(row[name]['n'] >= 20 and row[name]['accepted'] for name in windows)
+        up = all(value is not None and value > 1 for value in effects)
+        down = all(value is not None and value < 1 for value in effects)
+        confirmed = (up or down) and all(row[name]['n'] > 0 for name in windows)
         reference = sum(row[name]['reference']['k'] for name in windows)
         reference_n = sum(row[name]['reference']['n'] for name in windows)
         ratio = row['k'] / row['n'] / (reference / reference_n) if row['n'] and reference else None
-        direction = 'apply' if ratio is not None and ratio >= 1.5 else 'skip' if ratio is not None and ratio <= .67 else None
+        direction = 'apply' if ratio is not None and ratio > 1 else 'skip' if ratio is not None and ratio < 1 else None
         if row['n'] < 15 or not direction: continue
         state = 'confirmed' if confirmed else 'early_signal'
         prefix = 'Prioritize jobs where' if direction == 'apply' else 'Consider skipping jobs where'
         caution = 'This held in both six-week periods.' if confirmed else 'Early signal only; this has not held in both six-week periods.'
         cost = f"{row['connects_per_reply']:.2f} Connects per reply" if row['connects_per_reply'] is not None else 'Connects per reply unknown'
-        text = f"{prefix} {row['label']}. {row['k']} replies from {row['n']} applications ({whole_percent(row['reply_rate'])}%), {cost}. {caution}"
+        interval = f"range {whole_percent(row['low'])}% to {whole_percent(row['high'])}%"
+        text = f"{prefix} {row['label']}. {row['k']} replies from {row['n']} applications ({whole_percent(row['reply_rate'])}%, {interval}), {cost}. {caution}"
         recommendations.append(dict(row, action=direction, state=state, text=text))
     def priority(row): return row['state'] != 'confirmed', -row['n'], row['dimension'], row['band']
     recommendations.sort(key=priority)
@@ -1313,6 +1316,107 @@ def job_fit_fields(jobs, today):
             'note': 'Application dates in the last 12 weeks. Recent applications wait seven days; only replies within seven days count. Frozen bands and listed Connects costs only.'}
 
 
+def bh_accept(p_values, level=.1):
+    """Benjamini-Hochberg step-up over the entire registered family."""
+    ordered = sorted(enumerate(p_values), key=lambda item: (item[1], item[0]))
+    last = max((i for i, (_, p) in enumerate(ordered, 1) if p <= level * i / len(ordered)), default=0)
+    return {index for index, _ in ordered[:last]}
+
+
+INSIGHT_BEHAVIOURS = {'first_reply_under_5m': 'Reply within five minutes',
+                     'two_call_times': 'Offer two call times', 'follow_up_on_day': 'Follow up on the due day'}
+KNOWN_INSIGHT_DIMENSIONS = {'proposals_band', 'posted_age_band', 'payment_verified', 'client_spent_band'}
+
+
+def insight_fields(jobs, today):
+    """Outcome-blind fixed groups, disjoint six-week tests, possible-only behaviour."""
+    bounds = span(today, 84)
+    middle = bounds[0] + dt.timedelta(days=42)
+    windows = {'discovery': (bounds[0], middle - dt.timedelta(days=1)), 'confirmation': (middle, bounds[1])}
+    cutoff = dt.datetime.combine(today, dt.time(), local_zone())
+    candidates = [job for job in jobs if not job.get('imported') and
+                  (job.get('application_facts') or {}).get('source') == 'outbound']
+    finished = [job for job in candidates if inside(event(job, 'applied'), bounds) and event(job, 'applied') + dt.timedelta(days=7) <= cutoff]
+    # Families are assembled from source categories alone, never from successes.
+    registry = [(dimension, value) for dimension in JOB_FIT_LABELS for value in pipeline.APPLICATION_BANDS[dimension][:-1]]
+    registry += [('payment_verified', flag) for flag in (False, True)]
+    registry += [('lane', lane) for lane in sorted({str(job['application_facts'].get('lane')) for job in candidates
+                  if job['application_facts'].get('lane') not in (None, '', 'unknown')})]
+    tag_names = sorted({name for job in candidates for name in (job['application_facts'].get('tags') or {})
+                        if day(job['application_facts'].get('tags_registered_at')) and day(job['application_facts']['tags_registered_at']) <= bounds[0]})
+    registry += [('tag', name) for name in tag_names]
+    def summarize(rows, entry, horizon, outcomes):
+        k = sum(any(has_after(job, outcome, entry(job), entry(job) + dt.timedelta(days=horizon)) for outcome in outcomes) for job in rows)
+        return {'k': k, 'n': len(rows), 'rate': 100 * k / len(rows) if rows else None, 'evidence': ids(rows)}
+    def tested(part, reference):
+        p = reference['k'] / reference['n'] if reference['n'] else None
+        return dict(part, reference=reference, effect=part['k'] / part['n'] / p if part['n'] and p else None,
+                    p=job_fit_exact_p(part['k'], part['n'], p) if p is not None and part['n'] >= 20 else 1.0)
+    segments = []
+    for dimension, value in registry:
+        def known(job):
+            facts = job['application_facts']
+            if dimension == 'tag':
+                registered = timestamp(facts.get('tags_registered_at'))
+                return registered is not None and registered <= event(job, 'applied') and value in (facts.get('tags') or {}) and isinstance(facts['tags'][value], bool)
+            if dimension == 'payment_verified': return isinstance(facts.get(dimension), bool)
+            if dimension == 'lane': return facts.get(dimension) not in (None, '', 'unknown')
+            return facts.get(dimension) in pipeline.APPLICATION_BANDS[dimension][:-1]
+        population = [job for job in finished if known(job)]
+        selected = [job for job in population if (job['application_facts']['tags'][value] is True if dimension == 'tag' else job['application_facts'].get(dimension) == value)]
+        row = {'dimension': dimension, 'value': value, 'known_pattern': dimension in KNOWN_INSIGHT_DIMENSIONS,
+               **summarize(selected, lambda job: event(job, 'applied'), 7, ('replied',))}
+        for name, window in windows.items():
+            ref = summarize([job for job in population if inside(event(job, 'applied'), window)], lambda job: event(job, 'applied'), 7, ('replied',))
+            part = summarize([job for job in selected if inside(event(job, 'applied'), window)], lambda job: event(job, 'applied'), 7, ('replied',))
+            row[name] = tested(part, ref)
+        reference_k = sum(row[name]['reference']['k'] for name in windows)
+        reference_n = sum(row[name]['reference']['n'] for name in windows)
+        row.update(observed=row['rate'], expected=100 * reference_k / reference_n if reference_n else None, lead_ids=row['evidence'])
+        segments.append(row)
+    behaviours = []
+    for key, label in INSIGHT_BEHAVIOURS.items():
+        possible = []
+        for job in jobs:
+            if job.get('imported'): continue
+            observation = (job.get('behaviour_observations') or {}).get(key)
+            if not isinstance(observation, dict) or not isinstance(observation.get('met'), bool): continue
+            start, exposure = timestamp(observation.get('possible_at')), timestamp(observation.get('exposure_at'))
+            reply = event(job, 'replied') or timestamp(job.get('first_client_message_at'))
+            next_stage = min((event(job, name) for name in ('call_booked', 'call_held', 'offer', 'won') if event(job, name)), default=None)
+            if not (start and exposure and reply and reply <= start <= exposure and inside(exposure, bounds)
+                    and exposure + dt.timedelta(days=14) <= cutoff and (next_stage is None or exposure < next_stage)): continue
+            possible.append(dict(job, behaviour_entry_at=exposure.isoformat(), behaviour_met=observation['met']))
+        selected = [job for job in possible if job['behaviour_met']]
+        row = {'dimension': 'behaviour', 'value': key, 'label': label, 'known_pattern': False,
+               'population': 'Leads with a dated opportunity and exposure before the next stage', 'horizon_days': 14,
+               **summarize(selected, lambda job: event(job, 'behaviour_entry'), 14, ('call_booked', 'call_held', 'offer', 'won'))}
+        for name, window in windows.items():
+            ref = summarize([job for job in possible if inside(event(job, 'behaviour_entry'), window)], lambda job: event(job, 'behaviour_entry'), 14, ('call_booked', 'call_held', 'offer', 'won'))
+            part = summarize([job for job in selected if inside(event(job, 'behaviour_entry'), window)], lambda job: event(job, 'behaviour_entry'), 14, ('call_booked', 'call_held', 'offer', 'won'))
+            row[name] = tested(part, ref)
+        behaviours.append(row)
+    rows = segments + behaviours
+    for name in windows:
+        accepted = bh_accept([row[name]['p'] for row in rows])
+        for index, row in enumerate(rows): row[name]['accepted'] = index in accepted
+    findings, known_patterns = [], []
+    for row in rows:
+        effects = [row[name]['effect'] for name in windows]
+        direction = 'up' if all(effect is not None and effect >= 1.5 for effect in effects) else 'down' if all(effect is not None and effect <= .67 for effect in effects) else None
+        confirmed = direction is not None and all(row[name]['n'] >= 20 and row[name]['accepted'] for name in windows)
+        row.update(state='confirmed' if confirmed else 'emerging' if row['discovery']['accepted'] and row['discovery']['n'] >= 20 and row['discovery']['effect'] is not None and (row['discovery']['effect'] >= 1.5 or row['discovery']['effect'] <= .67) else 'unknown', direction=direction)
+        if not confirmed: continue
+        finding = dict(row, status='confirmed' if row['known_pattern'] else 'finding',
+                       action=('Use this more often' if direction == 'up' else 'Try a different approach'),
+                       target={'view': 'leads', 'lead_ids': row['evidence']})
+        (known_patterns if row['known_pattern'] else findings).append(finding)
+    return {'period': period(bounds), 'windows': {name: period(window) for name, window in windows.items()},
+            'minimum_per_window': 20, 'bh_level': .1, 'segments': segments, 'behaviour': behaviours,
+            'findings': findings, 'known_patterns': known_patterns[:1], 'tag_names': tag_names,
+            'note': 'Observed associations against your own rate, checked in separate periods. No causal claim.'}
+
+
 def facts_sheet(snapshot):
     """All deterministic report inputs, separate from coaching text and client data."""
     keys = ('week', 'generated_at', 'periods', 'north_star', 'funnel_score', 'rank', 'rank_progress',
@@ -1322,6 +1426,7 @@ def facts_sheet(snapshot):
     fit = snapshot.get('insights', {}).get('job_fit', {})
     result['job_fit'] = {key: copy.deepcopy(fit.get(key)) for key in
                         ('period', 'windows', 'reply_horizon_days', 'finished_n', 'pending_n', 'patterns', 'empty_text', 'note')}
+    result['insights'] = copy.deepcopy(snapshot.get('insights', {}))
     result['scorecard'] = copy.deepcopy(snapshot.get('presentation', {}).get('scorecard', []))
     result['report_facts'] = report_numeric_facts(snapshot)
     return result
@@ -1341,11 +1446,14 @@ def report_numeric_facts(snapshot):
     activity = snapshot.get('periods', {}).get('activity') or {}
     bounds = (day(activity.get('start')), day(activity.get('end')))
     weekly_calls = [row for row in snapshot.get('call_cards', []) if all(bounds) and inside(row.get('date'), bounds)]
+    missing_sources = {row.get('source') for row in coverage_sources(snapshot.get('coverage', {})) if row.get('state') == 'missing'}
+    calls_known = all(bounds) and 'upwork' not in missing_sources
+    transcripts_known = calls_known and 'recorder' not in missing_sources and all(row.get('reviewable') is True for row in weekly_calls)
     result = {'weekly': {'applications': metric('weekly_volume', 'k'), 'goal': metric('weekly_volume', 'target'),
                 'fast': metric('speed_10min', 'k'), 'fast_minutes': 10, 'first_reply_minutes': metric('first_reply'),
                 'followups_done': metric('follow_ups_on_time', 'k'), 'followups_due': metric('follow_ups_on_time', 'n'),
-                'calls': len(weekly_calls) if all(bounds) else None,
-                'transcripts_read': sum(row.get('reviewable') is True for row in weekly_calls) if all(bounds) else None},
+                'calls': len(weekly_calls) if calls_known else None,
+                'transcripts_read': sum(row.get('reviewable') is True for row in weekly_calls) if transcripts_known else None},
         'four_weeks': {'applications': card('reply_rate', 'n'), 'replies': card('reply_rate', 'k'), 'reply_rate': card('reply_rate'),
                 'previous_reply_rate': rows.get('reply_rate', {}).get('change', {}).get('previous_value'),
                 'booked_calls': card('reply_to_call', 'k'), 'held_calls': card('booked_to_held', 'k'),
@@ -1402,6 +1510,8 @@ def report_source_facts(snapshot, jobs, today):
                 'invite_calls': sum(bool(event(job, 'call_booked')) and event(job, 'call_booked') <= cutoff for job in invites),
                 'invite_reply_minutes': max((response_by_id[str(job['id'])] for job in answered), default=None)},
               'live': {'total': len(all_live), 'chats': len(live_chats), 'calls': len(live_calls), 'proposals': len(live_proposals)}}
+    call_facts = report_numeric_facts(dict(snapshot, report_facts={}))['weekly']
+    result['weekly'].update(calls=call_facts['calls'], transcripts_read=call_facts['transcripts_read'])
     goals = snapshot.get('goals_review', [])
     times = [row for row in goals if row.get('kpi') == 'reply_to_call']
     budget = [row for row in goals if row.get('kpi') == 'call_review']
@@ -1426,8 +1536,28 @@ def report_source_facts(snapshot, jobs, today):
 
 
 REPORT_NUMBER_WORDS = {'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
-                       'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10, 'twice': 2, 'both': 2}
-REPORT_NUMBER = r'(?:\d(?:[\d,]*\d)?(?:\.\d+)?|zero|one|two|three|four|five|six|seven|eight|nine|ten|twice|both)'
+                       'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10, 'twice': 2, 'both': 2,
+                       'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
+                       'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19,
+                       'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60,
+                       'seventy': 70, 'eighty': 80, 'ninety': 90, 'hundred': 100,
+                       'thousand': 1000, 'million': 1000000, 'billion': 1000000000}
+REPORT_WORD_NUMBER = r'\b(?:' + '|'.join(sorted(REPORT_NUMBER_WORDS, key=len, reverse=True)) + r')\b'
+REPORT_NUMBER = r'(?:\d(?:[\d,]*\d)?(?:\.\d+)?|' + REPORT_WORD_NUMBER + r'(?:(?:[ -]+(?:and[ -]+)?)' + REPORT_WORD_NUMBER + r')*)'
+
+
+def report_number_value(token):
+    token = token.casefold().replace(',', '')
+    if re.fullmatch(r'\d+(?:\.\d+)?', token): return float(token)
+    total, group = 0, 0
+    for word in re.split(r'[\s-]+', token):
+        if word == 'and': continue
+        value = REPORT_NUMBER_WORDS.get(word)
+        if value is None: return None
+        if value == 100: group = max(1, group) * value
+        elif value >= 1000: total += max(1, group) * value; group = 0
+        else: group += value
+    return total + group
 
 
 def check_report(text, snapshot):
@@ -1447,8 +1577,7 @@ def check_report(text, snapshot):
             current = current.get(part)
         return current
     def as_number(token):
-        token = token.casefold().replace(',', '')
-        return REPORT_NUMBER_WORDS.get(token, float(token) if re.fullmatch(r'\d+(?:\.\d+)?', token) else None)
+        return report_number_value(token)
     # Patterns identify quantities by meaning, not by whether their number occurs
     # somewhere else in the snapshot. More specific multi-value clauses go first.
     rules = [
@@ -1484,7 +1613,7 @@ def check_report(text, snapshot):
         (r'but {a} conversations? are too few', {'a':'goal.offered_times'}),
         (r'Budget before price happened in only {a} of {b} calls', {'a':'goal.budget_first','b':'goal.calls'}),
         (r'ask {a} open proposals', {'a':'live.proposals'}),
-        (r'reopen the {a} quiet conversations', {'a':'live.quiet_to_reopen'}),
+        (r'(?:reopen|review) the {a} quiet conversations', {'a':'live.quiet_to_reopen'}),
         (r'Then {a} habits', {'a':'next_goals'}),
         (r'of the {a} quiet replies', {'a':'four_weeks.quiet_chats'}),
         (r'last {a} weeks', {'a':lambda: 4}),
@@ -1497,6 +1626,7 @@ def check_report(text, snapshot):
         # Short independent claims also catch wrong-metric value substitutions.
         (r'Reply rate(?: is| of|:)?\s*{a}%', {'a':'four_weeks.reply_rate'}),
         (r'(?:sent|submitted) {a} applications', {'a':'weekly.applications'}),
+        (r'(?:won|signed) {a}(?: new)? contracts?', {'a':'wins'}),
         (r'(?:won|signed)(?: value| work| contracts?| worth| is| of|:)*\s*\${a}', {'a':'won_value'}),
         (r'(?:forecast|expected new work)(?: value| is| of|:)*\s*\${a}', {'a':'forecast.value'}),
         (r'Call rate(?: is| of|:)?\s*{a}%', {'a':lambda: card_rate('reply_to_call')}),
@@ -1586,7 +1716,7 @@ def check_report(text, snapshot):
     for match in re.finditer(r'^\s*\d+[.)]\s+', text, re.M): covered.update(range(*match.span()))
     # The plan's two concrete times express the fixed coaching action, not a KPI.
     for match in re.finditer(r'offer two concrete times', text, re.I): covered.update(range(*match.span()))
-    for match in re.finditer(r'\$?\d[\d,]*(?:\.\d+)?%?|\b(?:' + '|'.join(REPORT_NUMBER_WORDS) + r')\b', text, re.I):
+    for match in re.finditer(r'\$?' + REPORT_NUMBER + r'%?', text, re.I):
         if all(index in covered for index in range(match.start(), match.end()) if text[index].isalnum()): continue
         # Words used as a pronoun/determiner are not numerical claims.
         token = match.group().casefold()
@@ -1685,19 +1815,26 @@ def public_member_name():
 
 def community_card(jobs, today, kpis, reviews, week, streak, now=None):
     # Older unresolved goals remain in the private review; sharing shows the latest agreed set only.
-    latest_start = max((row.get('start', '') for row in reviews), default='')
-    latest = [row for row in reviews if row.get('start', '') == latest_start]
-    reviews = []; seen = set()
-    for row in latest:
-        text = ' '.join(row['change'].split()[:6])
-        if text.casefold() in seen: continue
-        seen.add(text.casefold()); reviews.append(row)
-        if len(reviews) == 3: break
+    approved = public_agreed_goals(week)
+    safe_reviews = [row for row in reviews if row.get('goal_id') in approved]
+    latest_start = max((row.get('start', '') for row in safe_reviews), default='')
+    reviews = [row for row in safe_reviews if row.get('start', '') == latest_start][:3]
     # Frozen §13: all public conversion entries share the oldest (28-day)
     # maturity window. Activity applications remain a separate seven-day count.
     bounds = tuple(value - dt.timedelta(days=28) for value in span(today, 28))
     def public_rate(key, entry, outcomes, horizon, window, target):
         rows = cohort(jobs, entry, 0, today, window, 'outbound')
+        if key == 'booked_to_held':
+            rows = []
+            cutoff = run_timestamp(today, now)
+            for job in jobs:
+                session = (job.get('call_sessions') or {}).get(job.get('call_session_id')) or {}
+                scheduled = timestamp(session.get('scheduled_at') or job.get('call_scheduled_at'))
+                if (not job.get('imported') and route(job) == 'outbound' and scheduled and inside(scheduled, window)
+                        and scheduled + dt.timedelta(days=2) <= cutoff and not session.get('cancelled')):
+                    held = timestamp(session.get('held_at')) if session else event(job, 'call_held')
+                    rows.append(dict(job, attendance_entry_at=scheduled.isoformat(), attendance_held_at=held.isoformat() if held else None))
+            entry, outcomes = 'attendance_entry', ('attendance_held',)
         def success(job):
             start = event(job, entry)
             return any(has_after(job, name, start, start + dt.timedelta(days=horizon)) for name in outcomes)
@@ -1714,7 +1851,8 @@ def community_card(jobs, today, kpis, reviews, week, streak, now=None):
         return row
     result = {'week': week, 'applications': sum(qualified(job) for job in cohort(jobs, 'applied', 0, today, span(today, 7), 'outbound')),
               'activity_period': period(span(today, 7)), 'streak_weeks': streak, 'goals_done': f"{sum(row['done_n'] > 0 and row['done_k'] == row['done_n'] for row in reviews)}/{len(reviews)}",
-              'goals': [{'text': ' '.join(row['change'].split()[:6]), 'done': row['done_n'] > 0 and row['done_k'] == row['done_n'],
+              'goals': [{'goal_id': row['goal_id'], 'goal_library_id': approved[row['goal_id']],
+                        'text': PUBLIC_GOAL_LIBRARY[approved[row['goal_id']]][1], 'done': row['done_n'] > 0 and row['done_k'] == row['done_n'],
                         'k': row['done_k'], 'n': row['done_n'], 'state': row.get('execution_state', 'unverified')} for row in reviews],
               'next_focus': None, 'question': None, 'new_badge': None, 'top_badges': [], 'member_name': public_member_name()}
     improvements = []
@@ -2033,6 +2171,17 @@ def saved_snapshot_view(snapshot, history=None):
     return result
 
 
+def call_quote_time(quote, transcript):
+    """Return only a recorded timecode for the exact quoted transcript turn."""
+    if not isinstance(quote, str) or not quote.strip(): return None
+    current = None
+    for line in transcript.splitlines():
+        stamp = re.match(r'^\s*(?:(?:[^:\n]{1,80}:\s*)?\[(\d{1,2}:\d{2}(?::\d{2})?)\]|(\d{1,2}:\d{2}(?::\d{2})?)(?=\s|$))', line)
+        if stamp: current = stamp[1] or stamp[2]
+        if quote in line: return current
+    return None
+
+
 def call_cards(snapshot, jobs=None):
     review = snapshot.get('reviews', {}).get('call', {})
     by_id = {str(job['id']): job for job in (pipeline.load() if jobs is None else jobs)}
@@ -2056,7 +2205,8 @@ def call_cards(snapshot, jobs=None):
         next_message = section('Next message')
         if next_message is not None: short_text(next_message, 100, 'Call next message')
         path = pipeline.jobs_dir() / str(item['lead_id']) / 'call.md'
-        stats = call_stats.analyze(read_source(path) or '')
+        transcript = read_source(path) or ''
+        stats = call_stats.analyze(transcript)
         duration = stats.get('duration_s', job.get('call_duration_s'))
         card = {'lead_id': item['lead_id'], 'label': job.get('title') or 'Untitled job', 'title': job.get('title') or 'Untitled job',
                 'date': day(event(job, 'call_held')).isoformat() if event(job, 'call_held') else None,
@@ -2065,20 +2215,20 @@ def call_cards(snapshot, jobs=None):
                 'questions': stats.get('question_counts', job.get('question_counts')),
                 'reviewable': bool(item.get('reviewable') and stats.get('transcript_complete') is True and stats.get('member_attributed') is True)}
         # Compatibility aliases read by the current private card component.
-        coach_read = (coach_read or item.get('free_read')) if card['reviewable'] else None
+        coach_read = (item.get('free_read') or coach_read) if card['reviewable'] else None
         if coach_read is not None:
             short_text(coach_read, 180, 'Call free read')
             require(len(coach_read.split()) >= 120, 'Call free read needs 120 to 180 words.')
         reviewed_at = saved_review_time(job, item)
         card.update(as_of=reviewed_at, reviewed_at=reviewed_at,
                     coach_read=coach_read, coach_read_state='present' if coach_read else 'unknown', coach_read_prompt='No review yet: run /call-review ' + str(item['lead_id']))
-        card.update(agreed_step=agreed_step or item.get('agreed_step') or item.get('next_step'),
-                    next_message=next_message or item.get('next_message'),
-                    source_prompt='Paste a transcript or run /call-review ' + str(item['lead_id']))
+        card.update(agreed_step=item.get('agreed_step') or item.get('next_step') or agreed_step,
+                    next_message=item.get('next_message') or next_message,
+                    source_prompt=('Run /call-review ' + str(item['lead_id']) + ' to review the full saved transcript.' if stats.get('transcript_complete') is True and stats.get('member_attributed') is True else 'Paste the full speaker-labelled transcript into jobs/' + str(item['lead_id']) + '/call.md, then run /call-review ' + str(item['lead_id'])))
         if card['next_message'] is not None: short_text(card['next_message'], 100, 'Call next message')
         card.update(duration_min=card['duration_minutes'], question_count=(card['questions'] or {}).get('member'))
         if not card['reviewable']:
-            card.update(reason='Not reviewable: complete labelled call evidence is missing.', points=[], moments=[],
+            card.update(reason=('Not reviewed. Call review missing.' if stats.get('transcript_complete') is True and stats.get('member_attributed') is True else 'Not reviewed. Transcript missing or incomplete.'), points=[], moments=[],
                         fix='', example='', next_step=None, agreed_step=None, next_message=None)
         else:
             points = [dict(point=index, state=next((p['state'] for p in item['points'] if p['point'] == index), 'missing'),
@@ -2087,7 +2237,8 @@ def call_cards(snapshot, jobs=None):
             for point in points:
                 point.update(label=CALL_POINT_LABELS[point['point']], definition=CALL_POINT_DEFINITIONS.get(point['point']))
                 point['quote_state'] = 'supported' if point['quote'] else 'unknown'
-            card.update(points=points, moments=[dict(moment, better=moment['better_wording']) for moment in item.get('moments', [])[:3]],
+                point['quote_at'] = call_quote_time(point['quote'], transcript)
+            card.update(points=points, moments=[dict(moment, better=moment['better_wording'], quote_at=call_quote_time(moment.get('quote'), transcript)) for moment in item.get('moments', [])[:3]],
                         fix=item.get('fix', review.get('fix', '')), example=item.get('example', review.get('example', '')),
                         next_step=item.get('next_step'))
         cards.append(card)
@@ -2239,11 +2390,19 @@ def conversations_fields(snapshot, jobs):
                 finding = 'Open the review for the coach’s read'
             row['key_finding'] = ' '.join(str(finding).split()[:12]).rstrip(' ,;:')
             row['title'] = job.get('title') or row.get('title') or row.get('label') or 'Untitled job'
-            row['marker'] = 'needs work' if weakness or not row.get('reviewable') else 'keep'
+            row['marker'] = 'not reviewed' if not row.get('reviewable') else 'needs work' if weakness else 'keep'
             row['importance'] = 0 if row['marker'] == 'needs work' else 1
             observed = day(row.get('date'))
             row['this_week'] = bool(observed and week_start <= observed <= day(snapshot['generated_at']))
         rows.sort(key=lambda row: (row['importance'], -(day(row.get('date')) or dt.date.min).toordinal(), row['title']))
+    # Display the same finding once at the first stage while retaining later evidence.
+    first_findings = {}
+    for stage in ('applications', 'chats', 'calls', 'proposals'):
+        for row in sections[stage]:
+            if not row.get('reviewable'): continue
+            identity = (str(row['lead_id']), public_normalized(row['key_finding']))
+            first_stage = first_findings.setdefault(identity, stage)
+            if first_stage != stage: row['duplicate_of_stage'] = first_stage
     patterns = [row for row in statements.values() if len({q['stage'] for q in row['quotes']}) >= 2]
     patterns.sort(key=lambda row: (-len(row['quotes']), row['text']))
     return {'patterns': patterns[:3], 'sections': sections}
@@ -2400,6 +2559,8 @@ def finish_views(result, jobs, history, today, now=None):
     result['presentation'] = presentation_fields(result)
     result['community_card']['funnel_score'] = copy.deepcopy(result['funnel_score'])
     result.setdefault('insights', {})['job_fit'] = job_fit_fields(jobs, today)
+    result['insights']['general'] = insight_fields(jobs, today)
+    result['segments'] = copy.deepcopy(result['insights']['general']['segments'])
     result['presentation']['scorecard'] = scorecard_fields(result, jobs, history, today)
     result['presentation']['money_chart'] = money_chart(result, history)
     result['presentation']['voyage'] = voyage_fields(result, history)
@@ -2574,7 +2735,8 @@ def validate_goals(value):
     require(isinstance(goals, list) and 1 <= len(goals) <= 3, 'Agree one to three goals.')
     keys = {'stage', 'kpi', 'change', 'start', 'primary', 'cue', 'action', 'fallback', 'review_on'}
     for goal in goals:
-        require(isinstance(goal, dict) and set(goal) == keys, 'Each goal needs stage, kpi, change, start, primary, cue, action, fallback and review_on.')
+        require(isinstance(goal, dict) and keys <= set(goal) <= keys | {'goal_library_id'}, 'Each goal needs stage, kpi, change, start, primary, cue, action, fallback and review_on; goal_library_id is optional for private goals.')
+        require('goal_library_id' not in goal or goal['goal_library_id'] in PUBLIC_GOAL_LIBRARY and PUBLIC_GOAL_LIBRARY[goal['goal_library_id']][0] == goal.get('kpi'), 'Goal library ID must belong to its KPI.')
         require(goal['kpi'] in LABELS and goal['stage'] == LABELS[goal['kpi']] and all(isinstance(goal[name], str) and goal[name].strip() for name in ('stage', 'change', 'cue', 'action', 'fallback')), 'Goals need a known KPI and nonempty commitments.')
         start, review_on = dt.date.fromisoformat(goal['start']), dt.date.fromisoformat(goal['review_on'])
         require(review_on >= start and isinstance(goal['primary'], bool), 'Goals need ordered start/review dates and boolean primary.')
@@ -2777,49 +2939,116 @@ def validate_reference(reference):
 
 PUBLIC_QUESTIONS = ("How do you practise this week's focus?", "What helped you improve this stage?", "How do you handle this commitment?")
 
+# Stable goal-library IDs select fixed public words, never the agreed private prose.
+PUBLIC_GOAL_LIBRARY = {
+    'reply-opener': ('reply_rate', 'Name the posted problem'),
+    'reply-proof': ('reply_rate', 'Use one relevant proof'),
+    'reply-observation': ('reply_rate', 'Add one useful job observation'),
+    'reply-close': ('reply_rate', 'Ask one useful closing question'),
+    'reply-video': ('reply_rate', 'Show one relevant point'),
+    'speed-qualified': ('speed_10min', 'Apply promptly after checking fit'),
+    'fit-check': ('job_fit', 'Check fit before applying'),
+    'volume-sessions': ('weekly_volume', 'Keep agreed application sessions'),
+    'volume-share': ('weekly_volume', 'Submit the agreed qualified share'),
+    'volume-replan': ('weekly_volume', 'Replan missed application sessions'),
+    'call-times': ('reply_to_call', 'Offer two useful call times'),
+    'first-answer': ('first_reply', 'Answer within agreed working hours'),
+    'call-question': ('reply_to_call', 'Resolve the blocking question'),
+    'call-free-offer': ('reply_to_call', 'Confirm terms before the offer'),
+    'followup-first': ('follow_ups_on_time', 'Follow up on the agreed day'),
+    'followup-last': ('follow_ups_on_time', 'Send one final useful question'),
+    'meeting-confirm': ('booked_to_held', 'Confirm the meeting and agenda'),
+    'meeting-remind': ('booked_to_held', 'Confirm the meeting before it starts'),
+    'meeting-reschedule': ('booked_to_held', 'Offer replacement times after absence'),
+    'call-opening': ('call_review', 'Confirm the goal and agenda'),
+    'call-impact': ('call_review', 'Ask about the problem impact'),
+    'call-budget': ('call_review', 'Confirm budget before naming price'),
+    'call-step': ('call_review', 'Agree the next step and owner'),
+    'proposal-prompt': ('proposal_on_time', 'Send the complete proposal promptly'),
+    'proposal-fit': ('held_to_proposal', 'Record the evidenced fit decision'),
+    'proposal-scope': ('proposal_to_won', 'Offer one complete fitting scope'),
+    'proposal-value': ('proposal_to_won', 'Explain price with the agreed scope'),
+    'proposal-decision': ('proposal_to_won', 'Confirm the next decision step'),
+    'proposal-objection': ('proposal_to_won', 'Clarify the price concern'),
+    'invite-answer': ('first_reply', 'Answer the immediate invite request'),
+    'invite-proof': ('invite_to_call', 'Share proof before booking'),
+    'offer-check': ('offer_to_contract', 'Check the offer against the agreement'),
+}
+
+
+def public_agreed_goals(week):
+    """Only an explicit agreement in the goals ledger authorizes a public goal."""
+    approved = {}
+    for row in read_lines('goals.jsonl'):
+        if row.get('week', '') > week: continue
+        for goal in row.get('goals', []):
+            library_id = goal.get('goal_library_id')
+            if library_id in PUBLIC_GOAL_LIBRARY and PUBLIC_GOAL_LIBRARY[library_id][0] == goal.get('kpi'):
+                approved[goal_id(goal, row['week'])] = library_id
+    return approved
+
+
+def public_normalized(text):
+    return ' '.join(re.findall(r"[^\W_]+", text.casefold(), re.UNICODE))
+
 
 def public_source_fragments(jobs):
-    """Known identities and confidential source fragments; never exported."""
+    """Normalized known identities, title words and short source excerpts; never exported."""
     forbidden = set()
+    identity_keys = {'name', 'client', 'client_name', 'contract_client', 'company', 'company_name',
+                     'business_name', 'organization', 'organisation', 'alias', 'aliases', 'title', 'job_title'}
+    source_keys = {'description', 'text', 'content', 'message', 'quote'}
     def collect(item, key=''):
         if isinstance(item, dict):
-            for field, value in item.items(): collect(value, field)
+            for field, value in item.items(): collect(value, field.casefold())
         elif isinstance(item, list):
             for value in item: collect(value, key)
-        elif isinstance(item, str) and key in ('name', 'client', 'client_name', 'contract_client', 'title', 'description', 'text', 'content', 'message') and item.strip():
-            forbidden.add(item.strip().casefold())
+        elif isinstance(item, str) and key in identity_keys | source_keys and item.strip():
+            normalized = public_normalized(item)
+            if not normalized: return
+            forbidden.add(normalized)
+            words = normalized.split()
+            if key in identity_keys:
+                # A single identifying title/name word is still an identifying excerpt.
+                forbidden.update(word for word in words)
+            else:
+                forbidden.update(words)
+                forbidden.update(' '.join(words[index:index + 2]) for index in range(len(words) - 1))
     for job in jobs: collect(job)
     for path in pipeline.jobs_dir().glob('*/thread.json'):
         try: thread = json.loads(read_source(path) or '{}')
         except ValueError: thread = {}
-        for item in thread.get('messages', []):
-            node = item.get('node', item)
-            side = str(node.get('from_side') or node.get('from') or '').casefold()
-            if side in ('client', 'them'): collect(node)
-    for path in pipeline.jobs_dir().glob('*/call.md'):
-        text = path.read_text()
+        collect(thread)
+    for path in pipeline.jobs_dir().glob('*/call*.md'):
+        text = read_source(path) or ''
         own = re.search(r'^Member:\s*(.+)$', text, re.M | re.I)
         own = own[1].strip().casefold() if own else None
-        for match in re.finditer(r'^([^:\n]{1,80}):\s*(.+)$', text, re.M):
+        for match in re.finditer(r'^(?:\[?\d{1,2}:\d{2}(?::\d{2})?\]?\s*)?([^:\n]{1,80}):\s*(.+)$', text, re.M):
             speaker, turn = match[1].strip(), match[2].strip()
-            if speaker.casefold() in ('duration', 'member', 'call at', 'date', 'recorder', 'speakers', 'complete', 'language') or speaker.casefold() == own: continue
-            forbidden.add(turn.casefold())
-            if speaker.casefold() not in ('client', 'them', 'speaker 1', 'speaker 2'): forbidden.add(speaker.casefold())
-    # A confidential excerpt is still client text when the full turn was not copied.
-    fragments = set(forbidden)
-    for text in forbidden:
-        words = text.split()
-        fragments.update(' '.join(words[index:index + 3]) for index in range(max(0, len(words) - 2)))
-    return fragments
+            if speaker.casefold() in ('duration', 'member', 'call at', 'date', 'recorder', 'speakers', 'complete', 'language'): continue
+            collect(turn, 'quote')
+            if speaker.casefold() != own and speaker.casefold() not in ('client', 'them', 'speaker 1', 'speaker 2'): collect(speaker, 'name')
+    return forbidden
 
+
+PUBLIC_CURRENCY_CODES = frozenset("AED AFN ALL AMD ANG AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND BOB BOV BRL BSD BTN BWP BYN BZD CAD CDF CHE CHF CHW CLF CLP CNY COP COU CRC CUC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HRK HTG HUF IDR ILS INR IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT LAK LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK MNT MOP MRU MUR MVR MWK MXN MXV MYR MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF SAR SBD SCR SDG SEK SGD SHP SLE SLL SOS SRD SSP STN SVC SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH UGX USD USN UYI UYU UYW UZS VED VES VND VUV WST XAF XAG XAU XBA XBB XBC XBD XCD XDR XOF XPD XPF XPT XSU XUA XXX YER ZAR ZMW ZWL".casefold().split())
 
 def safe_public_text(text, jobs, maximum=14):
+    """Question policy fails closed; unsafe optional questions are omitted."""
     if not isinstance(text, str) or not text.strip() or len(text.split()) > maximum:
         return False
-    lowered = text.casefold()
-    if any(source in lowered for source in public_source_fragments(jobs)):
+    if any(char.isdigit() or char.isnumeric() for char in text): return False
+    if any(unicodedata.category(char) == 'Sc' for char in text): return False
+    if any(word in PUBLIC_CURRENCY_CODES for word in public_normalized(text).split()): return False
+    if re.search(r'\d|[$€£¥₹₽₩¢]|(?:[a-z][a-z0-9+.-]*:)|www\.|[\w.+-]+@[\w.-]+|\b[\w-]+(?:\.[\w-]+)+\b', text, re.I):
         return False
-    return not re.search(r'https?://|www\.|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|(?:\+?\d[\d ()-]{7,}\d)', text)
+    if re.search(r'\b(?:usd|eur|gbp|dollars?|euros?|pounds?|yen|cents?|currency|francs?|rupees?|dinars?|dirhams?|pesos?|rands?|won|rials?|riyals?|rubles?|roubles?|liras?|zloty|kroner|krona|baht|ringgit|taka|shekels?|dong|manat|leu|lev|kuna|kwacha|shillings?|pula|forint|bitcoin|btc|ether|eth|satoshis?|hours?|hourly|hrs?|minutes?|mins?|seconds?|secs?|days?|daily|weeks?|weekly|months?|monthly|years?|annual|yearly|percent|percentage|rates?|kilograms?|kg|g|mg|lb|lbs|oz|km|cm|mm|metres?|meters?|miles?|feet|inches?|litres?|liters?|ml|gallons?|watts?|kilowatts?|kwh|hz|celsius|fahrenheit|degrees?|mb|gb|tb|bytes?|bits?|pixels?|px)\b|[%/]', text, re.I):
+        return False
+    words = re.findall(r"[^\W_]+(?:['’][^\W_]+)?", text, re.UNICODE)
+    if any(any(char.isupper() for char in word) and index != 0 and word not in ('I', 'Upwork') for index, word in enumerate(words)):
+        return False
+    normalized = ' ' + public_normalized(text) + ' '
+    return not any(' ' + source + ' ' in normalized for source in public_source_fragments(jobs))
 
 
 def validate_community_card(card, jobs=None):
@@ -2843,20 +3072,15 @@ def validate_community_card(card, jobs=None):
         require(numeric(card[key]), 'Public numeric field must be a finite number or null.')
     require(re.fullmatch(r'\d+/\d+', str(card['goals_done'])), 'Invalid goal aggregate.')
     require(card['next_focus'] is None or card['next_focus'] in LABELS.values(), 'Public focus must be a fixed stage label.')
-    approved = set()
-    for row in read_lines('goals.jsonl'):
-        for goal in row.get('goals', []): approved.add(' '.join(goal['change'].split()[:6]))
-    for row in read_lines('analytics-history.jsonl'):
-        for goal in row.get('goals_next', []): approved.add(' '.join(goal['change'].split()[:6]))
-    library = ROOT / 'references/goal-library.md'
-    if library.is_file():
-        approved.update(' '.join(line.strip(' -|').split()[:6]) for line in library.read_text().splitlines() if line.strip())
+    approved = public_agreed_goals(card['week'])
     require(isinstance(card['goals'], list) and len(card['goals']) <= 3, 'Public goals must be the latest agreed set of at most three commitments.')
-    require(len({str(goal.get('text', '')).casefold() for goal in card['goals'] if isinstance(goal, dict)}) == len(card['goals']), 'Public goals must be distinct.')
+    require(len({str(goal.get('goal_id', '')) for goal in card['goals'] if isinstance(goal, dict)}) == len(card['goals']), 'Public goals must be distinct.')
     for goal in card['goals']:
-        require(isinstance(goal, dict) and set(goal) == {'text', 'done', 'k', 'n', 'state'} and goal['text'] in approved and
+        require(isinstance(goal, dict) and set(goal) == {'goal_id', 'goal_library_id', 'text', 'done', 'k', 'n', 'state'} and
+                approved.get(goal['goal_id']) == goal['goal_library_id'] and goal['goal_library_id'] in PUBLIC_GOAL_LIBRARY and
+                goal['text'] == PUBLIC_GOAL_LIBRARY[goal['goal_library_id']][1] and
                 isinstance(goal['done'], bool) and numeric(goal['k']) and numeric(goal['n']) and
-                goal['state'] in ('unverified', 'no opportunity', 'complete', 'partial', 'undone'), 'Public goals need approved member/library text and computed execution.')
+                goal['state'] in ('unverified', 'no opportunity', 'complete', 'partial', 'undone'), 'Public goals require an agreed goal ID and its fixed library label.')
     for key in ('reply_rate', 'reply_to_call', 'call_to_won', 'booked_to_held', 'proposal_to_won'):
         rate = card[key]
         require(isinstance(rate, dict) and set(rate) == {'value', 'target', 'rung_reached', 'of', 'trend', 'k', 'n', 'state', 'horizon_days', 'entry_period', 'outcome_label', 'progression'}, 'Unknown public rate fields.')
@@ -2875,8 +3099,8 @@ def validate_community_card(card, jobs=None):
             (dt.date.fromisoformat(entry_periods[0]['end']) - dt.date.fromisoformat(entry_periods[0]['start'])).days == 27,
             'Public conversion entries must share one complete 28-day window.')
     improvement = card['biggest_improvement']
-    require(improvement is None or (isinstance(improvement, dict) and {'kpi', 'from', 'to'} <= set(improvement) <= {'kpi', 'from', 'to', 'reason'} and
-            improvement['kpi'] in ('reply_rate', 'reply_to_call', 'call_to_won') and numeric(improvement['from']) and numeric(improvement['to'])), 'Invalid public improvement.')
+    require(improvement is None or (isinstance(improvement, dict) and set(improvement) == {'kpi', 'from', 'to'} and
+            improvement['kpi'] in ('reply_rate', 'reply_to_call', 'call_to_won', 'booked_to_held', 'proposal_to_won') and numeric(improvement['from']) and numeric(improvement['to'])), 'Invalid public improvement.')
     require(isinstance(card['top_badges'], list), 'Public badges need a list.')
     earned = card.get('earned_badges', [])
     require(isinstance(earned, list) and len(earned) <= 3, 'Public weekly badges show at most three.')
@@ -2904,14 +3128,9 @@ def validate_community_card(card, jobs=None):
             isinstance(score['baseline_only'], bool) and isinstance(score['parts'], dict) and set(score['parts']) == {'habits', 'results'} and
             all(value is None or number(value) and 0 <= value <= 100 for value in score['parts'].values()) and
             isinstance(score['dropped'], list) and all(isinstance(row, dict) and set(row) == {'part', 'reason'} and row['part'] in LEVERS + ('reply_rate', 'reply_to_call', 'booked_to_held', 'proposal_to_won') and row['reason'] in ('unknown source', 'No eligible cases yet', 'Baseline not set') for row in score['dropped']), 'Public Funnel Score must contain bounded computed parts only.')
-    # Goals remain a rejecting allowlist. Dynamic optional prose is dropped.
-    prose = [goal['text'].casefold() for goal in card['goals']]
-    require(not any(source in text for source in public_source_fragments(jobs) for text in prose), 'Public goals contain client source material.')
-    require(all(safe_public_text(goal['text'], jobs, 6) for goal in card['goals']), 'Public goal text cannot contain URLs or contact details.')
+    # Fixed goal labels and computed improvement fields have no prose input.
     if card['question'] is not None and not safe_public_text(card['question'], jobs):
         card['question'] = None
-    if improvement is not None and 'reason' in improvement and not safe_public_text(improvement['reason'], jobs):
-        improvement.pop('reason')
 
     return card
 
@@ -3004,7 +3223,7 @@ def claude_fields(result, value):
     card = value.get('community_card', {})
     require(isinstance(card, dict) and set(card) <= set(result['community_card']), 'Community card has unknown fields.')
     if set(result['community_card']) - {'activity_period'} <= set(card): validate_community_card(card)
-    else: require(set(card) <= {'next_focus', 'question', 'biggest_improvement'}, 'Partial public overlays may change only focus/question and improvement reason.')
+    else: require(set(card) <= {'next_focus', 'question', 'biggest_improvement'}, 'Partial public overlays may supply only focus/question and unchanged computed improvement.')
     if card.get('next_focus') is not None:
         require(card['next_focus'] in LABELS.values(), 'Community focus needs a known stage label.')
         result['community_card']['next_focus'] = card['next_focus']
@@ -3016,9 +3235,8 @@ def claude_fields(result, value):
     if card.get('biggest_improvement') is not None:
         supplied = card['biggest_improvement']
         original = result['community_card']['biggest_improvement']
-        require(isinstance(supplied, dict) and set(supplied) <= {'kpi', 'from', 'to', 'reason'} and original is not None, 'Improvement needs a computed change.')
+        require(isinstance(supplied, dict) and set(supplied) <= {'kpi', 'from', 'to'} and original is not None, 'Improvement needs a computed change.')
         require(all(supplied.get(key, original[key]) == original[key] for key in ('kpi', 'from', 'to')), 'Improvement numbers must come from compute.')
-        if 'reason' in supplied and safe_public_text(supplied['reason'], pipeline.load()): original['reason'] = supplied['reason']
     return result
 
 
@@ -3144,7 +3362,7 @@ def record_snapshot(value, replace=False):
     goals = [dict(goal, start=today.isoformat()) if 'start' not in goal else goal for goal in result['goals_next']]
     validate_goals({'week': result['week'], 'goals': goals})
     agreed = next((row['goals'] for row in reversed(read_lines('goals.jsonl')) if row.get('week') == result['week']), None)
-    require(agreed is None or goals == agreed, 'Snapshot goals must match the agreed goals saved for this ISO week.')
+    require(agreed is not None and goals == agreed, 'Snapshot needs the matching agreed goals saved for this ISO week.')
     focus = result['verdict']['kpi']
     require(focus is None or next(goal['kpi'] for goal in goals if goal['primary']) == focus, 'The focus KPI must be the primary goal.')
     require(isinstance(result['report'], str) and result['report'].strip(), 'Snapshot needs the chat report.')
@@ -3242,14 +3460,17 @@ def public_onepager_html(card):
     change = 'Not clear yet'
     if improvement:
         change = f'{labels[improvement["kpi"]]} {fmt(improvement["from"], "%")} → {fmt(improvement["to"], "%")}'
-        if improvement.get('reason'): change += f'<small>{esc(improvement["reason"])}</small>'
     weekly_badges = card.get('earned_badges', [])
     if not weekly_badges and card.get('new_badge') and card['new_badge']['earned_week'] == card['week']: weekly_badges = [card['new_badge']]
     badge_html = ''
     for badge in weekly_badges[:3]:
         slug = re.sub(r'[^a-z0-9]+', '-', badge['badge'].casefold().replace("'", '')).strip('-')
         asset = ROOT / 'website/public/badges' / f"{slug}-{badge['tier'].casefold()}.webp"
-        picture = f'<img src="data:image/webp;base64,{base64.b64encode(asset.read_bytes()).decode()}" alt="" width="48" height="48">' if asset.is_file() else ''
+        if not asset.is_file():
+            motifs = ('harbour', 'ship', 'treasure', 'hourglass', 'bell', 'spyglass', 'anchor', 'cannon', 'bottle', 'compass', 'wheel', 'lighthouse', 'doubloon', 'storm')
+            asset = ROOT / 'website/public/badges' / f'badge-{motifs[BADGE_NAMES.index(badge["badge"])]}.webp'
+        require(asset.is_file(), 'Displayed public badge needs its tier image or motif fallback.')
+        picture = f'<img src="data:image/webp;base64,{base64.b64encode(asset.read_bytes()).decode()}" alt="" width="48" height="48">'
         badge_html += f'<div class="badge">{picture}<div><span class="eyebrow">New badge</span><b>{esc(badge["badge"])}</b><small>{esc(badge["tier"])}</small></div></div>'
     if card.get('more_badges', 0): badge_html += f'<small>+{card["more_badges"]} more</small>'
     if not weekly_badges and card.get('next_badge'):

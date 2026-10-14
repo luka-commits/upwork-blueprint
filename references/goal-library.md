@@ -97,3 +97,45 @@ Each `not needed` point carries a reason. Missing evidence means unreviewable ex
 ## Offer → contract · `offer_to_contract`
 
 - When an offer arrives → check scope, deliverables, acceptance criteria, price, dates, capacity and terms against the agreement. The member accepts on Upwork when aligned. Fallback: identify all mismatches and request corrections in Upwork Messages. Start only after the contract is active; verify funded fixed-price milestones before their work. KPI: `offer_to_contract`. Kickoff belongs to delivery, after this result.
+
+## Public goal IDs
+
+After the member agrees a library goal, save its `goal_library_id` in the agreed
+goals ledger. This selects the fixed public label below; private cue, action and
+change text never appear on the community card. Goals without an ID stay private.
+The public card also verifies the stable `goal_id` against that agreement.
+
+| Goal library ID | KPI | Fixed public label |
+|---|---|---|
+| `reply-opener` | `reply_rate` | Name the posted problem |
+| `reply-proof` | `reply_rate` | Use one relevant proof |
+| `reply-observation` | `reply_rate` | Add one useful job observation |
+| `reply-close` | `reply_rate` | Ask one useful closing question |
+| `reply-video` | `reply_rate` | Show one relevant point |
+| `speed-qualified` | `speed_10min` | Apply promptly after checking fit |
+| `fit-check` | `job_fit` | Check fit before applying |
+| `volume-sessions` | `weekly_volume` | Keep agreed application sessions |
+| `volume-share` | `weekly_volume` | Submit the agreed qualified share |
+| `volume-replan` | `weekly_volume` | Replan missed application sessions |
+| `call-times` | `reply_to_call` | Offer two useful call times |
+| `first-answer` | `first_reply` | Answer within agreed working hours |
+| `call-question` | `reply_to_call` | Resolve the blocking question |
+| `call-free-offer` | `reply_to_call` | Confirm terms before the offer |
+| `followup-first` | `follow_ups_on_time` | Follow up on the agreed day |
+| `followup-last` | `follow_ups_on_time` | Send one final useful question |
+| `meeting-confirm` | `booked_to_held` | Confirm the meeting and agenda |
+| `meeting-remind` | `booked_to_held` | Confirm the meeting before it starts |
+| `meeting-reschedule` | `booked_to_held` | Offer replacement times after absence |
+| `call-opening` | `call_review` | Confirm the goal and agenda |
+| `call-impact` | `call_review` | Ask about the problem impact |
+| `call-budget` | `call_review` | Confirm budget before naming price |
+| `call-step` | `call_review` | Agree the next step and owner |
+| `proposal-prompt` | `proposal_on_time` | Send the complete proposal promptly |
+| `proposal-fit` | `held_to_proposal` | Record the evidenced fit decision |
+| `proposal-scope` | `proposal_to_won` | Offer one complete fitting scope |
+| `proposal-value` | `proposal_to_won` | Explain price with the agreed scope |
+| `proposal-decision` | `proposal_to_won` | Confirm the next decision step |
+| `proposal-objection` | `proposal_to_won` | Clarify the price concern |
+| `invite-answer` | `first_reply` | Answer the immediate invite request |
+| `invite-proof` | `invite_to_call` | Share proof before booking |
+| `offer-check` | `offer_to_contract` | Check the offer against the agreement |

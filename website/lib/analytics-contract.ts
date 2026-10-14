@@ -117,7 +117,7 @@ export type AnalyticsConversations = {
   proposals?: Record<string, any>[];
 };
 
-/** Translate schema vocabulary only at presentation boundaries; quotes stay verbatim. */
+/** Translate member copy; unsafe quoted spans are omitted without changing source words. */
 export const ANALYTICS_FIELD_LABELS: Record<string, string> = {
   reply_rate: 'Reply rate', reply_to_call: 'Call rate', booked_to_held: 'Show-up rate',
   held_to_proposal: 'Held call to proposal', proposal_to_won: 'Win rate',
@@ -155,5 +155,7 @@ export function analyticsMemberText(value: unknown): string {
     .replace(/eligible/gi, 'fitting').replace(/cohorts/gi, 'groups').replace(/cohort/gi, 'group')
     .replace(/Execution and effect apart/gi, 'What you did and what changed')
     .replace(/unreviewable/gi, 'Cannot check yet').replace(/stage starts/gi, 'next fitting opportunity comes up').replace(/\s*—\s*/g, ', ');
-  return text.split(/(“[^”]*”|"[^"]*")/g).map((part, index) => index % 2 ? part : translate(part)).join('');
+  return text.split(/(“[^”]*”|"[^"]*")/g).map((part,index)=>index % 2
+    ? translate(part)===part ? part : 'Quote unavailable in this view.'
+    : translate(part)).join('');
 }

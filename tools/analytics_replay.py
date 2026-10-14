@@ -54,8 +54,8 @@ def maya_card_example(snapshot):
                        {'reply_rate':(11,15,20),'reply_to_call':(30,40,50),'booked_to_held':(70,80,90),
                         'call_to_won':(20,25,30),'proposal_to_won':(20,25,30)}[key]))
     card['reply_to_call']['progression']={'booked_calls':9,'held_calls':8,'offer_or_contract_without_call':0}
-    card['goals']=[{'text':text,'done':False,'k':k,'n':n,'state':'partial' if k else 'undone'}
-                   for text,k,n in (('Offer two call times',7,9),('Budget before price',1,4),('Decision date',0,2))]
+    # The explicit example agreement below supplies the IDs before publication.
+    card['goals']=[]
     card['goals_done']='0/3'
     card['funnel_score']={'score':88,'previous':81,'parts':{'habits':90,'results':85},'dropped':[],'baseline_only':False}
     card['new_badge']={'badge':'Swift Sail','tier':'Silver','earned_week':value['week'],
@@ -86,12 +86,21 @@ def maya_card_example(snapshot):
          'The Upwork thread shows an agreed decision date, rather than a date only requested.'),
     ]
     goal_displays=[{'stage':analytics.LABELS[key],'kpi':key,'change':title,
+        'goal_library_id': {'reply_to_call':'call-times','call_review':'call-budget',
+                            'proposal_to_won':'proposal-decision'}[key],
         'primary':index==0,'cue':cue,'action':action,'coach_example':example,'measurement':check,
         'fallback': 'Confirm the known budget or ask the range once.' if key=='call_review' else
                     'Offer one available time.' if key=='reply_to_call' else 'Confirm the next Upwork action.',
         'review_on':'2026-10-26'}
         for index,(key,title,cue,action,example,check) in enumerate(commitments)]
-    value['goals_next']=[{key:goal[key] for key in ('stage','kpi','change','primary','cue','action','fallback','review_on')} for goal in goal_displays]
+    value['goals_next']=[{key:goal[key] for key in ('stage','kpi','change','goal_library_id','primary','cue','action','fallback','review_on')} for goal in goal_displays]
+    card['goals'] = [
+        {'goal_id':analytics.goal_id(dict(goal,start='2026-10-12'), value['week']),
+         'goal_library_id':goal['goal_library_id'],
+         'text':analytics.PUBLIC_GOAL_LIBRARY[goal['goal_library_id']][1],
+         'done':False,'k':k,'n':n,'state':'partial' if k else 'undone'}
+        for goal,(k,n) in zip(value['goals_next'], ((7,9),(1,4),(0,2)))
+    ]
     value.update(synthetic=True, data_label='Maya example · illustrative, no member facts',
         periods={'activity':card['activity_period'],'cohort':bounds,'outcome':card['activity_period'],
                  'synced_at':value['generated_at']},
@@ -239,7 +248,7 @@ def main():
                 run('pipeline.py','record',jid,'--file','-',value={'conversation_review':chat})
             run('sync.py', 'apply', '--file', '-', value={'connects': [{'at': row['applied_at'], 'amount': -12, 'reason': 'Example application', 'job_id': row['id']} for row in new if row.get('applied_at')], 'earnings': [{'week_start': start.isoformat(), 'contract_id': 'example-weekly', 'billed': 0, 'currency': 'USD'}]})
             (folder/'data/sync.json').write_text(json.dumps({'synced_at': analytics.run_timestamp(today).isoformat()}))
-            value = analytics_payload(analytics.compute(today))
+            value = analytics_payload(analytics.compute(today), agree=False)
             call = next(row for row in new if row.get('call_held_at'))
             value['reviews']['call'].pop('coverage', None)
             value['reviews']['application'].pop('coverage', None)
@@ -274,13 +283,21 @@ def main():
         (folder/'community-card.html').write_text(analytics.public_onepager_html(analytics.snapshot_public_card(last)), encoding='utf-8')
         example=maya_card_example(last)
         # Approve these synthetic texts in the isolated goal writer, never real data.
-        example_goal_day = analytics.day(last['generated_at']) + dt.timedelta(days=7)
-        example_iso = example_goal_day.isocalendar()
-        example_goal_week = f'{example_iso.year}-W{example_iso.week:02d}'
-        analytics.add_goals({'week':example_goal_week,'goals':[dict(goal,start=example_goal_day.isoformat(),
-            review_on=(example_goal_day+dt.timedelta(days=7)).isoformat()) for goal in example['goals_next']]})
-        (folder/'maya-community-example.json').write_text(json.dumps(example,indent=2)+'\n')
-        (folder/'maya-community-example.html').write_text(analytics.public_onepager_html(analytics.snapshot_public_card(example)),encoding='utf-8')
+        example_goal_week = example['week']
+        example_goal_day = dt.date.fromisocalendar(int(example_goal_week[:4]), int(example_goal_week[6:]), 1)
+        example_data = folder/'maya-example-data'
+        example_data.mkdir()
+        with mock.patch.dict(os.environ, {'BLUEPRINT_DATA':str(example_data)}):
+            example_goals = analytics.add_goals({'week':example_goal_week,'goals':[dict(goal,start=example_goal_day.isoformat(),
+                review_on=(example_goal_day+dt.timedelta(days=7)).isoformat()) for goal in example['goals_next']]})
+            example['community_card']['goals'] = [
+                {'goal_id': analytics.goal_id(goal, example_goal_week), 'goal_library_id':goal['goal_library_id'],
+                 'text':analytics.PUBLIC_GOAL_LIBRARY[goal['goal_library_id']][1],
+                 'done':False,'k':k,'n':n,'state':'partial' if k else 'undone'}
+                for goal,(k,n) in zip(example_goals['goals'], ((7,9),(1,4),(0,2)))
+            ]
+            (folder/'maya-community-example.json').write_text(json.dumps(example,indent=2)+'\n')
+            (folder/'maya-community-example.html').write_text(analytics.public_onepager_html(analytics.snapshot_public_card(example)),encoding='utf-8')
     assert len((folder/'data/analytics-history.jsonl').read_text().splitlines()) == 8
     assert protected_hashes() == before, 'Repository data or jobs changed.'
     proof = {'root': str(folder), 'environment': {key: env[key] for key in ('BLUEPRINT_CONTEXT','BLUEPRINT_DATA','BLUEPRINT_JOBS','BLUEPRINT_JOBDIR')}, 'week': last['week'], 'call_id': call['id'], 'snapshots': 8, 'reviewable_entries':counts,'cross_stage_patterns':len(last['conversations']['patterns']), 'protected_files': len(before), 'protected_unchanged': True}

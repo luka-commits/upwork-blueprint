@@ -91,17 +91,16 @@ reviews and only reviews calls without one.
 
 ## Conversation review
 
-For every reply thread that did not become a call or offer, read the Upwork messages and check five points, each
-with a quote: first answer fast (within the member's working hours), answered the client's actual question, asked
-one qualifying question, proposed an Upwork call with two concrete times when a call would help (or moved the
-decision forward in the thread when it would not), follow-up on business day 3 and 7. Add who wrote last.
+For every reply thread that did not become a call or offer, read the Upwork messages and judge the content on three
+points, each with a quote: answered the client's actual question, asked one qualifying question, proposed an Upwork
+call with two concrete times when a call would help (or moved the decision forward in the thread when it would
+not). Add who wrote last. Response speed and follow-up timing are measured by the funnel, never judged here.
 
 Then per thread: the observed friction, a supported interpretation and what remains unknown. Give a next message
 only when a useful action remains, and respect a decision the client said they own; do not force another question
-or a call. Without working hours or calendar data, mark timing checks as not assessable and report elapsed time;
-state the follow-up anchor and mark checks not yet due. A follow-up becoming due is no reason to send by itself: it
-must add useful information or serve an agreed next step; offer two call times only when a call would help. At
-most 150 words per thread and 60 across threads in the main view; detailed timing goes into a separate scan. Across
+or a call. A follow-up is worth sending only when it adds useful information or serves an agreed next step. At most
+150 words per thread and 60 across threads in the main view. A finding that repeats across stages is stated once,
+in its first stage. A missing source is "not reviewed" with how to supply it, never a grade. Across
 threads, name a pattern only when it repeats ("in 6
 of 9 quiet threads you never proposed a time") and give the one better line.
 

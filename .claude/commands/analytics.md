@@ -176,14 +176,14 @@ through every page. A short page is not proof of completeness. Read oldest first
 never invent a message, author, read receipt or timestamp. Record the exact contract:
 `conversation_review: {threads: [{lead_id, points: {answered_question,
 qualifying_question, call_times}, last_writer, read, free_read}], pattern}`.
-**Item 32 overrides the frozen coach brief's five-point conversation scan.**
+The final coach brief judges exactly these three content points.
 Qualitative review has only `answered_question` (answer the client's actual
 question), `qualifying_question` (one useful qualifying question) and `call_times`
 (two concrete Upwork call times only when a call would help; otherwise `not_needed`
 with a reason). First-answer speed and follow-up timing belong only to deterministic
 funnel metrics; never score them as qualitative points or include them in this payload.
 Each of the three points is `{state: met|partly|missing|not_needed, quote, reason}`.
-Keep the brief's free read, evidence lenses and useful next-message guidance.
+Keep the brief's free read, evidence lenses and useful next-message guidance. State an interpretation as a read, place its strongest counterevidence beside it, and honour the client's stated decision and every agreed next step. A repeated finding appears once in its first stage. A missing transcript or thread is Not reviewed with the exact supply step, never Needs work.
 Support each content judgment with
 an actual quote; for missing evidence, say what is missing without fabricating a
 quote. Every `not_needed` carries a reason. Derive `last_writer` from verified messages; use `unknown` when unavailable.
@@ -246,7 +246,7 @@ or null when absent; `fix` and `example` are strings. For an unreviewable call s
 `reviewable: false` and `points: []`. Derive private `call_cards`, per-point coverage
 and weekly history through compute; never hand-write derived metrics or cards.
 Talk share and question count remain context, never the verdict.
-Private rubric/card quotes must be verbatim `jobs/<id>/call.md` excerpts and never enter the public card.
+Private rubric/card quotes must be verbatim `jobs/<id>/call.md` excerpts with their actual transcript timestamps and never enter the public card. State causes as a supported read rather than a fact. The next message honours the agreed scope, owner and review date, and never invents a delivery promise.
 Preserve saved `free_read`, `next_message` and `agreed_step` in the supported
 call rubric fields and reuse the saved read, useful next message (at most
 100 words) and agreed step for its card. They precede the separate nine-point
@@ -413,7 +413,7 @@ or real-account acceptance.
 
 Offer goals with supported observed improvement for this member before the library; propose from the library
 first otherwise, and add at most one original commitment. Each has `stage`, `kpi`,
-`change`, `start`, `cue`, `action`, `fallback`, `review_on` and `primary`. One to three different stages, exactly one primary for the focus. When there is no confirmed bottleneck, use
+`change`, `start`, `cue`, `action`, `fallback`, `review_on` and `primary`. Library goals also have the exact `goal_library_id` from references/goal-library.md; only these agreed IDs may appear publicly. One to three different stages, exactly one primary for the focus. When there is no confirmed bottleneck, use
 the closest-to-failing stage or the habit named by compute. Agree one to three with the
 member, then help implement them (a reply template or call opener), without sending.
 
@@ -452,11 +452,13 @@ population, definition, source and date. A `market_line` (at most 8 words, inclu
 the source name) may summarise only that verified reference, never become a target tick.
 
 Use a code-approved fixed label for `community_card.next_focus`. The public payload accepts only
-allowlisted aggregates, fixed labels, the member's own name, library/member-authored
-goal texts and badge names; never client names, job titles, client text or snapshot
-embeds. Frozen §13 permits generated question/biggest-improvement reason only at ≤14 words
-and after the automatic check against all known lead titles/client names; otherwise
-drop the field. Record refuses other unapproved public fields and wording.
+allowlisted aggregates, fixed labels, the member's own name, agreed library goal IDs
+and badge names. Goal text is generated from fixed vocabulary, never private goal wording.
+The improvement line uses only fixed templates, KPI names and computed values; no reason
+prose is accepted. A question has at most 14 words, no digits, currency or unit text, no
+domain/link pattern and no capitalised word except the first word, I and Upwork. It must
+match no known client, company, job title or quote fragment after case and punctuation
+normalisation; otherwise omit it. Record refuses other unapproved public fields and wording.
 Frozen §13.3 uses one common 28-day community window for rates and first reply;
 label weekly applications separately. Show route and k/n, level reached, step count
 and progress against the member's own baseline; no target pass/fail flags, default

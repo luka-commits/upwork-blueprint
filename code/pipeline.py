@@ -217,6 +217,22 @@ def numeric(value):
     return number if number is not None and math.isfinite(number) else None
 
 
+def validate_insight_tags(jobs):
+    names = set()
+    for job in jobs:
+        tags = job.get('tags', {})
+        frozen = (job.get('application_facts') or {}).get('tags', {})
+        if isinstance(tags, dict) and isinstance(frozen, dict) and len(set(tags) | set(frozen)) > 5:
+            abort('Insight tags allow at most five names per lead across pending and frozen observations.')
+        for value in (tags, frozen):
+            if (not isinstance(value, dict) or len(value) > 5 or
+                    any(not re.fullmatch(r'[a-z][a-z0-9_]{0,39}', key) or not isinstance(flag, bool) for key, flag in value.items())):
+                abort('Insight tags need at most five named booleans per lead.')
+            names.update(value)
+    if len(names) > 12:
+        abort('Insight tags allow at most twelve distinct names per member.')
+
+
 def freeze_application_facts(job):
     """Keep application-time categories once, never cached client numbers."""
     if job.get('application_facts') or not job.get('applied_at'):
@@ -280,11 +296,15 @@ def freeze_application_facts(job):
     }
     if job['application_facts']['connects_cost'] is None:
         job['application_facts']['connects_cost'] = 'unknown'
+    registered = parse_verified_timestamp(job.get('tags_registered_at'))
+    if registered and applied and registered <= applied and not job.get('replied_at'):
+        job['application_facts'].update(tags=dict(job.get('tags') or {}), tags_registered_at=registered)
 
 
 def save(jobs):
     """Writes through a temp file, so a crash mid-write never leaves half a pipeline."""
     global _jobs_writes
+    validate_insight_tags(jobs)
     path = jobs_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=path.parent,
@@ -531,6 +551,12 @@ def cmd_add(args):
             skipped.append(jid)
             continue
         rec['id'] = jid
+        if rec.get('tags'):
+            if rec.get('applied_at') or rec.get('application_facts') or rec.get('replied_at'):
+                abort('Insight tags must be registered before applying, never imported afterward.')
+            rec['tags_registered_at'] = stamp
+        elif (rec.get('application_facts') or {}).get('tags'):
+            abort('Frozen insight tags cannot be imported retrospectively.')
         rec.setdefault('found_at', stamp)
         rec.setdefault('status', 'new')
         if rec['status'] not in STATUSES:
@@ -680,11 +706,40 @@ def cmd_record(args):
                'call_scheduled_at', 'call_ended_at', 'call_duration_s', 'call_session_id', 'call_sessions',
                'call_outcome', 'proposal_required', 'application_modality', 'application_sent_verified', 'submission_bid',
                'invited_at_source', 'proposal_status', 'proposal_cost', 'proposal_viewed', 'proposal_insights',
-               'call_requested_at', 'call_request', 'recap_state', 'recap_reason', 'thread_refs', 'conversation_review', 'call_review'}
+               'call_requested_at', 'call_request', 'recap_state', 'recap_reason', 'thread_refs', 'conversation_review', 'call_review', 'tags', 'behaviour_observations'}
     if not isinstance(value, dict) or not value or set(value) - allowed:
         abort('metadata needs only ' + ', '.join(sorted(allowed)) + '.')
+    jobs = load()
+    job = find(jobs, args.job_id)
     for key, item in value.items():
-        if key == 'source':
+        if key == 'tags':
+            if job.get('applied_at') or job.get('application_facts') or job.get('replied_at'):
+                abort('Insight tags must be registered before applying, never after outcomes.')
+            validate_insight_tags([*jobs, dict(job, tags=item)])
+        elif key == 'behaviour_observations':
+            if not isinstance(item, dict) or set(item) - {'first_reply_under_5m', 'two_call_times', 'follow_up_on_day'}:
+                abort('Unknown behaviour observation.')
+            for behaviour, observation in item.items():
+                if (not isinstance(observation, dict) or set(observation) != {'possible_at', 'exposure_at', 'met'}
+                        or not isinstance(observation['met'], bool)):
+                    abort('Behaviour needs possible_at, exposure_at and boolean met.')
+                observation['possible_at'] = verified_timestamp(observation['possible_at'])
+                observation['exposure_at'] = verified_timestamp(observation['exposure_at'])
+                if observation['possible_at'] > observation['exposure_at'] or observation['exposure_at'] > now_iso():
+                    abort('Behaviour clocks must be ordered and already observed.')
+                opportunity = datetime.datetime.fromisoformat(observation['possible_at'])
+                exposure = datetime.datetime.fromisoformat(observation['exposure_at'])
+                expected = ((exposure-opportunity).total_seconds() <= 300 if behaviour=='first_reply_under_5m' else
+                            local_day(observation['possible_at'])==local_day(observation['exposure_at']) if behaviour=='follow_up_on_day' else None)
+                if expected is not None and observation['met'] != expected:
+                    abort('Behaviour timing must match its observed clocks.')
+            if any(job.get(name) for name in ('call_booked_at', 'call_held_at', 'offered_at', 'offer_at', 'won_at')):
+                abort('Register behaviour exposure before the next stage outcome, never retrospectively.')
+            existing = job.get('behaviour_observations') or {}
+            if any(name in existing and existing[name] != observation for name, observation in item.items()):
+                abort('A recorded behaviour observation is immutable.')
+            value[key] = {**existing, **item}
+        elif key == 'source':
             if item not in LEAD_SOURCES:
                 abort('source needs outbound, invite, direct_offer or unknown.')
         elif key == 'invited_at_source':
@@ -895,8 +950,6 @@ def cmd_record(args):
             abort(f'{key} needs a non-empty string.')
     if 'client_slug' in value and not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', value['client_slug']):
         abort('client_slug needs a lowercase folder name.')
-    jobs = load()
-    job = find(jobs, args.job_id)
     if 'conversation_review' in value and value['conversation_review']['read']:
         path = jobs_dir() / args.job_id / 'thread.json'
         try:
@@ -929,6 +982,10 @@ def cmd_record(args):
         for point in value['call_review']['points'] + value['call_review'].get('moments', []):
             if not any(point['quote'] in utterance for utterance in utterances):
                 abort('Every call review quotation must occur in the saved transcript.')
+    # A completed call is judged once. Validate later inputs above, then reuse
+    # the exact first stored judgment and timestamp instead of silently replacing it.
+    if 'call_review' in value and isinstance(job.get('call_review'), dict) and job['call_review'].get('reviewable') is True:
+        value['call_review'] = job['call_review']
     if ('invited_at' in value and job.get('invited_at_source') == 'room'
             and value.get('invited_at_source') != 'room'):
         value.pop('invited_at', None)
@@ -939,6 +996,8 @@ def cmd_record(args):
         if prior:
             value['invited_at'] = min(value['invited_at'], prior)
     changed = False
+    if 'tags' in value:
+        job['tags_registered_at'] = now_iso()
     for key, item in value.items():
         if key == 'follow_up_source' and item is None:
             changed = key in job or changed

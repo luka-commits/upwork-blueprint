@@ -329,7 +329,9 @@ def catchup_contract():
         assert all(review['start']=='2026-09-16' for review in current['goals_review'])
         assert len((folder/'data/analytics-history.jsonl').read_text().splitlines())==1, 'Pure catch-up never records.'
         from analytics_fixture import analytics_payload
-        saved=analytics.record_snapshot(analytics_payload(current))
+        approved=analytics_payload(current, agree=False)
+        analytics.add_goals({'week':approved['week'], 'goals':[dict(goal,start=today.isoformat()) for goal in approved['goals_next']]})
+        saved=analytics.record_snapshot(approved)
         persisted=[json.loads(line) for line in (folder/'data/analytics-history.jsonl').read_text().splitlines()]
         assert [row['week'] for row in persisted]==['2026-W38','2026-W39','2026-W40','2026-W41','2026-W42']
         assert len({row['week'] for row in persisted})==5 and saved['gap']['weeks_missed']==3
@@ -390,13 +392,18 @@ def public_latest_goals_contract():
                  for start,prefix,done in (('2026-09-30','Older',0),('2026-10-07','Recent',1)) for index in range(3)]
         for start,week in (('2026-09-30','2026-W40'),('2026-10-07','2026-W41')):
             keys=('weekly_volume','reply_rate','reply_to_call')
-            goals=[{'start':start,'kpi':keys[index],'stage':analytics.LABELS[keys[index]],'change':review['change'],'primary':index==0,'cue':'When the stage starts','action':'Use the agreed next step','fallback':'Use one smaller step','review_on':(dt.date.fromisoformat(start)+dt.timedelta(days=7)).isoformat()} for index,review in enumerate([row for row in reviews if row['start']==start])]
+            libraries=('volume-sessions','reply-opener','call-times') if start=='2026-10-07' else ('volume-share','reply-proof','call-question')
+            goals=[{'start':start,'kpi':keys[index],'goal_library_id':libraries[index],'stage':analytics.LABELS[keys[index]],'change':review['change'],'primary':index==0,'cue':'When the stage starts','action':'Use the agreed next step','fallback':'Use one smaller step','review_on':(dt.date.fromisoformat(start)+dt.timedelta(days=7)).isoformat()} for index,review in enumerate([row for row in reviews if row['start']==start])]
             analytics.add_goals({'week':week,'goals':goals})
+            for goal,review in zip(goals,[row for row in reviews if row['start']==start]):
+                review.update(goal_id=analytics.goal_id(goal,week),goal_library_id=goal['goal_library_id'])
         snapshot['goals_review']=reviews
         card=analytics.community_card([],today,snapshot['kpis'],reviews,snapshot['week'],0)
         card['funnel_score']=snapshot['funnel_score']
         assert len(snapshot['goals_review'])==6 and len(card['goals'])==3 and card['goals_done']=='3/3'
-        assert all(goal['text'].startswith('Recent') and goal['done'] for goal in card['goals'])
+        latest_ids={row['goal_id'] for row in reviews if row['start']=='2026-10-07'}
+        assert all(goal['goal_id'] in latest_ids and goal['text']==analytics.PUBLIC_GOAL_LIBRARY[goal['goal_library_id']][1] and goal['done'] for goal in card['goals'])
+        assert all('Recent' not in goal['text'] and 'Older' not in goal['text'] for goal in card['goals'])
         assert analytics.validate_community_card(card)==card
         html=analytics.public_onepager_html(card)
         assert 'Last agreed goals' in html and 'Agreed goals carried out' not in html
@@ -478,7 +485,9 @@ def frozen_projection_contract():
             entry=sections[stage][0]
             assert entry['reviewable'] and entry['quote']==quote and entry['read'].startswith('Saved '), (stage,entry)
             required={'lead_id','label','date','reviewable','source_prompt','points','quote','read','next_message','as_of','reviewed_at','title','key_finding','marker','importance','this_week'}
-            assert set(entry)==required | {'applications':{'sent_copy','loom_transcript'},'chats':{'last_writer'},'proposals':{'scope','price','decision_date'}}[stage]
+            duplicate={'duplicate_of_stage'} if stage in ('chats','proposals') else set()
+            assert set(entry)==required | {'applications':{'sent_copy','loom_transcript'},'chats':{'last_writer'},'proposals':{'scope','price','decision_date'}}[stage] | duplicate
+            if duplicate: assert entry['duplicate_of_stage']=='applications'
         # Frozen section14 rows add titles, short findings, week filter and importance.
         for rows in sections.values():
             assert [row['importance'] for row in rows]==sorted(row['importance'] for row in rows)
@@ -486,8 +495,9 @@ def frozen_projection_contract():
                 assert row['title']=='Build an audit dashboard in Airtable'
                 assert 0<len(row['key_finding'].split())<=12
                 assert row['marker'] in ('needs work','keep') and isinstance(row['this_week'],bool)
-        assert all({key:value for key,value in row.items() if key not in ('title','key_finding','marker','importance','this_week')} == {key:value for key,value in saved.items() if key not in ('title','key_finding','marker','importance','this_week')}
+        assert all({key:value for key,value in row.items() if key not in ('title','key_finding','marker','importance','this_week','duplicate_of_stage')} == {key:value for key,value in saved.items() if key not in ('title','key_finding','marker','importance','this_week','duplicate_of_stage')}
                    for row,saved in zip(sections['calls'],snapshot['call_cards']))
+        assert all(row.get('duplicate_of_stage')=='applications' for row in sections['calls'])
         card=sections['calls'][0]
         assert card['agreed_step']=='Client confirms the owner by Friday.'
         assert card['next_message']=='Can you confirm the audit owner?'
@@ -673,9 +683,9 @@ def compact_community_contract():
         analytics_sync_marker(folder)
         (folder/'context/me.md').write_text('Name: Maya Rivers\n')
         snapshot=analytics.compute(today,jobs=[])
-        value=analytics_payload(snapshot)
+        value=analytics_payload(snapshot, agree=False)
         example=maya_card_example(value)
-        analytics.add_goals({'week':'2026-W43','goals':[dict(goal,start='2026-10-19',review_on='2026-10-26') for goal in example['goals_next']]})
+        analytics.add_goals({'week':example['week'],'goals':[dict(goal,start='2026-10-12',review_on='2026-10-26') for goal in example['goals_next']]})
         card=analytics.snapshot_public_card(example,[])
         assert card['member_name']=='Maya R.' and card['applications']==31
         assert [(card[key]['k'],card[key]['n']) for key in ('reply_rate','reply_to_call','booked_to_held','proposal_to_won')] == [(29,140),(9,29),(8,9),(3,6)]
@@ -697,7 +707,7 @@ def compact_community_contract():
         assert 'data:image/webp;base64,'+base64.b64encode(badge_bytes).decode() in html and html.count('Swift Sail')==1
         assert len(card['goals'])==len({goal['text'] for goal in card['goals']})==3
         assert 'partly' in html and 'not yet' in html and '—' not in html
-        reviews=[{'start':'2026-10-07','change':goal['text'],'done_k':goal['k'],'done_n':goal['n'],'execution_state':goal['state']} for goal in card['goals']]
+        reviews=[{'start':'2026-10-12','goal_id':goal['goal_id'],'goal_library_id':goal['goal_library_id'],'change':goal['text'],'done_k':goal['k'],'done_n':goal['n'],'execution_state':goal['state']} for goal in card['goals']]
         reviews += [dict(reviews[0]),dict(reviews[1]),dict(reviews[2])]
         projected=analytics.community_card([],today,snapshot['kpis'],reviews,snapshot['week'],0)
         assert len(projected['goals'])==len({goal['text'] for goal in projected['goals']})==3
@@ -860,9 +870,17 @@ def job_fit_contract():
         reply = next(row for row in value['presentation']['scorecard'] if row['key'] == 'reply_rate')
         assert reply['job_fit'] == value['insights']['job_fit']
         from analytics_fixture import analytics_payload
-        prepared = analytics.prepare_snapshot(analytics_payload(value), today)
+        prepared = analytics.prepare_snapshot(analytics_payload(value, agree=False), today)
+        analytics.add_goals({'week':prepared['week'], 'goals':[dict(goal,start=today.isoformat()) for goal in prepared['goals_next']]})
         assert prepared['insights']['job_fit'] == value['insights']['job_fit']
         assert analytics.facts_sheet(prepared)['job_fit']['patterns'] == []
+        mismatch=copy.deepcopy(prepared)
+        mismatch['goals_next'][0]['change']='Use a different agreed next step'
+        try: analytics.record_snapshot(mismatch)
+        except ValueError as error: assert 'matching agreed goals' in str(error), str(error)
+        else: raise AssertionError('Snapshot changed the member agreement')
+        saved=analytics.record_snapshot(prepared)
+        assert saved['insights']==prepared['insights'] and saved['segments']==prepared['segments']
         tampered = copy.deepcopy(prepared)
         tampered['insights']['job_fit']['finished_n'] = 999
         try: analytics.record_snapshot(tampered)
@@ -882,7 +900,7 @@ def maya_numeric_truth_contract():
         me=folder/'context/me.md'
         me.write_text('Name: Maya Rivers\n'+me.read_text())
         example=maya_card_example(analytics.compute(dt.date(2026,10,19)))
-        analytics.add_goals({'week':'2026-W43','goals':[dict(goal,start='2026-10-19',review_on='2026-10-26') for goal in example['goals_next']]})
+        analytics.add_goals({'week':example['week'],'goals':[dict(goal,start='2026-10-12',review_on='2026-10-26') for goal in example['goals_next']]})
         rows={row['key']:row for row in example['presentation']['scorecard']}
         assert all(row['period_label']=='Last 28 days' for row in rows.values())
         for key in ('speed_10min','job_fit','first_reply','follow_ups_on_time'):
@@ -942,7 +960,172 @@ def maya_numeric_truth_contract():
     print('PASS Maya facts: weekly observations stay weekly; incomplete 28-day habits and Connects quantity unknown; 3/6 finished wins plus 2 pending; actual stage volumes; report metric, period, direction, statistic, currency and invite negative controls.')
 
 
+def backend_final_audit_contract():
+    import math
+    import analytics
+    import pipeline
+    from analytics_fixture import analytics_sync_marker
+    today = dt.date(2026, 10, 19)
+    start = today - dt.timedelta(days=84)
+    middle = start + dt.timedelta(days=42)
+    def stamp(date): return dt.datetime.combine(date, dt.time(10), analytics.local_zone()).isoformat()
+    def planted(size=20, old_only=False, behaviour=False):
+        jobs = []
+        for half, date in enumerate((start + dt.timedelta(days=4), middle + dt.timedelta(days=4))):
+            for exposed in (False, True):
+                for index in range(size):
+                    hit = exposed and (not old_only or half == 0)
+                    job = {'id': str(len(jobs)), 'applied_at': stamp(date),
+                           'application_facts': {'source': 'outbound', 'budget_band': '<500' if exposed else '>2000',
+                               'connects_cost': 12, 'tags': {'names_tool': exposed}, 'tags_registered_at': stamp(start-dt.timedelta(days=1))}}
+                    if behaviour:
+                        job['replied_at'] = stamp(date+dt.timedelta(days=1))
+                        job['behaviour_observations'] = {'two_call_times': {'possible_at': job['replied_at'],
+                            'exposure_at': stamp(date+dt.timedelta(days=2)), 'met': exposed}}
+                        if hit: job['call_booked_at'] = stamp(date+dt.timedelta(days=3))
+                    elif hit: job['replied_at'] = stamp(date+dt.timedelta(days=1))
+                    jobs.append(job)
+        return jobs
+    with fixture('backend-final-audit') as folder:
+        analytics_sync_marker(folder)
+        public_start = today - dt.timedelta(days=56)
+        public_end = today - dt.timedelta(days=29)
+        scheduled = public_end - dt.timedelta(days=3)
+        late_booking = [{'id':'late-booked', 'source':'outbound', 'call_booked_at':stamp(public_start-dt.timedelta(days=4)),
+                         'call_scheduled_at':stamp(scheduled), 'call_held_at':stamp(scheduled+dt.timedelta(days=1))},
+                        {'id':'late-held', 'source':'outbound','call_booked_at':stamp(public_start),
+                         'call_scheduled_at':stamp(scheduled), 'call_held_at':stamp(scheduled+dt.timedelta(days=3))},
+                        {'id':'cancelled','source':'outbound','call_scheduled_at':stamp(scheduled),
+                         'call_session_id':'s','call_sessions':{'s':{'scheduled_at':stamp(scheduled),'cancelled':True}}},
+                        {'id':'before','source':'outbound','call_scheduled_at':stamp(public_start-dt.timedelta(days=1))},
+                        {'id':'after','source':'outbound','call_scheduled_at':stamp(public_end+dt.timedelta(days=1))}]
+        card = analytics.community_card(late_booking,today,{},[], '2026-W43',0)
+        assert (card['booked_to_held']['k'],card['booked_to_held']['n']) == (1,2), card
+        assert card['booked_to_held']['entry_period'] == analytics.period((public_start,public_end))
+        snapshot = analytics.compute(today,jobs=[])
+        missing = copy.deepcopy(snapshot)
+        for source in missing['coverage']['sources']:
+            if source['source'] in ('upwork','recorder'): source['state']='missing'
+        missing.pop('report_facts',None)
+        facts = analytics.facts_sheet(missing)['report_facts']['weekly']
+        assert facts['calls'] is None and facts['transcripts_read'] is None, facts
+        (folder/'data'/'sync.json').unlink()
+        full_missing = analytics.compute(today,jobs=[])
+        assert full_missing['report_facts']['weekly']['calls'] is None
+        assert full_missing['report_facts']['weekly']['transcripts_read'] is None
+        for key in ('segments','behaviour'):
+            assert full_missing['kpis'][key]['state']=='missing'
+            assert all(full_missing['kpis'][key][field] is None for field in ('k','n','value'))
+        assert any({'segments','behaviour'} <= set(row['blocks']) for row in full_missing['coverage']['missing'] if row['source']=='upwork')
+        for text in ('twelve', 'eleven', 'nineteen', 'twenty-one', 'twenty one', 'ninety nine',
+                     'one hundred and twenty-three', 'two thousand', 'one million'):
+            check = analytics.check_report('You won '+text+' contracts this week.', snapshot)
+            assert check['status']=='FAIL' and check['errors'], (text,check)
+        truthful = copy.deepcopy(snapshot); truthful['north_star']['wins']=123
+        assert analytics.check_report('You won one hundred and twenty-three contracts this week.',truthful)['status']=='PASS'
+        assert analytics.check_report('1. Offer two concrete times: "Tuesday 12:00 or Thursday 14:00?"',snapshot)['status']=='PASS'
+        rows = planted()
+        general = analytics.insight_fields(rows,today)
+        tag = next(row for row in general['findings'] if row['dimension']=='tag')
+        assert tag['discovery']['n']==tag['confirmation']['n']==20
+        assert tag['target']['lead_ids']==tag['evidence'] and not set(tag['discovery']['evidence']) & set(tag['confirmation']['evidence'])
+        assert len(general['known_patterns']) <= 1
+        assert general['windows']['discovery']['end']==(middle-dt.timedelta(days=1)).isoformat()
+        assert general['windows']['confirmation']['start']==middle.isoformat()
+        nineteen = analytics.insight_fields(planted(19),today)
+        assert not nineteen['findings'] and all(row['state']!='confirmed' for row in nineteen['segments'])
+        early = analytics.insight_fields(planted(old_only=True),today)
+        assert not early['findings'] and any(row['state']=='emerging' for row in early['segments'])
+        no_opportunity = planted(behaviour=True)
+        for index in range(200): no_opportunity.append({'id':'impossible'+str(index), 'applied_at':stamp(start+dt.timedelta(days=4)),
+            'application_facts':{'source':'outbound'}, 'behaviour_observations':{'two_call_times':{'possible_at':stamp(start),
+                'exposure_at':stamp(start+dt.timedelta(days=1)), 'met':True}}})
+        behaviour = next(row for row in analytics.insight_fields(no_opportunity,today)['findings'] if row['dimension']=='behaviour')
+        assert behaviour['discovery']['reference']['n']==behaviour['confirmation']['reference']['n']==40
+        assert not any(jid.startswith('impossible') for jid in behaviour['evidence'])
+        inbound=planted(behaviour=True)
+        for job in inbound:
+            job.pop('application_facts')
+            job.pop('applied_at')
+            job['source']='invite'
+        inbound += [{'id':'no-reply','source':'invite','behaviour_observations':{'two_call_times':{
+            'possible_at':stamp(start+dt.timedelta(days=5)), 'exposure_at':stamp(start+dt.timedelta(days=6)), 'met':True}}},
+            {'id':'no-opportunity','source':'direct_offer','replied_at':stamp(start+dt.timedelta(days=5))},
+            dict(inbound[0],id='imported-inbound',imported=True)]
+        inbound_result=analytics.insight_fields(inbound,today)
+        inbound_behaviour=next(row for row in inbound_result['findings'] if row['dimension']=='behaviour')
+        assert inbound_behaviour['discovery']['reference']['n']==inbound_behaviour['confirmation']['reference']['n']==40
+        assert inbound_behaviour['discovery']['n']==inbound_behaviour['confirmation']['n']==20
+        assert not {'no-reply','no-opportunity','imported-inbound'} & set(inbound_behaviour['evidence'])
+        assert all(row['n']==0 for row in inbound_result['segments']), 'Inbound behaviour does not enter application segments.'
+        retrospective = planted()
+        for row in retrospective: row['application_facts']['tags_registered_at']=stamp(middle)
+        assert not any(row['dimension']=='tag' for row in analytics.insight_fields(retrospective,today)['segments'])
+        # Independent exact probability and near-cutoff BH step-up, including equality.
+        probability = sum(math.comb(20,i)*.5**20 for i in range(21) if math.comb(20,i)<=math.comb(20,15))
+        assert abs(analytics.job_fit_exact_p(15,20,.5)-probability)<1e-12
+        assert analytics.bh_accept([.025,.05,.9,1]) == {0,1}
+        assert analytics.bh_accept([.02501,.05001,.9,1]) == set()
+        assert analytics.bh_accept([.0251,.0499,.9,1]) == {0,1}, 'Step-up includes earlier p values.'
+        assert analytics.bh_accept([probability,.001,.9,1]) == {0,1}
+        # Independent Wilson formula and the exact fifteen-case display boundary.
+        fit = analytics.job_fit_fields(planted(15),today)
+        recommendation = next(row for row in fit['apply'] if row['band']=='<500')
+        assert recommendation['state']=='confirmed' and 'range' in recommendation['text']
+        n,k,z=30,30,1.959963984540054
+        p=k/n; denominator=1+z*z/n
+        centre=(p+z*z/(2*n))/denominator
+        radius=z*math.sqrt(p*(1-p)/n+z*z/(4*n*n))/denominator
+        assert abs(recommendation['low']-100*(centre-radius))<.02
+        assert abs(recommendation['high']-100*(centre+radius))<.02
+        total15 = planted(8)
+        total15 = [row for row in total15 if row['id']!='24']
+        band15 = next(row for row in analytics.job_fit_fields(total15,today)['apply'] if row['band']=='<500')
+        assert band15['n']==15 and band15['state']=='confirmed'
+        assert not analytics.job_fit_fields(planted(7),today)['apply']
+        only_half = [row for row in planted(15) if analytics.day(row['applied_at']) < middle]
+        half15 = next(row for row in analytics.job_fit_fields(only_half,today)['apply'] if row['band']=='<500')
+        assert half15['n']==15 and half15['state']=='early_signal'
+        # Real pipeline writer, isolated only: register before apply and freeze once.
+        source = {'id':'945997001','title':'Example posting','status':'new'}
+        run('pipeline.py','add','--file','-',value=source)
+        run('pipeline.py','record',source['id'],'--file','-',value={'tags':{'names_tool':True}})
+        run('pipeline.py','set',source['id'],'applied')
+        frozen = next(row for row in pipeline.load() if row['id']==source['id'])['application_facts']
+        assert frozen['tags']=={'names_tool':True} and frozen['tags_registered_at']
+        rejected = run('pipeline.py','record',source['id'],'--file','-',value={'tags':{'late':True}},success=False)
+        assert 'before applying' in rejected.stderr
+        clock=dt.datetime.now(dt.timezone.utc)-dt.timedelta(seconds=2)
+        observation={'two_call_times':{'possible_at':clock.isoformat(), 'exposure_at':(clock+dt.timedelta(seconds=1)).isoformat(), 'met':False}}
+        run('pipeline.py','record',source['id'],'--file','-',value={'first_client_message_at':clock.isoformat(),'behaviour_observations':observation})
+        written=next(row for row in pipeline.load() if row['id']==source['id'])
+        measured=analytics.insight_fields([written],clock.date()+dt.timedelta(days=28))
+        exposed=next(row for row in measured['behaviour'] if row['value']=='two_call_times')
+        assert sum(exposed[name]['reference']['n'] for name in ('discovery','confirmation'))==1
+        changed=copy.deepcopy(observation);changed['two_call_times']['met']=True
+        refused=run('pipeline.py','record',source['id'],'--file','-',value={'behaviour_observations':changed},success=False)
+        assert refused.returncode and 'immutable' in refused.stderr
+        imported_tags=run('pipeline.py','add','--file','-',value={'id':'945997002','status':'applied',
+            'applied_at':stamp(start),'tags':{'late':True},'tags_registered_at':stamp(start-dt.timedelta(days=1))},success=False)
+        assert imported_tags.returncode and 'before applying' in imported_tags.stderr
+        for jobs in ([{'tags':{f'tag{i}':True for i in range(6)}}],
+                     [{'tags':{f'tag{i}':True}} for i in range(13)]):
+            try: pipeline.validate_insight_tags(jobs)
+            except SystemExit: pass
+            else: raise AssertionError('Insight tag cap accepted')
+        (folder/'data/sync.json').write_text(json.dumps({'synced_at':analytics.run_timestamp(today).isoformat()}))
+        projected=analytics.compute(today,jobs=rows)
+        assert projected['insights']['general']['findings'] and projected['kpis']['segments']['k']>=1
+        assert analytics.facts_sheet(projected)['insights']['general']==projected['insights']['general']
+        schema=(analytics.ROOT/'outputs/snapshot-schema.md').read_text()
+        assert 'Points accept `{point,state,quote?,reason?}`' in schema and '`not needed` requires a nonempty `reason`' in schema
+    print('PASS backend final audit: fixed public attendance, missing full facts, spelled values, exact/BH cutoff and 19/20 windows, possible-only behaviours, application-time tag writer and caps, independent interval and 15-case job fit.')
+
+
 def main():
+    from analytics_audit_regressions import run_all
+    run_all()
+    backend_final_audit_contract()
     maya_numeric_truth_contract()
     rank_contract()
     progress_and_layout_contract()

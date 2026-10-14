@@ -448,7 +448,136 @@ def missing_question_source_contract():
     print('PASS explicit question IDs: unknown/missing/null/malformed suppressed; retained and removed private sources both reject legacy/injected text.')
 
 
+def report_identifier_contract():
+    with fixture('report-identifiers') as folder:
+        analytics_sync_marker(folder)
+        snapshot = analytics.compute(dt.date(2026, 10, 14), jobs=[], now='2026-10-14T15:00:00+02:00')
+        assert snapshot['north_star']['wins'] == 0
+        references = (
+            'job 2018814616722536175', 'Reference 2018814616722536175',
+            'Reference 123456789012', 'Use `3`', 'Use `won 3 contracts`', 'Use ``value `3` here``',
+            'See https://www.upwork.com/jobs/123?offset=3', 'See www.example.com/3',
+            'See /tmp/reports/3.md', 'See ./reports/3.md', 'See ../reports/3.md',
+            'See ~/reports/3.md', 'See jobs/123/application.sent.md',
+            'See C:\\reports\\3.md', 'See report-3.md', 'See /tmp/2026/10/report-3.json',
+            'See reports/2026/10/report-3.json', 'See analytics-2026-10-14.json',
+            'See 123.json', 'See 2026/10/report-3.json', 'See 2026\\10\\report-3.json',
+            'Saved 2026-10-14', 'Saved 2026-10-14T15:30:12+02:00',
+            'Saved 2026-10-14T15:30:12.123Z', 'Saved 15:30', 'Saved 15:30:12+02:00',
+            'job 123', 'job ID 123', 'id 123', '#123', 'JOB ID: 123', 'job **123**',
+        )
+        for reference in references:
+            checked = analytics.check_report(reference, snapshot)
+            assert checked['status'] == 'PASS' and checked['checked_values'] == 0, (reference, checked)
+            for claim, expected in (('You won 0 contracts.', 'PASS'),
+                                    ('You won 3 contracts.', 'FAIL')):
+                for report in (reference + '; ' + claim, claim + ' ' + reference):
+                    checked = analytics.check_report(report, snapshot)
+                    assert checked['status'] == expected and checked['checked_values'] + len(checked['errors']) == 1, (report, checked)
+        zero = analytics.check_report('You won 0 contracts.', snapshot)
+        assert zero['status'] == 'PASS' and zero['checked_values'] == 1, zero
+        for claim in ('You won 3 contracts', 'Unverified value 3', 'Unverified value 12345678901',
+                      'paid 3', 'grid 3', 'valid 3', 'Unverified ratio 3/4',
+                      'You won three contracts this week.', 'You won $3 this week.', 'Reply rate 3%'):
+            assert analytics.check_report(claim, snapshot)['status'] == 'FAIL', claim
+    print('PASS report identifiers: long IDs, backticks, URLs, paths, ISO dates/times and job/job ID/id/# tokens ignored; adjacent true values pass and false counts/money/rates still fail.')
+
+
+def custom_coverage_contract():
+    today = dt.date(2026, 10, 14)
+    now = '2026-10-14T15:00:00+02:00'
+    with fixture('custom-coverage') as folder:
+        analytics_sync_marker(folder)
+        base = analytics.prepare_snapshot({}, today, now=now)
+        gaps = [
+            {'source': 'proposal_insights', 'what': 'Proposal insights unavailable', 'blocks': ['proposal_views'], 'how_to_supply': 'Supply proposal insights export.'},
+            {'source': 'offers_pagination', 'what': 'Offers limited to the first page', 'blocks': ['proposal_to_won'], 'how_to_supply': 'Supply every page of offers.'},
+            {'source': 'older_chats', 'what': 'Older chats unread', 'blocks': ['conversation_review'], 'how_to_supply': 'Supply the complete older chat threads.'},
+            {'source': 'hourly_hours', 'what': 'Hourly hours unknown', 'blocks': ['won_value', 'forecast'], 'how_to_supply': 'Supply agreed hourly contract hours.'},
+        ]
+        snapshot = analytics.prepare_snapshot({'coverage': {'missing': gaps}}, today, now=now)
+        for row in gaps:
+            assert row in snapshot['coverage']['missing'], row
+            assert row in analytics.facts_sheet(snapshot)['coverage']['missing'], row
+        assert snapshot['coverage']['sources'][:6] == base['coverage']['sources'], 'Six known sources retain their wording and dependencies.'
+        assert [row for row in snapshot['coverage']['missing'] if row['source'] in {source['source'] for source in base['coverage']['sources']}] == base['coverage']['missing']
+        assert all(set(row) == {'source', 'blocks', 'how_to_supply'} for row in base['coverage']['missing'])
+        assert len(base['coverage']['sources']) == 6
+        for source in base['coverage']['sources']:
+            canonical = dict(source=source['source'], what='Source unavailable',
+                             blocks=source['affects'], how_to_supply=source['fix'])
+            legacy = dict(source=source['source'], state='missing', affects=source['affects'], fix=source['fix'])
+            expected = analytics.prepare_snapshot({'coverage': [legacy]}, today, now=now)['coverage']
+            three_field = {key: value for key, value in canonical.items() if key != 'what'}
+            for row in (canonical, three_field):
+                for coverage in ([row], {'missing': [row]}):
+                    accepted = analytics.prepare_snapshot({'coverage': coverage}, today, now=now)['coverage']
+                    assert accepted == expected, source['source']
+                    assert all('what' not in gap for gap in accepted['missing']), source['source']
+                    assert all('what' not in row for row in accepted['sources']), source['source']
+            for invalid in ('', ' ', None, 3, [], {}):
+                broken = dict(canonical, what=invalid)
+                for coverage in ([broken], {'missing': [broken]}):
+                    refused(lambda: analytics.prepare_snapshot({'coverage': coverage}, today, now=now), 'known invalid what ' + source['source'])
+            overridden = dict(canonical, blocks=source['affects'] + ['dependency_override'])
+            for coverage in ([overridden], {'missing': [overridden]}):
+                refused(lambda: analytics.prepare_snapshot({'coverage': coverage}, today, now=now), 'known computed dependencies ' + source['source'])
+        for key in ('proposal_to_won', 'conversation_review', 'won_value'):
+            assert snapshot['kpis'][key]['state'] == 'missing' and snapshot['kpis'][key]['value'] is None, key
+        replayed = analytics.prepare_snapshot(snapshot, today, now=now)
+        assert replayed['coverage'] == snapshot['coverage'], 'Custom gaps survive snapshot readback/revalidation.'
+        legacy = [dict(source=row['source'], state='missing', what=row['what'], affects=row['blocks'], fix=row['how_to_supply']) for row in gaps]
+        for coverage in (gaps, legacy, {'sources': base['coverage']['sources'], 'missing': gaps},
+                         {'sources': legacy, 'missing': gaps}, base['coverage']['sources'] + gaps):
+            assert analytics.prepare_snapshot({'coverage': coverage}, today, now=now)['coverage'] == snapshot['coverage'], coverage
+        other = dict(gaps[0], what='Proposal rankings unavailable', blocks=['ranking_review'])
+        shared = analytics.prepare_snapshot({'coverage': {'missing': gaps + [other]}}, today, now=now)
+        assert [row for row in shared['coverage']['missing'] if row['source'] == 'proposal_insights'] == [gaps[0], other]
+        assert analytics.prepare_snapshot(shared, today, now=now)['coverage'] == shared['coverage']
+        for field in ('source', 'what', 'blocks', 'how_to_supply'):
+            broken = dict(gaps[0]); broken.pop(field)
+            for coverage in ([broken], {'missing': [broken]}, {'sources': legacy, 'missing': [gaps[0], broken]}):
+                refused(lambda: analytics.prepare_snapshot({'coverage': coverage}, today, now=now), 'missing ' + field)
+        for field, values in (('source', ('UpperCase', 'has spaces', 'bad__name', 'x' * 65, '', None, [], {})),
+                              ('what', ('', ' ', None, 3, [], {})),
+                              ('blocks', ([], '', None, [''], [' '], [3], {})),
+                              ('how_to_supply', ('', ' ', None, 3, [], {}))):
+            for invalid in values:
+                broken = dict(gaps[0]); broken[field] = invalid
+                for coverage in ([broken], {'missing': [broken]}):
+                    refused(lambda: analytics.prepare_snapshot({'coverage': coverage}, today, now=now), 'invalid ' + field)
+        for field in ('what', 'affects', 'fix'):
+            broken = dict(legacy[0]); broken.pop(field)
+            refused(lambda: analytics.prepare_snapshot({'coverage': [broken]}, today, now=now), 'legacy missing ' + field)
+        for state in ('ok', 'unknown'):
+            refused(lambda: analytics.prepare_snapshot({'coverage': [dict(legacy[0], state=state)]}, today, now=now), 'custom state ' + state)
+        for malformed in (None, '', {}, [None], [3], [{}], [dict(gaps[0], unexpected=True)]):
+            refused(lambda: analytics.prepare_snapshot({'coverage': {'missing': malformed}}, today, now=now), 'malformed missing')
+        stale = analytics.prepare_snapshot({'coverage': [dict(legacy[0], state='stale')]}, today, now=now)
+        assert stale['coverage']['sources'][-1]['state'] == 'stale'
+        assert not any(row['source'] == gaps[0]['source'] for row in stale['coverage']['missing'])
+        known_live = analytics.prepare_snapshot({'coverage': [{'source': 'upwork', 'state': 'missing', 'fix': 'Reconnect the connector.'}]}, today, now=now)
+        assert known_live['kpis']['reply_rate']['state'] == 'missing'
+        assert analytics.prepare_snapshot(known_live, today, now=now)['coverage'] == known_live['coverage']
+        recorded = analytics_payload(shared)
+        tampered = copy.deepcopy(recorded)
+        next(row for row in tampered['coverage']['missing'] if row['source'] == 'proposal_insights')['what'] = 'Changed only in missing'
+        refused(lambda: analytics.record_snapshot(tampered), 'coverage exact comparison')
+        assert not analytics.read_lines('analytics-history.jsonl')
+        saved = analytics.record_snapshot(recorded)
+        assert saved['coverage'] == recorded['coverage']
+        assert analytics.read_lines('analytics-history.jsonl')[-1]['coverage'] == saved['coverage']
+        assert analytics.facts_sheet(saved)['coverage']['missing'] == saved['coverage']['missing']
+        command = (analytics.ROOT / '.claude/commands/analytics.md').read_text()
+        assert all(fragment in command for fragment in ('{coverage: {missing: [{source: "proposal_insights", what:',
+            'blocks: ["proposal_views"], how_to_supply:', 'all three nonempty fields',
+            "Include every custom gap's `what`, blocked KPI/review,", '**What I couldn\'t check** and the facts sheet'))
+    print('PASS custom coverage: canonical/live/legacy input; four full gaps and same-source distinct gaps persist in facts/readback/record; all six known canonical four-field gaps match legacy coverage with computed dependencies protected and no added what; omissions/empty/invalid/malformed inputs rejected; exact record comparison and chat directive enforced.')
+
+
 def run_all():
+    report_identifier_contract()
+    custom_coverage_contract()
     approximate_number_contract()
     legacy_session_contract()
     missing_question_source_contract()

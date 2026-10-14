@@ -526,8 +526,9 @@ def read_source(path):
         return None
 
 
-def coverage_fields(sources, jobs, today):
-    missing = [{'source': row['source'], 'blocks': row['affects'], 'how_to_supply': row['fix']}
+def coverage_fields(sources, jobs, today, include_available=False):
+    missing = [dict({'source': row['source'], 'blocks': row['affects'], 'how_to_supply': row['fix']},
+                    **({'what': row['what']} if 'what' in row else {}))
                for row in sources if row['state'] == 'missing']
     def absent(source, blocks, supply):
         entry = {'source': source, 'blocks': blocks, 'how_to_supply': supply}
@@ -535,16 +536,16 @@ def coverage_fields(sources, jobs, today):
     for job in jobs:
         jid = str(job['id']); folder = pipeline.jobs_dir() / jid
         if event(job, 'applied') and not job.get('imported'):
-            if not read_source(folder / 'application.sent.md') or job.get('application_sent_verified') is not True:
+            if include_available or not read_source(folder / 'application.sent.md') or job.get('application_sent_verified') is not True:
                 absent('sent copy:' + jid, ['application_review'], 'Open the submitted Upwork application and save its sent copy.')
-            if job.get('loom_url') and not read_source(folder / 'loom.md'):
+            if job.get('loom_url') and (include_available or not read_source(folder / 'loom.md')):
                 absent('Loom:' + jid, ['application_review'], 'Paste the Loom transcript for ' + jid + '.')
         if event(job, 'call_held'):
             text = read_source(folder / 'call.md')
             stats = call_stats.analyze(text) if text else {}
-            if not text or not stats.get('transcript_complete') or not stats.get('member_attributed'):
+            if include_available or not text or not stats.get('transcript_complete') or not stats.get('member_attributed'):
                 absent('call transcript:' + jid, ['call_review'], 'Paste a transcript or run /call-review ' + jid + '.')
-        if event(job, 'won') and contract_value(job) is None:
+        if event(job, 'won') and (include_available or contract_value(job) is None):
             absent('contract terms:' + jid, ['won_value', 'value_per_100_connects', 'forecast'], 'Reconnect Upwork and read the agreed contract amount or hourly hours for ' + jid + '.')
     return {'sources': copy.deepcopy(sources), 'missing': missing}
 
@@ -1573,6 +1574,24 @@ def report_number_value(token):
     return total + group
 
 
+def report_claim_text(text):
+    """Mask identifiers and source references before matching measured claims."""
+    patterns = (
+        r'(`+)[\s\S]*?\1',
+        r'\b(?:[a-z][a-z0-9+.-]*://|www\.)[^\s<>`"“”]+',
+        r'(?<![\w])(?:[A-Za-z]:[\\/]|(?:~|\.{1,2})?[\\/]|[A-Za-z_.-][\w.-]*[\\/])[^\s<>`"“”]+',
+        r'(?<![\w])\d[\w.-]*(?:[\\/][\w.-]+)*[\\/][\w.-]+\.[A-Za-z][A-Za-z0-9]*\b',
+        r'\b[A-Za-z0-9_][\w.-]*\.[A-Za-z][A-Za-z0-9]*\b',
+        r'\b\d{4}-\d{2}-\d{2}(?:[Tt]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:[Zz]|[+-]\d{2}:?\d{2})?)?\b',
+        r'\b\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:[Zz]|[+-]\d{2}:?\d{2})?\b',
+        r'(?<!\d)\d{12,}(?!\d)',
+        r'(?:\b(?:job(?:\s+ID)?|id)\s*[:#]?\s*|#\s*)[*_]*\d+\b',
+    )
+    for pattern in patterns:
+        text = re.sub(pattern, lambda match: re.sub(r'[^\n]', ' ', match.group()), text, flags=re.I)
+    return re.sub(r'[*_]', '', text)
+
+
 def check_report(text, snapshot):
     """Check stated numbers by their metric and period, never grade the prose.
 
@@ -1580,7 +1599,7 @@ def check_report(text, snapshot):
     message and numbered plan labels are instructions, not observed results.
     Every checked claim returns its named fact path for an auditable result.
     """
-    text = re.sub(r'[*_`]', '', text)
+    text = report_claim_text(text)
     facts = report_numeric_facts(snapshot)
     checked, errors, covered = [], [], set()
     def value(path):
@@ -2535,6 +2554,17 @@ def proposal_context(jobs, today):
             'note': 'Post-submission competition and client activity are saved on these leads; open a lead for its source context.'}}
 
 
+def review_coverage_gaps(result, include_available=False):
+    gaps = []
+    for key in ('speed_10min', 'proposal_on_time'):
+        if include_available or result['kpis'][key].get('unknown_n', 0):
+            gaps.append({'source': 'frozen posting age' if key == 'speed_10min' else 'call end time', 'blocks': [key], 'how_to_supply': 'Supply the verified posting time and application time.' if key == 'speed_10min' else 'Paste the call end timestamp or complete call duration.'})
+    for thread in result['conversation_review']['threads']:
+        if include_available or not thread['read']:
+            gaps.append({'source': 'messages or review:' + thread['lead_id'], 'blocks': ['conversation_review'], 'how_to_supply': 'Read the complete Upwork thread and record its three quoted content checks.'})
+    return gaps
+
+
 def finish_views(result, jobs, history, today, now=None):
     stage_keys = {'applied': 'reply_rate', 'replied': 'reply_to_call', 'call': 'proposal_to_won', 'offer': 'offer_to_contract'}
     for row in result['forecast']['by_stage']:
@@ -2544,13 +2574,8 @@ def finish_views(result, jobs, history, today, now=None):
     result['forecast']['next_30_days'] = rounded(sum(row['expected'] for row in result['forecast']['by_stage'])) if all(row['expected'] is not None for row in result['forecast']['by_stage']) else None
     result['todos'] = lead_todos(jobs, today, result['goals_next'])
     result['call_to_won'] = call_to_won(jobs, today)
-    for key in ('speed_10min', 'proposal_on_time'):
-        if result['kpis'][key].get('unknown_n', 0):
-            result['coverage']['missing'].append({'source': 'frozen posting age' if key == 'speed_10min' else 'call end time', 'blocks': [key], 'how_to_supply': 'Supply the verified posting time and application time.' if key == 'speed_10min' else 'Paste the call end timestamp or complete call duration.'})
     result['conversation_review'] = conversation_reviews(jobs, today)
-    for thread in result['conversation_review']['threads']:
-        if not thread['read']:
-            result['coverage']['missing'].append({'source': 'messages or review:' + thread['lead_id'], 'blocks': ['conversation_review'], 'how_to_supply': 'Read the complete Upwork thread and record its three quoted content checks.'})
+    result['coverage']['missing'].extend(review_coverage_gaps(result))
     result['funnel_score'] = funnel_score(result, history)
     result['rank_progress'] = rank_fields(result, history)
     result['rank'] = result['rank_progress']['rank']
@@ -3359,15 +3384,51 @@ def prepare_snapshot(value, today=None, now=None):
         state='pass' if opportunities and done == opportunities else 'fail' if opportunities else 'undecided',
         reason=None if opportunities else 'No verified execution opportunities.', evidence=sorted({jid for row in result['goals_review'] for jid in row['evidence_lead_ids']}))
     result['kpis']['goal_done']['history'][-1] = result['kpis']['goal_done']['value']
-    for given in coverage_sources(value.get('coverage', [])):
-        require(isinstance(given, dict) and {'source', 'state', 'fix'} <= set(given) and set(given) <= {'source', 'state', 'fix', 'affects'}, 'Source judgment needs source, state and fix.')
-        source = next((row for row in coverage_sources(result['coverage']) if row['source'] == given['source']), None)
-        require(source is not None and given['state'] in ('ok', 'missing', 'stale') and isinstance(given['fix'], str), 'Unknown source or invalid coverage judgment.')
+    known_sources = {row['source'] for row in coverage_sources(result['coverage'])}
+    supplied_coverage = value.get('coverage', [])
+    require(isinstance(supplied_coverage, (dict, list)), 'Coverage needs a source list or an object with sources/missing lists.')
+    judgments = coverage_sources(supplied_coverage)
+    missing = supplied_coverage.get('missing', []) if isinstance(supplied_coverage, dict) else []
+    require(isinstance(judgments, list) and isinstance(missing, list), 'Coverage sources and missing must be lists.')
+    judgments = copy.deepcopy(judgments)
+    computed_gaps = coverage_fields([], pipeline.load(), today, include_available=True)['missing'] + review_coverage_gaps(result, include_available=True)
+    for gap in missing:
+        # Regenerate exact built-in gaps, including those whose source was just supplied.
+        if gap in result['coverage']['missing'] or gap in computed_gaps: continue
+        require(isinstance(gap, dict) and set(gap) in ({'source', 'blocks', 'how_to_supply'},
+                {'source', 'what', 'blocks', 'how_to_supply'}), 'Missing coverage needs source, what, blocks and how_to_supply.')
+        judgments.append(gap)
+    for given in judgments:
+        require(isinstance(given, dict) and isinstance(given.get('source'), str), 'Source judgment needs a source name.')
+        if 'blocks' in given or 'how_to_supply' in given:
+            fields = {'source', 'blocks', 'how_to_supply'} | ({'what'} if given['source'] not in known_sources or 'what' in given else set())
+            require(set(given) == fields, 'Custom missing coverage needs source, what, blocks and how_to_supply.')
+            if 'what' in given:
+                require(isinstance(given['what'], str) and given['what'].strip(), 'Missing coverage needs nonempty what.')
+            given = dict(source=given['source'], state='missing', affects=given['blocks'], fix=given['how_to_supply'],
+                         **({'what': given['what']} if given['source'] not in known_sources else {}))
+        fields = {'source', 'state', 'fix'} | ({'what', 'affects'} if given['source'] not in known_sources else set())
+        require(fields <= set(given) <= fields | {'affects'}, 'Custom source needs explicit what, affected checks and an exact supply step.')
+        require(given['state'] in ('ok', 'missing', 'stale') and isinstance(given['fix'], str), 'Invalid coverage judgment.')
+        if given['source'] not in known_sources:
+            require(len(given['source']) <= 64 and re.fullmatch(r'[a-z][a-z0-9]*(?:_[a-z0-9]+)*', given['source']), 'Custom source needs a short snake_case name.')
+            require(isinstance(given['what'], str) and given['what'].strip() and
+                    given['state'] in ('missing', 'stale') and given['fix'].strip() and
+                    isinstance(given.get('affects'), list) and given['affects'] and
+                    all(isinstance(key, str) and key.strip() for key in given['affects']),
+                    'Custom source needs nonempty what, affected checks and an exact supply step; it cannot claim checked coverage.')
+            source = next((row for row in coverage_sources(result['coverage']) if row == given), None)
+            if source is None:
+                source = copy.deepcopy(given)
+                coverage_sources(result['coverage']).append(source)
+        else:
+            source = next(row for row in coverage_sources(result['coverage']) if row['source'] == given['source'])
         require('affects' not in given or given['affects'] == source['affects'], 'Source dependencies are computed.')
         require(source['state'] == given['state'] or given['state'] in ('missing', 'stale'), 'Live checks may degrade coverage; they cannot invent a missing saved source.')
         source.update(state=given['state'], fix=given['fix'])
         if source['state'] == 'missing':
             for key in source['affects']:
+                if key not in result['kpis']: continue
                 row = result['kpis'][key]
                 row.update(value=None, delta=None, state='missing', reason=f"{source['source']} source is absent. {source['fix']}")
                 if 'delta_pp' in row:

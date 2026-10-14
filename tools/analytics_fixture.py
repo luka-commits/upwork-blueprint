@@ -978,6 +978,14 @@ const info=infoHtml.match(/<details class="an-methodology"[^>]*>([^]*?)<\/detail
 assert(info.includes('How this review is measured'));
 assert(!info.includes('9012345678901')&&!info.includes('9012345678902'),'Methodology explains missing sources without raw case IDs');
 assert.equal((info.match(/Paste the full call transcript/g)||[]).length,1,'Repeated source instructions are deduplicated');
+const customGaps=[
+  {source:'proposal_insights',what:'Proposal insights unavailable',blocks:['proposal_views'],how_to_supply:'Supply the proposal insights export.'},
+  {source:'offers_pagination',what:'Offers limited to the first page',blocks:['proposal_to_won'],how_to_supply:'Supply every page of offers.'},
+  {source:'older_chats',what:'Older chats unread',blocks:['conversation_review'],how_to_supply:'Supply the complete older chat threads.'},
+  {source:'hourly_hours',what:'Hourly hours unknown',blocks:['won_value','forecast'],how_to_supply:'Supply agreed hourly contract hours.'}
+];
+const customInfo=render({...modern,analytics:{latest:{...snapshot,coverage:{...snapshot.coverage,missing:customGaps}},history:[]}}).match(/<details class="an-methodology"[^>]*>([^]*?)<\/details>/)?.[1] || '';
+for(const gap of customGaps){assert(customInfo.includes(gap.source.replace(/_/g,' ')),'Custom missing source renders');assert(customInfo.includes(gap.how_to_supply),'Custom exact supply step renders');}
 // PART3 checks rendered member text, including opened details, without attributes or comments.
 function memberText(markup){return markup.replace(/<(style|script|title)[^>]*>[^]*?<\/\1>/gi,'').replace(/<!--[^]*?-->/g,'').replace(/<[^>]*>/g,' ').replace(/&#x([0-9a-f]+);/gi,(_,n)=>String.fromCodePoint(parseInt(n,16))).replace(/&#([0-9]+);/g,(_,n)=>String.fromCodePoint(+n)).replace(/&(?:quot|apos|amp|lt|gt);/g,v=>({'&quot;':'"','&apos;':"'",'&amp;':'&','&lt;':'<','&gt;':'>'}[v])).replace(/\s+/g,' ').trim();}
 const forbidden=[...payload.forbidden_terms,...Object.keys(contract.exports.ANALYTICS_FIELD_LABELS)];

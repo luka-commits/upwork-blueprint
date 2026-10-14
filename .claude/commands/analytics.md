@@ -74,9 +74,14 @@ Check one existing registered tracking link with `?check=1` and its redirect; re
 `X-Tracking-Status: check: not logged`, then `python3 code/clicks.py`. The test must
 not become a human click or a client opening in the pipeline.
 If none exists or access fails, say why tracking is missing; register or deploy nothing.
-Keep each absent, stale or unreachable source in code's coverage input with its affected KPI keys
-and one fix. The final contract uses `coverage.missing: [{source, blocks, how_to_supply}]`: name
-the missing source, the KPI or review it blocks and the exact way to supply it. Use `missing` for an absent or unreachable required source: affected KPIs
+Keep the six known sources' live input `{source, state, fix, affects?}` and computed dependencies;
+their missing rows stay `{source, blocks, how_to_supply}`. Custom live input is
+`{coverage: {missing: [{source: "proposal_insights", what: "Proposal insights unavailable", blocks: ["proposal_views"], how_to_supply: "Supply proposal insights export."}]}}`;
+these custom rows also work in a direct `coverage` list. Require a short snake_case `source`
+(at most 64 characters) and all three nonempty fields: `what`, `blocks` (KPI/review/check names),
+`how_to_supply` (exact supply step). Legacy custom `{source, state, what, affects, fix}` also works;
+custom state is `missing` or `stale`, never `ok`. Include every custom gap's `what`, blocked KPI/review,
+and exact supply step in **What I couldn't check** and the facts sheet. Use `missing` for an absent or unreachable required source: affected KPIs
 become missing, rather than zero. `stale` labels readable evidence that needs refresh;
 it never proves a source was reachable. Do not claim a check that was not made.
 

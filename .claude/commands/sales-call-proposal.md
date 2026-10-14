@@ -34,7 +34,11 @@ At offer with an existing proposal, `/brief` owns the thread. Read `references/u
 and use fresh saved evidence first. For the room, use only `manage_meetings` read actions
 `list`, `list_recaps`, `get_meeting_summary` and `get_full_transcript`.
 State the planned call budget and respect pacing. Find the session from its recap,
-then fetch `get_full_transcript` first, following offsets until every page is read;
+preserving a recap read error as `recap_state:"unknown"` and `recap_reason` through
+`pipeline.py record` (and /brief's sync coverage), then continue with available evidence.
+An empty recap is not a no-show; a pending meeting request stays “call asked”, with
+`call_requested_at`/request metadata, never `call_booked` or a call-stage move.
+Then fetch `get_full_transcript` first, following offsets until every page is read;
 a summary cannot replace a transcript. Save all pages as a JSON list and run
 `python3 code/call_stats.py <id> --transcript-json <pages.json> --call-at <zoned ISO time>
 --duration-s <seconds> --member "<known member speaker>" --source upwork-meeting --complete <yes|no> --language <verified-language>`.
@@ -179,6 +183,20 @@ copies the proposal from the cockpit panel and sends it on Upwork. Do not move
 the stage to offer: that stage means a client offer exists, and `/brief` sets it.
 After the member confirms they pasted it on Upwork, record
 `python3 code/pipeline.py observe <id> proposal_sent <ISO time>` with the confirmed send time.
+
+For weekly quest proof, read the latest agreed goals in `goals.jsonl` and the exact
+stable 20-hex `goal_id` from cockpit state quests or analytics latest quests; never
+reconstruct or guess it from KPI/week. Record a matching action only when observed
+in a saved thread/submitted copy or exact member-confirmed evidence, through:
+`python3 code/pipeline.py note <id> 'analytics goal_action: {"goal_id":"<exact quest goal_id>","kpi":"<key>","at":"<zoned ISO time>","evidence":"<source or verbatim action proof>"}'`.
+Evidence includes the saved thread message ID/date/excerpt, or verified submitted
+copy and confirmation time. Keep the complete note ≤1000 characters. Never infer
+completion from a successful outcome, generic status or unsupported self-report;
+absent action proof stays unverified. Do not write jobs directly.
+
+Print instant award lines from every pipeline observation verbatim, once:
+`Badge name · Bronze|Silver|Gold|Platinum|Legend: reason`. A badge-check stderr is a
+named badge gap; the committed observation remains successful.
 
 ## Step 7 · Report
 

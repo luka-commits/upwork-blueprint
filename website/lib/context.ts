@@ -8,7 +8,7 @@ export type State = any;
 
 export type CockpitApi = {
   token: string;
-  state: State | null;                  // /api/state: generated_at, jobs, sync, tracker, funnel
+  state: State | null;                  // /api/state: jobs, sync, tracker, saved analytics, daily voyage
   load: () => Promise<void>;
   api: (path: string) => Promise<{ ok: boolean; data: any }>;
   toast: (message: string) => void;

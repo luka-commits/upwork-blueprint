@@ -9,7 +9,30 @@ argument-hint: "<job id> [more job ids] | <job id> submitted"
 and bid, or explicit confirmation that each matches the approved draft. Only then run
 `python3 code/pipeline.py sent <id> --confirmed-match` (or `--file <submitted-copy>`),
 then `python3 code/pipeline.py set <id> applied`
-and report `Upwork calls: 0`, then stop before any other step. It records the member's submission.
+and print any instant award lines verbatim, once. Read the saved proposal ID; if absent,
+match it using /brief's bounded proposal-ID discovery, classifying each returned own status.
+
+For weekly quest proof, read the latest agreed goals in `goals.jsonl` and the exact
+stable 20-hex `goal_id` from cockpit state quests or analytics latest quests; never
+reconstruct or guess it from KPI/week. Record a matching action only when observed
+in a saved thread/submitted copy or exact member-confirmed evidence, through:
+`python3 code/pipeline.py note <id> 'analytics goal_action: {"goal_id":"<exact quest goal_id>","kpi":"<key>","at":"<zoned ISO time>","evidence":"<source or verbatim action proof>"}'`.
+Evidence includes the saved thread message ID/date/excerpt, or verified submitted
+copy and confirmation time. Keep the complete note ≤1000 characters. Never infer
+completion from a successful outcome, generic status or unsupported self-report;
+absent action proof stays unverified. Do not write jobs directly.
+
+After submission, if `proposal_insights` is absent, read `list_freelancer_proposals action=get`
+once by that ID and save `{proposal_insights:{data:<returned insights object>,
+fetched_at:<zoned observation time>,source:"upwork-proposal"}}` through `pipeline.py record`.
+Keep returned `terms.connectsBid`/`boosted` as `proposal_cost` evidence and `viewedByClient`
+as an observed boolean using /brief's snapshot shape; true observes `proposal_viewed`
+with source `upwork-proposal`, verified, at observation time, never an invented view time.
+Reuse saved insights, leave frozen application facts untouched, and never turn proposal
+costs into financial ledger spends. Missing IDs/insights remain named gaps; the submission
+stays recorded. Report measured `Upwork calls: N`, then stop before any other step.
+Award format is `Badge name · Bronze|Silver|Gold|Platinum|Legend: reason`; print returned
+lines unchanged. Badge-check stderr cannot undo the submission write.
 
 **Several ids run one after another.** Each page gets its own sketch, its own approval and its own publish: the repetition is the command's, never the member's yes.
 

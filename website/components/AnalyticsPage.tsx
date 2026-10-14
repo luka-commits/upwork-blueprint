@@ -1,167 +1,196 @@
 'use client';
 
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useCockpit } from '@/lib/context';
-import { MIN_RATE, APPLICATION_STEPS, PROPOSAL_STEPS, funnelShapes, funnelSteps } from '@/lib/funnel.mjs';
+import type { AnalyticsPresentation } from '@/lib/analytics-contract';
 
-// One hue from light to dark: the house terracotta, on the ivory card.
-const RAMP = ['#e5a48c', '#d97757', '#d97757', '#b05538', '#7a3620'];
-const WIDTH = 560, HEIGHT = 84, GAP = 2, LABEL_X = 610;
-
-const BAR_W = 46, BAR_GAP = 10, CHART_H = 132, BAR_TOP = 30;
-
-/** Applications per week. The funnel says how well it converted, this says whether
- *  it happened at all, which is the part a member is actually in charge of. */
-function Outreach({ weeks }: { weeks: { week: string; count: number }[] }) {
-  if (!weeks?.length) return null;
-  const total = weeks.reduce((sum, w) => sum + w.count, 0);
-  const best = Math.max(...weeks.map(w => w.count));
-  const quiet = weeks.filter(w => !w.count).length;
-  const width = weeks.length * (BAR_W + BAR_GAP) - BAR_GAP;
-  const label = (iso: string) => {
-    const date = new Date(iso + 'T00:00:00');
-    return `${date.getDate()}.${date.getMonth() + 1}.`;
-  };
-  return <section className="funnel" aria-label="Applications per week">
-    <h2>Outreach</h2>
-    <p className="funnel-headline">{total
-      ? <><strong>{total}</strong> application{total === 1 ? '' : 's'} in {weeks.length} weeks · best week {best}{quiet ? ` · ${quiet} week${quiet === 1 ? '' : 's'} with none` : ''}</>
-      : 'Nothing sent in the last twelve weeks.'}</p>
-    <div className="funnel-card">
-      <svg className="funnel-chart" viewBox={`0 0 ${width} ${BAR_TOP + CHART_H + 34}`} role="img"
-           aria-label={`Applications per week, ${total} in total`}>
-        {weeks.map((week, index) => {
-          const scale = best ? week.count / best : 0;
-          const height = Math.round(scale * CHART_H);
-          const x = index * (BAR_W + BAR_GAP);
-          const last = index === weeks.length - 1;
-          return <g key={week.week}>
-            <title>{`Week of ${label(week.week)}: ${week.count} application${week.count === 1 ? '' : 's'}`}</title>
-            <rect x={x} y={BAR_TOP + CHART_H - height} width={BAR_W} height={Math.max(height, 2)} rx={4}
-                  fill={last ? '#e5a48c' : '#b05538'} />
-            {week.count ? <text x={x + BAR_W / 2} y={BAR_TOP + CHART_H - height - 14} className="outreach-count"
-                                textAnchor="middle">{week.count}</text> : null}
-            <text x={x + BAR_W / 2} y={BAR_TOP + CHART_H + 22} className="funnel-rate" textAnchor="middle">{label(week.week)}</text>
-          </g>;
-        })}
-      </svg>
-    </div>
-    <p className="funnel-note">The same applications as the funnel, within twelve weeks. Weeks use the send date, or the earliest saved stage or discovery date when it is missing; undated applications stay out. The last bar is this week, still running.</p>
-  </section>;
+type Row = Record<string, any>;
+type Selection = { title: string; period?: any; evidence?: any[]; metric?: Row; call?: Row; note?: string; stages?: Row[]; strand?: string };
+const TAB_NAMES = ['This week', 'Analytics', 'Your voyage'];
+const POINT_NAMES = ['Opening and agenda', 'Current state', 'Problem and cost', 'Goal and scope', 'Budget before price', 'Decision maker and timeline', 'Matching proof', 'Objections', 'Agreed next step'];
+const slug = (value: string) => value.toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const list = (value: any): any[] => Array.isArray(value) ? value : [];
+const display = (value: any) => value == null ? 'Not measured' : typeof value === 'object' ? value.text || value.label || value.reason || 'Not measured' : String(value);
+const money = (value: any, currency = 'USD') => value == null ? 'Value unknown' : new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', maximumFractionDigits: 0 }).format(value);
+const flattenRows = (value: any, child: string): Row[] => list(Array.isArray(value) ? value : value?.weeks).flatMap(row => Array.isArray(row[child]) ? row[child].map((item: Row) => ({ ...item, week: item.week || row.week })) : [row]);
+const metricValue = (metric: Row = {}) => metric.display_value || metric.value_text || (metric.value == null ? (metric.k === null && metric.n != null ? 'Not reviewed' : metric.state === 'missing' ? 'Source missing' : 'Not measured') : metric.unit === 'usd' || metric.unit === 'currency' ? money(metric.value, metric.currency) : `${typeof metric.value === 'number' ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(metric.value) : display(metric.value)}${metric.unit === '%' ? '%' : metric.unit === 'min' ? ' min' : ''}`);
+const evidence = (row: Row = {}) => list(row.evidence || row.evidence_lead_ids || row.lead_ids);
+const periodText = (value: any) => !value ? 'Period not supplied' : typeof value === 'string' ? value : `${value.start || 'Unknown start'} – ${value.end || 'Unknown end'}`;
+const stateText = (value?: string) => ({ pass: 'On target', fail: 'Below target', undecided: 'Not enough evidence', missing: 'Source missing', no_opportunities: 'No opportunities', 'no opportunities': 'No opportunities', 'no opportunity': 'No opportunities' }[value || ''] || value || 'Not judged');
+function Period({ value }: { value?: any }) { return <small className="an-period">{periodText(value)}</small>; }
+function Chip({ children, state }: { children: ReactNode; state?: string }) { return <span className={`an-chip an-state-${state || 'neutral'}`}>{children}</span>; }
+function Empty({ children }: { children: ReactNode }) { return <p className="an-empty">{children}</p>; }
+function Spark({ values, label, large = false }: { values?: any[]; label: string; large?: boolean }) {
+  const rows = list(values), numeric = rows.map(v => typeof v === 'object' && v !== null ? v.value : v);
+  const scale = Math.max(1, ...numeric.filter(v => typeof v === 'number'));
+  const x = (i: number) => 8 + i * 224 / Math.max(1, rows.length - 1);
+  const y = (v: number) => 62 - v / scale * 52;
+  return <svg className={`an-spark${large ? ' an-spark-large' : ''}`} viewBox="0 0 240 72" role="img" aria-label={label}>
+    <line x1="8" y1="62" x2="232" y2="62" className="an-chart-rule" />
+    {numeric.map((v, i) => typeof v === 'number' ? <g key={i}><title>{`${rows[i]?.week || `Point ${i + 1}`}: ${v}`}</title>{i > 0 && typeof numeric[i - 1] === 'number' && <line x1={x(i - 1)} y1={y(numeric[i - 1])} x2={x(i)} y2={y(v)} className="an-chart-line" />}<circle cx={x(i)} cy={y(v)} r="2.5" className="an-chart-dot" /></g> : null)}
+    <text x="8" y="71">0</text><text x="232" y="11" textAnchor="end">{new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(scale)}</text>
+  </svg>;
 }
-
-
-function Consistency({ daily }: { daily: any }) {
-  if (!daily) return null;
-  return <section className="funnel" aria-label="14-day consistency">
-    <h2>Consistency</h2>
-    <p className="funnel-headline"><strong>{daily.days_on_goal}</strong> of {daily.total_days} days on goal · {daily.goal} applications a day</p>
-    <dl className="timings">{daily.days.map((day: { date: string; count: number }) =>
-      <div key={day.date}><dt>{day.date}</dt><dd>{day.count}</dd></div>)}</dl>
-    <p className="funnel-note">Last 14 local days, including today and weekends. Each application counts once.</p>
-  </section>;
+function RevenueChart({ past, forecast, currency, baseline, label, period, choose }: { past: Row[]; forecast: Row[]; currency?: string; baseline?: any; label?: string; period?: any; choose: (value: Selection) => void }) {
+  const baselineValue = typeof baseline === 'number' ? baseline : baseline?.value;
+  const points = [...past, ...forecast], weeks = [...new Set(points.map(row => row.week))];
+  const overlap = forecast.some(row => past.some(saved => saved.week === row.week));
+  const max = Math.max(1, ...(typeof baselineValue === 'number' ? [baselineValue] : []), ...points.map(row => row.value).filter(value => typeof value === 'number'));
+  const x = (week: string) => 44 + weeks.indexOf(week) * 812 / Math.max(1, weeks.length - 1), y = (value: number) => 220 - value / max * 185;
+  const select = (row: Row, projected: boolean) => choose({ title: `${projected ? 'Forecast' : 'Won'} ${row.week}`, period: row.period || row.week, evidence: evidence(row), note: projected ? label || 'Conditional estimate; future outcomes are uncertain.' : 'Recorded new contract value.' });
+  return <><svg className="an-revenue-svg" viewBox="0 0 900 250" role="img" aria-label="Saved won value and prepared conditional forecast. Solid line is won value, dashed line is forecast.">
+    {[0, max / 2, max].map(value => <g key={value}><line x1="44" x2="856" y1={y(value)} y2={y(value)} className="an-chart-rule" /><text x="38" y={y(value) + 4} textAnchor="end">{money(value, currency)}</text></g>)}
+    {typeof baselineValue === 'number' && <g className="an-own-baseline"><line x1="44" x2="856" y1={y(baselineValue)} y2={y(baselineValue)} className="an-baseline-line" /><text x="856" y={y(baselineValue) - 8} textAnchor="end">Own prior four weeks: {money(baselineValue, currency)}</text></g>}
+    {[past, forecast].map((series, seriesIndex) => series.map((row, i) => typeof row.value === 'number' ? <g key={`${seriesIndex}-${i}`} role="button" tabIndex={0} aria-label={`${seriesIndex ? 'Forecast' : 'Won'} ${row.week}: ${money(row.value, row.currency || currency)}; ${periodText(row.period)}; open leads`} onClick={() => select(row, !!seriesIndex)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(row, !!seriesIndex); } }}>
+      {i > 0 && typeof series[i - 1].value === 'number' && <line x1={x(series[i - 1].week)} y1={y(series[i - 1].value)} x2={x(row.week)} y2={y(row.value)} className={seriesIndex ? 'an-forecast-line' : 'an-chart-line'} />}
+      <circle cx={x(row.week)} cy={y(row.value)} r="12" fill="transparent" /><circle cx={x(row.week)} cy={y(row.value)} r="4" className={seriesIndex ? 'an-forecast-dot' : 'an-chart-dot'} /><title>{row.week}: {money(row.value, row.currency || currency)} · {periodText(row.period)}</title>
+    </g> : null))}
+    {!overlap && forecast.length > 0 && past.length > 0 && <line x1={(x(past[past.length - 1].week) + x(forecast[0].week)) / 2} x2={(x(past[past.length - 1].week) + x(forecast[0].week)) / 2} y1="25" y2="225" className="an-forecast-divider" />}
+  </svg><div className="an-week-labels">{weeks.map((week, i) => <button key={i} onClick={() => select(past.find(row => row.week === week) || forecast.find(row => row.week === week)!, !past.some(row => row.week === week))}>{String(week || 'Period not supplied').replace(/^\d+-/, '')}</button>)}</div><p className="an-meta">Solid: recorded won value. Dashed: {label || 'conditional forecast'}; horizontal dashed line: own prior four-week baseline. {currency || 'Currency not supplied'}. {overlap ? 'Forecasts are shown at the saved week they were issued.' : 'Prepared forecast periods follow the recorded weeks.'}{!forecast.length && ' No weekly forecast series supplied.'}</p><Period value={period || forecast[forecast.length - 1]?.period} /></>;
 }
-
-function Profile({ profile }: { profile: any }) {
-  if (!profile?.latest) return <section className="funnel"><h2>Profile completeness</h2><p>Run /profile to measure completeness.</p></section>;
-  const { latest, history } = profile;
-  const change = latest.pct - history[0].pct;
-  return <section className="funnel" aria-label="Profile completeness">
-    <h2>Profile completeness</h2>
-    <p className="funnel-headline"><strong>{latest.pct}%</strong> · {latest.date} · {change > 0 ? '+' : ''}{change} points since {history[0].date}</p>
-    <p className="funnel-note">Missing: {latest.missing.join(', ') || 'none'}.</p>
-    <dl className="timings">{history.map((row: { date: string; pct: number }, index: number) =>
-      <div key={`${row.date}-${index}`}><dt>{row.date}</dt><dd>{row.pct}%</dd></div>)}</dl>
-  </section>;
+export function CallCard({ card }: { card: Row }) {
+  const points = list(card.points || card.review_points || card.rubric);
+  return <article className="an-call-card">
+    <p className="an-kicker">Call review · {card.date || card.call_date || 'Date not supplied'}</p><h3>{card.label || card.title || 'Call review'}</h3>
+    {card.reviewable === false ? <Empty>{card.reason || 'This call cannot be reviewed without a speaker-labelled transcript.'}</Empty> : <>
+      <p className="an-meta">{(card.duration_minutes ?? card.duration_min) != null ? `${card.duration_minutes ?? card.duration_min} min · ` : ''}{card.talk_share != null ? `Talk share ${display(card.talk_share)} · ` : ''}{(card.questions?.member ?? card.question_count) != null ? `${card.questions?.member ?? card.question_count} member questions${card.questions?.client != null ? ` · ${card.questions.client} client questions` : ''} · context only` : 'Talk share and question count are context only.'}</p>
+      <ol className="an-review-points">{POINT_NAMES.map((name, i) => {
+        const point = points.find((row: Row) => Number(row.point || row.number || row.id) === i + 1) || points[i] || card.coverage?.[String(i + 1)];
+        return <li key={name}><div><strong>{point?.label || name}</strong><Chip state={point?.state}>{display(point?.state || 'Not reviewed')}</Chip></div>{point?.quote ? <blockquote>“{point.quote}”</blockquote> : <p className="an-meta">{point?.reason || 'No supporting quotation supplied.'}</p>}</li>;
+      })}</ol>
+      <h4>Three moments to practise</h4><div className="an-moments">{list(card.moments || card.key_moments).length ? list(card.moments || card.key_moments).map((moment: Row, i: number) => <section key={i}><strong>{moment.label || moment.point || `Moment ${i + 1}`}</strong><blockquote>“{moment.quote || moment.original || 'Quote not supplied'}”</blockquote><p><span className="an-kicker">Say next time</span><br />{moment.better_wording || moment.better || moment.better_line || moment.rewrite || 'Better wording not supplied.'}</p></section>) : <Empty>No quoted moments were saved for this call.</Empty>}</div>
+      {card.fix && <p className="an-coach"><strong>One fix:</strong> {card.fix}</p>}
+      <section className="an-next-step"><h4>Agreed next step</h4>{typeof card.next_step === 'object' && card.next_step ? <><p>{card.next_step.action || card.next_step.text}</p><p className="an-meta">Owner: {card.next_step.owner || 'Not recorded'} · {card.next_step.when || card.next_step.at || 'Time not recorded'} · {card.next_step.agreed ? 'Client agreed' : card.next_step.agreement || 'Agreement not recorded'}</p></> : <p>{card.next_step || 'No agreed next step recorded.'}</p>}</section>
+    </>}
+  </article>;
 }
-
-const TIMINGS = [
-  ['speed_to_lead', 'Speed to lead', 'from the job being posted to your application'],
-  ['client_reply', 'Client reply time', 'from your application to their first message'],
-  ['our_reply', 'Our reply time', 'from the first client message in a block to your next reply'],
-  ['call_to_proposal', 'Call to proposal', 'from the recorded call to your confirmed proposal send'],
-  ['time_to_close', 'Time to close', 'from your application to won, as you recorded it'],
-] as const;
-const MIN_MEDIAN = 20;
-
-function span(seconds: number) {
-  const hours = seconds / 3600;
-  if (hours < 1) return `${Math.max(1, Math.round(seconds / 60))} min`;
-  if (hours < 48) return `${Math.round(hours * 10) / 10} h`;
-  return `${Math.round(hours / 24 * 10) / 10} days`;
+function SelectionDrawer({ value, close, jobs, calls, openLead }: { value: Selection; close: () => void; jobs: any[]; calls: any[]; openLead: (id: string) => void }) {
+  const ref = useRef<HTMLDivElement>(null), prior = useRef<HTMLElement | null>(null);
+  const [call, setCall] = useState<Row | null>(value.call || null);
+  const [current, setCurrent] = useState(value);
+  value = current;
+  useEffect(() => {
+    prior.current = document.activeElement as HTMLElement; const old = document.body.style.overflow; document.body.style.overflow = 'hidden'; const background = Array.from(document.querySelectorAll<HTMLElement>('header.top, .an-tabs, .an-period-strip, .an-due, .an-shell > section')); const previouslyInert = background.map(node => node.inert); background.forEach(node => { node.inert = true; }); ref.current?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); close(); }
+      if (event.key !== 'Tab') return;
+      const nodes = Array.from(ref.current?.querySelectorAll<HTMLElement>('button,a[href],[tabindex="0"]') || []), first = nodes[0], last = nodes[nodes.length - 1];
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === ref.current)) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener('keydown', keydown); return () => { document.removeEventListener('keydown', keydown); document.body.style.overflow = old; background.forEach((node, i) => { node.inert = previouslyInert[i]; }); prior.current?.focus(); };
+  }, []);
+  return <div className="an-drawer-layer"><button className="an-drawer-shade" tabIndex={-1} aria-label="Close evidence" onClick={close} /><div className="an-drawer" role="dialog" aria-modal="true" aria-labelledby="an-drawer-title" tabIndex={-1} ref={ref}>
+    <header><div><p className="an-kicker">Evidence</p><h2 id="an-drawer-title">{value.title}</h2></div><button onClick={close} aria-label="Close evidence">Close ×</button></header><Period value={value.period} />
+    {value.stages && <nav className="an-drawer-stages" aria-label="Funnel stages">{value.stages.map((row, i) => <button data-stage={`${value.strand || 'stage'}-${i}`} className="an-stage-card" key={row.key || i} aria-current={value.title === (row.label || row.stage) ? 'step' : undefined} onClick={() => { setCall(null); setCurrent({ ...value, title: row.label || row.stage, evidence: evidence(row), period: row.period || value.period, metric: row.metric, note: row.insight || row.note || row.reason }); }}>{row.label || row.stage}<strong>{row.count ?? row.k ?? '—'}</strong><small>{row.conversion_text || row.note || row.reason || 'Prepared stage evidence'}</small></button>)}</nav>}{value.note && <p>{value.note}</p>}
+    {value.metric && <section className="an-metric-detail"><strong className="an-detail-value">{metricValue(value.metric)}</strong><Chip state={value.metric.state}>{stateText(value.metric.state)}</Chip><Spark values={value.metric.history} label={`${value.title}, saved weekly values`} large /><p>{value.metric.insight || value.metric.reason}</p><dl className="an-evidence-facts"><div><dt>Cases</dt><dd>{value.metric.k ?? '—'} of {value.metric.n ?? '—'}</dd></div><div><dt>Target</dt><dd>{value.metric.target_text || display(value.metric.target)}</dd></div><div><dt>Own benchmark</dt><dd>{display(value.metric.own_benchmark)}</dd></div><div><dt>Previous four weeks</dt><dd>{display(value.metric.baseline)}</dd></div><div><dt>Interval</dt><dd>{value.metric.low != null ? `${value.metric.low}–${value.metric.high}%` : 'Not supplied'}</dd></div></dl>{value.metric.external_reference && <p className="an-meta">External reference: {value.metric.external_reference.value} · {value.metric.external_reference.population} · {value.metric.external_reference.definition} · {value.metric.external_reference.source} · {value.metric.external_reference.date}</p>}</section>}
+    {call ? <><button className="an-back" onClick={() => setCall(null)}>← Back to selection</button><CallCard card={call} /></> : <section><h3>Leads behind this number</h3>{list(value.evidence).length ? <div className="an-lead-list">{list(value.evidence).map((item: any, index: number) => {
+      const id = typeof item === 'object' ? String(item.id || item.lead_id) : String(item), job = jobs.find(row => String(row.id) === id), saved = typeof item === 'object' ? item : {}, card = calls.find(row => String(row.lead_id || row.id) === id);
+      return <article key={`${id}-${index}`}><strong>{saved.label || job?.label || job?.title || 'Saved lead'}</strong><p className="an-meta">{saved.status || job?.status || 'Historical evidence'}{saved.note ? ` · ${saved.note}` : ''}</p><div>{job ? <button onClick={() => { close(); openLead(id); }}>Open lead</button> : <span className="an-meta">Live lead unavailable; saved evidence remains.</span>}{card && <button onClick={() => setCall(card)}>Review call</button>}</div></article>;
+    })}</div> : <Empty>No lead evidence was saved for this selection.</Empty>}</section>}
+  </div></div>;
 }
-
-/** Medians of measured gaps, only from leads Upwork's own record backs. */
-function Timings({ timings }: { timings?: Record<string, { n: number; median_s: number | null; values?: { seconds: number; call_source: string; proposal_source: string }[] }> }) {
-  if (!timings) return null;
-  return <section className="funnel" aria-label="Timings">
-    <h2>Timings</h2>
-    <dl className="timings">
-      {TIMINGS.map(([key, label, note]) => {
-        const { n = 0, median_s = null, values = [] } = timings[key] || {};
-        const observed = values.some(value => value.call_source === 'observed');
-        return <div key={key}>
-          <dt>{label}</dt>
-          {median_s != null ? <dd>{span(median_s)}</dd> : <dd className="few">{n} of {MIN_MEDIAN} needed</dd>}
-          <dd>{note}{median_s != null ? ` · median of ${n}` : ''}{observed ? ' · observed (call history)' : ''}</dd>
-        </div>;
-      })}
-    </dl>
-    <p className="funnel-note">Application timings use Upwork-confirmed sends and replies. Our reply uses complete threads; close and proposal use recorded events.</p>
-  </section>;
+function GoalCard({ goal, choose, period }: { goal: Row; choose: (value: Selection) => void; period?: any }) {
+  return <article className="an-goal"><h3>{goal.change || goal.text || 'Agreed goal'}</h3><div className="an-goal-execution"><strong>{goal.done_k ?? '—'} / {goal.done_n ?? '—'}</strong><span>{goal.unit || goal.opportunity_unit || 'opportunities'} carried out</span></div>
+    <meter min="0" max={Math.max(1, goal.done_n || 0)} value={goal.done_k || 0} aria-label="Goal execution" />
+    <p className="an-goal-effect"><span className="an-kicker">Effect</span><br />{goal.effect_text || (goal.mature === false ? `Open${goal.matures_on || goal.mature_on ? `, data matures by ${goal.matures_on || goal.mature_on}` : ', waiting for outcomes'}` : `${display(goal.before)} before → ${display(goal.after)} after`)}<br /><Chip>{({ worked: 'Worked', not: 'No improvement', undecided: 'Outcome open' }[goal.effect as string] || display(goal.effect || 'Not judged'))}</Chip></p>
+    <p><span className="an-kicker">Decision</span> <Chip>{goal.decision || 'Review needed'}</Chip></p>{goal.two_weeks_undone && <p className="an-meta">Undone for two weeks. Try: {goal.fallback || 'agree a smaller action in /analytics.'}</p>}
+    <button className="an-text-button" onClick={() => choose({ title: goal.change || 'Goal execution', period, evidence: evidence(goal), note: goal.effect_note })}>See execution evidence →</button>
+  </article>;
 }
-
-function Funnel({ counts, definitions, title, entryLabel }: { counts: any; definitions: string[][]; title: string; entryLabel: string }) {
-  const steps = funnelSteps(counts, definitions);
-  const shapes = funnelShapes(steps, { width: WIDTH, height: HEIGHT, gap: GAP });
-  const entry = steps[0].count;
-  const last = steps[steps.length - 1];
-  const winRate = title === 'Win the deal' && counts.applied >= MIN_RATE
-    ? Math.round(100 * counts.won / counts.applied) : null;
-  const total = steps.length * (HEIGHT + GAP) - GAP;
-  return <section className="funnel" aria-label={title}>
-    <h2>{title}</h2>
-    <p className="funnel-headline">{!counts.applied ? 'No applications yet. The funnel fills as /brief records them.' : <><strong>{last.count}</strong> {last.label.toLowerCase()} from {entry} {entryLabel}{winRate != null ? ` · ${winRate}% overall win rate` : ''}</>}</p>
-    <div className="funnel-card">
-      <svg className="funnel-chart" viewBox={`0 0 1000 ${total}`} role="img" aria-label={title}>
-        {shapes.map((shape, index) => {
-          const mid = shape.y + HEIGHT / 2;
-          const before = (shape.of || '').toLowerCase();
-          const band = shape.interval ? ` (${shape.interval[0]} to ${shape.interval[1]}%)` : '';
-          return <g key={shape.key} className="funnel-step">
-            <title>{`${shape.label}: ${shape.count}, n=${index ? shape.n : shape.count}${shape.rate != null ? `, ${shape.rate}%${band}` : ''}`}</title>
-            {shape.count > 0 ? <polygon points={shape.points} fill={RAMP[index]} /> : null}
-            <text x={LABEL_X} y={mid - 6} className="funnel-count">{shape.count}</text>
-            <text x={LABEL_X + 72} y={mid - 6} className="funnel-label">{shape.label}</text>
-            <text x={LABEL_X + 72} y={mid + 16} className="funnel-rate">{index === 0
-              ? `n=${shape.count} · ${entryLabel}`
-              : `n=${shape.n} · ${shape.rate != null ? `${shape.rate}%${band} of ${before}` : `too few to read (${MIN_RATE} needed)`}`}</text>
-          </g>;
-        })}
-      </svg>
-    </div>
-    <p className="funnel-note">Each lead counts once at each recorded stage it reached.</p>
-  </section>;
+function Funnel({ rows, title, period, focus, strand, choose }: { rows: Row[]; title: string; period: any; focus?: string; strand: string; choose: (value: Selection) => void }) {
+  const focusIndex = rows.findIndex(row => row.key === focus);
+  const highlighted = focusIndex;
+  const count = rows[0]?.count || rows[0]?.n || 1;
+  return <section className="an-funnel"><div className="an-section-heading"><h3>{title}</h3><Period value={period} /></div>{!rows.length ? <Empty>No saved {title.toLowerCase()} funnel yet.</Empty> : <div className="an-funnel-stages">{rows.map((row, i) => {
+    const stageCount = row.count ?? row.k, width = stageCount == null ? 100 : Math.max(15, 100 * Math.sqrt(stageCount / count)), next = rows[i + 1]?.count ?? rows[i + 1]?.k, lower = next == null ? width * .88 : Math.max(15, 100 * Math.sqrt(next / count));
+    return <button data-stage={`${strand}-${i}`} className={`an-stage${i === highlighted ? ' an-stage-focus' : ''}`} key={row.key || i} onClick={() => choose({ title: row.label || row.stage, period: row.period || period, evidence: evidence(row), metric: row.metric, note: row.insight || row.reason, stages: rows, strand })}>
+      <span className="an-stage-shape" aria-hidden="true"><svg viewBox="0 0 100 40"><polygon points={`${50 - width / 2},0 ${50 + width / 2},0 ${50 + lower / 2},40 ${50 - lower / 2},40`} /></svg><strong>{stageCount ?? '—'}</strong></span>
+      <span className="an-stage-copy"><strong>{row.label || row.stage}</strong><span>{row.conversion_text || (row.value != null ? `${row.value}% · ${row.k ?? '—'} of ${row.n ?? '—'}` : row.n != null ? `${row.n} saved opportunities` : 'Conversion not supplied')}{row.loss != null ? ` · ${row.loss} lost` : ''}</span>{row.state && <Chip state={row.state}>{stateText(row.state)}</Chip>}{(row.insight || row.note || row.reason) && <small>{row.insight || row.note || row.reason}</small>}{(row.observation_only || row.key === 'applied_to_viewed' || row.key === 'proposal_viewed') && <small>Observation context · not a performance KPI. {row.observed_at ? `Observed ${row.observed_at}; actual view time unknown.` : 'Actual view time unknown.'}</small>}<span className="an-stage-open">Open stage →</span></span>
+    </button>;
+  })}</div>}</section>;
 }
-
-function Bottleneck({ value }: { value: any }) {
-  if (!value) return null;
-  const unit = value.stage === 'Volume' ? ' days' : value.stage === 'Speed' ? ' h' : '%';
-  return <p className="funnel-headline" aria-label="Bottleneck">
-    {value.stage ? <><strong>{value.stage}</strong>: {value.value}{unit} against {value.bar}{unit} · n={value.n}{value.reasoned ? ' · reasoned bar' : ''}. </> : 'No measured stage below its bar. '}
-    {value.next_action}{value.unmeasured.length ? ` Not measured yet: ${value.unmeasured.join(', ')}.` : ''}
-  </p>;
+function NumberTile({ metric: row, focused, period, choose }: { metric: Row; focused: boolean; period: any; choose: (value: Selection) => void }) {
+  return <button className={`an-number${focused ? ' an-number-focus' : ''}`} onClick={() => choose({ title: row.label, period: row.period || period, evidence: evidence(row), metric: row })}>
+    <span className="an-number-label">{row.label}</span><strong className="an-number-value">{metricValue(row)}</strong><Spark values={row.history} label={`${row.label}, saved weekly history`} />
+    <span className="an-number-delta">{row.delta_text || (row.delta == null ? 'Own comparison not available' : `${row.delta > 0 ? '↑ +' : row.delta < 0 ? '↓ ' : '→ '}${row.delta}${row.unit === '%' ? ' pp' : ''} vs own prior four weeks`)}</span>
+    <span className="an-number-target">{list(row.rungs).length ? `Rung ${row.rung_reached ?? '—'} of ${row.rungs.length} · ` : ''}{row.target_text || (row.target != null ? display(row.target) : 'No target recorded')}</span>
+    <Chip state={row.state}>{stateText(row.state)}</Chip><Period value={row.period || period} /><small>See evidence →</small>
+  </button>;
 }
-
+function BadgeImage({ name, motif, tier, source, fallback }: { name: string; motif: string; tier?: string; source?: string; fallback?: string }) {
+  return <img src={source || `/badges/${slug(name)}-${slug(tier || 'bronze')}.webp`} alt="" width="100" height="100" onError={event => { const node = event.currentTarget; if (!node.dataset.fallback) { node.dataset.fallback = 'true'; node.src = fallback || `/badges/badge-${motif}.webp`; } else node.style.visibility = 'hidden'; }} />;
+}
 export default function AnalyticsPage() {
-  const { state } = useCockpit();
+  const { state, openDrawer } = useCockpit();
+  const [tab, setTab] = useState(0), [allNumbers, setAllNumbers] = useState(false), [allInsights, setAllInsights] = useState(false), [selection, setSelection] = useState<Selection | null>(null);
+  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   if (!state) return null;
-  return <>
-    <Bottleneck value={state.bottleneck} />
-    <Funnel counts={state.funnel} definitions={APPLICATION_STEPS} title="Win the call" entryLabel="applications" />
-    <Funnel counts={state.funnel} definitions={PROPOSAL_STEPS} title="Win the deal" entryLabel="calls" />
-    <Outreach weeks={state.outreach} />
-    <Consistency daily={state.consistency} />
-    <Profile profile={state.profile} />
-    <Timings timings={state.timings} />
-  </>;
+  const analytics = state.analytics || {}, snapshot = analytics.latest, jobs = list(state.jobs);
+  const choose = (value: Selection) => setSelection(value);
+  const close = () => setSelection(null);
+  if (!snapshot) return <section className="an-shell"><h1>Your weekly analytics</h1>{list(analytics.errors).length > 0 && <p className="an-due" role="alert"><strong>Weekly review could not read saved evidence.</strong> {list(analytics.errors).map(display).join(' ')} Run <code>/analytics</code> to restore the weekly review.</p>}<Empty>No weekly snapshot yet. Run <code>/analytics</code> to review your evidence and agree this week’s focus.</Empty></section>;
+  const presentation: AnalyticsPresentation & Row = snapshot.presentation || {}, kpis: Row = snapshot.kpis || {}, periods = snapshot.periods || {}, period = periods.cohort || snapshot.window;
+  const goals = analytics.goals_week ? list(analytics.goals?.goals || analytics.goals) : list(snapshot.goals_next).length ? list(snapshot.goals_next) : list(analytics.goals?.goals || analytics.goals);
+  const primary = goals.find(row => row.primary), verdict = snapshot.verdict || {}, focus = kpis[verdict.kpi] || {}, north = snapshot.north_star || {}, calls = list(snapshot.call_cards);
+  const coach = primary && Object.values(snapshot.reviews || {}).find((row: any) => (row.goal_ref === primary?.kpi || row.goal_ref === primary?.goal_id) && row.example) as Row | undefined;
+  const funnel: Row = presentation.funnel || {}, outbound = list(funnel.outbound), inbound = list(funnel.inbound);
+  const focusedStage = [...outbound, ...inbound].find(row => row.key === verdict.kpi || row.metric?.key === verdict.kpi) || [...outbound, ...inbound].find(row => row.focus);
+  const groups = presentation.kpi_groups;
+  const defaultKeys = list(presentation.number_keys);
+  const groupedKeys = groups ? [...list(groups.top), ...list(groups.middle), ...list(groups.bottom)] : [];
+  const keys = [...new Set(allNumbers ? groupedKeys : defaultKeys)];
+  const numberGroups: Record<string, string[]> = groups ? { top: list(groups.top), middle: list(groups.middle), bottom: list(groups.bottom) } : {};
+  const preparedInsights: any = presentation.insights;
+  const insights = allInsights ? list(presentation.insights_all ?? preparedInsights?.all) : list(Array.isArray(preparedInsights) ? preparedInsights : preparedInsights?.top).slice(0, 3);
+  const insightEvidence = (row: Row) => evidence(row).length ? evidence(row) : evidence(kpis[row.kpi || row.target?.element || row.stage] || Object.values(kpis).find((metric: any) => metric.label === row.stage));
+  const voyage: Row = presentation.voyage || {}, stations = list(voyage.stations), rank = voyage.rank;
+  const calendar = flattenRows(voyage.calendar, 'days'), heat = list(snapshot.call_rubric_weeks);
+  const goalHistory = flattenRows(voyage.goals_history || voyage.goal_history, 'goals_review');
+  const moneyChart: Row = presentation.money_chart || {};
+  const wonSeries = list(moneyChart.won || north.history).slice(-8).map((row, i) => typeof row === 'number' || row == null ? { value: row, week: kpis.won_value?.history_weeks?.[i] || 'Saved week', evidence: [] } : row);
+  const forecastSeries = list(moneyChart.forecast || snapshot.forecast?.weeks);
+  const unknownWins = Array.isArray(north.unknown_value_wins) ? north.unknown_value_wins.length : north.unknown_value_wins ?? north.value_unknown_n;
+  return <div className="an-shell">
+    {(snapshot.synthetic || snapshot.data_label) && <p className="an-sample-label">{snapshot.data_label || 'Synthetic example · no member facts'}</p>}
+    {list(analytics.errors).length > 0 && <p className="an-due" role="alert"><strong>Weekly review could not read all saved evidence.</strong> {list(analytics.errors).map(display).join(' ')} Run <code>/analytics</code> to restore the weekly review.</p>}
+    <div className="an-tabs" role="tablist" aria-label="Weekly analytics views">{TAB_NAMES.map((name, i) => <button key={name} ref={node => { tabs.current[i] = node; }} id={`analytics-tab-${i}`} role="tab" aria-selected={tab === i} aria-controls={`analytics-panel-${i}`} tabIndex={tab === i ? 0 : -1} onClick={() => setTab(i)} onKeyDown={event => { let index = i; if (event.key === 'ArrowRight') index = (i + 1) % 3; else if (event.key === 'ArrowLeft') index = (i + 2) % 3; else if (event.key === 'Home') index = 0; else if (event.key === 'End') index = 2; else return; event.preventDefault(); setTab(index); tabs.current[index]?.focus(); }}>{name}</button>)}</div>
+    <div className="an-period-strip"><strong>{snapshot.week}</strong><span>Activity {periodText(periods.activity)}</span><span>Rates {periodText(period)}</span><span>Last sync {periods.synced_at || state.sync?.synced_at || 'Not recorded'}</span><span>Next review {presentation.next_run_day || analytics.next_run_day || snapshot.next_run_day || 'Monday'}</span></div>
+    {state.analytics_due && <p className="an-due"><strong>Analytics due.</strong> Run <code>/analytics</code> to review the latest week.</p>}
+    <section id="analytics-panel-0" role="tabpanel" aria-labelledby="analytics-tab-0" hidden={tab !== 0}>
+      <header className="an-intro"><p className="an-kicker">Weekly review</p><h1>What matters this week?</h1><div className="an-summary">{list(snapshot.summary).length ? list(snapshot.summary).map((sentence, i) => <p key={i}>{sentence}</p>) : <Empty>No executive summary was saved. Run /analytics to complete the review.</Empty>}</div></header>
+      <section className="an-block"><div className="an-section-heading"><h2>Last week’s goals</h2><span className="an-meta">Execution, effect and decision</span></div><div className="an-goals">{list(snapshot.goals_review).length ? list(snapshot.goals_review).map((goal, i) => <GoalCard key={goal.goal_id || i} goal={goal} choose={choose} period={goal.period || periods.activity} />) : <Empty>No previous goals to review. Agree your first commitments in /analytics.</Empty>}</div></section>
+      <section className="an-focus"><p className="an-kicker">This week’s focus</p><h2>{verdict.stage || focus.label || 'Build your weekly evidence'}</h2><p>{verdict.sentence || verdict.reason || focus.reason}</p>{focus.n != null && <p className="an-meta">{focus.k ?? '—'} of {focus.n} · target {focus.target_text || display(focus.target)} · {stateText(focus.state)}</p>}{list(verdict.undecided_before).length > 0 && <p className="an-meta">Earlier stages still open: {list(verdict.undecided_before).map(row => typeof row === 'string' ? kpis[row]?.label || row : row.label || row.stage).join(', ')}.</p>}
+        <div className="an-focus-columns"><div><h3>Your implementation cue</h3>{primary ? <><p><strong>When {primary.cue}</strong> → {primary.action}</p><p className="an-meta">Smaller fallback: {primary.fallback || 'Not recorded'} · Review {primary.review_on || 'next week'}</p></> : <Empty>No agreed primary goal saved yet.</Empty>}</div><div><h3>Coach’s example</h3>{coach ? <><p>{coach.fix}</p><blockquote>“{coach.example}”</blockquote></> : <Empty>No example saved for this goal.</Empty>}</div></div>{focus.insight && <p className="an-coach">{focus.insight}</p>}
+      </section>
+      <section className="an-won an-card"><div><p className="an-kicker">New contract value won</p><button className="an-money-button" onClick={() => choose({ title: 'Won this week', period: periods.outcome, evidence: evidence(north) })}>{money(north.known_subtotal ?? north.value, north.currency)}</button><p>{north.wins ?? '—'} total wins{unknownWins ? ` · ${unknownWins} with value unknown` : ''}</p><p className="an-meta">{north.delta_text || (kpis.won_value?.delta != null ? `${money(kpis.won_value.delta, north.currency)} vs own prior four-week average` : 'Own four-week comparison not yet available')}</p><Period value={periods.outcome || periods.activity} />{list(north.other_currencies || north.other_totals).map((row: Row, i: number) => <p className="an-meta" key={i}>{money(row.value ?? row.known_subtotal, row.currency)} · {row.currency} won separately</p>)}</div><div className="an-billed"><p className="an-kicker">Billed this week · separate</p><strong>{money(north.billed_total ?? north.billed ?? north.hourly_billed, north.billed_currency || north.currency)}</strong><p className="an-meta">Won value records agreed work. Billing records earnings.</p><Period value={north.billed_period || periods.activity} />{list(north.billed_totals).filter((row: Row) => row.currency !== north.billed_currency).map((row: Row, i: number) => <p className="an-meta" key={i}>{money(row.value, row.currency)} · {row.currency} billed separately</p>)}</div></section>
+      <section className="an-block"><div className="an-section-heading"><h2>From application to won</h2><span className="an-meta">Open a stage to see its leads</span></div><Funnel rows={outbound} strand="outbound" title="Outbound" period={period} focus={focusedStage?.key} choose={choose} /><Funnel rows={inbound} strand="inbound" title="Inbound · invitations and offers" period={period} focus={focusedStage?.key} choose={choose} /><p className="an-meta">Each conversion uses its own saved, mature population. Source missing and not enough evidence are separate states.</p></section>
+      <section className="an-block"><div className="an-section-heading"><h2>Goals and to-dos</h2><span className="an-meta">Urgent first</span></div><div className="an-todos">{list(snapshot.todos).slice(0, 7).map((todo, i) => <button key={i} onClick={() => choose({ title: todo.text, period: todo.due, evidence: todo.lead_id ? [todo.lead_id] : evidence(todo) })}><span>{todo.text}</span><small>{todo.due || todo.kind || 'This week'} <span aria-hidden="true">→</span></small></button>)}</div><div className="an-commitments">{goals.map((goal, i) => <article key={i}><Chip>{goal.primary ? 'Primary goal' : goal.stage || 'Goal'}</Chip><h3>{goal.change}</h3><p>When {goal.cue} → {goal.action}</p><p className="an-meta">Fallback: {goal.fallback} · Review {goal.review_on}</p></article>)}</div>{!goals.length && !list(snapshot.todos).length && <Empty>No next steps saved. Agree them in /analytics.</Empty>}</section>
+    </section>
+    <section id="analytics-panel-1" role="tabpanel" aria-labelledby="analytics-tab-1" hidden={tab !== 1}>
+      <header className="an-intro"><p className="an-kicker">Results and evidence</p><h1>What is driving my results?</h1><p>Saved weekly results, your own comparisons and the leads behind them.</p></header>
+      <section className="an-card"><div className="an-section-heading"><h2>Won value and forecast</h2><span className="an-meta">Eight saved weeks</span></div><div className="an-revenue-chart"><RevenueChart past={wonSeries} forecast={forecastSeries} currency={moneyChart.currency || north.currency} baseline={moneyChart.baseline ?? north.baseline} label={moneyChart.forecast_label || moneyChart.label || snapshot.forecast?.label} period={moneyChart.period || snapshot.forecast?.period || periods.outcome} choose={choose} /></div><div className="an-forecast"><div><span className="an-kicker">Open pipeline forecast</span><strong>{money(snapshot.forecast?.next_30_days, north.currency)}</strong><p className="an-meta">{snapshot.forecast?.label || 'An estimate from your own stage-to-won rates. Missing rates keep the estimate open.'}</p></div><div className="an-forecast-stages">{list(snapshot.forecast?.by_stage).map((row, i) => <button key={i} onClick={() => choose({ title: `${row.label || row.stage} forecast`, period: row.period || period, evidence: evidence(row), note: row.reason || `${row.count} open leads · own rate ${display(row.own_rate)} · estimate ${money(row.expected, north.currency)}` })}><span>{row.label || row.stage}</span><strong>{money(row.expected, north.currency)}</strong><small>{row.count} open · {row.own_rate == null ? 'Rate not established' : `Own rate ${row.own_rate}`}</small></button>)}</div></div><Period value={snapshot.forecast?.period || periods.outcome} /></section>
+      <section className="an-block"><div className="an-section-heading"><h2>Your numbers</h2><button aria-expanded={allNumbers} onClick={() => setAllNumbers(!allNumbers)}>{allNumbers ? 'Show selected numbers' : 'Show all numbers'}</button></div>
+        {!groups && <Empty>Prepared KPI groups are missing. Rerun /analytics.</Empty>}{!defaultKeys.length && <Empty>The six overview selections are missing. Rerun /analytics.</Empty>}{presentation.number_gap && <p className="an-meta">{presentation.number_gap}</p>}
+        {Object.entries(numberGroups).map(([group, groupKeys]) => { const section: Row = presentation.number_groups?.[group] || presentation.section_summaries?.[group] || presentation.sections?.[group] || {}; return <section className="an-number-group" key={group}><h3>{section.label || ({ top: 'Top of funnel', middle: 'Middle of funnel', bottom: 'Bottom of funnel' }[group])}</h3>
+          {typeof section.stood_out === 'string' ? <p className="an-meta">{section.stood_out}</p> : list(section.stood_out).map((item, i) => <p className="an-meta" key={i}>{typeof item === 'string' ? item : item.text || item.sentence}</p>)}
+          {section.leak && <p className="an-meta">Leak: {typeof section.leak === 'string' ? kpis[section.leak]?.label || section.leak : section.leak.text || section.leak.label}</p>}
+          <div className="an-number-grid">{keys.filter(key => groupKeys.includes(key)).map(key => { const row = kpis[key]; return row ? <NumberTile key={key} metric={row} focused={key === verdict.kpi} period={period} choose={choose} /> : null; })}</div>
+        </section>; })}
+      </section>
+      <section className="an-block"><div className="an-section-heading"><h2>What the evidence suggests</h2><button aria-expanded={allInsights} onClick={() => setAllInsights(!allInsights)}>{allInsights ? 'Fewer insights' : 'More insights'}</button></div>{insights.length ? <div className="an-insights">{insights.slice(0, allInsights ? undefined : 3).map((row, i) => <button key={i} onClick={() => choose({ title: row.title || row.sentence || row.text || 'Insight evidence', period: row.period || period, evidence: insightEvidence(row), note: row.action || row.reason })}><span className="an-kicker">{row.kind || row.strength || 'Observed pattern'}</span><h3>{row.sentence || row.text || row.title || 'Finding text not supplied'}</h3>{row.observed != null && <div className="an-insight-comparison"><span>Observed <strong>{display(row.observed)}</strong></span><span>Reference <strong>{display(row.expected)}</strong></span></div>}<p>{row.action}</p><Period value={row.period || period} /><small>{row.n != null ? `${row.n} cases · ` : ''}See evidence →</small></button>)}</div> : <Empty>{preparedInsights == null ? 'Prepared insights are missing. Rerun /analytics.' : allInsights && presentation.insights_all == null ? 'The full insight list was not prepared. Rerun /analytics.' : 'No additional finding was saved for this view. More evidence may change the picture.'}</Empty>}</section>
+    </section>
+    <section id="analytics-panel-2" role="tabpanel" aria-labelledby="analytics-tab-2" hidden={tab !== 2}>
+      <header className="an-intro"><p className="an-kicker">Your voyage</p><h1>Am I getting better?</h1><p>Repeatable habits, earned milestones and your next stretch.</p></header>
+      <section className="an-voyage-map an-card"><h2>Your treasure route</h2><p className="an-meta">Fourteen stations. Earned seals stay with you; locked seals show the next step.</p>{!stations.length && <Empty>Prepared voyage stations are missing. Rerun /analytics.</Empty>}<div className="an-stations">{stations.map((station, i) => {
+        const name = station.badge || station.name || 'Saved station', tier = station.tier, earned = station.earned, revealed = station.island_revealed;
+        return <button data-island-revealed={String(revealed ?? false)} className={`an-station${earned ? ' earned' : ' locked'} an-tier-${slug(tier || 'locked')}`} key={name} onClick={() => choose({ title: `${name}${tier ? ` · ${tier}` : ' · locked'}`, period: station.earned_week || snapshot.week, evidence: evidence(station), note: display(station.requirement || station.progress_to_next || 'Next requirement not supplied') })}><span className="an-station-number">{i + 1}</span><span className="an-seal"><BadgeImage name={name} motif={station.motif} tier={tier} source={station.image} fallback={station.fallback_image} /></span><strong>{name}</strong><small>{earned ? tier || 'Earned' : 'Locked'} · {revealed ? 'Island revealed' : 'Island locked'}</small><span>{display(station.requirement || 'Requirement not supplied')}</span>{station.progress_to_next && <span>Next: {display(station.progress_to_next)}</span>}</button>;
+      })}</div><p className="an-meta">Bronze · Silver · Gold · Platinum · Legend. Rewards follow verified habits and evidence.</p></section>
+      <section className="an-card an-rank"><div><p className="an-kicker">Your rank</p><h2>{typeof rank === 'string' ? rank : rank?.name || rank?.current || 'Rank not yet recorded'}</h2><p>{rank?.next ? `Next: ${rank.next}` : 'Your weekly review records earned rank.'}</p>{rank?.progress_text && <p className="an-meta">{rank.progress_text}</p>}</div><div className="an-rank-track">{['Deckhand', 'Boatswain', 'Officer', 'Captain', 'Admiral'].map(name => <span key={name} aria-current={(typeof rank === 'string' ? rank : rank?.name || rank?.current) === name ? 'step' : undefined}>{name}</span>)}</div></section>
+      <section className="an-card"><div className="an-section-heading"><h2>Your application rhythm</h2><span className="an-meta">Twelve weeks · saved daily counts</span></div><Period value={voyage.calendar_period || { start: calendar[0]?.date, end: calendar[calendar.length - 1]?.date }} /><div className="an-calendar">{calendar.map((day, i) => <button key={day.date || i} className={`an-day an-day-${day.level ?? (day.count === 0 ? 'zero' : 'active')}`} aria-label={`${day.date}: ${day.count} applications`} title={`${day.date}: ${day.count} applications`} onClick={() => choose({ title: `${day.count} applications on ${day.date}`, period: day.date, evidence: evidence(day) })}>{day.count || '·'}</button>)}</div>{!calendar.length && <Empty>No application calendar saved yet.</Empty>}<p className="an-meta">Each square is one day. Open it to see the applications.</p></section>
+      <section className="an-card"><h2>Which goals worked?</h2><p className="an-meta">Execution and outcome are shown separately. An outcome can remain open after the work is done.</p><div className="an-goal-history">{goalHistory.length ? goalHistory.map((row, i) => <article key={i}><strong>{row.change || row.text}</strong><span>{row.week}</span><span>{row.done_k ?? 'Not reviewed'} / {row.done_n ?? '—'} carried out</span><Chip>{display(row.effect)}</Chip><Chip>{row.decision || 'Review needed'}</Chip></article>) : <Empty>No goal history prepared. Rerun /analytics.</Empty>}</div></section>
+      <section className="an-card"><h2>What do my call reviews cover?</h2><p className="an-meta">Nine review points · each saved week. Open a cell for its reviewed calls.</p><div className="an-heatmap"><div className="an-heat-head"><span>Review point</span>{heat.map(row => <span key={row.week}>{row.week.replace(/^\d+-/, '')}</span>)}</div>{POINT_NAMES.map((name, i) => <div className="an-heat-row" key={name}><strong>{i + 1}. {name}</strong>{heat.map(row => { const cell = row.points?.[String(i + 1)], value = typeof cell === 'object' && cell !== null ? cell.value ?? cell.share : cell; return <button key={row.week} className={`an-heat-cell${value == null ? ' missing' : ''}`} style={{ backgroundColor: value == null ? 'var(--ivory)' : `color-mix(in srgb, var(--ink) ${Math.max(0, Math.min(35, value * .35))}%, var(--ivory))`, color: 'var(--ink)' }} title={`${name}: ${value == null ? 'not reviewed' : value + '%'} · ${row.week}`} aria-label={`${name}, ${row.week}: ${value == null ? 'not reviewed' : value + '%'}; review calls`} onClick={() => choose({ title: `${name} · ${row.week}`, period: row.week, evidence: typeof cell === 'object' && cell !== null ? evidence(cell) : evidence(row), call: row.call_cards?.[0], note: `${row.calls ?? 'Unknown'} reviewed calls. Coverage is a saved result.` })}>{value == null ? '—' : `${value}%`}</button>; })}</div>)}</div>{!heat.length && <Empty>No weekly call-point coverage saved yet.</Empty>}{calls.length > 0 && <div className="an-call-links">{calls.map((card, i) => <button key={i} onClick={() => choose({ title: card.label || 'Call review', period: card.date || card.call_date || period, call: card, evidence: [card.lead_id] })}>Review {card.label || `call ${i + 1}`} →</button>)}</div>}</section>
+    </section>
+    {selection && <SelectionDrawer key={selection.title} value={selection} close={close} jobs={jobs} calls={calls} openLead={openDrawer} />}
+  </div>;
 }

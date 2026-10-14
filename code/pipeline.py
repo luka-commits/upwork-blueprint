@@ -44,6 +44,7 @@ import os
 import pathlib
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from urllib.parse import urlparse
@@ -85,6 +86,28 @@ APPLICATION_BANDS = {
     'bid_band': ('below', 'within', 'above', 'unknown'),
 }
 LEAD_SOURCES = ('outbound', 'invite', 'direct_offer', 'unknown')
+_jobs_writes = 0
+
+
+def award_lines(output):
+    """Shared stdout contract: Badge name · Tier: reason, with no rewriting."""
+    return [line for line in output.splitlines()
+            if re.fullmatch(r'[^\r\n]+ · (?:Bronze|Silver|Gold|Platinum|Legend): .+', line)]
+
+
+def check_badges(*args):
+    """Best effort, after the jobs lock is released: awards cannot undo a write."""
+    try:
+        result = subprocess.run([sys.executable, str(ROOT / 'code' / 'badges.py'), 'check', *args],
+                                capture_output=True, text=True, timeout=30, check=False)
+        for line in award_lines(result.stdout):
+            print(line)
+        if result.stderr.strip():
+            print(result.stderr.strip(), file=sys.stderr)
+        if result.returncode:
+            print(f'Badge check failed ({result.returncode}); data write completed.', file=sys.stderr)
+    except (OSError, subprocess.SubprocessError) as error:
+        print(f'Badge check failed; data write completed: {error}', file=sys.stderr)
 
 
 CHAT_KEEP_HOURS = 2160
@@ -261,6 +284,7 @@ def freeze_application_facts(job):
 
 def save(jobs):
     """Writes through a temp file, so a crash mid-write never leaves half a pipeline."""
+    global _jobs_writes
     path = jobs_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=path.parent,
@@ -269,6 +293,7 @@ def save(jobs):
         json.dump(jobs, handle, indent=2, ensure_ascii=False)
     try:
         os.replace(tmp, path)
+        _jobs_writes += 1
     finally:
         tmp.unlink(missing_ok=True)
 
@@ -587,6 +612,8 @@ def cmd_set(args):
             job['applied_at'] = observed or job['status_updated_at']
             job.pop('application_date_unknown', None)
     freeze_application_facts(job)
+    if args.status == 'applied':
+        freeze_speed_to_lead(job)
     lane = (job.get('follow_up_plan') or {}).get('lane')
     if args.status in ('applied', 'lost', 'skipped'):
         preserve_follow_up(job)
@@ -651,13 +678,59 @@ def cmd_record(args):
                'first_reply_s', 'first_reply_at', 'source', 'invitation_id', 'invited_at',
                'call_no_show', 'won_value', 'offer_id', 'first_client_message_at', 'room_reply_metrics',
                'call_scheduled_at', 'call_ended_at', 'call_duration_s', 'call_session_id', 'call_sessions',
-               'call_outcome', 'proposal_required', 'application_modality', 'application_sent_verified', 'submission_bid'}
+               'call_outcome', 'proposal_required', 'application_modality', 'application_sent_verified', 'submission_bid',
+               'invited_at_source', 'proposal_status', 'proposal_cost', 'proposal_viewed', 'proposal_insights',
+               'call_requested_at', 'call_request', 'recap_state', 'recap_reason'}
     if not isinstance(value, dict) or not value or set(value) - allowed:
         abort('metadata needs only ' + ', '.join(sorted(allowed)) + '.')
     for key, item in value.items():
         if key == 'source':
             if item not in LEAD_SOURCES:
                 abort('source needs outbound, invite, direct_offer or unknown.')
+        elif key == 'invited_at_source':
+            if item not in ('room', 'sync'):
+                abort('invited_at_source needs room or sync.')
+        elif key == 'proposal_viewed':
+            if (not isinstance(item, dict) or set(item) != {'value', 'observed_at', 'source'}
+                    or not isinstance(item.get('value'), bool) or item.get('source') != 'upwork-proposal'):
+                abort('proposal_viewed needs boolean value, observed_at and source upwork-proposal.')
+            item['observed_at'] = verified_timestamp(item['observed_at'])
+        elif key == 'proposal_insights':
+            if (not isinstance(item, dict) or set(item) != {'data', 'fetched_at', 'source'}
+                    or not isinstance(item.get('data'), dict) or item.get('source') != 'upwork-proposal'):
+                abort('proposal_insights needs data object, fetched_at and source upwork-proposal.')
+            item['fetched_at'] = verified_timestamp(item['fetched_at'])
+        elif key == 'proposal_cost':
+            if (not isinstance(item, dict) or set(item) - {'connectsBid', 'boosted', 'observed_at', 'source'}
+                    or not {'observed_at', 'source'} <= set(item) or item['source'] != 'upwork-proposal'
+                    or ('connectsBid' in item and (numeric(item['connectsBid']) is None
+                        or not isinstance(item['connectsBid'], (int, float))))
+                    or ('boosted' in item and not isinstance(item['boosted'], bool))):
+                abort('proposal_cost needs observed_at, source upwork-proposal, numeric connectsBid and/or boolean boosted.')
+            item['observed_at'] = verified_timestamp(item['observed_at'])
+        elif key == 'call_request':
+            if (not isinstance(item, dict) or set(item) - {'request_id', 'session_id', 'room_id', 'status', 'scheduled_at', 'duration_s', 'source', 'observed_at', 'requested_at_source'}
+                    or item.get('source') != 'upwork-meeting' or not isinstance(item.get('status'), str)):
+                abort('call_request needs request metadata with source upwork-meeting and status.')
+            item['observed_at'] = verified_timestamp(item.get('observed_at'))
+            if 'requested_at_source' in item and item['requested_at_source'] not in ('upwork', 'sync'):
+                abort('call_request.requested_at_source needs upwork or sync.')
+            if 'scheduled_at' in item:
+                try:
+                    stamp = datetime.datetime.fromisoformat(str(item['scheduled_at']).replace('Z', '+00:00'))
+                    if stamp.tzinfo is None:
+                        raise ValueError
+                    item['scheduled_at'] = stamp.astimezone(datetime.timezone.utc).isoformat()
+                except ValueError:
+                    abort('call_request.scheduled_at needs a zoned start.')
+            if 'duration_s' in item and numeric(item['duration_s']) is None:
+                abort('call_request.duration_s needs non-negative finite seconds.')
+        elif key == 'recap_state':
+            if item not in ('ok', 'empty', 'unknown'):
+                abort('recap_state needs ok, empty or unknown.')
+        elif key == 'recap_reason':
+            if item is not None and not isinstance(item, str):
+                abort('recap_reason needs text or null.')
         elif key == 'call_no_show':
             if not isinstance(item, bool):
                 abort('call_no_show needs a member-confirmed boolean.')
@@ -760,12 +833,21 @@ def cmd_record(args):
         abort('client_slug needs a lowercase folder name.')
     jobs = load()
     job = find(jobs, args.job_id)
+    if ('invited_at' in value and job.get('invited_at_source') == 'room'
+            and value.get('invited_at_source') != 'room'):
+        value.pop('invited_at', None)
+        value.pop('invited_at_source', None)
+    elif ('invited_at' in value and value.get('invited_at_source') in ('room', 'sync')
+            and value.get('invited_at_source') == job.get('invited_at_source')):
+        prior = parse_verified_timestamp(job.get('invited_at'))
+        if prior:
+            value['invited_at'] = min(value['invited_at'], prior)
     changed = False
     for key, item in value.items():
         if key == 'follow_up_source' and item is None:
             changed = key in job or changed
             job.pop(key, None)
-        elif (key not in ('submission_checked_at', 'result_recorded_at') or not job.get(key)) and job.get(key) != item:
+        elif (key not in ('submission_checked_at', 'result_recorded_at', 'proposal_insights') or not job.get(key)) and job.get(key) != item:
             job[key] = item
             if key == 'call_no_show' and job.get('call_session_id'):
                 session = job.setdefault('call_sessions', {}).setdefault(job['call_session_id'], {})
@@ -986,12 +1068,23 @@ def verified_timestamp(value):
     return stamp
 
 
+def freeze_speed_to_lead(job):
+    """Refresh exact seconds from source times; keep the scalar after pruning."""
+    posted = parse_verified_timestamp(job.get('posted_date'))
+    applied = parse_verified_timestamp(job.get('applied_at'))
+    if posted and applied:
+        lag = (datetime.datetime.fromisoformat(applied)
+               - datetime.datetime.fromisoformat(posted)).total_seconds()
+        if lag >= 0:
+            job['speed_to_lead_s'] = int(lag)
+
+
 def cmd_observe(args):
     """Record an observed event without changing stage or history."""
     if args.event == 'call':
         args.event = 'call_held'
     expected_sources = {'applied': ('upwork-proposal',), 'replied': ('upwork-thread',),
-                        'proposal_sent': ('member',), 'opened': ('pitch-click',),
+                        'proposal_sent': ('member',), 'proposal_viewed': ('upwork-proposal',), 'opened': ('pitch-click',),
                         'pitch_opened': ('pitch-click',), 'call_booked': ('member', 'upwork-thread', 'upwork-meeting'),
                         'call_held': ('recorder', 'member', 'upwork-meeting'),
                         'offered': ('upwork-offer', 'member'), 'won': ('upwork-contract', 'member')}
@@ -1030,6 +1123,7 @@ def cmd_observe(args):
         'verified': True,
         'observed_at': now_iso(),
         **({'kind': 'booking-confirmed'} if args.event == 'call_booked' else {}),
+        **({'kind': 'flag-observed', 'event_time_known': False} if args.event == 'proposal_viewed' else {}),
     }
     if args.event == 'call_held':
         job['call_no_show'] = False
@@ -1044,14 +1138,7 @@ def cmd_observe(args):
     if args.event == 'applied':
         freeze_application_facts(job)
         job.pop('application_date_unknown', None)
-        # posted_date is Upwork content and prune deletes it after 24 hours, so the
-        # one number it is for is worked out here, while it is still there.
-        posted = parse_verified_timestamp(job.get('posted_date'))
-        if posted:
-            lag = (datetime.datetime.fromisoformat(event_at)
-                   - datetime.datetime.fromisoformat(posted)).total_seconds()
-            if lag >= 0:
-                job['speed_to_lead_s'] = int(lag)
+        freeze_speed_to_lead(job)
     save(jobs)
     print(f'{args.job_id}: verified {args.event} time recorded.')
 
@@ -1476,7 +1563,7 @@ def build_parser():
 
     p = sub.add_parser('observe', help='Record a verified Upwork event time without moving the job.')
     p.add_argument('job_id')
-    p.add_argument('event', choices=('applied', 'replied', 'proposal_sent', 'opened', 'pitch_opened', 'call', 'call_booked', 'call_held', 'offered', 'won'))
+    p.add_argument('event', choices=('applied', 'replied', 'proposal_sent', 'proposal_viewed', 'opened', 'pitch_opened', 'call', 'call_booked', 'call_held', 'offered', 'won'))
     p.add_argument('timestamp')
     p.add_argument('--source', choices=('upwork-proposal', 'upwork-thread', 'upwork-meeting', 'member', 'pitch-click', 'recorder', 'upwork-offer', 'upwork-contract'))
     p.add_argument('--verified', action='store_true')
@@ -1582,6 +1669,7 @@ def build_parser():
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
+    writes_before = _jobs_writes
     def execute():
         if getattr(args, 'job_id', None):
             aliases = {alias: job['id'] for job in load() for alias in job.get('aliases', [])}
@@ -1592,6 +1680,10 @@ def main(argv=None):
     else:
         with transaction():
             execute()
+        if _jobs_writes > writes_before and (
+                args.cmd == 'observe' or (args.cmd == 'set' and args.status == 'applied')
+                or (args.cmd == 'follow-up' and args.action == 'sent')):
+            check_badges(args.job_id)
     return 0
 
 

@@ -34,9 +34,12 @@ Use `list_accounts` for the `org_uid` once. Then, all read only:
 2. Page only to backfill missing `proposal_id`. Use `list_freelancer_proposals`
    action `list`, sorted by `MODIFIEDDATETIME` descending, and its documented pagination.
    Stop when every missing active lead is matched or pages run out; with no missing IDs,
-   skip the list. On the first sync (`data/sync.json` absent), read one page to import account history.
-The status filter is unreliable: classify each returned status.
-   An empty response proves nothing; try one other documented status if needed and report uncertainty.
+   skip the list. On the first sync, or first analytics backfill, read the tool's documented
+   status enum and page **every status** independently until exhausted (including Archived,
+   not just Accepted/default). Never stop this history backfill when active IDs match.
+   The filter is unreliable: deduplicate by proposal ID across pages/statuses, prefer the
+   newest modified copy, and classify each record's own status. Archived alone proves no loss.
+   Empty status pages do not prove empty history; disclose any limit or incomplete status.
    Match by job id, keep `proposal_id` and creation time as `applied_at`. Use `get_room`
    for every selected lead with a proposal id but no stored room, including previously matched leads. Persist both IDs through
    `python3 code/pipeline.py record <id> --file -` for known leads; new ones go in the snapshot.
@@ -45,7 +48,9 @@ The status filter is unreliable: classify each returned status.
 3. Without an id, read `list_offers` action `list_mine` and `list_contracts` action
    `search` with `contract_statuses` `ACTIVE`, one page each. Keep their stable IDs and client names.
    Read invitations as the connector exposes them; keep job/invitation/room IDs and
-   `invited_at`. Mark offers `source: invite|direct_offer` only with evidence.
+   invitation metadata. `invited_at` comes from the verified first client message in a
+   complete room, otherwise this sync's observation time, with `invited_at_source: room|sync`.
+   Later complete room evidence replaces a sync fallback. Mark offers `source: invite|direct_offer` only with evidence.
    For selected contracts missing saved terms, `list_contracts action=get`: fixed
    `terms.fixedPriceTerms[].fixedAmount`, or returned hourly terms; keep type, amount,
    currency and start date. Read weekly `get_freelancer_financials action=summary`
@@ -61,8 +66,16 @@ The status filter is unreliable: classify each returned status.
    `manage_meetings action=list` and `action=list_recaps`, reusing fresh local evidence first.
    State the planned call budget, follow `references/upwork.md` pacing, and stop once covered.
    These are read actions only. Preserve meeting start as `scheduled_at`; `booked_at`
-   is the verified booking agreement time, omitted when unknown. From recaps keep
+   is the verified booking agreement time, omitted when unknown. Explicit request/pending
+   cards stay “call asked”: keep status, request/session/room IDs, created time as
+   `requested_at`, proposed start and duration; omit booked/held evidence for requests.
+   When creation time is absent, sync keeps the first observation as `call_requested_at`
+   and marks `call_request.requested_at_source: sync` (`upwork` for verified creation).
+   Keep actual booked sessions and reschedules separate from pending requests. From recaps keep
    `session_id`, `held_at` and `duration_s`. A missing recap alone does not establish a no-show.
+   A recap read error is nonfatal: add `recaps: [{job_id, room_id, recap_state:"unknown",
+   recap_reason:"<verbatim error>"}]`; verified empty reads use `empty`, successful reads `ok`.
+   Preserve prior held/no-show evidence and continue with the named coverage gap.
 
 ## Step 2 · Apply it
 
@@ -76,13 +89,29 @@ with `job_id`, `room_id`, `awaiting_reply_from`, `messages_complete` and the mes
 Add `invitations`, contract `terms: {type, fixed_amount|hourly_rate, weekly_hours, currency, start_date}`
 (`weekly_hours` only when agreed; a rate alone has unknown contract value),
 `earnings: [{week_start, contract_id, billed, currency}]` and
-`connects: [{at, amount, reason, job_id}]` as returned. Connects map
+`connects: [{at, amount, reason, job_id}]` as returned. Include **all negative ledger spends**,
+including invitation badges; receipts stay positive. Proposal `terms.connectsBid` and
+`boosted` are cost evidence only, never additional ledger transactions. Connects map
 `createdDateTime`, `amount.rawValue`, verbatim `reason` and `jobPost`'s ID only;
 financial records keep numbers and identifiers, no job/client text.
-Add `meetings: [{job_id, room_id, booked_at, scheduled_at, session_id, held_at, duration_s}]`
-from the selected rooms. Sync observes booked and held times with source `upwork-meeting`.
+Keep proposals' `viewedByClient` boolean, `terms.connectsBid` and `boosted` when returned.
+Sync stores `proposal_viewed: {value, observed_at, source:"upwork-proposal"}`; true observes
+`proposal_viewed` at observation time, verified, with `event_time_known:false`. Never call it the actual view time.
+For a submitted proposal lacking saved insights, read `list_freelancer_proposals action=get`
+once by proposal ID. Persist its insights through `pipeline.py record` as
+`proposal_insights: {data:<returned object>, fetched_at:<zoned observation time>, source:"upwork-proposal"}`.
+Reuse that saved object on later runs; failed reads remain a gap. Never rewrite frozen application facts.
+Add `meetings: [{job_id, room_id, status, requested_at, request_id, booked_at, scheduled_at,
+session_id, held_at, duration_s}]` and `recaps` from the selected rooms. Sync observes actual
+booked and held times with source `upwork-meeting`; request/pending status overrides booking-shaped fields.
 
 `python3 code/sync.py apply --file -`
+
+Before applying, retain the prior successful `synced_at` (or this observation's start).
+Print every instant award line returned by sync/pipeline verbatim, exactly once:
+`Badge name · Bronze|Silver|Gold|Platinum|Legend: reason`. Badge stderr is a named
+badge-check gap, never a failed data write. Summarise awards in `data/badges.jsonl`
+since that retained timestamp in the brief; do not repeat lines already printed this run.
 
 A nonzero result leaves the refresh failed: report its mutation errors and retain
 the previous successful timestamp; never claim fresh coverage from a partial write.
@@ -133,7 +162,9 @@ Name the moment, because it decides the next command:
   only on member confirmation record `{"call_no_show":true}` through `pipeline.py record`;
   a later held session clears the current no-show flag.
 - **Nothing was scheduled and the client owes an answer:** sync plans the `silent` lane on business days 3 and 7 after the unanswered message, then stops. Use `--follow-up` only for a date the conversation gives, such as "call me after the 12th".
-- **A call is requested:** the drafts confirm a time on Upwork.
+- **A call is requested:** keep the lead in its current stage, persist `call_requested_at`
+  and `call_request` from sync, and draft a time confirmation on Upwork. A pending
+  request never observes `call_booked` or moves the stage to call.
 - **An offer arrived:** the drafts answer open questions only; the member reviews the offer terms on Upwork. **Read `jobs/<id>/proposal.md` when it exists**; a draft must not contradict the scope, price and milestones already sent.
 - **An applied lead older than three days has no `proposal_id` and no `submission_checked_at`:** record `submission_checked_at` with the current ISO time through `pipeline.py record`, then ask once, as a single choice, whether it was submitted. On a no, run `python3 code/pipeline.py set <id> skipped --note "never submitted"`.
 - **The client named a result or left a review:** this is the only place where
@@ -182,6 +213,17 @@ week later nobody can say which version went out. Then
 `python3 code/pipeline.py acted <id> --note "Message sent on Upwork"`, and
 `python3 code/pipeline.py follow-up <job id> sent` when it was a follow-up, because the
 sequence advances on arrival, never on the draft.
+
+
+For weekly quest proof, read the latest agreed goals in `goals.jsonl` and the exact
+stable 20-hex `goal_id` from cockpit state quests or analytics latest quests; never
+reconstruct or guess it from KPI/week. Record a matching action only when observed
+in a saved thread/submitted copy or exact member-confirmed evidence, through:
+`python3 code/pipeline.py note <id> 'analytics goal_action: {"goal_id":"<exact quest goal_id>","kpi":"<key>","at":"<zoned ISO time>","evidence":"<source or verbatim action proof>"}'`.
+Evidence includes the saved thread message ID/date/excerpt, or verified submitted
+copy and confirmation time. Keep the complete note ≤1000 characters. Never infer
+completion from a successful outcome, generic status or unsupported self-report;
+absent action proof stays unverified. Do not write jobs directly.
 
 **On "send nothing", a dismissed question or silence**, the draft stays in `jobs/<id>/replies.json` and the member handles
 it on Upwork. That is a normal outcome, not a failure, and it is never asked twice.

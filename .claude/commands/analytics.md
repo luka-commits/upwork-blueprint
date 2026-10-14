@@ -27,7 +27,10 @@ Use saved state when fresh; count every Upwork call.
 
 **First analytics run:** backfill what the connector can actually enumerate: proposals,
 invitations, contracts with values and start dates, Connects transactions and weekly
-earnings. Follow the documented pagination, stop when history is exhausted or the
+earnings. For proposals, read the connector's documented status enum and page **every
+status**, including Archived, independently to exhaustion; Accepted/default is insufficient.
+Deduplicate proposal IDs across status pages, prefer the newest modified copy, and classify
+the returned proposal's own status, never the requested filter. Follow the documented pagination, stop when history is exhausted or the
 connector's limit is reached, and name the uncovered period. On first sync, proposals
 created by `sync.py` are imported; unmatched offers and contracts are imported too.
 For absent historical leads, use `pipeline.py add --file -` with `imported: true` and
@@ -38,6 +41,14 @@ Imported leads feed won value and baselines only, never rate cohorts or weekly a
 Pass earnings and Connects to `sync.py apply --file -` in its documented number-and-ID
 shapes. An omitted/unreachable source is missing. A verified checked-empty result is an
 explicit empty list; sync records it as empty, with checked coverage.
+Retain `viewedByClient` as a boolean observation with observation time/source; true
+observes `proposal_viewed` verified from `upwork-proposal`, never the actual view time.
+Fetch each submitted proposal's insights once by proposal ID through the read-only `get`
+action and persist /brief's `proposal_insights` envelope; never rewrite application facts.
+Retain proposal connectsBid/boosted evidence separately. Efficiency uses every negative
+financial ledger spend, including invitation badges, without adding proposal costs again.
+Invitation dates use a complete room's first verified client message or sync observation
+fallback with `invited_at_source: room|sync`; later room evidence replaces the fallback.
 
 Check `yt-dlp`, `whisper-cli` and `code/loom.py`'s `find_model()`. If absent, show the
 applicable install line: `brew install yt-dlp whisper.cpp`; for the model use
@@ -59,6 +70,10 @@ use notes. Preserve known `Call at:`, `Duration:` and `Member:` headers. Without
 speaker labels a call is **not reviewable**; never invent them. Run `call_stats.py`
 for each call with `--source upwork-meeting|recorder|member` matching its evidence.
 A recap proves held; missing recaps alone never prove no-show.
+Recap read errors persist as `recap_state: unknown` with `recap_reason` on the lead and
+in sync coverage; continue, naming the gap. Request/pending meetings persist as “call
+asked” metadata, never a booked observation or call-stage move. Preserve actual sessions/reschedules.
+Print instant award lines returned by pipeline/sync verbatim, once; badge failure cannot fail a data write.
 
 Check one existing registered tracking link with `?check=1` and its redirect; require
 `X-Tracking-Status: check: not logged`, then `python3 code/clicks.py`. The test must
@@ -109,7 +124,9 @@ specifically; bid fits scope; under about 150 words; one easy closing question; 
 if present, names the problem within fifteen seconds and ends with one ask. Prioritise consequential eligibility blockers, then recurring defects. Repair the
 actual artifact that failed: screening answer, proof, bid/scope, opener or video close;
 never rewrite an opener for an unrelated defect. Treat missing sent copy as missing evidence, not a failed application.
-Pass `reviews.application.rubric` in the same per-lead shape as the call rubric below.
+Pass `reviews.application.rubric` as `[{lead_id, reviewable, points:[{point,state}]}]`.
+Keep supporting application quotes in the private report or local sent evidence;
+Application points do not accept `quote`; omit optional call-card fields here.
 For text, points 1–6 follow the six application checks above; point 7 is Loom only
 when used. For Uma, points 1–3 mean requested questions covered, submitted answers
 are relevant and evidenced, and the submitted video meets the requested format.
@@ -145,11 +162,16 @@ true only for an agreed proposal obligation. A clean “not a fit” is a disqua
 never a bad call; it and proposal-free offers/contracts leave proposal denominators. Choose the weekly fix
 from the recent calls' pattern in priority 3, 5, 9, then the rest; give one sentence
 to say next time. Pass `reviews.call.rubric` as one object per call:
-`{"lead_id":"<id>","reviewable":true,"points":[{"point":1,"state":"met"}, ...]}`,
-with all nine numbered points. For an unreviewable call set `reviewable: false`
-and `points: []`. Code computes per-point coverage and its weekly history.
+`{"lead_id":"<id>","reviewable":true,"points":[{"point":1,"state":"met","quote":"<verbatim local call.md excerpt>"}, ...],"moments":[{"quote":"<verbatim local call.md excerpt>","better_wording":"<better member wording>"}],"next_step":"<owner, time and client's agreement>","fix":"<one fix>","example":"<member wording>"}`.
+Include all nine numbered points; `quote` is optional when no supporting local
+excerpt exists. Never fabricate missing quotes. Store verified per-point quotes in
+the private rubric; include at most three moments with exactly `quote` and
+`better_wording`. `next_step` is a string containing owner, time and client agreement,
+or null when absent; `fix` and `example` are strings. For an unreviewable call set
+`reviewable: false` and `points: []`. Derive private `call_cards`, per-point coverage
+and weekly history through compute; never hand-write derived metrics or cards.
 Talk share and question count remain context, never the verdict.
-Keep supporting client quotations in the conversation and lead files only.
+Private rubric/card quotes must be verbatim `jobs/<id>/call.md` excerpts and never enter the public card.
 
 **Lost leads:** distinguish `stated | observed | unknown`; do not turn a guess into the
 client's reason. Use `pipeline.py note <id> 'analytics lost_reason: {"kind":"stated","reason":"..."}'`.
@@ -176,19 +198,21 @@ or state by hand. Omit live judgments for sources whose computed coverage is cor
 
 ## Step 4 · Report in chat
 
-Write a short conversational markdown summary, at most about 25 lines, along four beats:
-1. What happened: last week's commitments, execution and effect separately; any new badge tier.
-2. Where you stand: “This week's focus”, one number against its target, own benchmark
-   and earlier undecided stages. Name the periods; new contract value won is the
-   north star, billed earnings are separate and unknown terms stay unknown.
-3. Why: one insight with a clickable link to its evidence; one coaching example when useful.
-   New segment findings remain “Nothing new this week” until package 4.
-4. What now: the one action and urgent to-dos, then one to three goals for different stages.
-Follow with suggested questions the evidence can answer. No charts or wall of tables.
+Follow `outputs/chat-report-example.md` and frozen spec §13: about 280 words, summary
+paragraph (three sentences, each ≤18 words), top / middle / bottom of funnel with only
+what stood out and the leak in its section, last week's goals, this week, new badge,
+three questions. Group selection/volume/application/speed at top, reply/conversation/
+booked and held calls/first reply/follow-ups in middle, proposal/close/won value at bottom.
+Name periods and k of n. New contract value won is the north star; billed earnings
+stay separate and missing terms unknown. No charts, wall of tables or statistics jargon.
+Weekly compute checks Silver–Legend and outcome badge tiers using the reviewed evidence;
+record persists newly earned awards. Include a newly earned award once, using returned
+award wording verbatim; never repeat an instant line already printed in this run or
+present an old earned tier as newly awarded. Badge failure leaves a named gap, not a failed data write.
 
 Answer first, mention each stage once, retain only what serves the verdict. Counts
 are “k of n”, never a bare percentage; money and time retain their units. Use “not
-decidable yet” and “too few cases”, never statistics jargon. State the computed extra
+clear yet” and “too few cases”, never statistics jargon. State the computed extra
 cases needed when a rate is undecided. Quote evidence in follow-ups and name its lead ID.
 
 ## Step 5 · Agree and put the goals into practice
@@ -219,25 +243,25 @@ segment `findings: []` until package 4; any carried finding needs `kpi` or `stag
 all numeric fields, including `periods`, `coverage`, pipeline counts/value/age/stalls,
 `north_star` wins/fixed/hourly, baselines, deltas, histories and bypass counts.
 
-Keep the validated snapshot shape exactly. Store IDs and anonymous one-line reasons, no
-client names, post text or client quotations anywhere. The sole exception is
-`reviews.*.example`, which contains only the member's own wording. Scrub the saved
-report, goals, verdict and fixes too; an example spoken by a client never qualifies.
+Keep the validated snapshot shape exactly and link supporting quotations to their
+lead evidence. Coaching examples contain the member's wording. Apply the public
+card's strict allowlist below; do not introduce another local privacy/retention gate.
 External benchmarks, if used as orientation for thin history, stay in references
 and only enter a KPI's evidence details as `external_reference` with value,
 population, definition, source and date. A `market_line` (at most 8 words, including
 the source name) may summarise only that verified reference, never become a target tick.
 
-Use only code-approved fixed labels for `community_card.next_focus` and
-`community_card.question` (at most 14 words). The public payload accepts only
+Use a code-approved fixed label for `community_card.next_focus`. The public payload accepts only
 allowlisted aggregates, fixed labels, the member's own name, library/member-authored
 goal texts and badge names; never client names, job titles, client text or snapshot
-embeds. Record refuses unapproved public fields and wording.
-Preserve the card's default targets: reply 20%, reply → call 50%, call → won 30%, first
-reply median 5 min, regardless of `## Bars`. Applications show this week; rates and
-first reply show their computed 28-day entry periods with each KPI’s declared
-maturity horizon, route and k/n. Peer rates do not adjust for job mix or price. Preserve
-retain rung reached, step count, own previous-four-week trend, last week's applicable goals
+embeds. Frozen §13 permits generated question/biggest-improvement reason only at ≤14 words
+and after the automatic check against all known lead titles/client names; otherwise
+drop the field. Record refuses other unapproved public fields and wording.
+Frozen §13.3 uses one common 28-day community window for rates and first reply;
+label weekly applications separately. Show route and k/n, rung reached, step count
+and progress against the member's own baseline; no target pass/fail flags, default
+target ticks or external target ticks. Peer rates do not adjust for job mix or price.
+Money appears only when `Share money: yes`. Retain last week's applicable goals
 with done marks, newly earned badge and at most five highest badge tiers.
 
 Re-run `python3 code/analytics.py compute --file -` with the completed object after

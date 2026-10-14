@@ -17,6 +17,58 @@ function syncText(syncedAt?: string) {
   return { text, stale: minutes > 1440 };
 }
 
+function savedQuestPeriod(period: unknown) {
+  if (typeof period === 'string') return period;
+  if (!period || typeof period !== 'object') return null;
+  const { start, end } = period as { start?: unknown; end?: unknown };
+  if (typeof start === 'string' && typeof end === 'string') return `${start} – ${end}`;
+  if (typeof start === 'string') return `From ${start}`;
+  if (typeof end === 'string') return `Through ${end}`;
+  return null;
+}
+
+function DailyVoyage({ state }: { state: State | null }) {
+  const voyage = state?.daily_voyage;
+  const quests = Array.isArray(state?.quests) ? state.quests : [];
+  const reviewDue = state?.analytics_due === true;
+  if (!voyage && !quests.length && !reviewDue) return null;
+
+  return <section className="voyage-header" aria-label="Today's voyage">
+    {voyage ? <ol className="voyage-quests" aria-label="Today's progress">
+      <li className="voyage-quest">
+        <span className="voyage-quest-label">Qualified applications</span>
+        <strong className="voyage-quest-count" aria-label={`${voyage.applications ?? 'Not measured'} of ${voyage.goal ?? 'no set target'} qualified applications today`}>
+          {voyage.applications ?? '—'}<small> / {voyage.goal ?? '—'}</small>
+        </strong>
+      </li>
+      <li className="voyage-quest">
+        <span className="voyage-quest-label">Within ten minutes</span>
+        <strong className="voyage-quest-count" aria-label={`${voyage.fast_applications ?? 'Not measured'} qualified applications within ten minutes today`}>
+          {voyage.fast_applications ?? '—'}
+        </strong>
+      </li>
+      <li className="voyage-quest">
+        <span className="voyage-quest-label">Follow-ups completed</span>
+        <strong className="voyage-quest-count" aria-label={`${voyage.follow_ups_done ?? 'Not measured'} of ${voyage.follow_ups_due ?? 'unmeasured'} follow-ups due today completed`}>
+          {voyage.follow_ups_done ?? '—'}<small> / {voyage.follow_ups_due ?? '—'}</small>
+        </strong>
+      </li>
+    </ol> : null}
+    {quests.length ? <ul className="voyage-weekly-goals" aria-label="Agreed goals · saved progress">
+      {quests.map((quest: { text?: string; k?: number | null; n?: number | null; primary?: boolean; period?: unknown }, index: number) =>
+        <li key={`${quest.text || 'goal'}-${index}`}>
+          <span>{quest.primary ? <small>Focus goal · </small> : null}{quest.text || 'Agreed weekly goal'}
+            <small className="voyage-quest-period">Saved progress{savedQuestPeriod(quest.period) ? ` · ${savedQuestPeriod(quest.period)}` : ' · period not recorded'}</small>
+          </span>
+          <strong aria-label={`${quest.k ?? 'Not measured'} of ${quest.n ?? 'unmeasured'} opportunities completed`}>
+            {quest.n === 0 ? 'No opportunities' : quest.k == null ? 'Not reviewed' : quest.n == null ? 'Progress not measured' : <>{quest.k}<small> / {quest.n}</small></>}
+          </strong>
+        </li>)}
+    </ul> : null}
+    {reviewDue ? <Link className="voyage-review-link" href="/analytics">Weekly review due<span aria-hidden="true"> →</span></Link> : null}
+  </section>;
+}
+
 export function CockpitProvider({ token, children }: { token: string; children: ReactNode }) {
   const pathname = usePathname();
   const [state, setState] = useState<State | null>(null);
@@ -99,7 +151,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
             <Link href="/analytics" aria-current={pathname === '/analytics' ? 'page' : undefined}>Analytics</Link>
           </nav>
           {tracker.goal ? <div className="top-progress">
-            <span>Applications today</span>
+            <span>All applications today</span>
             <strong aria-label={`${tracker.done} of ${tracker.goal} applications today`}>{tracker.done}<small>/ {tracker.goal}</small></strong>
             <i role="progressbar" aria-label="Daily application target" aria-valuemin={0} aria-valuemax={tracker.goal}
               aria-valuenow={Math.min(tracker.goal, tracker.done)}><span style={{ width: `${Math.min(100, 100 * tracker.done / tracker.goal)}%` }} /></i>
@@ -108,6 +160,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
             <span className={`stamp sync-stamp${sync.stale ? ' stale' : ''}`}>{sync.text}</span>
           </div>
         </div>
+        <DailyVoyage state={state} />
       </header>
       <main className="wrap list-wrap" ref={pageRef}>
         {connectionLost ? <div className="empty-state" role="alert"><strong>Connection lost</strong><p>{CONNECTION_LOST}</p><button onClick={() => void load()}>Try again</button></div>

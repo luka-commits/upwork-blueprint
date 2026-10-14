@@ -10,6 +10,7 @@ import { parseApplication } from '@/lib/application-review.mjs';
 import { plainText } from '@/lib/plain-text.mjs';
 import { artifactUrl, artifactVersion, useArtifactText } from '@/lib/artifact-content.mjs';
 import CopyButton from './CopyButton';
+import { CallCard } from './AnalyticsPage';
 import './drawer.css';
 
 // Shown in their own sections; every other file is a plain link.
@@ -69,6 +70,8 @@ export default function Drawer() {
             <CopyButton key={command} compact text={command} label={command.split(' ')[0]} />)}</p> : null}
         </section> : null}
         <Conversation job={job} />
+        <ProposalContext job={job} />
+        {Array.isArray(job.call_cards) && job.call_cards.length > 0 ? <section className="drawer-section" aria-label="Saved call reviews"><h4>Saved call reviews</h4>{job.call_cards.map((card: any, index: number) => <CallCard key={index} card={card} />)}</section> : null}
         <TheJob job={job} />
         <WorthIt job={job} />
         <Pitch job={job} />
@@ -79,6 +82,27 @@ export default function Drawer() {
       </> : <p className="empty">Loading job.</p>}</div>
     </> : null}
   </aside>;
+}
+
+function SavedContext({ value }: { value: any }) {
+  if (value == null) return <>Unknown</>;
+  if (Array.isArray(value)) return <ul>{value.map((item, index) => <li key={index}><SavedContext value={item} /></li>)}</ul>;
+  if (typeof value === 'object') return <dl>{Object.entries(value).map(([key, item]) => <div key={key}><dt>{key.replace(/_/g, ' ')}</dt><dd><SavedContext value={item} /></dd></div>)}</dl>;
+  return <>{typeof value === 'boolean' ? value ? 'Yes' : 'No' : String(value)}</>;
+}
+
+function ProposalContext({ job }: { job: any }) {
+  const context = job.lead_context || {}, viewed = context.proposal_viewed ?? job.proposal_viewed;
+  const insights = context.proposal_insights ?? job.proposal_insights;
+  if (viewed == null && insights == null && !context.week) return null;
+  const flag = typeof viewed === 'object' ? viewed?.value : viewed;
+  return <section className="drawer-section" aria-label="Proposal observation context">
+    <h4>Proposal observation context</h4>
+    <p>Viewed flag: {flag === true ? 'Observed viewed' : flag === false ? 'Observed not viewed' : 'Unknown · no observation saved'}</p>
+    {viewed?.observed_at || context.proposal_viewed_at ? <p>Observed at {viewed?.observed_at || context.proposal_viewed_at}. This is an observation time; the actual view time is unknown.</p> : null}
+    <p>This context is separate from performance KPIs.</p>
+    {insights ? <><h5>Post-submission proposal insights</h5><SavedContext value={insights.data ?? insights} />{insights.fetched_at ? <p>Read at {insights.fetched_at} · {insights.source || 'Source not recorded'}</p> : null}</> : <p>Post-submission proposal insights were not saved.</p>}
+  </section>;
 }
 
 /** What the client asked for. Kept short on purpose (27.09.2026).

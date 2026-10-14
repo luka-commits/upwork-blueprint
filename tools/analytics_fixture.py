@@ -64,7 +64,17 @@ def seed(rows):
 
 
 def state():
-    return json.loads(run('cockpit.py', 'state').stdout)
+    # Frozen snapshot-only cockpit: retain every legacy numeric proof through pure
+    # helpers in this fixture adapter, and prove the real CLI omits live analytics.
+    import cockpit
+    actual = json.loads(run('cockpit.py', 'state').stdout)
+    legacy = {'funnel', 'outreach', 'consistency', 'profile', 'timings', 'bottleneck'}
+    assert not legacy.intersection(actual), actual.keys()
+    jobs = list(records().values())
+    daily, profile, timing = cockpit.consistency(jobs), cockpit.profile_history(), cockpit.timings(jobs)
+    return dict(actual, funnel=cockpit.funnel(jobs), outreach=cockpit.outreach(jobs),
+                consistency=daily, profile=profile, timings=timing,
+                bottleneck=cockpit.bottleneck(jobs, daily, profile, timing))
 
 
 def records():
@@ -696,9 +706,10 @@ def review_proofs():
     application = (CODE / 'application_check.py').read_text()
     assert application.index('import pipeline') < application.index('def ')
     analytics = (ROOT / 'website/components/AnalyticsPage.tsx').read_text()
-    assert 'No applications yet. The funnel fills as /brief records them.' in analytics
-    assert "counts.applied >= MIN_RATE" in analytics and 'overall win rate' in analytics
-    assert "observed (call history)" in analytics
+    # Frozen UI now reads saved focus, k/n and uncertainty; legacy49/50 pure proofs remain.
+    assert 'No weekly snapshot yet.' in analytics
+    assert 'presentation.kpi_groups' in analytics and 'snapshot.verdict' in analytics
+    assert 'value.metric.low' in analytics and 'value.metric.high' in analytics
     print('SYNTHETIC fixes 7/10 PASS: recorder transcript/fallback in sales command, hook writer, import cleanup, existing UI contracts; legacy command/reference budgets retained (analytics goal-library excluded); authorized analytics reminder/settings/files verified')
 
 
@@ -782,6 +793,9 @@ def rendered_ui():
         return
     with fixture('rendered-ui'):
         s = dashboard_fixture()
+        import analytics
+        analytics_sync_marker(pathlib.Path(os.environ['BLUEPRINT_DATA']).parent)
+        snapshot = analytics.compute(ANALYTICS_TODAY, now='2026-10-14T15:00:00+02:00')
         js = r"""const assert=require('node:assert/strict');const fs=require('node:fs');
 const React=require('react');const {renderToStaticMarkup}=require('react-dom/server');
 const {transformSync}=require('next/dist/build/swc');
@@ -789,26 +803,43 @@ const {transformSync}=require('next/dist/build/swc');
 const {code}=transformSync(fs.readFileSync('components/AnalyticsPage.tsx','utf8'),{
 filename:'AnalyticsPage.tsx',swcrc:false,configFile:false,jsc:{parser:{syntax:'typescript',tsx:true},
 target:'es2020',transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}});
-let current;const mod={exports:{}};
+let current, selected=null, hook=0;const mod={exports:{}};
 new Function('require','module','exports',code)(name=>{
-if(name==='@/lib/context')return {useCockpit:()=>({state:current})};
-if(name==='@/lib/funnel.mjs')return funnel;return require(name);},mod,mod.exports);
-function render(state){current=state;return renderToStaticMarkup(React.createElement(mod.exports.default));}
-const populated=JSON.parse(process.argv[1]);const html=render(populated);
-assert(html.startsWith('<p class="funnel-headline" aria-label="Bottleneck">'));
-assert(html.indexOf('Bottleneck')<html.indexOf('Win the call'));
-assert.match(html,/<strong>Volume<\/strong>: 5 days against 10 days · n=14/);
-const deal=html.match(/<section[^>]*aria-label="Win the deal">([\s\S]*?)<\/section>/)[1];
-assert.match(deal,/66% overall win rate/);assert.match(html,/observed \(call history\)/);
-const empty=render({...populated,funnel:{},outreach:[],profile:{latest:null,history:[]},timings:{}});
-assert(empty.includes('No applications yet. The funnel fills as /brief records them.'));
-assert(!render({...populated,funnel:{applied:49,replied:20,call:15,proposal_sent:15,opened:12,won:10}}).includes('overall win rate'));
-assert(render({...populated,funnel:{applied:50,replied:20,call:15,proposal_sent:15,opened:12,won:20}}).includes('40% overall win rate'));
-const reasoned=render({...populated,bottleneck:{stage:'Speed',value:2.5,bar:2,n:100,reasoned:true,next_action:'Answer sooner.',unmeasured:['Loom']}});
-assert(reasoned.includes('reasoned bar'));assert(reasoned.includes('Not measured yet: Loom.'));
-console.log('SYNTHETIC rendered UI PASS: bottleneck first/value/bar/n/reasoned/unmeasured; empty state; win rate=66%, hidden at49, shown at50; observed call source');
+if(name==='@/lib/context')return {useCockpit:()=>({state:current,openDrawer:()=>{}})};
+if(name==='react')return {...React,useState:initial=>{const pair=React.useState(initial);hook++;return hook===4&&selected?[selected,pair[1]]:pair;}};
+return require(name);},mod,mod.exports);
+function render(state){current=state;hook=0;return renderToStaticMarkup(React.createElement(mod.exports.default));}
+const payload=JSON.parse(process.argv[1]);const populated=payload.legacy, snapshot=payload.snapshot;
+const modern={...populated,analytics:{latest:snapshot,history:[snapshot]}};
+const html=render(modern);assert(html.includes('This week’s focus'));
+assert(html.indexOf('This week’s focus')<html.indexOf('Your numbers'));
+assert(html.includes(snapshot.kpis[snapshot.verdict.kpi].label));
+assert(html.includes('Top of funnel')&&html.includes('Middle of funnel')&&html.includes('Bottom of funnel'));
+assert.match(html,/0 of 0/);assert(html.includes('Source missing')||html.includes('Not enough evidence'));
+const missing=render({...modern,analytics:{latest:null,history:[]}});
+assert(missing.includes('No weekly snapshot yet.'));
+const empty=render({...modern,analytics:{latest:{...snapshot,kpis:{},presentation:{},goals_next:[]},history:[]}});
+assert(!empty.includes('No weekly snapshot yet.'));assert(empty.includes('No saved outbound funnel yet.'));
+// Original49/50 and populated66% semantics stay proved against the pure legacy helper.
+assert.equal(funnel.funnelSteps(populated.funnel,funnel.PROPOSAL_STEPS).at(-1).overall,100);
+assert.equal(funnel.funnelSteps({applied:49,replied:20,call:15},funnel.APPLICATION_STEPS)[1].rate,null);
+assert.equal(funnel.funnelSteps({applied:50,replied:20,call:15},funnel.APPLICATION_STEPS)[1].rate,40);
+assert.equal(funnel.funnelSteps(populated.funnel,funnel.APPLICATION_STEPS).at(-1).overall,66);
+const samples=fs.readFileSync('../tools/sample-snapshots.jsonl','utf8').trim().split('\n').map(JSON.parse);
+assert.equal(samples.length,8);
+for(const example of samples){const rendered=render({...modern,analytics:{latest:example,history:samples}});
+assert(rendered.includes(example.week));assert(rendered.includes('Synthetic example'));
+assert(rendered.includes(example.kpis[example.verdict.kpi].label));}
+// Drawer SSR exercises saved uncertainty and source semantics without manufacturing KPIs.
+const detail={...snapshot,kpis:{...snapshot.kpis,reply_rate:{...snapshot.kpis.reply_rate,k:5,n:18,low:11.4,high:50.9,state:'undecided'}}};
+selected={title:'Reply uncertainty',metric:detail.kpis.reply_rate,evidence:[],note:'observed (call history)'};
+const uncertain=render({...modern,analytics:{latest:detail,history:[]}});
+assert(uncertain.includes('5 of 18'));assert(uncertain.includes('11.4–50.9%'));
+assert(uncertain.includes('Not enough evidence'));assert(uncertain.includes('observed (call history)'));selected=null;
+assert(populated.timings.call_to_proposal.values.some(row=>row.call_source==='observed'));
+console.log('SYNTHETIC rendered UI PASS: current saved focus first/k/n; missing vs empty snapshot; eight samples; legacy66% and49/50 pure helper; observed call source and Wilson uncertainty');
 })().catch(error=>{console.error(error);process.exitCode=1});"""
-        result = ORIGINAL_RUN(['node', '-e', js, json.dumps(s)], cwd=ROOT / 'website', capture_output=True, text=True)
+        result = ORIGINAL_RUN(['node', '-e', js, json.dumps({'legacy':s,'snapshot':snapshot})], cwd=ROOT / 'website', capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
         print(result.stdout.strip())
         print('audit engineer E20: rendered UI preflight PASS — executed using declared website dependencies')
@@ -1150,8 +1181,9 @@ def analytics_exact_interval(k, n):
 
 
 def analytics_rate_state(k, n, target):
-    low, high = analytics_exact_interval(k, n)
-    return 'undecided' if not n else 'pass' if n >= 20 and low >= target else 'fail' if high < target else 'undecided'
+    # Frozen final spec §3: Wilson decides performance; exact oracle remains for descriptive bounds.
+    low, high = analytics_interval(k, n)
+    return 'undecided' if not n else 'pass' if low >= target else 'fail' if high < target else 'undecided'
 
 
 def analytics_event(row, event):
@@ -1256,7 +1288,7 @@ def analytics_decisions():
         kpis['weekly_volume'].update(state='pass')
         result = analytics.verdict(kpis)
         assert result['state'] == 'none', result
-    print('SYNTHETIC A2 states PASS: independent Wilson endpoint and exact classification oracles; 5 of 18 vs 30% undecided; earlier unknowns, cold-start levers and no failure')
+    print('SYNTHETIC A2 states PASS: independent Wilson endpoint and performance classification oracles; 5 of 18 vs 30% undecided; earlier unknowns, cold-start levers and no failure')
 
 
 def analytics_boundaries():
@@ -1321,7 +1353,8 @@ def analytics_boundaries():
                   'first_reply_at': analytics_stamp(day, 18)}]
         seed(rows)
         first = analytics.compute(ANALYTICS_TODAY)['kpis']['first_reply']
-        assert first['n'] == 11 and first['value'] == 1 and first['state'] == 'undecided', first
+        # Frozen §13.6: observed median/p75 decide at n>=10; retain quantile data coverage.
+        assert first['n'] == 11 and first['value'] == 1 and first['state'] == 'pass', first
         assert first['p75'] == 1, first
     print('SYNTHETIC A2 boundaries PASS: mature cutoffs/current/baseline, imports excluded from rates, missing ledgers, weighted outbound20/110 and business-hour quantile evidence')
 
@@ -1349,7 +1382,9 @@ def analytics_member():
         for key, (k, n, target) in expected.items():
             row = result['kpis'][key]
             rungs = {'reply_rate': [11, 15, 20], 'reply_to_call': [30, 40, 50],
-                     'proposal_to_won': [20, 25, 30], 'invite_to_call': [50]}.get(key, [target])
+                     'booked_to_held': [70, 80, 90], 'held_to_proposal': [70, 80, 90],
+                     'proposal_to_won': [20, 25, 30], 'invite_to_call': [30, 40, 50],
+                     'offer_to_contract': [60, 70, 80]}.get(key, [target])  # Frozen §13.1 supplies these rungs.
             target = next((rung for rung in rungs if 100 * k / n < rung), rungs[-1])
             assert (row['k'], row['n'], row['target'], row['state']) == (k, n, target, analytics_rate_state(k, n, target)), (key, row)
             assert row['rungs'] == rungs and row['baseline_phase'] is False, (key, row)
@@ -1358,8 +1393,11 @@ def analytics_member():
             assert abs(row['baseline'] - 100 * bk / bn) < .01, (key, row)
             assert row['delta_pp'] == row['delta'] == 0, (key, row)
             assert row['history'] == [None] * 7 + [row['value']], (key, row)
-            low, high = analytics_exact_interval(k, n)
-            assert abs(row['low'] - low) < .01 and abs(row['high'] - high) < .01, (key, row)
+            # Frozen whiskers use Wilson; preserve the independent exact description proof.
+            low, high = analytics_interval(k, n)
+            assert abs(row['low'] - low) < .01 and abs(row['high'] - high) < .01
+            exact_low, exact_high = analytics_exact_interval(k, n)
+            assert abs(row['exact_low'] - exact_low) < .01 and abs(row['exact_high'] - exact_high) < .01, (key, row)
         other = {
             'won_value': (44, 44, 'undecided', 4400),
             'value_per_100_connects': (176, 2560, 'undecided', 515.625),
@@ -1474,8 +1512,9 @@ def analytics_storage(snapshot, folder, rows):
                       for index, key in enumerate(keys)]}
     run('analytics.py', 'goals', 'add', '--file', '-', value=previous_goals)
     reviewed = analytics_payload(analytics.compute(ANALYTICS_TODAY))
-    assert [goal['effect'] for goal in reviewed['goals_review']] == ['undecided', 'undecided', 'undecided'], reviewed['goals_review']
-    assert (reviewed['goals_review'][0]['before_k'], reviewed['goals_review'][0]['before_n']) == (22, 24)
+    # Frozen §13.7: immature remains open; unchanged mature effects are no effect.
+    assert [goal['effect'] for goal in reviewed['goals_review']] == ['undecided', 'not', 'not'], reviewed['goals_review']
+    assert (reviewed['goals_review'][0]['before_k'], reviewed['goals_review'][0]['before_n']) == (88, 96)  # Frozen §13.7: full28days before start.
     assert abs(reviewed['goals_review'][0]['before'] - 2200 / 24) < .001 and reviewed['goals_review'][0]['after'] is None
     assert [(goal['before'], goal['after']) for goal in reviewed['goals_review'][1:]] == [(3, 3), (90, 90)]
     evidence = [row['id'] for row in rows[-80:-76]]
@@ -1487,12 +1526,13 @@ def analytics_storage(snapshot, folder, rows):
     run('analytics.py', 'record', '--file', '-', '--replace', value=reviewed)
     stored = json.loads(run('analytics.py', 'last').stdout)
     assert [(goal['done_k'], goal['done_n']) for goal in stored['goals_review']] == [(2, 2), (2, 3), (0, 4)]
-    assert [goal['effect'] for goal in stored['goals_review']] == ['undecided', 'undecided', 'undecided']
+    # Frozen §13.7: preserve outcome checks independently of execution.
+    assert [goal['effect'] for goal in stored['goals_review']] == ['undecided', 'not', 'not']
     assert stored['kpis']['goal_effect']['k'] == 0 and stored['kpis']['goal_effect']['n'] == 3
     assert (stored['kpis']['goal_done']['k'], stored['kpis']['goal_done']['n'], stored['kpis']['goal_done']['state']) == (4, 9, 'fail')
     for key in ('application_review', 'conversation_review', 'call_review', 'proposal_review'):
         assert (stored['kpis'][key]['k'], stored['kpis'][key]['n'], stored['kpis'][key]['state'], stored['kpis'][key]['baseline']) == (0, 1, 'undecided', None)
-    print('SYNTHETIC A2 storage PASS: exact schema/numbers/privacy, duplicate/replace and last/due; stage/commitment/week gates; goal execution 2/2,2/3,0/4 apart from unchanged/immature undecided outcomes; partial actions count4/9')
+    print('SYNTHETIC A2 storage PASS: exact schema/numbers/privacy, duplicate/replace and last/due; stage/commitment/week gates; goal execution 2/2,2/3,0/4 apart from mature unchanged no-effect and immature open outcomes; partial actions count4/9')
 
 
 def analytics_history_and_coaching():
@@ -1562,13 +1602,13 @@ def analytics_history_and_coaching():
             pass
         else:
             raise AssertionError('Unlabelled call was reviewable')
-        # A skipped week leaves null in its position and stops the consecutive streak.
+        # Frozen §13.11: a skipped week leaves null; first monthly gap consumes an anchor.
         path = folder / 'data/analytics-history.jsonl'
         old = [json.loads(line) for line in path.read_text().splitlines()]
         old = [row for row in old if row['week'] != '2026-W41']
         path.write_text(''.join(json.dumps(row) + '\n' for row in old))
         gap = analytics.compute(ANALYTICS_TODAY)
-        assert gap['north_star']['history'][-2] is None and gap['streak_weeks'] == 1
+        assert gap['north_star']['history'][-2] is None and gap['streak_weeks'] == 7  # Seven completed weeks; one protected gap.
     print('SYNTHETIC A2 history/coaching PASS: eight chronological snapshots, null gaps/streak/baseline550; all four review KPI counts; nine-point coverage/history and unlabelled-call gate')
 
 
@@ -1877,7 +1917,8 @@ def analytics_fix_round():
             assert run('analytics.py', 'record', '--file', '-', value=invalid, success=False).returncode != 0
         invalid = json.loads(json.dumps(payload))
         invalid['community_card']['question'] = ' '.join(['word'] * 15)
-        assert run('analytics.py', 'record', '--file', '-', value=invalid, success=False).returncode != 0
+        # Frozen §13.4: drop unsafe optional free text without aborting valid compute.
+        assert analytics.prepare_snapshot(invalid, ANALYTICS_TODAY)['community_card']['question'] is None
         invalid = json.loads(json.dumps(payload))
         invalid['insights_top'][0]['text'] = ' '.join(['word'] * 13)
         assert run('analytics.py', 'record', '--file', '-', value=invalid, success=False).returncode != 0
@@ -1902,12 +1943,15 @@ def analytics_fix_round():
         assert stored['findings'] == payload['findings']
         assert stored['kpis']['reply_rate']['insight'] == payload['kpis']['reply_rate']['insight']
     command = (ROOT / '.claude/commands/analytics.md').read_text()
-    beats = ('1. What happened:', '2. Where you stand:', '3. Why:', '4. What now:')
+    # Frozen §13.15/16 conversational report replaces the old four beats.
+    beats = ('summary', 'top / middle / bottom', "last week's goals", 'this week', 'new badge', 'three questions')
+    report_command = command[command.index('Follow `outputs/chat-report-example.md`'):]
     assert all(beat in command for beat in beats)
-    assert [command.index(beat) for beat in beats] == sorted(command.index(beat) for beat in beats)
-    assert all(text in command for text in ('short conversational markdown', 'community_card.next_focus',
-        'community_card.question', 'at most 14 words', 'default targets', 'regardless of `## Bars`'))
-    print('SYNTHETIC A2 fix round PASS: reply6%=target11%, reply12%=target11% until exact evidence supports promotion; first four weeks no rate verdict; four mapped lever focuses; configurable reasoned lever targets; every added snapshot field schema-valid; urgent todos capped7; default card despite Bars; undecided forecast null; Claude insight/question/provenance/findings validation and persistence')
+    assert [report_command.index(beat) for beat in beats] == sorted(report_command.index(beat) for beat in beats)
+    # Frozen public source guards supersede exact old wording; target behavior is numerically tested.
+    assert all(text in command for text in ('No charts', 'community_card.next_focus',
+        '≤14 words', 'automatic check', 'common 28-day community window', 'Bars'))
+    print('SYNTHETIC A2 fix round PASS: reply6%=target11%, reply12%=target11% until Wilson evidence supports promotion; first four weeks no rate verdict; four mapped lever focuses; configurable reasoned lever targets; every added snapshot field schema-valid; urgent todos capped7; default card despite Bars; undecided forecast null; Claude insight/question/provenance/findings validation and persistence')
 
 
 def analytics_badges():
@@ -1922,6 +1966,7 @@ def analytics_badges():
         date = ANALYTICS_TODAY - dt.timedelta(days=2)
         seed([{'id': '965000001', 'source': 'outbound', 'status': 'applied',
                'applied_at': analytics_stamp(date), 'speed_to_lead_s': 120,
+               'applied_observation': {'verified': True, 'source': 'upwork-proposal'},
                'job_fit': {'state': 'pass', 'reason': 'Verified lane and rate fit'},
                'application_facts': {'source': 'outbound', 'posted_age_band': '<10m'}}])
         value = analytics.compute(ANALYTICS_TODAY)
@@ -1938,6 +1983,7 @@ def analytics_badges():
         date = ANALYTICS_TODAY - dt.timedelta(days=2)
         seed([{'id': str(964000000 + index), 'source': 'outbound', 'status': 'applied',
                'applied_at': analytics_stamp(date), 'speed_to_lead_s': 120,
+               'applied_observation': {'verified': True, 'source': 'upwork-proposal'},
                'job_fit': {'state': 'pass', 'reason': 'Verified lane and rate fit'},
                'application_facts': {'source': 'outbound', 'posted_age_band': '<10m'}} for index in range(100)])
         value = analytics.compute(ANALYTICS_TODAY)
@@ -1965,7 +2011,7 @@ def analytics_badges():
                  'applied_at': analytics_stamp(date), 'replied_at': analytics_stamp(date, 10, 1)}, rows[-1]]
         value = analytics.compute(ANALYTICS_TODAY, jobs=tiny)
         assert not any(row['badge'] == 'Harbour Master' and row['tier'] == 'Legend' for row in value['badges']), value['badges']
-    print('SYNTHETIC badges PASS: all14 catalogue names; Swift Sail Bronze one120s application/Silver qualifying week; earned kept after broken run; next-tier progress and max5 shelf; outcome tier exact lower-bound gate')
+    print('SYNTHETIC badges PASS: all14 catalogue names; Swift Sail Bronze one120s application/Silver qualifying week; earned kept after broken run; next-tier progress and max5 shelf; outcome tier Wilson lower-bound gate')
 
 
 def analytics_privacy_and_badge_replace():
@@ -1994,6 +2040,7 @@ def analytics_privacy_and_badge_replace():
         date = ANALYTICS_TODAY - dt.timedelta(days=2)
         seed([{'id': '961000001', 'source': 'outbound', 'status': 'applied',
                'applied_at': analytics_stamp(date), 'speed_to_lead_s': 120,
+               'applied_observation': {'verified': True, 'source': 'upwork-proposal'},
                'job_fit': {'state': 'pass', 'reason': 'Verified lane and rate fit'},
                'application_facts': {'source': 'outbound', 'posted_age_band': '<10m'}}])
         payload = analytics_payload(analytics.compute(ANALYTICS_TODAY))
@@ -2316,8 +2363,10 @@ def audit_analytics():
         marker(folder)
         assert abs(analytics.exact_bounds(1, 1)[0] - 2.5) < 1e-8
         assert abs(analytics.exact_bounds(0, 1)[1] - 97.5) < 1e-8
-        assert analytics.rate_state(1, 1, 20) == analytics.rate_state(2, 2, 30) == 'undecided'
-        assert analytics.rate_state(2, 2, 11) == analytics.rate_state(10, 10, 11) == 'undecided'
+        # Frozen final clarification: no n20 gate; only the Wilson bound decides.
+        assert analytics.rate_state(1, 1, 20) == analytics.rate_state(2, 2, 30) == 'pass'
+        assert analytics.rate_state(1, 1, 30) == 'undecided'
+        assert analytics.rate_state(2, 2, 11) == analytics.rate_state(10, 10, 11) == 'pass'
         assert analytics.rate_state(20, 20, 11) == 'pass'
         assert analytics.wilson(10,10)[1] == 100 and analytics.wilson(0,10)[0] == 0
         assert analytics.exact_bounds(1000000, 1000000)[1] == 100
@@ -2358,7 +2407,8 @@ def audit_analytics():
             responses.append({'id':str(920100000+index),'first_reply_at':ts(today-dt.timedelta(days=1),10,6),
                               'first_reply_s':60*(4 if index<5 else 6)})
         measured=analytics.calculate(responses,today,now=now)[0]['first_reply']
-        assert measured['state']=='undecided' and measured['median_low']==4 and measured['median_high']==6
+        # Frozen §13.6: median5/p756 meets observed first-reply targets at n=10.
+        assert measured['state']=='pass' and measured['median_low']==4 and measured['median_high']==6
         responses += [{'id':str(920200000+index),'first_client_message_at':ts(today-dt.timedelta(days=1),10)} for index in range(20)]
         measured=analytics.calculate(responses,today,now=now)[0]['first_reply']
         assert measured['n']==30 and measured['open_n']==20 and measured['state']!='pass'
@@ -2456,9 +2506,12 @@ def audit_analytics():
         analytics.validate_community_card(card,[])
         for mutation in ({'title':'Private title'},{'question':'What about Private Client?'},{'report':'Hidden source'}):
             bad=dict(card,**mutation)
-            try:analytics.validate_community_card(bad,[])
-            except ValueError:pass
-            else:raise AssertionError('Public payload bypass accepted')
+            if 'question' in mutation:  # Frozen §13.4: optional unsafe dynamic question is dropped.
+                assert analytics.validate_community_card(bad,[{'title':'Private Client'}])['question'] is None
+            else:
+                try:analytics.validate_community_card(bad,[])
+                except ValueError:pass
+                else:raise AssertionError('Public payload bypass accepted')
         bad=copy.deepcopy(card);bad['goals']=[{'text':'Offer two concrete call times','done':False,'k':0,'n':1,'state':'undone'}]
         try:analytics.validate_community_card(bad,[{'details':{'client':{'name':'Offer two concrete'}}}])
         except ValueError:pass
@@ -2499,7 +2552,7 @@ def audit_analytics_extended():
                 'fallback':'Review one application','review_on':(dt.date.fromisoformat(start)+dt.timedelta(days=7)).isoformat()}
     with fixture('audit-real-effects') as folder:
         setup(folder)
-        for before_min,after_min,expected in ((1,3,'not'),(10,6,'worked'),(3,3,'undecided')):
+        for before_min,after_min,expected in ((1,3,'not'),(10,6,'worked'),(3,3,'not')):  # Frozen §13.7: unchanged is no effect.
             rows=[]
             for phase,value in ((0,before_min),(1,after_min)):
                 date=dt.date(2026,8,28) if phase==0 else dt.date(2026,9,3)
@@ -2510,7 +2563,7 @@ def audit_analytics_extended():
             assert review['effect']==expected,(before_min,after_min,review)
             assert (review['before'],review['after'])==(before_min,after_min)
         # Target attainment is deliberately irrelevant: 20% can improve below a 30% target.
-        for bk,bn,ak,an,expected in ((0,200,40,200,'worked'),(20,20,16,20,'undecided')):
+        for bk,bn,ak,an,expected in ((0,200,40,200,'worked'),(20,20,16,20,'not')):  # Frozen §13.7: after Wilson wholly below before rate.
             rows=[]
             for phase,k,n in ((0,bk,bn),(1,ak,an)):
                 date=dt.date(2026,8,28) if phase==0 else dt.date(2026,9,3)
@@ -2553,6 +2606,7 @@ def audit_analytics_extended():
         snapshot['reviews']['call']['rubric']=[{'lead_id':rows[0]['id'],'reviewable':True,
           'points':[{'point':point,'state':'not needed' if point==6 else 'met'} for point in range(1,10)]}]
         badges=analytics.badge_results(snapshot,rows,[],today)
+        # Frozen final §8 supersedes catalogue: 90% within30m earns Silver.
         assert any(badge['badge']=='Quick Draw' and badge['tier']=='Silver' for badge in badges)
         assert any(badge['badge']=='True North' and badge['tier']=='Silver' for badge in badges)
         poor={'id':'934000020','source':'outbound','applied_at':analytics_stamp(today-dt.timedelta(days=1)),
@@ -2560,7 +2614,7 @@ def audit_analytics_extended():
         snapshot=analytics.compute(today,jobs=[poor],now=now)
         assert not any(badge['badge']=='Swift Sail' for badge in snapshot['badges'])
         # Standalone held-call denominator has a proposal-free win and a clean disqualification.
-        old=today-dt.timedelta(days=25)
+        old=today-dt.timedelta(days=32)  # Frozen §13.1: held-call win maturity is28 days.
         callrows=[{'id':'934000030','source':'outbound','call_held_at':analytics_stamp(old),'won_at':analytics_stamp(old+dt.timedelta(days=4)),
                    'won_value':{'type':'fixed','amount':1000,'currency':'USD','start_date':(old+dt.timedelta(days=4)).isoformat()}},
                   {'id':'934000031','source':'outbound','call_held_at':analytics_stamp(old),'call_outcome':'disqualified'}]
@@ -2568,7 +2622,7 @@ def audit_analytics_extended():
         assert (calculated['k'],calculated['n'],calculated['bypass_n'])==(1,2,1)
         card_snapshot=analytics.compute(today,jobs=callrows,now=now)
         call_card=card_snapshot['community_card']['call_to_won']
-        assert (call_card['k'],call_card['n'],call_card['horizon_days'])==(1,2,21)
+        assert (call_card['k'],call_card['n'],call_card['horizon_days'])==(1,2,28)  # Frozen §13.1 (21+7).
         assert call_card['value']==calculated['value'] and call_card['entry_period']==calculated['entry_period']
         assert card_snapshot['kpis']['proposal_to_won']['n']==0
         passed('stats S31 / freelancer F22 / product P10: public card preserves actual held-call k/n horizon and bypass denominator')
@@ -2585,14 +2639,15 @@ def audit_analytics_extended():
         assert forecast['own_rate']==.2 and forecast['average_won_value']==1000 and forecast['expected']==2000
         tiny=analytics.explore_fields(past[:1]+opens,today,[])['forecast']['by_stage'][0]
         assert tiny['own_rate'] is None and tiny['expected'] is None
-        passed('product P8-P10 / freelancer F9,F22 / stats S25: qualified speed QuickDraw90 applicable TrueNorth held-call-to-win and forecast units')
+        passed('product P8-P10 / freelancer F9,F22 / stats S25: qualified speed QuickDraw all-within30m applicable TrueNorth held-call-to-win and forecast units')
         # No tiny cohort may earn an outcome tier, and repeated-look policy uses summable spend.
         tiny=analytics.compute(today,jobs=callrows[:1],now=now)
         assert not any(badge['badge']=='Treasure Hunter' for badge in tiny['badges'])
-        assert all(row['promotion_policy'].startswith('Exact') for key,row in snapshot['kpis'].items() if key in analytics.FUNNEL)
+        # Frozen §3/§13: Wilson performance/promotion, exact intervals remain descriptive.
+        assert all(row['promotion_policy'].startswith('Wilson') for key,row in snapshot['kpis'].items() if key in analytics.FUNNEL)
         assert all(row['ladder_mode'] in ('maintain', 'advance') for key,row in snapshot['kpis'].items() if key in analytics.FUNNEL)
         assert all(row['initial_benchmark'] is not None or row['own_benchmark'] is None for key,row in snapshot['kpis'].items() if key in analytics.FUNNEL)
-        passed('stats S2,S21,S24: complete rung policies and tiny outcome achievement refused with summable promotion spending')
+        passed('stats S2,S21,S24: complete Wilson rung policies and tiny outcome achievement refused; exact descriptions retained')
     with fixture('audit-record-race') as folder:
         setup(folder)
         goal=commitment('weekly_volume','2026-10-14')
@@ -2673,7 +2728,8 @@ def audit_producer_followup():
         invite=result['kpis']['invite_to_call']
         assert (invite['k'],invite['n'])==(1,1) and invite['progression']['offer_or_contract_without_call']==1
         public=result['community_card']['reply_to_call']
-        assert public['outcome_label']==row['outcome_label'] and public['progression']==row['progression']
+        # Frozen §13.3: the common mature28-day public population excludes these20-day-old entries.
+        assert public['outcome_label']==row['outcome_label'] and public['progression']=={'booked_calls':0,'held_calls':0,'offer_or_contract_without_call':0}
         analytics.validate_community_card(result['community_card'],[direct,actual,invitation])
         poisoned=copy.deepcopy(result['community_card']);poisoned['reply_to_call']['outcome_label']='Private client text'
         try:analytics.validate_community_card(poisoned,[])
@@ -2770,6 +2826,494 @@ def audit_call_badge_evidence():
         print('SYNTHETIC audit engineer E15 / freelancer F19 / product P9: True North requires complete computed call review; incomplete transcript and missing recorder cannot earn PASS')
 
 
+def analytics_final_numerical():
+    """Independent final §13 boundary/interval/cohort checks; no live recording."""
+    import analytics
+    today = dt.date(2026, 10, 14)
+    now = '2026-10-14T15:00:00+02:00'
+    with fixture('final-numerical') as folder:
+        analytics_sync_marker(folder)
+        (folder / 'data/connects.jsonl').write_text('')
+        (folder / 'data/earnings.jsonl').write_text('')
+        expected_rungs = {'reply_rate': (11, 15, 20), 'reply_to_call': (30, 40, 50),
+            'booked_to_held': (70, 80, 90), 'held_to_proposal': (70, 80, 90),
+            'proposal_to_won': (20, 25, 30), 'invite_to_call': (30, 40, 50),
+            'offer_to_contract': (60, 70, 80)}
+        assert analytics.RUNGS == expected_rungs
+        rows = [dict(id=str(940000000+i), source='outbound',
+                     applied_at=analytics_stamp(today-dt.timedelta(days=35)),
+                     replied_at=analytics_stamp(today-dt.timedelta(days=34))) for i in range(100)]
+        top = analytics.compute(today, jobs=rows, now=now)['kpis']['reply_rate']
+        assert top['target'] == 20 and top['rung_reached'] == 3, top
+        assert top['ladder_mode'] == 'maintain', top
+        for k, n, target in ((0, 20, 11), (5, 20, 11), (17, 40, 50), (20, 20, 90)):
+            lo, hi = analytics_interval(k, n)
+            expected = 'pass' if lo >= target else 'fail' if hi < target else 'undecided'
+            assert analytics.rate_state(k, n, target) == expected, (k, n, target)
+            measured = analytics.rate_metric('reply_rate', [{'id':str(i)} for i in range(n)],
+                lambda row: int(row['id']) < k, target)
+            exact_lo, exact_hi = analytics_exact_interval(k, n)
+            assert abs(measured['exact_low'] - exact_lo) < .01 and abs(measured['exact_high'] - exact_hi) < .01
+            assert abs(measured['low'] - lo) < .01 and abs(measured['high'] - hi) < .01
+            assert abs(measured['performance_low'] - lo) < .01 and abs(measured['performance_high'] - hi) < .01
+        booked = [{'id':'940100001', 'source':'outbound',
+                   'call_booked_at':analytics_stamp(today-dt.timedelta(days=50)),
+                   'call_scheduled_at':analytics_stamp(today-dt.timedelta(days=3)),
+                   'call_held_at':analytics_stamp(today-dt.timedelta(days=3))},
+                  {'id':'940100002','source':'outbound',
+                   'call_booked_at':analytics_stamp(today-dt.timedelta(days=5)),
+                   'call_scheduled_at':analytics_stamp(today+dt.timedelta(days=3))},
+                  {'id':'940100003','source':'outbound',
+                   'call_booked_at':analytics_stamp(today-dt.timedelta(days=50)),
+                   'call_scheduled_at':analytics_stamp(today-dt.timedelta(days=1))}]
+        attendance = analytics.calculate(booked, today, now=now)[0]['booked_to_held']
+        assert (attendance['k'],attendance['n']) == (1,1), attendance
+        assert attendance['evidence'] == ['940100001']
+        callrows = []
+        for offset, win_day in ((29,28),(29,29),(27,1),(57,1)):
+            held = today-dt.timedelta(days=offset)
+            callrows.append({'id':str(940200000+len(callrows)), 'source':'outbound',
+                             'call_held_at':analytics_stamp(held),
+                             'won_at':analytics_stamp(held+dt.timedelta(days=win_day))})
+        call = analytics.call_to_won(callrows,today)
+        assert (call['k'],call['n'],call['horizon_days']) == (1,2,28), call
+        assert analytics.lever_shortfall({'direction':'up','value':80,'target':100}) == .2
+        assert analytics.lever_shortfall({'direction':'down','value':6,'target':5}) == .2
+        goal={'kpi':'reply_rate','stage':analytics.LABELS['reply_rate'],'change':'Make the next step explicit',
+              'start':'2026-09-01','primary':True,'cue':'When applying','action':'Make the next step explicit',
+              'fallback':'Ask one question','review_on':'2026-09-08'}
+        analytics.atomic_lines('goals.jsonl',[{'week':'2026-W36','goals':[goal]}])
+        effectrows=[]
+        for entry,replied,count in ((dt.date(2026,8,15),False,40),(dt.date(2026,8,2),True,40),
+                                   (dt.date(2026,9,3),True,40),(dt.date(2026,10,9),False,40)):
+            for i in range(count):
+                row={'id':str(940250000+len(effectrows)),'source':'outbound','applied_at':analytics_stamp(entry)}
+                if replied:row['replied_at']=analytics_stamp(entry+dt.timedelta(days=1))
+                effectrows.append(row)
+        reviewed=analytics.goal_reviews(effectrows,today,now=now)[0]
+        assert (reviewed['before_k'],reviewed['before_n'],reviewed['after_k'],reviewed['after_n'],reviewed['effect']) == (0,40,40,40,'worked'),reviewed
+        assert reviewed['before_period']=={'start':'2026-08-04','end':'2026-08-31'}
+        assert reviewed['after_period']=={'start':'2026-09-01','end':'2026-10-06'}
+        empty = analytics.compute(today,jobs=[],now=now)
+        assert empty['kpis']['value_per_100_connects']['state'] == 'not measurable'
+        assert empty['kpis']['value_per_100_connects']['value'] is None
+        for key in ('first_reply','follow_ups_on_time','proposal_on_time','speed_10min','job_fit'):
+            assert empty['kpis'][key]['state'] == 'no opportunities', (key,empty['kpis'][key])
+        response = [{'id':str(940300000+i),'first_reply_at':analytics_stamp(today-dt.timedelta(days=1),10,5),
+                     'first_reply_s':300} for i in range(10)]
+        first = analytics.calculate(response,today,now=now)[0]['first_reply']
+        assert (first['n'],first['value'],first['p75'],first['state']) == (10,5,5,'pass')
+        assert analytics.calculate(response[:9],today,now=now)[0]['first_reply']['state'] == 'undecided'
+        for row in response[-3:]: row['first_reply_s'] = 16*60
+        assert analytics.calculate(response,today,now=now)[0]['first_reply']['state'] == 'fail'
+        for row in response[-3:]: row['first_reply_s'] = 15*60
+        assert analytics.calculate(response,today,now=now)[0]['first_reply']['state'] == 'pass'
+        pending = response+[{'id':'940399999','first_client_message_at':analytics_stamp(today-dt.timedelta(days=1),10)}]
+        first = analytics.calculate(pending,today,now=now)[0]['first_reply']
+        assert first['n'] == 11 and first['open_n'] == 1
+        wins = [{'id':str(940400000+i),'source':'outbound','won_at':analytics_stamp(today-dt.timedelta(days=2)),
+                 'won_value':{'type':'fixed','amount':amount,'currency':currency,'start_date':(today-dt.timedelta(days=2)).isoformat()}}
+                for i,(currency,amount) in enumerate((('EUR',100),('EUR',200),('EUR',300),('USD',9000)))]
+        wins.append({'id':'940499999','source':'outbound','won_at':analytics_stamp(today-dt.timedelta(days=1))})
+        star = analytics.compute(today,jobs=wins,now=now)['north_star']
+        assert star['currency'] == 'EUR' and star['value'] == 600, star
+        assert star['value_unknown_n'] == 1 and 'unknown' in star['hourly_note'].casefold(), star
+        assert any(row['currency'] == 'USD' and row['value'] == 9000 for row in star['other_totals']), star
+    print('SYNTHETIC frozen §13 numerical PASS: supplied/top-held rungs; Wilson performance/exact description; scheduled+2d; held-call28d; zero neutrality; median/p75 equality and unanswered age; separate currencies/unknown wins')
+
+
+def analytics_event_ledger_contract():
+    import badges
+    import concurrent.futures
+    import copy
+    now = '2026-10-14T15:00:00+02:00'
+    today = dt.date(2026,10,14)
+    points = [{'point':i,'state':'met' if i<8 else 'not needed' if i==9 else 'missing',
+               'quote':'Synthetic local proof'} for i in range(1,10)]
+    with fixture('final-badge-events') as folder:
+        rows = [{'id':'941000001','source':'outbound','applied_at':analytics_stamp(today,10),
+                 'speed_to_lead_s':120,'applied_observation':{'verified':True,'source':'upwork-proposal'},'job_fit':{'state':'pass','reason':'Fits lane'}},
+                {'id':'941000002','source':'outbound','first_reply_at':analytics_stamp(today,10,1),'first_reply_s':60},
+                {'id':'941000003','source':'outbound','follow_up_history':[{'lane':'silent','action':'sent','at':analytics_stamp(today,10)}]},
+                {'id':'941000004','source':'outbound','call_held_at':analytics_stamp(today,10),
+                 'call_ended_at':analytics_stamp(today,11),'proposal_sent_at':analytics_stamp(today,11,10)},
+                {'id':'941000005','source':'invite','invited_at':analytics_stamp(today,10),
+                 'first_reply_at':analytics_stamp(today,10,5),'first_reply_s':300},
+                {'id':'941000006','source':'outbound','won_at':analytics_stamp(today,10)},
+                {'id':'941000007','source':'outbound','call_held_at':analytics_stamp(today,10),
+                 'call_review':{'reviewable':True,'points':points}},
+                {'id':'941000008','source':'outbound','applied_at':analytics_stamp(today,10),
+                 'speed_to_lead_s':1,'job_fit':{'state':'fail','reason':'Wrong lane'}}]
+        assert badges.check(jobs=rows,lead_id='941000008',now=now) == []
+        assert badges.check(jobs=rows,lead_id='941000003',now=now) == [], 'A follow-up send is not client revival.'
+        assert badges.check(jobs=rows,since='2026-10-15T00:00:00+02:00',now=now) == []
+        awards = badges.check(jobs=rows,now=now)
+        expected = {'Swift Sail',"Ship's Bell",'Quick Draw','Message in a Bottle','First Doubloon','True North'}
+        assert {row['badge'] for row in awards} == expected, awards
+        assert all(set(row) == {'badge','tier','lead_id','at','reason'} and row['tier'] == 'Bronze' for row in awards)
+        assert badges.check(jobs=rows,now=now) == []
+        assert badges.read_ledger() == awards
+        rows[2]['replied_at'] = analytics_stamp(today,10,5)
+        revival = badges.check(jobs=rows,lead_id='941000003',now=now)
+        assert len(revival) == 1 and revival[0]['badge'] == 'Lookout', revival
+        assert badges.check(jobs=rows,lead_id='941000003',now=now) == []
+        before = (folder/'data/badges.jsonl').read_bytes()
+        poor = copy.deepcopy(rows); poor[0]['job_fit']['state']='fail'
+        assert badges.check(jobs=poor,lead_id='941000001',now=now) == []
+        assert (folder/'data/badges.jsonl').read_bytes() == before
+        weekly = [{'badge':'Quick Draw','tier':'Silver','earned_week':'2026-W42','new':True,'progress_to_next':'0 of 5 calls'}]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: badges.award_weekly(weekly,week='2026-W42',now=now),range(2)))
+        assert sorted(len(result) for result in results) == [0,1], results
+        assert len(badges.read_ledger()) == 8
+        assert badges.award_weekly(weekly,week='2026-W42',now=now) == []
+        cli = run('badges.py','check','--all-since','2026-10-15T00:00:00+02:00')
+        assert cli.stdout == ''
+        assert not (folder/'data/jobs.json').exists(), 'Badge writer must not write jobs.'
+        assert not (folder/'data/analytics-history.jsonl').exists(), 'Badge writer must not write weekly snapshots.'
+    for tier,rank in (('Bronze','Boatswain'),('Silver','Officer'),('Gold','Captain'),('Platinum','Admiral')):
+        rows=[{'badge':name,'tier':tier} for name in ('Swift Sail','Quick Draw','True North')]
+        assert badges.rank(rows) == rank
+        assert badges.rank(rows[:2]) == 'Deckhand'
+        assert badges.rank(rows[:1]*3) == 'Deckhand', 'Rank counts distinct badges.'
+    assert badges.rank([]) == 'Deckhand'
+    history=[{'week':week} for week in ('2026-W37','2026-W38','2026-W40','2026-W41')]
+    saved=badges.streak_history(history,week='2026-W41')
+    assert saved == {'streak_weeks':4,'anchors_used':['2026-W39']}, saved
+    assert badges.streak(history,week='2026-W41') == 4
+    same_month=badges.streak_history([{'week':week} for week in ('2026-W41','2026-W44')],week='2026-W44')
+    assert same_month['streak_weeks'] == 1 and same_month['anchors_used'] == ['2026-W42'], same_month
+    print('SYNTHETIC frozen badge ledger PASS: measured Bronze moments/equality; send-only and weak-fit refusal; replay/since; atomic concurrent weekly award; only badge writer; retained tiers; distinct rank thresholds; monthly first-miss anchor')
+
+
+def analytics_final_reader_contract():
+    import analytics
+    today=dt.date(2026,10,14);now='2026-10-14T15:00:00+02:00'
+    with fixture('final-reader-contract') as folder:
+        analytics_sync_marker(folder)
+        rows=[{'id':str(942000000+i),'source':'outbound','applied_at':analytics_stamp(today,10),
+               'job_fit':{'state':state,'reason':reason},'speed_to_lead_s':speed,
+               'application_facts':{'posted_age_band':'<10m' if speed<=600 else '10-60m'}}
+              for i,(state,reason,speed) in enumerate((('pass','Fits',120),('unclear','Reviewed context',600),
+                                                      ('fail','Wrong lane',30),('unclear','',90),('pass','Fits',900)))]
+        rows += [{'id':'942000099','source':'invite','applied_at':analytics_stamp(today,10),
+                  'job_fit':{'state':'pass','reason':'Fits'},'speed_to_lead_s':60},
+                 {'id':'942000100','source':'outbound','follow_up_plan':{'lane':'silent','due_on':today.isoformat()},
+                  'follow_up_history':[{'lane':'silent','due_on':today.isoformat(),'on':today.isoformat(),'action':'sent'}]},
+                 {'id':'942000101','source':'outbound','follow_up_plan':{'lane':'silent','due_on':today.isoformat()}}]
+        voyage=analytics.daily_voyage(rows,today=today,weekly_goal=25)
+        assert {'date','applications','goal','fast','followups_due','followups_done','evidence'} <= voyage.keys()
+        assert (voyage['applications'],voyage['goal'],voyage['fast'],voyage['followups_due'],voyage['followups_done']) == (3,5,2,2,1),voyage
+        snapshot=analytics.compute(today,jobs=rows,now=now)
+        presentation=snapshot['presentation']
+        # Frozen sparse selection never pads with ineligible or missing-baseline KPIs.
+        assert len(presentation['number_keys']) == len(set(presentation['number_keys'])) < 6
+        assert presentation['number_gap']
+        assert all(key in snapshot['kpis'] for key in presentation['number_keys'])
+        assert presentation['number_keys'][-1] == 'value_per_100_connects'
+        assert presentation['number_keys'][0] == snapshot['verdict']['kpi']
+        assert len(presentation['insights']) <= 3
+        assert set(presentation['kpi_groups']) == {'top','middle','bottom'}
+        groups=[key for keys in presentation['kpi_groups'].values() for key in keys]
+        assert len(groups) == len(set(groups)) == len(snapshot['kpis']) and set(groups) == set(snapshot['kpis'])
+        snapshot['goals_next']=[{'kpi':'weekly_volume','change':'Meet qualified application goal'},
+                                {'kpi':'follow_ups_on_time','change':'Complete due follow-ups'}]
+        quests=analytics.quest_progress(snapshot,rows,today=today)
+        assert len(quests) == 2 and all({'kpi','change','done_k','done_n','unit','evidence'} <= row.keys() for row in quests)
+        assert quests[0]['done_k'] == 3 and quests[0]['done_n'] == 25,quests
+        assert (quests[1]['done_k'],quests[1]['done_n']) == (1,2),quests
+        ranked=__import__('copy').deepcopy(snapshot)
+        for row in ranked['kpis'].values(): row.update(state='undecided',n=0,delta=None,baseline=None)
+        ranked['verdict']['kpi']='weekly_volume'
+        for key,delta in (('first_reply',-9),('reply_rate',5),('proposal_to_won',-8),('reply_to_call',-4)):
+            ranked['kpis'][key].update(n=10,delta=delta,baseline=10,target=10)
+        ranked['kpis']['won_value'].update(n=9,delta=100)
+        assert analytics.presentation_fields(ranked)['number_keys']==['weekly_volume','first_reply','reply_rate','proposal_to_won','reply_to_call','value_per_100_connects']
+        # Relative cross-unit selection, stable overlap filling and different weekly winners.
+        assert analytics.presentation_fields(ranked)['number_gap'] is None
+        first_week=analytics.presentation_fields(ranked)['number_keys']
+        ranked['kpis']['won_value'].update(n=10,baseline=10000,delta=100,target=None)
+        assert 'won_value' not in analytics.presentation_fields(ranked)['number_keys']
+        ranked['kpis']['won_value'].update(delta=100000)
+        next_week=analytics.presentation_fields(ranked)['number_keys']
+        assert 'won_value' in next_week and next_week != first_week
+        ranked['verdict']['kpi']='first_reply'
+        overlap=analytics.presentation_fields(ranked)['number_keys']
+        assert len(overlap)==len(set(overlap))==6 and overlap[0]=='first_reply'
+        # One-sided movement still fills from next eligible magnitude, not arbitrary padding.
+        for key in ('proposal_to_won','reply_to_call'): ranked['kpis'][key]['delta']=abs(ranked['kpis'][key]['delta'])
+        onesided=analytics.presentation_fields(ranked)['number_keys']
+        assert len(onesided)==len(set(onesided))==6
+        ranked['kpis']['won_value']['baseline']=None
+        missing=analytics.presentation_fields(ranked)
+        assert 'won_value' not in missing['number_keys'] and missing['number_gap']
+        for row in ranked['kpis'].values(): row.update(delta=None,baseline=None,n=0,state='undecided')
+        sparse=analytics.presentation_fields(ranked)
+        assert sparse['number_keys']==['first_reply','value_per_100_connects'] and sparse['number_gap']
+        full=snapshot['presentation']['voyage']
+        assert len(full['stations'])==14 and len(full['calendar'])==84
+        assert all(row['locked'] for row in full['stations']) and full['rank']=='Deckhand'
+        assert all({'date','week','run','anchor','count','evidence'}<=row.keys() for row in full['calendar'])
+        chart=snapshot['presentation']['money_chart']
+        assert len(chart['won'])==len(chart['forecast'])==1
+        assert chart['won'][0]['value']==snapshot['north_star']['value']
+        assert chart['forecast'][0]['value']==snapshot['forecast']['next_30_days']
+        history=[dict(snapshot,week=f'2026-W{week:02d}') for week in range(33,42)]
+        history[0]['north_star']=dict(snapshot['north_star'],currency='EUR',value=999)
+        money=analytics.money_chart(snapshot,history)
+        assert len(money['won'])==len(money['forecast'])==8
+        assert money['won'][-1]['week']==snapshot['week'] and money['forecast'][-1]['period']['end']=='2026-11-13'
+        incompatible=analytics.money_chart(snapshot,[dict(snapshot,week='2026-W41',north_star={'currency':'EUR','value':999})])
+        assert incompatible['won'][0]['value'] is None and incompatible['won'][0]['reason']
+        assert set(snapshot['presentation']['funnel'])=={'outbound','inbound'}
+        for rows_in_strand in snapshot['presentation']['funnel'].values():
+            assert all({'key','label','count','k','n','value','conversion_text','loss','state','insight','period','evidence','metric'}<=row.keys() for row in rows_in_strand)
+        import badges
+        wrapper=badges.cockpit_progress(rows,today=today,snapshot=snapshot,
+            goals=[{'kpi':'weekly_volume','change':'Current saved weekly goal','start':today.isoformat()}])
+        assert wrapper['daily_voyage']['applications']==3 and len(wrapper['quests'])==1
+        assert wrapper['quests'][0]['change']=='Current saved weekly goal' and wrapper['quests'][0]['done_k']==3
+        assert badges.cockpit_progress(rows,today=today,snapshot=snapshot,goals=[])['quests']==[]
+        assert not (folder/'data/analytics-history.jsonl').exists(), 'Pure helpers must not record.'
+        assert not (folder/'data/badges.jsonl').exists(), 'Computing and pure helpers must not award.'
+    print('SYNTHETIC frozen presentation/helpers PASS: six unique focus/delta/efficiency keys; all KPIs grouped once; at most3 insights; qualified daily3/5/fast2; due2/done1; goal-specific units; read-only counts')
+
+
+def analytics_public_onepager_contract():
+    import analytics
+    import copy
+    import struct
+    today=dt.date(2026,10,14);now='2026-10-14T15:00:00+02:00'
+    with fixture('final-public-onepager') as folder:
+        analytics_sync_marker(folder)
+        snapshot=analytics.compute(today,jobs=[],now=now)
+        card=copy.deepcopy(snapshot['community_card'])
+        card['next_focus']=analytics.LABELS['weekly_volume']
+        card['question']='Which habits help you keep useful conversations moving?'
+        assert analytics.validate_community_card(card,[])['question'] == card['question']
+        windows=[card[key]['entry_period'] for key in ('reply_rate','reply_to_call','call_to_won')]
+        assert windows[0] == windows[1] == windows[2]
+        assert (dt.date.fromisoformat(windows[0]['end'])-dt.date.fromisoformat(windows[0]['start'])).days == 27
+        sources=[{'title':'Secret Tender Redtail','details':{'client':{'name':'Private Rowan'}},
+                  'description':'Confidential workflow replaces manual invoice reconciliation'}]
+        for question in ('What did Private Rowan request?', 'Could Secret Tender Redtail be improved?',
+                         'Who uses manual invoice reconciliation?', ' '.join(['word']*15),
+                         'Contact me at private@example.test'):
+            candidate=copy.deepcopy(card);candidate['question']=question
+            assert analytics.validate_community_card(candidate,sources)['question'] is None,question
+        improvement=copy.deepcopy(card)
+        improvement['biggest_improvement']={'kpi':'reply_rate','from':10,'to':20,'reason':'Applications explain the relevant outcome clearly'}
+        assert analytics.validate_community_card(improvement,[])['biggest_improvement']['reason']
+        improvement['biggest_improvement']['reason']='Private Rowan liked the application'
+        assert 'reason' not in analytics.validate_community_card(improvement,sources)['biggest_improvement']
+        improvement['biggest_improvement']['reason']=' '.join(['word']*15)
+        assert 'reason' not in analytics.validate_community_card(improvement,[])['biggest_improvement']
+        for mutation in ({'client_name':'Private Rowan'},{'report':'Private source'},{'unknown':0}):
+            invalid=dict(card,**mutation)
+            try: analytics.validate_community_card(invalid,[])
+            except ValueError: pass
+            else: raise AssertionError('Unknown public root field accepted')
+        (folder/'context/me.md').write_text('**Name and location:** Alex Rowan, Berlin\n')
+        named=analytics.compute(today,jobs=[],now=now)['community_card']
+        assert named['member_name']=='Alex R.' and 'Alex R.' in analytics.public_onepager_html(named)
+        forged=copy.deepcopy(named);forged['member_name']='Client Person'
+        try:analytics.validate_community_card(forged,[])
+        except ValueError:pass
+        else:raise AssertionError('Caller-supplied public name accepted')
+        badge={'badge':'Swift Sail','tier':'Gold','earned_week':'2026-W42','new':False,'progress_to_next':'All tiers earned'}
+        named['top_badges']=[badge]
+        assert 'Swift Sail' not in analytics.public_onepager_html(named), 'Public card renders only newly earned tiers.'
+        named['new_badge']=dict(badge,tier='Silver',new=True)
+        html=analytics.public_onepager_html(named)
+        assert html.count('Swift Sail')==1 and '<small>Silver</small>' in html
+        invalid=copy.deepcopy(card);invalid['reply_rate']['target']=99
+        try:analytics.validate_community_card(invalid,[])
+        except ValueError:pass
+        else:raise AssertionError('Variable public target accepted')
+        invalid=copy.deepcopy(card);invalid['call_to_won']['horizon_days']=21
+        try:analytics.validate_community_card(invalid,[])
+        except ValueError:pass
+        else:raise AssertionError('Superseded public horizon accepted')
+        private_canaries=['PRIVATE_FULL_SNAPSHOT_CANARY','CLIENT_QUOTATION_NEVER_PUBLIC','PRIVATE_ROWAN_SENTENCE']
+        snapshot.update(report=private_canaries[0],call_cards=[{'quote':private_canaries[1]}],
+                        reviews={'call':{'example':private_canaries[2]}})
+        snapshot['community_card']=card
+        source=folder/'snapshot.jsonl'
+        previous=copy.deepcopy(snapshot);previous['week']='2026-W41';previous['community_card']['week']='2026-W41'
+        source.write_text(json.dumps(previous)+'\n'+json.dumps(snapshot)+'\n')
+        rendered=analytics.onepager(source,week='2026-W42',output=folder/'proof.html')
+        html=pathlib.Path(rendered['html']).read_text()
+        assert rendered['week']=='2026-W42' and all(value not in html for value in private_canaries)
+        assert 'Applications this week' in html and 'same 28-day window' in html
+        assert card['question'] in html and "Last week's 0 agreed goals" in html
+        assert 'New contract value this week' not in html
+        assert rendered['png'] is not None,rendered
+        header=pathlib.Path(rendered['png']).read_bytes()[:24]
+        assert header[:8]==b'\x89PNG\r\n\x1a\n' and struct.unpack('>II',header[16:24])==(1080,1350)
+        snapshot['community_card']['won_value']=987654
+        source.write_text(json.dumps(snapshot))
+        hidden=analytics.onepager(source,output=folder/'hidden.html')
+        assert '987,654' not in pathlib.Path(hidden['html']).read_text()
+        (folder/'context/me.md').write_text('## Share money\nyes\n')
+        shared=analytics.onepager(source,output=folder/'shared.html')
+        assert '987,654' in pathlib.Path(shared['html']).read_text()
+        cli=run('analytics.py','onepager','--file',source,'--week','2026-W42','--output',folder/'cli.html')
+        assert json.loads(cli.stdout)['png'] == str((folder/'cli.png').resolve())
+        assert not (folder/'data/analytics-history.jsonl').exists() and not (folder/'data/badges.jsonl').exists()
+    print('SYNTHETIC frozen public onepager PASS: same28day/fixed targets/horizon; safe dynamic prose; optional unsafe names/source/contact dropped; unknown fields rejected; only public allowlist rendered; Share money opt-in; JSONL/week/CLI; measured1080x1350PNG')
+
+
+def analytics_private_call_cards_contract():
+    import analytics
+    import copy
+    today=dt.date(2026,10,14);now='2026-10-14T15:00:00+02:00'
+    with fixture('final-private-call-cards') as folder:
+        analytics_sync_marker(folder)
+        (folder/'data/earnings.jsonl').write_text('');(folder/'data/connects.jsonl').write_text('')
+        jid='943000001'
+        seed([{'id':jid,'source':'outbound','status':'call','call_held_at':analytics_stamp(today-dt.timedelta(days=2)),
+               'title':'Private call card client title'}])
+        path=folder/'jobs'/jid;path.mkdir(exist_ok=True)
+        quote='PRIVATE_CLIENT_QUOTATION_CANARY costs three hours weekly.'
+        own='What outcome would make this worthwhile?'
+        (path/'call.md').write_text('Member: Alex\nComplete: yes\nLanguage: English\nAlex: '+own+'\nClient: '+quote+'\nAlex: Let us agree the next step.\n')
+        value=analytics.compute(today,now=now)
+        item={'lead_id':jid,'reviewable':True,
+              'points':[{'point':point,'state':'not needed' if point==6 else 'met','quote':quote} for point in range(1,10)],
+              'moments':[{'quote':quote,'better_wording':'Clarify the measured cost and desired outcome'} for _ in range(3)],
+              'fix':'Clarify the outcome once','example':own,'next_step':'Client reviews scope on Friday'}
+        value['reviews']['call'].update(fix=item['fix'],example=own,evidence_lead_ids=[jid],rubric=[item])
+        prepared=analytics.prepare_snapshot(value,today,now=now)
+        assert prepared['kpis']['call_review']['state']=='pass'
+        assert len(prepared['call_cards'])==1
+        card=prepared['call_cards'][0]
+        assert card['lead_id']==jid and [point['point'] for point in card['points']]==list(range(1,10))
+        assert all(point['quote']==quote for point in card['points']) and card['points'][5]['state']=='not needed'
+        assert len(card['moments'])==3 and all(moment['better_wording'] for moment in card['moments'])
+        assert (card['fix'],card['example'],card['next_step'])==(item['fix'],own,item['next_step'])
+        assert {'label','date','duration_minutes','talk_share','questions','reviewable'}<=card.keys()
+        assert all(point['quote_state']=='supported' for point in card['points'])
+        unreviewed=copy.deepcopy(value);unreviewed['reviews']['call']['rubric'][0].update(reviewable=False,points=[],moments=[])
+        unavailable=analytics.prepare_snapshot(unreviewed,today,now=now)['call_cards'][0]
+        assert unavailable['reviewable'] is False and unavailable['reason'] and unavailable['points']==[]
+        legacy=copy.deepcopy(value)
+        for point in legacy['reviews']['call']['rubric'][0]['points']:point.pop('quote')
+        oldcard=analytics.prepare_snapshot(legacy,today,now=now)['call_cards'][0]
+        assert all(point['quote'] is None and point['quote_state']=='unknown' for point in oldcard['points'])
+        assert quote not in json.dumps(prepared['community_card'])
+        assert quote not in analytics.public_onepager_html(prepared['community_card'])
+        analytics.privacy(prepared)
+        invalid=copy.deepcopy(value);invalid['reviews']['call']['rubric'][0]['points'][0]['quote']='Invented unsupported quotation'
+        try:analytics.prepare_snapshot(invalid,today,now=now)
+        except ValueError:pass
+        else:raise AssertionError('Unsupported call quotation accepted')
+        invalid=copy.deepcopy(value);invalid['reviews']['call']['rubric'][0]['points'][0]['quote']='Complete: yes'
+        try:analytics.prepare_snapshot(invalid,today,now=now)
+        except ValueError:pass
+        else:raise AssertionError('Transcript metadata accepted as supporting speech')
+        invalid=copy.deepcopy(value);invalid['reviews']['call']['rubric'][0]['moments'].append({'quote':quote,'better_wording':own})
+        try:analytics.prepare_snapshot(invalid,today,now=now)
+        except ValueError:pass
+        else:raise AssertionError('More than three call moments accepted')
+    print('SYNTHETIC frozen private call card PASS: full9 local quotes/status; exactly3 moments/better wording; fix/example/agreed next step; unsupported quotes/moment4 rejected; private quotation absent from public allowlist')
+
+
+
+def analytics_pipeline_probe_contract():
+    import analytics
+    import badges
+    import copy
+    today=dt.date(2026,10,14);now='2026-10-14T15:00:00+02:00'
+    with fixture('stable-platform-probes') as folder:
+        analytics_sync_marker(folder)
+        first=analytics.timestamp(analytics_stamp(today-dt.timedelta(days=2))).astimezone(dt.timezone.utc).isoformat(); earlier=analytics.timestamp(analytics_stamp(today-dt.timedelta(days=3))).astimezone(dt.timezone.utc).isoformat()
+        seed([{'id':str(944000000+i),'status':'new','source':'outbound'} for i in range(8)])
+        insights={'data':{'rank':3,'competitors':8},'fetched_at':first,'source':'upwork-proposal'}
+        proposal={'job_id':'944000000','proposal_id':'probe-p','status':'pending','applied_at':first,
+                  'viewedByClient':True,'proposal_insights':insights}
+        unseen=dict(proposal,job_id='944000001',proposal_id='probe-unseen',viewedByClient=False)
+        sync={'proposals':[proposal,unseen],'earnings':[], 'connects':[
+            {'transaction_id':'application','at':first,'amount':-16,'reason':'Proposal debit','job_id':'944000000'},
+            {'transaction_id':'paid-invite','at':first,'amount':-4,'reason':'Paid invitation badge','purpose':'invitation badge'},
+            {'transaction_id':'grant','at':first,'amount':10,'reason':'Monthly allocation'}]}
+        run('sync.py','apply','--file','-',value=sync)
+        job=records()['944000000'];observation=job['proposal_viewed_observation']; observed=job['proposal_viewed_at']
+        assert job['proposal_viewed']['value'] is True and job['proposal_viewed']['source']=='upwork-proposal'
+        assert observation['kind']=='flag-observed' and observation['event_time_known'] is False and observation['verified'] is True
+        assert 'proposal_viewed_at' not in records()['944000001']
+        changed=copy.deepcopy(sync);changed['proposals'][0].update(viewedByClient=False,
+            proposal_insights=dict(insights,data={'rank':999}))
+        run('sync.py','apply','--file','-',value=changed)
+        job=records()['944000000']
+        assert job['proposal_viewed']['value'] is False and job['proposal_viewed_at']==observed
+        expected_insights=dict(insights,fetched_at=analytics.timestamp(first).astimezone(dt.timezone.utc).isoformat())
+        assert job['proposal_insights']==expected_insights, 'First insights read is immutable.'
+        result=analytics.compute(today,jobs=list(records().values()),now=now)
+        viewed=result['stage_context']['applied_to_viewed']
+        assert (viewed['k'],viewed['n'],viewed['value'])==(1,2,50) and viewed['evidence']==['944000000'], (viewed, records())
+        assert 'not the actual view timestamp' in viewed['note']
+        assert result['kpis']['value_per_100_connects']['n']==20, 'Every negative ledger debit, including paid invitation badges.'
+        # Old exact invitation timestamp stays exact; fallback has explicit provenance.
+        invitation={'job_id':'944000002','invitation_id':'probe-i','invited_at':earlier}
+        fallback={'job_id':'944000003','invitation_id':'probe-f'}
+        run('sync.py','apply','--file','-',value={'invitations':[invitation,fallback]})
+        jobs=records();assert jobs['944000002']['invited_at']==earlier and jobs['944000002']['invited_at_source']=='room'
+        fallback_at=jobs['944000003']['invited_at'];assert jobs['944000003']['invited_at_source']=='sync'
+        run('sync.py','apply','--file','-',value={'invitations':[{'job_id':'944000002','invitation_id':'probe-i'},fallback]})
+        assert records()['944000002']['invited_at']==earlier and records()['944000003']['invited_at']==fallback_at
+        room={'job_id':'944000003','room_id':'probe-room','messages_complete':True,
+              'messages':[{'from':'client','text':'Invitation details','at':earlier}]}
+        run('sync.py','apply','--file','-',value={'invitations':[fallback],'threads':[room]})
+        assert records()['944000003']['invited_at']==earlier and records()['944000003']['invited_at_source']=='room'
+        request={'job_id':'944000004','session_id':'pending-session','request_id':'request-one','status':'pending',
+                 'booked_at':first,'scheduled_at':analytics_stamp(today+dt.timedelta(days=2))}
+        run('sync.py','apply','--file','-',value={'meetings':[request]})
+        pending=records()['944000004'];requested_at=pending['call_requested_at']
+        assert pending['call_request']['requested_at_source']=='sync' and 'call_booked_at' not in pending
+        run('sync.py','apply','--file','-',value={'meetings':[request]})
+        assert records()['944000004']['call_requested_at']==requested_at and 'call_booked_at' not in records()['944000004']
+        held={'job_id':'944000005','session_id':'held','booked_at':earlier,'held_at':first,'duration_s':300}
+        noshow={'job_id':'944000006','session_id':'absent','booked_at':earlier,'scheduled_at':first,'no_show':True}
+        run('sync.py','apply','--file','-',value={'meetings':[held,noshow]})
+        before={jid:copy.deepcopy(records()[jid]) for jid in ('944000005','944000006')}
+        result=run('sync.py','apply','--file','-',value={'recaps':[{'job_id':jid,'recap_state':'unknown','recap_reason':'Read unavailable'} for jid in before]})
+        assert result.returncode==0
+        for jid,prior in before.items():
+            current=records()[jid]
+            assert current['recap_state']=='unknown' and current['call_sessions']==prior['call_sessions']
+            assert current.get('call_held_at')==prior.get('call_held_at') and current.get('no_show')==prior.get('no_show')
+        # CLI's ordinary note writer carries explicit human action proof, never inferred conversions.
+        goal={'kpi':'reply_to_call','change':'Offer two concrete times','start':today.isoformat()}
+        identity=analytics.goal_id(goal,'2026-W42');goal['goal_id']=identity
+        for jid in ('944000000','944000001'):
+            run('pipeline.py','observe',jid,'replied',analytics_stamp(today,0),'--source','upwork-thread','--verified')
+        action={'goal_id':identity,'kpi':'reply_to_call','at':analytics_stamp(today,1),'evidence':'Member confirmed two times offered'}
+        run('pipeline.py','note','944000000','analytics goal_action: '+json.dumps(action))
+        run('pipeline.py','note','944000000','analytics goal_action: '+json.dumps(action))
+        for bad in (dict(action,goal_id='wrong-goal'),dict(action,kpi='reply_rate'),dict(action,at=earlier),dict(action,evidence='')):
+            run('pipeline.py','note','944000001','analytics goal_action: '+json.dumps(bad))
+        quest=analytics.quest_progress({'week':'2026-W42','goals_next':[goal]},list(records().values()),today)[0]
+        assert (quest['goal_id'],quest['done_k'],quest['done_n'],quest['execution_state'])==(identity,1,2,'partial'),quest
+        unknown=analytics.quest_progress({'week':'2026-W42','goals_next':[dict(goal,goal_id='unknown-goal')]},list(records().values()),today)[0]
+        assert unknown['done_k'] is None and unknown['done_n']==2 and unknown['execution_state']=='unverified' and unknown['note']
+        native=records()['944000007'];native.update(applied_at=analytics_stamp(today,2),speed_to_lead_s=120,job_fit={'state':'pass','reason':'Fits'})
+        assert badges.check(jobs=[native],now=now)==[], 'Unknown event source earns nothing.'
+        native['applied_observation']={'source':'upwork-proposal','verified':True}
+        native['application_date_unknown']=True
+        assert badges.check(jobs=[native],now=now)==[]
+        native.pop('application_date_unknown');native['imported']=True
+        assert badges.check(jobs=[native],now=now)==[]
+        native.pop('imported');awards=badges.check(jobs=[native],now=now)
+        assert len(awards)==1 and badges.award_lines(awards)==['Swift Sail · Bronze: Applied within 2 minutes of posting.']
+        base=result if isinstance(result,dict) else analytics.compute(today,jobs=[],now=now)
+        overlay=badges.voyage(badges.read_ledger(),base)
+        assert len(overlay['stations'])==14
+        station=next(row for row in overlay['stations'] if row['badge']=='Swift Sail')
+        assert station['earned'] and station['tier']=='Bronze' and station['next_tier']=='Silver'
+        assert overlay['calendar']==base['presentation']['voyage']['calendar']
+        assert overlay['goals_history']==base['presentation']['voyage']['goals_history']
+    print('SYNTHETIC final platform probes PASS: true/false persistent viewed context; immutable insights; exact/fallback/repair invitation; request not booking/replay; nonfatal unknown recap preserves held/no-show; all Connects debits; unique explicit goal action; confirmed/import/unknown badge gates; immediate pure14station ledger overlay')
+
 def main():
     with fixture('dashboard'):
         s = dashboard_fixture()
@@ -2803,6 +3347,12 @@ def main():
     analytics_fix_round()
     analytics_badges()
     analytics_privacy_and_badge_replace()
+    analytics_final_numerical()
+    analytics_event_ledger_contract()
+    analytics_final_reader_contract()
+    analytics_public_onepager_contract()
+    analytics_private_call_cards_contract()
+    analytics_pipeline_probe_contract()
     current = hashlib.sha256(REAL_JOBS.read_bytes()).hexdigest() if REAL_JOBS.exists() else None
     assert current == REAL_HASH, 'Real data/jobs.json changed'
     assert REAL_DATA_HASHES == {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()

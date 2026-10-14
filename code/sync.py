@@ -13,14 +13,15 @@ thread is Upwork content, so `pipeline.py prune` deletes it after KEEP_CHAT_HOUR
 
 The snapshot, one JSON object (every list optional):
     {"proposals": [{"job_id", "proposal_id", "room_id", "title", "url", "status", "applied_at"}],
-     "invitations": [{"job_id", "invitation_id", "title", "url", "invited_at", "room_id"}],
+     "invitations": [{"job_id", "invitation_id", "title", "url", "invited_at", "invited_at_source", "room_id"}],
      "no_rooms":  ["job_id"],
      "offers":    [{"job_id", "offer_id", "title", "state", "client_name", "source": "invite"|"direct_offer", "offered_at"}],
      "contracts": [{"job_id", "contract_id", "title", "status", "client_name",
                     "terms": {"type": "fixed"|"hourly", "fixed_amount", "hourly_rate", "weekly_hours", "currency", "start_date"}}],
      "earnings": [{"week_start", "contract_id", "billed", "currency"}],
      "connects": [{"at", "amount", "reason", "job_id"}],
-     "meetings": [{"job_id", "room_id", "booked_at", "scheduled_at", "session_id", "held_at", "duration_s"}],
+     "meetings": [{"job_id", "room_id", "status", "requested_at", "request_id", "booked_at", "scheduled_at", "session_id", "held_at", "duration_s"}],
+     "recaps": [{"job_id", "room_id", "recap_state": "ok"|"empty"|"unknown", "recap_reason"}],
      "threads":   [{"job_id", "room_id", "awaiting_reply_from", "messages_complete", "messages":
                     [{"from": "client"|"me", "name", "at", "text"}]}]}
 Offers and contracts without a job_id are matched only by a stored unique
@@ -28,6 +29,16 @@ proposal, room, invitation, offer or contract identity. An unmatched record need
 
 `applied_at` is the proposal's Upwork creation time. `messages_complete` is true
 only when connector pagination explicitly proves there are no older messages.
+Normalized invitations may supply a verified zoned invited_at with source room or
+sync. A supplied date without a source is legacy validated room evidence. Raw
+invitations without dates use actual sync observation time, source sync. Complete
+room first-client-message evidence wins over supplied dates and repairs fallbacks;
+the earliest valid date for each source is retained across replay. Room evidence
+upgrades sync evidence even when the room date is later; sync cannot replace room.
+Proposals may also carry viewedByClient (boolean), terms.connectsBid, boosted and
+proposal_insights: {data: object, fetched_at: zoned ISO, source: "upwork-proposal"}.
+The view flag's timestamp is observation time, never the actual viewing time.
+Proposal costs are evidence only; connects is exclusively the financial ledger.
 """
 import argparse
 import datetime
@@ -51,7 +62,7 @@ RANK = {'new': 0, 'applied': 1, 'replied': 2, 'call': 3, 'offer': 4, 'won': 5}
 EXITS = ('lost', 'skipped')
 # Upwork's proposal words. "Accepted" means submitted, not that the client said yes.
 PROPOSAL_STAGE = {'accepted': 'applied', 'pending': 'applied', 'activated': 'applied',
-                  'offered': 'offer', 'hired': 'won', 'declined': 'lost', 'withdrawn': 'lost'}
+                  'archived': 'applied', 'offered': 'offer', 'hired': 'won', 'declined': 'lost', 'withdrawn': 'lost'}
 OFFER_STAGE = {'awaiting_your_acceptance': 'offer', 'contract_started': 'won',
                'declined': 'lost', 'withdrawn': 'lost', 'expired': 'lost'}
 CONTRACT_STAGE = {'active': 'won', 'paused': 'won', 'closed': 'won'}
@@ -67,15 +78,52 @@ _mutation_failures = []
 def run_pipeline(*args, stdin=None):
     r = subprocess.run([sys.executable, str(ROOT / 'code' / 'pipeline.py'), *args],
                        input=stdin, capture_output=True, text=True)
-    if r.returncode:
+    for line in pipeline.award_lines(r.stdout):
+        print(line)
+    if r.stderr.strip():
         print(r.stderr.strip(), file=sys.stderr)
+    if r.returncode:
         _mutation_failures.append({'command': args[0], 'job_id': args[1] if len(args) > 1 else None})
     return r.returncode == 0
+
+
+def status_word(value):
+    """Read the record's status, never the status used to request its page."""
+    if isinstance(value, dict):
+        value = value.get('status') or value.get('value') or value.get('name') or ''
+    return str(value or '').strip().lower()
+
+
+def proposal_records(records):
+    """Overlapping status pages count a stable proposal once; newest copy wins."""
+    indexed = {}
+    for position, item in enumerate(records):
+        identity = str(item.get('proposal_id') or item.get('id') or '')
+        key = ('proposal', identity) if identity else ('row', position)
+        previous = indexed.get(key)
+        order = verified_timestamp(item.get('modified_at', item.get('modifiedDateTime'))) or ''
+        prior_order = verified_timestamp((previous or {}).get('modified_at', (previous or {}).get('modifiedDateTime'))) or ''
+        if previous is None or order >= prior_order:
+            indexed[key] = item
+    return list(indexed.values())
+
+
+def meeting_is_request(meeting):
+    """Explicit requests/pending states outrank misleading booking-shaped fields."""
+    status = status_word(meeting.get('status') or meeting.get('state'))
+    kind = status_word(meeting.get('kind') or meeting.get('type'))
+    return (meeting.get('is_request') is True or meeting.get('isRequest') is True
+            or any(word in status for word in ('request', 'pending', 'proposed', 'tentative', 'unconfirmed'))
+            or 'request' in kind)
 
 
 def record_metadata(job, value):
     """Record only changed metadata, including removal of the waiting marker."""
     changed = {key: item for key, item in value.items() if job.get(key) != item}
+    # The sole writer needs provenance alongside a changed timestamp, even when
+    # that provenance is unchanged; otherwise its room guard rejects the repair.
+    if 'invited_at' in changed and 'invited_at_source' in value:
+        changed['invited_at_source'] = value['invited_at_source']
     if 'source' in value and isinstance(job.get('application_facts'), dict) and job['application_facts'].get('source') != value['source']:
         changed['source'] = value['source']
     if not changed:
@@ -230,8 +278,8 @@ def reply_gaps(thread):
 def source_stage(item, kind):
     key, stages = {'proposals': ('status', PROPOSAL_STAGE), 'offers': ('state', OFFER_STAGE),
                    'contracts': ('status', CONTRACT_STAGE)}[kind]
-    raw = str(item.get(key) or '')
-    stage = stages.get(raw.lower())
+    raw = status_word(item.get(key))
+    stage = stages.get(raw)
     if stage is None:
         print(f'WARNING: unknown {kind} status {raw!r}.', file=sys.stderr)
     return stage
@@ -272,7 +320,7 @@ def evidence(snapshot, jobs):
                for m in thread_io.normalize(t.get('messages') or [])):
             note(t.get('job_id'), None, 'replied')
     for meeting in snapshot.get('meetings') or []:
-        if verified_timestamp(meeting.get('booked_at')) or verified_timestamp(meeting.get('held_at')):
+        if not meeting_is_request(meeting) and (verified_timestamp(meeting.get('booked_at')) or verified_timestamp(meeting.get('held_at'))):
             note(meeting.get('job_id'), None, 'call')
     return seen
 
@@ -372,12 +420,14 @@ def append_financials(snapshot):
 def cmd_apply(args):
     raw = sys.stdin.read() if args.file == '-' else pathlib.Path(args.file).read_text(encoding='utf-8')
     snapshot = json.loads(raw)
+    snapshot['proposals'] = proposal_records(snapshot.get('proposals') or [])
     _mutation_failures.clear()
     jobs = pipeline.load()
     known = {j['id'] for j in jobs}
     previous_sync = json.loads((data_dir() / 'sync.json').read_text()) if (data_dir() / 'sync.json').is_file() else {}
     first_import = not previous_sync.get('synced_at')
-    observation_started_at = previous_sync.get('observation_started_at') or previous_sync.get('synced_at') or datetime.datetime.now(datetime.timezone.utc).isoformat()
+    observed_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    observation_started_at = previous_sync.get('observation_started_at') or previous_sync.get('synced_at') or observed_at
 
     added = []
     for kind in ('invitations', 'proposals', 'offers', 'contracts'):
@@ -421,10 +471,37 @@ def cmd_apply(args):
                 job = next(j for j in jobs if j['id'] == jid)
                 if kind == 'invitations':
                     metadata['source'] = 'invite'
-                    invited = verified_timestamp(item.get('invited_at'))
-                    if invited:
-                        metadata['invited_at'] = invited
+                    room_times = [stamp for thread in snapshot.get('threads') or []
+                                  if (str(thread.get('job_id') or '') == jid or
+                                      (item.get('room_id') and str(thread.get('room_id')) == str(item['room_id'])))
+                                  if (stamp := first_complete_client_message(thread))]
+                    if room_times:
+                        prior = verified_timestamp(job.get('invited_at')) if job.get('invited_at_source') == 'room' else None
+                        metadata.update(invited_at=min([*room_times, *([prior] if prior else [])]), invited_at_source='room')
+                    elif (supplied := verified_timestamp(item.get('invited_at'))) and item.get('invited_at_source') in (None, 'room', 'sync'):
+                        source = item.get('invited_at_source') or 'room'
+                        prior = verified_timestamp(job.get('invited_at')) if job.get('invited_at_source') == source else None
+                        if job.get('invited_at_source') != 'room' or source == 'room':
+                            metadata.update(invited_at=min(supplied, prior) if prior else supplied, invited_at_source=source)
+                    elif job.get('invited_at_source') not in ('room', 'sync') or not job.get('invited_at'):
+                        metadata.update(invited_at=observed_at, invited_at_source='sync')
                 elif kind == 'proposals':
+                    if status_word(item.get('status')):
+                        metadata['proposal_status'] = status_word(item.get('status'))
+                    flag = item.get('viewedByClient', item.get('viewed_by_client'))
+                    if isinstance(flag, bool):
+                        metadata['proposal_viewed'] = {'value': flag, 'observed_at': observed_at, 'source': 'upwork-proposal'}
+                    cost = {'observed_at': observed_at, 'source': 'upwork-proposal'}
+                    connects_bid = pipeline.numeric((item.get('terms') or {}).get('connectsBid', item.get('connectsBid')))
+                    if connects_bid is not None:
+                        cost['connectsBid'] = connects_bid
+                    if isinstance(item.get('boosted'), bool):
+                        cost['boosted'] = item['boosted']
+                    if len(cost) > 2:
+                        metadata['proposal_cost'] = cost
+                    insights = item.get('proposal_insights')
+                    if insights is not None and not job.get('proposal_insights'):
+                        metadata['proposal_insights'] = insights
                     source = item.get('source')
                     if source in ('outbound', 'invite'):
                         metadata['source'] = source
@@ -447,7 +524,7 @@ def cmd_apply(args):
     jobs = pipeline.load()
 
     aliases = {alias: job['id'] for job in jobs for alias in job.get('aliases', [])}
-    for kind in ('threads', 'meetings', 'connects'):
+    for kind in ('threads', 'meetings', 'recaps', 'connects'):
         for item in snapshot.get(kind) or []:
             if isinstance(item, dict) and item.get('job_id'):
                 item['job_id'] = aliases.get(str(item['job_id']), str(item['job_id']))
@@ -497,9 +574,11 @@ def cmd_apply(args):
     for proposal in snapshot.get('proposals') or []:
         jid = str(proposal.get('job_id') or '')
         stamp = verified_timestamp(proposal.get('applied_at'))
-        stage = PROPOSAL_STAGE.get(str(proposal.get('status', '')).lower())
+        stage = PROPOSAL_STAGE.get(status_word(proposal.get('status')))
         if jid in known and stage and stamp:
             applied_observations[jid] = min(stamp, applied_observations.get(jid, stamp))
+        if jid in known and proposal.get('viewedByClient', proposal.get('viewed_by_client')) is True:
+            run_pipeline('observe', jid, 'proposal_viewed', observed_at, '--source', 'upwork-proposal', '--verified')
     for jid, stamp in applied_observations.items():
         run_pipeline('observe', jid, 'applied', stamp, '--source', 'upwork-proposal', '--verified')
 
@@ -509,6 +588,24 @@ def cmd_apply(args):
     for meeting in snapshot.get('meetings') or []:
         jid = str(meeting.get('job_id') or '')
         if jid not in known:
+            continue
+        if meeting_is_request(meeting):
+            request = {key: str(meeting[key]) for key in ('request_id', 'session_id', 'room_id') if meeting.get(key)}
+            request.update(status=status_word(meeting.get('status') or meeting.get('state')) or 'request',
+                           source='upwork-meeting', observed_at=observed_at)
+            if booked_timestamp(meeting.get('scheduled_at')):
+                request['scheduled_at'] = booked_timestamp(meeting['scheduled_at'])
+            if pipeline.numeric(meeting.get('duration_s')) is not None:
+                request['duration_s'] = pipeline.numeric(meeting['duration_s'])
+            requested = verified_timestamp(meeting.get('requested_at') or meeting.get('created_at') or meeting.get('createdDateTime'))
+            saved_job = next(j for j in pipeline.load() if j['id'] == jid)
+            prior_request = saved_job.get('call_request') or {}
+            identity_key = next((key for key in ('request_id', 'session_id', 'room_id') if request.get(key)), None)
+            same_request = identity_key and prior_request.get(identity_key) == request[identity_key]
+            request['requested_at_source'] = ('upwork' if requested else
+                prior_request.get('requested_at_source', 'sync') if same_request else 'sync')
+            requested = requested or (verified_timestamp(saved_job.get('call_requested_at')) if same_request else None) or observed_at
+            record_metadata(saved_job, {'call_request': request, 'call_requested_at': requested})
             continue
         if jid not in session_jobs:
             saved_job = next(j for j in pipeline.load() if j['id'] == jid)
@@ -574,6 +671,9 @@ def cmd_apply(args):
             reply_observations[jid] = min(stamp, reply_observations.get(jid, stamp))
     for jid, stamp in reply_observations.items():
         run_pipeline('observe', jid, 'replied', stamp, '--source', 'upwork-thread', '--verified')
+        job = next(j for j in pipeline.load() if j['id'] == jid)
+        if job.get('source') == 'invite' and (job.get('invited_at_source') != 'room' or stamp < job.get('invited_at', stamp)):
+            record_metadata(job, {'invited_at': stamp, 'invited_at_source': 'room'})
 
     # Update complete rooms by identity; a partial refresh preserves earlier rooms.
     for jid, rooms in threads.items():
@@ -700,6 +800,21 @@ def cmd_apply(args):
         if job['id'] in no_rooms and applied_expired(job):
             stale.append(job['id'])
 
+    # Read errors are coverage facts, never attendance evidence or mutation failures.
+    recap_coverage = []
+    for recap in [*(snapshot.get('recaps') or []),
+                  *(meeting for meeting in snapshot.get('meetings') or [] if 'recap_state' in meeting)]:
+        jid = matched_id(recap, pipeline.load())
+        state = recap.get('recap_state', 'unknown')
+        reason = recap.get('recap_reason')
+        if state not in ('ok', 'empty', 'unknown'):
+            state, reason = 'unknown', f'Unrecognised recap state: {state}'
+        if state == 'unknown' and not reason:
+            reason = 'Recaps could not be read.'
+        value = {'recap_state': state, 'recap_reason': str(reason) if reason is not None else None}
+        recap_coverage.append({'job_id': jid, 'room_id': recap.get('room_id'), **value})
+        if jid in known:
+            record_metadata(next(j for j in pipeline.load() if j['id'] == jid), value)
     try:
         append_financials(snapshot)
     except (ValueError, TypeError, OSError) as error:
@@ -710,11 +825,16 @@ def cmd_apply(args):
               'stale_applications': stale, 'meetings': meetings, 'observation_started_at': observation_started_at,
               'coverage': {name: ('checked' if name in snapshot else 'unavailable') for name in ('earnings', 'connects')},
               'status': 'error' if _mutation_failures else 'ok', 'errors': list(_mutation_failures)}
+    record['coverage']['recaps'] = {'state': 'unknown' if any(row['recap_state'] == 'unknown' for row in recap_coverage)
+                                  else 'checked' if 'recaps' in snapshot or recap_coverage else 'unavailable',
+                                  'rooms': recap_coverage}
     if _mutation_failures:
         record['attempted_at'] = record['synced_at']
         record['synced_at'] = previous_sync.get('synced_at')
     data_dir().mkdir(parents=True, exist_ok=True)
     write_json_atomic(data_dir() / 'sync.json', record)
+    if not _mutation_failures:
+        pipeline.check_badges('--all-since', previous_sync.get('synced_at') or observed_at)
     for m in moved:
         print(f'moved   {m["id"]}  {m["from"]} -> {m["to"]}')
     for jid in added:

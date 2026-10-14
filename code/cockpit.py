@@ -32,6 +32,7 @@ sys.path.insert(0, str(ROOT / 'code'))
 import pipeline  # noqa: E402  (read-only use: load, jobs_dir)
 import application_check  # noqa: E402
 import pitch_check  # noqa: E402
+import analytics  # noqa: E402  (saved snapshots and the weekly due check)
 from analytics import bars  # noqa: E402
 
 APP = ROOT / 'website'
@@ -138,6 +139,21 @@ def job_view(job_id):
     j['client_waiting'] = client_waiting(j['thread'])
     j['artifacts'] = [f['name'] for f in files]
     j['replies'] = read_json(folder, 'replies.json')
+    saved = analytics_state(datetime.datetime.now(pipeline.member_zone()).date())
+    snapshot = saved['latest'] or {}
+    # A saved evidence row enriches a real pipeline lead; it never creates a lead.
+    j['call_cards'] = [row for row in snapshot.get('call_cards') or []
+                       if isinstance(row, dict) and str(row.get('lead_id')) == str(job_id)]
+    prepared = next((row for row in snapshot.get('lead_cards') or []
+                     if isinstance(row, dict) and str(row.get('lead_id', row.get('id'))) == str(job_id)), None)
+    j['lead_context'] = {
+        'week': snapshot.get('week'), 'prepared': prepared,
+        'proposal_viewed': job.get('proposal_viewed'),
+        'proposal_viewed_at': job.get('proposal_viewed_at'),
+        'proposal_insights': job.get('proposal_insights'),
+        'view_note': 'Upwork observed a viewed flag; observed_at is not the actual view time.',
+    }
+    j['analytics_errors'] = saved['errors']
     return j
 
 
@@ -391,24 +407,173 @@ def bottleneck(jobs, daily, profile, timing):
     return result
 
 
+def saved_rows(name, errors):
+    """Read a ledger without turning a broken analytics row into a broken lead list."""
+    path = pipeline.data_dir() / name
+    if not path.is_file():
+        return []
+    try:
+        lines = path.read_text(encoding='utf-8').splitlines()
+    except (OSError, UnicodeError):
+        errors.append({'file': name, 'reason': 'The saved file could not be read.'})
+        return []
+    rows = []
+    for index, line in enumerate(lines, start=1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+            if not isinstance(row, dict):
+                raise ValueError('not an object')
+            rows.append(row)
+        except (ValueError, TypeError):
+            errors.append({'file': name, 'line': index,
+                           'reason': 'This saved row is not a readable object.'})
+    return rows
+
+
+def snapshot_aliases(value):
+    """Copy saved writer fields into reader aliases, without deriving any result."""
+    if isinstance(value, list):
+        return [snapshot_aliases(row) for row in value]
+    if not isinstance(value, dict):
+        return value
+    row = {key: snapshot_aliases(item) for key, item in value.items()}
+    for target, source in (('evidence', 'evidence_lead_ids'), ('k', 'done_k'),
+                           ('n', 'done_n'), ('state', 'execution_state'),
+                           ('duration_min', 'duration_minutes'), ('better', 'better_wording')):
+        if target not in row and source in row:
+            row[target] = row[source]
+    if 'question_count' not in row and isinstance(row.get('questions'), dict) and 'member' in row['questions']:
+        row['question_count'] = row['questions']['member']
+    return row
+
+
+def snapshot_view(snapshot):
+    """Only aliases of prepared fields; missing old snapshots need a writer rerun."""
+    result = snapshot_aliases(snapshot)
+    presentation = dict(result['presentation']) if isinstance(result.get('presentation'), dict) else {}
+    for key in ('voyage', 'funnel', 'rank', 'next_run_day', 'next_run_on'):
+        if key not in presentation and key in result:
+            presentation[key] = result[key]
+    result['presentation'] = presentation
+    return result
+
+
+def analytics_state(today):
+    """The cockpit reads the writer's numbers; it never runs weekly compute."""
+    errors = []
+    snapshots = [snapshot_view(row) for row in saved_rows('analytics-history.jsonl', errors)]
+    history = snapshots[-12:]
+    latest = max(history, key=lambda row: _when(row.get('generated_at')) or
+                 datetime.datetime.min.replace(tzinfo=datetime.timezone.utc), default=None)
+    if latest is not None:
+        presentation = latest['presentation']
+        missing = [f'presentation.{key}' for key in ('number_keys', 'kpi_groups', 'insights', 'funnel', 'voyage')
+                   if key not in presentation]
+        missing += [key for key in ('call_cards',) if key not in latest]
+        if missing:
+            errors.append({'file': 'analytics-history.jsonl', 'week': latest.get('week'),
+                           'fields': missing, 'reason': 'Prepared fields are missing. Run /analytics to refresh this snapshot.'})
+    goals_history = saved_rows('goals.jsonl', errors)
+    iso = today.isocalendar()
+    week = f'{iso.year}-W{iso.week:02d}'
+    eligible = [row for row in goals_history if isinstance(row.get('week'), str)
+                and row['week'] <= week and isinstance(row.get('goals'), list)]
+    current = max(eligible, key=lambda row: row['week'], default=None)
+    goals = [goal for goal in current['goals'] if isinstance(goal, dict)] if current else []
+    # Weekly tiers and instant awards have separate writers. Neither source hides
+    # an earned tier in the other, including when a later snapshot omits an award.
+    awards_by_tier = {}
+    for row in snapshots + [{'badges': saved_rows('badges.jsonl', errors)}]:
+        for award in row.get('badges') or []:
+            if not isinstance(award, dict) or not award.get('badge') or not award.get('tier'):
+                continue
+            key = (award['badge'], award['tier'])
+            awards_by_tier[key] = dict(awards_by_tier.get(key, {}), **award)
+    awards = list(awards_by_tier.values())
+    try:
+        due = bool(analytics.due(today))
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError):
+        due = True
+        errors.append({'file': 'analytics-history.jsonl',
+                       'reason': 'Run /analytics to restore the weekly due check.'})
+    schedule = analytics.sections().get('Analytics day', 'Monday').casefold()
+    names = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')
+    next_run_day = ((latest or {}).get('presentation') or {}).get('next_run_day') or next(
+        (name for name in names if name.casefold() in schedule), 'Monday')
+    return {'latest': latest, 'history': history, 'goals': goals, 'badges': awards,
+            'voyage': ((latest or {}).get('presentation') or {}).get('voyage'),
+            'rank': (latest or {}).get('rank'),
+            'goals_week': current['week'] if current else None,
+            'goals_history': goals_history, 'due': due, 'next_run_day': next_run_day, 'errors': errors}
+
+
+def event_progress(jobs, saved, today):
+    """Only daily voyage and quest event counts may be read live for analytics."""
+    progress = {}
+    try:
+        import badges
+        helper = getattr(badges, 'cockpit_progress', None)
+        if helper:
+            progress = helper(jobs, today=today, snapshot=saved['latest'], goals=saved['goals'])
+    except (ImportError, OSError, ValueError, TypeError, KeyError):
+        saved['errors'].append({'file': 'badges.jsonl',
+                                'reason': 'Today’s badge progress could not be read.'})
+    voyage = progress.get('daily_voyage') if isinstance(progress, dict) else None
+    # The analytics helper returns a flat voyage; the badge helper wraps it.
+    if voyage is None and isinstance(progress, dict) and 'applications' in progress:
+        voyage = progress
+    if voyage is None and hasattr(analytics, 'daily_voyage'):
+        voyage = analytics.daily_voyage(jobs, today)
+    if not isinstance(voyage, dict):
+        voyage = {'date': today.isoformat(), 'goal': None, 'applications': None}
+    voyage = dict(voyage, fast_applications=voyage.get('fast_applications', voyage.get('fast')),
+                  follow_ups_done=voyage.get('follow_ups_done', voyage.get('followups_done')),
+                  follow_ups_due=voyage.get('follow_ups_due', voyage.get('followups_due')))
+    snapshot = saved['latest'] or {}
+    quests = progress.get('quests') if isinstance(progress, dict) else None
+    live_quests = quests is not None
+    goals = (saved['goals'] if live_quests else snapshot.get('goals_next')) or []
+    quest_period = ({'start': (today - datetime.timedelta(days=today.weekday())).isoformat(),
+                     'end': today.isoformat()} if live_quests else
+                    (snapshot.get('periods') or {}).get('activity'))
+    if quests is None:
+        quests = snapshot.get('quests') or []
+    by_key = {goal.get('kpi'): goal for goal in goals if isinstance(goal, dict)}
+    result = []
+    for quest in quests:
+        if not isinstance(quest, dict):
+            continue
+        goal = by_key.get(quest.get('kpi'), {})
+        result.append(dict(quest, text=quest.get('text', quest.get('change', goal.get('change'))),
+                           k=quest.get('k', quest.get('done_k')), n=quest.get('n', quest.get('done_n')),
+                           primary=quest.get('primary', goal.get('primary', False)),
+                           state=quest.get('state', quest.get('execution_state', goal.get('execution_state'))),
+                           period=quest.get('period', quest_period)))
+    return voyage, result
+
+
 def build_state():
     jobs = pipeline.load()
-    daily = consistency(jobs)
-    profile = profile_history()
-    timing = timings(jobs)
-    return {
-        'generated_at': datetime.datetime.now().isoformat(timespec='seconds'),
+    now = datetime.datetime.now(pipeline.member_zone())
+    today = now.date()
+    saved = analytics_state(today)
+    voyage, quests = event_progress(jobs, saved, today)
+    done = pipeline.applied_on(jobs, today.isoformat())
+    state = {
+        'generated_at': now.isoformat(timespec='seconds'),
         'jobs': [card(j) for j in jobs],
         'sync': last_sync(),
-        'tracker': {'goal': daily_target(),
-                    'done': daily['days'][-1]['count']},
-        'funnel': funnel(jobs),
-        'outreach': outreach(jobs),
-        'consistency': daily,
-        'profile': profile,
-        'timings': timing,
-        'bottleneck': bottleneck(jobs, daily, profile, timing),
+        'tracker': {'goal': daily_target(), 'done': done},
+        'analytics': saved,
+        'analytics_due': saved['due'],
+        'goals': saved['goals'],
+        'badges': saved['badges'],
+        'daily_voyage': voyage,
+        'quests': quests,
     }
+    return state
 
 
 def last_sync():

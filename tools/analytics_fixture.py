@@ -708,7 +708,7 @@ def review_proofs():
     analytics = (ROOT / 'website/components/AnalyticsPage.tsx').read_text()
     # Frozen UI now reads saved focus, k/n and uncertainty; legacy49/50 pure proofs remain.
     assert 'No weekly snapshot yet.' in analytics
-    assert 'presentation.kpi_groups' in analytics and 'snapshot.verdict' in analytics
+    assert 'presentation.scorecard' in analytics and 'snapshot.verdict' in analytics
     assert 'value.metric.low' in analytics and 'value.metric.high' in analytics
     print('SYNTHETIC fixes 7/10 PASS: recorder transcript/fallback in sales command, hook writer, import cleanup, existing UI contracts; legacy command/reference budgets retained (analytics goal-library excluded); authorized analytics reminder/settings/files verified')
 
@@ -803,23 +803,33 @@ const {transformSync}=require('next/dist/build/swc');
 const {code}=transformSync(fs.readFileSync('components/AnalyticsPage.tsx','utf8'),{
 filename:'AnalyticsPage.tsx',swcrc:false,configFile:false,jsc:{parser:{syntax:'typescript',tsx:true},
 target:'es2020',transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}});
-let current, selected=null, hook=0;const mod={exports:{}};
+let current, selected=null, hook=0, injected=false;const mod={exports:{}};
+const compiledScorecard={exports:{}};
+const scorecardCode=transformSync(fs.readFileSync('components/FunnelScorecard.tsx','utf8'),{filename:'FunnelScorecard.tsx',swcrc:false,configFile:false,jsc:{parser:{syntax:'typescript',tsx:true},target:'es2020',transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}}).code;
+new Function('require','module','exports',scorecardCode)(require,compiledScorecard,compiledScorecard.exports);
 new Function('require','module','exports',code)(name=>{
+if(name==='./FunnelScorecard')return compiledScorecard.exports;
 if(name==='@/lib/context')return {useCockpit:()=>({state:current,openDrawer:()=>{}})};
-if(name==='react')return {...React,useState:initial=>{const pair=React.useState(initial);hook++;return hook===4&&selected?[selected,pair[1]]:pair;}};
+if(name==='react')return {...React,useState:initial=>{const pair=React.useState(initial);hook++;return !injected&&initial===null&&selected?(injected=true,[selected,pair[1]]):pair;}};
 return require(name);},mod,mod.exports);
-function render(state){current=state;hook=0;return renderToStaticMarkup(React.createElement(mod.exports.default));}
+function render(state){current=state;hook=0;injected=false;return renderToStaticMarkup(React.createElement(mod.exports.default));}
 const payload=JSON.parse(process.argv[1]);const populated=payload.legacy, snapshot=payload.snapshot;
 const modern={...populated,analytics:{latest:snapshot,history:[snapshot]}};
 const html=render(modern);assert(html.includes('This week’s focus'));
-assert(html.indexOf('This week’s focus')<html.indexOf('Your numbers'));
+assert(html.indexOf('This week’s focus')<html.indexOf('Your funnel, stage by stage'));
 assert(html.includes(snapshot.kpis[snapshot.verdict.kpi].label));
-assert(html.includes('Top of funnel')&&html.includes('Middle of funnel')&&html.includes('Bottom of funnel'));
-assert.match(html,/0 of 0/);assert(html.includes('Source missing')||html.includes('Not enough evidence'));
+assert(html.includes('Top · finding and applying')&&html.includes('Middle · replies and calls')&&html.includes('Bottom · proposals and wins'));
+assert(html.includes('Your funnel, stage by stage')&&!html.includes('Show all numbers')&&!html.includes('More insights'));
+assert(html.includes('Funnel Score'));
+assert(!/0 of 0/.test(html));assert(html.includes('No eligible cases yet'));assert(html.includes('unknown')||html.includes('Not enough evidence'));
+const missingMoney={...snapshot,north_star:{...snapshot.north_star,value:null,known_subtotal:0,unknown_value_wins:['synthetic-unknown'],hourly_billed:null}};
+const missingMoneyHtml=render({...modern,analytics:{latest:missingMoney,history:[]}});
+assert.match(missingMoneyHtml, /an-money-button[^>]*>Value unknown<\/button>/);
+assert.match(missingMoneyHtml, /Billed this week[^]*?<strong>Value unknown<\/strong>/);
 const missing=render({...modern,analytics:{latest:null,history:[]}});
 assert(missing.includes('No weekly snapshot yet.'));
 const empty=render({...modern,analytics:{latest:{...snapshot,kpis:{},presentation:{},goals_next:[]},history:[]}});
-assert(!empty.includes('No weekly snapshot yet.'));assert(empty.includes('No saved outbound funnel yet.'));
+assert(!empty.includes('No weekly snapshot yet.'));assert(empty.includes('No eligible cases yet.'));
 // Original49/50 and populated66% semantics stay proved against the pure legacy helper.
 assert.equal(funnel.funnelSteps(populated.funnel,funnel.PROPOSAL_STEPS).at(-1).overall,100);
 assert.equal(funnel.funnelSteps({applied:49,replied:20,call:15},funnel.APPLICATION_STEPS)[1].rate,null);
@@ -1318,8 +1328,8 @@ def analytics_boundaries():
         no_ledger = result['kpis']['value_per_100_connects']
         assert no_ledger['state'] == 'missing' and no_ledger['value'] is None and no_ledger['reason'], no_ledger
         assert result['north_star']['hourly_billed'] is None
-        assert any(row['source'] == 'connects' and row['state'] == 'missing' for row in result['coverage'])
-        assert any(row['source'] == 'earnings' and row['state'] == 'missing' for row in result['coverage'])
+        assert any(row['source'] == 'connects' and row['state'] == 'missing' for row in analytics.coverage_sources(result['coverage']))
+        assert any(row['source'] == 'earnings' and row['state'] == 'missing' for row in analytics.coverage_sources(result['coverage']))
     with fixture('analytics-pooled') as folder:
         analytics_sync_marker(folder)
         rows = []
@@ -1434,7 +1444,7 @@ def analytics_member():
         assert result['north_star']['baseline'] == 4400
         assert result['periods']['activity'] == result['periods']['outcome'] == {'start': '2026-10-07', 'end': '2026-10-13'}
         assert result['periods']['cohort'] == result['window'] == {'start': '2026-09-16', 'end': '2026-10-13'}
-        assert set(row['source'] for row in result['coverage']) == {'recorder', 'upwork', 'tracking', 'loom', 'earnings', 'connects'}
+        assert set(row['source'] for row in analytics.coverage_sources(result['coverage'])) == {'recorder', 'upwork', 'tracking', 'loom', 'earnings', 'connects'}
         assert result['verdict']['kpi'] == 'follow_ups_on_time' and result['verdict']['state'] == 'levers'
         assert result['findings'] == []
         assert result['community_card']['applications'] == 36, result['community_card']
@@ -1568,7 +1578,7 @@ def analytics_history_and_coaching():
             value['reviews']['call'].pop('coverage', None)
             value['reviews']['application'].pop('coverage', None)
             value['reviews']['call']['rubric'] = [{'lead_id': row['id'], 'reviewable': True,
-                'points': [{'point': point, 'state': 'not needed' if point == 6 else 'met'} for point in range(1, 10)]}]
+                'points': [{'point': point, 'state': 'not needed' if point == 6 else 'met', 'reason': 'No separate objection occurred' if point == 6 else ''} for point in range(1, 10)]}]
             value['reviews']['application']['rubric'] = [{'lead_id': row['id'], 'reviewable': True,
                 'points': [{'point': point, 'state': 'met'} for point in range(1, 8)]}]
             reviewed = analytics.prepare_snapshot(value, today)
@@ -1602,14 +1612,16 @@ def analytics_history_and_coaching():
             pass
         else:
             raise AssertionError('Unlabelled call was reviewable')
-        # Frozen §13.11: a skipped week leaves null; first monthly gap consumes an anchor.
+        # Final §19: a skipped full week is reconstructed from dated sources; missing current-state facts stay unknown.
         path = folder / 'data/analytics-history.jsonl'
         old = [json.loads(line) for line in path.read_text().splitlines()]
+        reconstructed_value = next(row['north_star']['value'] for row in old if row['week']=='2026-W41')
         old = [row for row in old if row['week'] != '2026-W41']
         path.write_text(''.join(json.dumps(row) + '\n' for row in old))
         gap = analytics.compute(ANALYTICS_TODAY)
-        assert gap['north_star']['history'][-2] is None and gap['streak_weeks'] == 7  # Seven completed weeks; one protected gap.
-    print('SYNTHETIC A2 history/coaching PASS: eight chronological snapshots, null gaps/streak/baseline550; all four review KPI counts; nine-point coverage/history and unlabelled-call gate')
+        assert gap['north_star']['history'][-2] == reconstructed_value and gap['streak_weeks'] == 8  # Dated history fills the missed week.
+        assert gap['gap']['weeks_missed']==1 and len(path.read_text().splitlines())==7, 'Compute catches up without recording.'
+    print('SYNTHETIC A2 history/coaching PASS: eight chronological snapshots, reconstructed dated gaps/baseline550; all four review KPI counts; nine-point coverage/history and unlabelled-call gate')
 
 
 def analytics_levers_and_imports():
@@ -1684,7 +1696,7 @@ def analytics_source_and_timezone():
         optional = analytics.compute(ANALYTICS_TODAY)
         assert optional['kpis']['application_review']['state'] == 'undecided'
         assert optional['kpis']['proposal_review']['state'] == 'undecided'
-        assert next(row for row in optional['coverage'] if row['source'] == 'tracking')['affects'] == []
+        assert next(row for row in analytics.coverage_sources(optional['coverage']) if row['source'] == 'tracking')['affects'] == []
         jobdir = folder / 'jobs/976000001'
         jobdir.mkdir()
         (jobdir / 'application.sent.md').write_text('Member wording: please see https://www.loom.com/share/synthetic')
@@ -1762,7 +1774,7 @@ def assert_analytics_additions(value):
     for name in ('activity', 'cohort', 'outcome'):
         for key in ('start', 'end'):
             dt.date.fromisoformat(value['periods'][name][key])
-    for row in value['coverage']:
+    for row in __import__('analytics').coverage_sources(value['coverage']):
         assert {'source', 'state', 'affects', 'fix'} <= row.keys()
         assert row['source'] in ('recorder', 'upwork', 'tracking', 'loom', 'earnings', 'connects')
         assert row['state'] in ('ok', 'missing', 'stale') and isinstance(row['affects'], list)
@@ -1968,6 +1980,7 @@ def analytics_badges():
                'applied_at': analytics_stamp(date), 'speed_to_lead_s': 120,
                'applied_observation': {'verified': True, 'source': 'upwork-proposal'},
                'job_fit': {'state': 'pass', 'reason': 'Verified lane and rate fit'},
+               'application_review': {'state': 'pass', 'reason': 'Submitted copy fits the agreed problem and offer'},
                'application_facts': {'source': 'outbound', 'posted_age_band': '<10m'}}])
         value = analytics.compute(ANALYTICS_TODAY)
         swift = [row for row in value['badges'] if row['badge'] == 'Swift Sail']
@@ -1985,13 +1998,14 @@ def analytics_badges():
                'applied_at': analytics_stamp(date), 'speed_to_lead_s': 120,
                'applied_observation': {'verified': True, 'source': 'upwork-proposal'},
                'job_fit': {'state': 'pass', 'reason': 'Verified lane and rate fit'},
+               'application_review': {'state': 'pass', 'reason': 'Submitted copy fits the agreed problem and offer'},
                'application_facts': {'source': 'outbound', 'posted_age_band': '<10m'}} for index in range(100)])
         value = analytics.compute(ANALYTICS_TODAY)
         swift = [row for row in value['badges'] if row['badge'] == 'Swift Sail']
-        assert any(row['tier'] == 'Silver' and row['new'] is True for row in swift), swift
+        assert any(row['tier'] == 'Bronze' and row['new'] is True for row in swift) and not any(row['tier'] == 'Silver' for row in swift), swift
         assert_analytics_additions(value)
         shelf = [row for row in value['community_card']['top_badges'] if row['badge'] == 'Swift Sail']
-        assert len(shelf) == 1 and shelf[0]['tier'] == 'Silver', shelf
+        assert len(shelf) == 1 and shelf[0]['tier'] == 'Bronze', shelf
         assert not any(row['badge'] in catalogue[:3] for row in value['badges'])
     with fixture('badge-outcome-decidability') as folder:
         analytics_sync_marker(folder)
@@ -2011,7 +2025,7 @@ def analytics_badges():
                  'applied_at': analytics_stamp(date), 'replied_at': analytics_stamp(date, 10, 1)}, rows[-1]]
         value = analytics.compute(ANALYTICS_TODAY, jobs=tiny)
         assert not any(row['badge'] == 'Harbour Master' and row['tier'] == 'Legend' for row in value['badges']), value['badges']
-    print('SYNTHETIC badges PASS: all14 catalogue names; Swift Sail Bronze one120s application/Silver qualifying week; earned kept after broken run; next-tier progress and max5 shelf; outcome tier Wilson lower-bound gate')
+    print('SYNTHETIC badges PASS: all14 catalogue names; Swift Sail Bronze one quality-checked qualifying week; Silver requires three qualifying weeks; earned kept after broken run; next-tier progress and max5 shelf; outcome tier Wilson lower-bound gate')
 
 
 def analytics_privacy_and_badge_replace():
@@ -2042,6 +2056,7 @@ def analytics_privacy_and_badge_replace():
                'applied_at': analytics_stamp(date), 'speed_to_lead_s': 120,
                'applied_observation': {'verified': True, 'source': 'upwork-proposal'},
                'job_fit': {'state': 'pass', 'reason': 'Verified lane and rate fit'},
+               'application_review': {'state': 'pass', 'reason': 'Submitted copy fits the agreed problem and offer'},
                'application_facts': {'source': 'outbound', 'posted_age_band': '<10m'}}])
         payload = analytics_payload(analytics.compute(ANALYTICS_TODAY))
         run('analytics.py', 'record', '--file', '-', value=payload)
@@ -2600,15 +2615,16 @@ def audit_analytics_extended():
         for index in range(10):
             date=today-dt.timedelta(days=2)
             rows.append({'id':str(934000000+index),'source':'outbound','call_held_at':analytics_stamp(date,10),
-                         'call_ended_at':analytics_stamp(date,11),'proposal_sent_at':analytics_stamp(date,11,5) if index<9 else analytics_stamp(date,12)})
+                         'call_ended_at':analytics_stamp(date,11),'proposal_sent_at':analytics_stamp(date,11,5) if index<9 else analytics_stamp(date,12),
+                         'proposal_review':{'state':'pass','reason':'Reviewed relevant scope and next step'}})
         snapshot=analytics.compute(today,jobs=rows,now=now)
         snapshot['kpis']['call_review']['state']='pass'  # Unit input: validated review; source gating has a separate negative case.
         snapshot['reviews']['call']['rubric']=[{'lead_id':rows[0]['id'],'reviewable':True,
-          'points':[{'point':point,'state':'not needed' if point==6 else 'met'} for point in range(1,10)]}]
+          'points':[{'point':point,'state':'not needed' if point==6 else 'met','reason':'No separate objection occurred' if point==6 else ''} for point in range(1,10)]}]
         badges=analytics.badge_results(snapshot,rows,[],today)
-        # Frozen final §8 supersedes catalogue: 90% within30m earns Silver.
-        assert any(badge['badge']=='Quick Draw' and badge['tier']=='Silver' for badge in badges)
-        assert any(badge['badge']=='True North' and badge['tier']=='Silver' for badge in badges)
+        # Final calibration: 90% quality-checked proposals qualify one Bronze week; Silver needs three.
+        assert any(badge['badge']=='Quick Draw' and badge['tier']=='Bronze' for badge in badges) and not any(badge['badge']=='Quick Draw' and badge['tier']=='Silver' for badge in badges)
+        assert any(badge['badge']=='True North' and badge['tier']=='Bronze' for badge in badges) and not any(badge['badge']=='True North' and badge['tier']=='Silver' for badge in badges)
         poor={'id':'934000020','source':'outbound','applied_at':analytics_stamp(today-dt.timedelta(days=1)),
               'speed_to_lead_s':60,'job_fit':{'state':'fail','reason':'Wrong lane'}}
         snapshot=analytics.compute(today,jobs=[poor],now=now)
@@ -2722,7 +2738,7 @@ def audit_producer_followup():
         result=analytics.compute(today,jobs=[direct,actual,invitation],now=now)
         row=result['kpis']['reply_to_call']
         assert (row['k'],row['n'])==(2,2)
-        assert row['label']=='Reply → call'
+        assert row['label']=='Call rate'
         assert row['outcome_label']=='Reply → booked call, held call, offer or contract within 14 days'
         assert row['progression']=={'booked_calls':0,'held_calls':1,'offer_or_contract_without_call':1}
         invite=result['kpis']['invite_to_call']
@@ -2819,7 +2835,7 @@ def audit_call_badge_evidence():
         transcript.write_text('Complete: yes\n'+text)
         complete=analytics.prepare_snapshot(value,today,now=now)
         assert complete['kpis']['call_review']['state']=='pass'
-        assert any(badge['badge']=='True North' and badge['tier']=='Silver' for badge in complete['badges'])
+        assert any(badge['badge']=='True North' and badge['tier']=='Bronze' for badge in complete['badges']) and not any(badge['badge']=='True North' and badge['tier']=='Silver' for badge in complete['badges'])
         degraded=analytics.prepare_snapshot(dict(value,coverage=[{'source':'recorder','state':'missing','fix':'Recorder source unavailable'}]),today,now=now)
         assert degraded['kpis']['call_review']['state']=='missing'
         assert not any(badge['badge']=='True North' for badge in degraded['badges'])
@@ -2929,7 +2945,7 @@ def analytics_event_ledger_contract():
     now = '2026-10-14T15:00:00+02:00'
     today = dt.date(2026,10,14)
     points = [{'point':i,'state':'met' if i<8 else 'not needed' if i==9 else 'missing',
-               'quote':'Synthetic local proof'} for i in range(1,10)]
+               'quote':'Synthetic local proof','reason':'Informed disqualification' if i==9 else ''} for i in range(1,10)]
     with fixture('final-badge-events') as folder:
         rows = [{'id':'941000001','source':'outbound','applied_at':analytics_stamp(today,10),
                  'speed_to_lead_s':120,'applied_observation':{'verified':True,'source':'upwork-proposal'},'job_fit':{'state':'pass','reason':'Fits lane'}},
@@ -2944,18 +2960,20 @@ def analytics_event_ledger_contract():
                  'call_review':{'reviewable':True,'points':points}},
                 {'id':'941000008','source':'outbound','applied_at':analytics_stamp(today,10),
                  'speed_to_lead_s':1,'job_fit':{'state':'fail','reason':'Wrong lane'}}]
+        call_folder=folder/'jobs'/'941000007';call_folder.mkdir()
+        (call_folder/'call.md').write_text('Member: Alex\nComplete: yes\nLanguage: English\nAlex: What is the next step?\nClient: Synthetic local proof\n')
         assert badges.check(jobs=rows,lead_id='941000008',now=now) == []
         assert badges.check(jobs=rows,lead_id='941000003',now=now) == [], 'A follow-up send is not client revival.'
         assert badges.check(jobs=rows,since='2026-10-15T00:00:00+02:00',now=now) == []
         awards = badges.check(jobs=rows,now=now)
-        expected = {'Swift Sail',"Ship's Bell",'Quick Draw','Message in a Bottle','First Doubloon','True North'}
+        expected = {'First Doubloon','True North'}  # Speed and volume badges require qualifying weekly evidence.
         assert {row['badge'] for row in awards} == expected, awards
         assert all(set(row) == {'badge','tier','lead_id','at','reason'} and row['tier'] == 'Bronze' for row in awards)
         assert badges.check(jobs=rows,now=now) == []
         assert badges.read_ledger() == awards
         rows[2]['replied_at'] = analytics_stamp(today,10,5)
         revival = badges.check(jobs=rows,lead_id='941000003',now=now)
-        assert len(revival) == 1 and revival[0]['badge'] == 'Lookout', revival
+        assert revival == [], 'A client revival is measured; Lookout is awarded from weekly follow-up compliance.'
         assert badges.check(jobs=rows,lead_id='941000003',now=now) == []
         before = (folder/'data/badges.jsonl').read_bytes()
         poor = copy.deepcopy(rows); poor[0]['job_fit']['state']='fail'
@@ -2963,15 +2981,15 @@ def analytics_event_ledger_contract():
         assert (folder/'data/badges.jsonl').read_bytes() == before
         weekly = [{'badge':'Quick Draw','tier':'Silver','earned_week':'2026-W42','new':True,'progress_to_next':'0 of 5 calls'}]
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-            results = list(pool.map(lambda _: badges.award_weekly(weekly,week='2026-W42',now=now),range(2)))
+            results = list(pool.map(lambda _: badges.award_weekly(weekly,week='2026-W43',now='2026-10-21T15:00:00+02:00'),range(2)))
         assert sorted(len(result) for result in results) == [0,1], results
-        assert len(badges.read_ledger()) == 8
-        assert badges.award_weekly(weekly,week='2026-W42',now=now) == []
+        assert len(badges.read_ledger()) == 3
+        assert badges.award_weekly(weekly,week='2026-W43',now='2026-10-21T15:00:00+02:00') == []
         cli = run('badges.py','check','--all-since','2026-10-15T00:00:00+02:00')
         assert cli.stdout == ''
         assert not (folder/'data/jobs.json').exists(), 'Badge writer must not write jobs.'
         assert not (folder/'data/analytics-history.jsonl').exists(), 'Badge writer must not write weekly snapshots.'
-    for tier,rank in (('Bronze','Boatswain'),('Silver','Officer'),('Gold','Captain'),('Platinum','Admiral')):
+    for tier,rank in (('Bronze','Deckhand'),('Silver','Boatswain'),('Gold','Officer'),('Platinum','Captain'),('Legend','Admiral')):
         rows=[{'badge':name,'tier':tier} for name in ('Swift Sail','Quick Draw','True North')]
         assert badges.rank(rows) == rank
         assert badges.rank(rows[:2]) == 'Deckhand'
@@ -3145,7 +3163,7 @@ def analytics_public_onepager_contract():
         html=pathlib.Path(rendered['html']).read_text()
         assert rendered['week']=='2026-W42' and all(value not in html for value in private_canaries)
         assert 'Applications this week' in html and 'same 28-day window' in html
-        assert card['question'] in html and "Last week's 0 agreed goals" in html
+        assert card['question'] in html and "Last agreed goals" in html and "No previous goals." in html and "Last week's 0 agreed goals" not in html
         assert 'New contract value this week' not in html
         assert rendered['png'] is not None,rendered
         header=pathlib.Path(rendered['png']).read_bytes()[:24]
@@ -3179,7 +3197,7 @@ def analytics_private_call_cards_contract():
         (path/'call.md').write_text('Member: Alex\nComplete: yes\nLanguage: English\nAlex: '+own+'\nClient: '+quote+'\nAlex: Let us agree the next step.\n')
         value=analytics.compute(today,now=now)
         item={'lead_id':jid,'reviewable':True,
-              'points':[{'point':point,'state':'not needed' if point==6 else 'met','quote':quote} for point in range(1,10)],
+              'points':[{'point':point,'state':'not needed' if point==6 else 'met','reason':'No separate objection occurred' if point==6 else '','quote':quote} for point in range(1,10)],
               'moments':[{'quote':quote,'better_wording':'Clarify the measured cost and desired outcome'} for _ in range(3)],
               'fix':'Clarify the outcome once','example':own,'next_step':'Client reviews scope on Friday'}
         value['reviews']['call'].update(fix=item['fix'],example=own,evidence_lead_ids=[jid],rubric=[item])
@@ -3304,12 +3322,12 @@ def analytics_pipeline_probe_contract():
         native.pop('application_date_unknown');native['imported']=True
         assert badges.check(jobs=[native],now=now)==[]
         native.pop('imported');awards=badges.check(jobs=[native],now=now)
-        assert len(awards)==1 and badges.award_lines(awards)==['Swift Sail · Bronze: Applied within 2 minutes of posting.']
+        assert awards==[] and badges.award_lines(awards)==[], 'A single fast application never bypasses the weekly content criterion.'
         base=result if isinstance(result,dict) else analytics.compute(today,jobs=[],now=now)
         overlay=badges.voyage(badges.read_ledger(),base)
         assert len(overlay['stations'])==14
         station=next(row for row in overlay['stations'] if row['badge']=='Swift Sail')
-        assert station['earned'] and station['tier']=='Bronze' and station['next_tier']=='Silver'
+        assert not station['earned'] and station['tier'] is None and station['next_tier']=='Bronze'
         assert overlay['calendar']==base['presentation']['voyage']['calendar']
         assert overlay['goals_history']==base['presentation']['voyage']['goals_history']
     print('SYNTHETIC final platform probes PASS: true/false persistent viewed context; immutable insights; exact/fallback/repair invitation; request not booking/replay; nonfatal unknown recap preserves held/no-show; all Connects debits; unique explicit goal action; confirmed/import/unknown badge gates; immediate pure14station ledger overlay')

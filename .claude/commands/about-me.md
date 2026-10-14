@@ -1,5 +1,5 @@
 ---
-description: Everything about you, once: your work history, what you can do and every result you can prove. Every other command reads it.
+description: "Everything about you, once: your work history, what you can do and every result you can prove. Every other command reads it."
 argument-hint: "[a CV file, a LinkedIn or portfolio URL, or focus: background | offer | terms | voice | proof]"
 ---
 
@@ -193,7 +193,7 @@ Each bold name is the label of that question's line in `context/me.md`.
 
 ### The ladder, for every project in question 10
 
-Walk every project, job or build up this ladder, per project, with one set of checkboxes for what it produced (money, time, volume or scale, a client's own words), then one single choice for the highest rung ticked (I have the number · I can estimate it · none) and the figure or the inputs typed, with its period:
+Walk every project, job or build up this ladder, per project, with one set of checkboxes for what it produced (money, time, volume or scale, a client's own words), then one single choice for the highest category ticked (I have the number · I can estimate it · none) and the figure or the inputs typed, with its period:
 
 1. **Money.** Revenue earned, cost cut, deal closed; how much, over what period.
 2. **Time.** Hours a week saved, or how long it took before and after.
@@ -260,3 +260,27 @@ open and which single answer would be worth the most. Next step: `/profile`, whi
 writes your profile, or `/about-me proof` while an interview question is open.
 End with `Upwork calls: N`: the account check, the profile, its highlights and the
 closed contracts, plus one search per custom direction checked.
+
+## Missing sources
+
+For each absent or unreadable source, end the findings with "What I couldn't check":
+name the source, the result or review it blocks and the exact way to supply it below.
+Keep that result unknown, never zero or an estimate. Continue only work supported by
+available evidence; use DRAFT or HELD for partial work and BLOCKED when no next step is
+possible. Never claim a check passed, a source was empty or an action completed without
+its evidence. For any other required local source, name its exact repository path
+and blocked step, then ask for that file at that path or readable source text here.
+For a missing script or reference, restore that exact file from the repository;
+do not replace its writer or validator. Follow `references/copy.md` for member copy.
+
+- Missing `context/me.md`: run `./setup.sh`, then complete the open blocks in `/about-me`; it blocks writing from the member's facts.
+- Unreadable CV, portfolio or proof: name the exact path or URL and the fact it cannot support; ask for a readable file path or pasted source text in this chat. For Drive or Gmail, reconnect that Google connector or supply only the relevant career material here.
+- Unavailable Upwork profile, highlights or contracts: reconnect Upwork through `README.md#connect-upwork` and rerun `/about-me`; their facts remain unknown. Job Success Score and intro video need the member's exact value or public video URL in the matching question. Confirm new facts before writing `context/me.md`.
+
+## Completion report
+
+For every exit, use under 90 words: COMPLETE only when all applicable checks passed,
+DRAFT or HELD when work exists but a gate remains, or BLOCKED when the member must
+supply the next input. Include Built, Checked (the decisive evidence) and Still needed
+(one action and its owner), omitting empty sections. Name each remaining source gap.
+End with `Upwork calls: N`, counting actual connector calls, including failed calls.

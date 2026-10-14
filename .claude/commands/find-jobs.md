@@ -1,5 +1,5 @@
 ---
-description: Finds the Upwork jobs worth your Connects right now, scores them against your finished profile, and puts the best into your pipeline and cockpit.
+description: "Finds the Upwork jobs worth your Connects right now, scores them against your finished profile, and puts the best into your pipeline and cockpit."
 argument-hint: "[focus: recommended | tracks | recheck | skip <job id> <reason>]"
 ---
 
@@ -8,6 +8,12 @@ argument-hint: "[focus: recommended | tracks | recheck | skip <job id> <reason>]
 Looks at what was posted since the last run from two directions: Upwork's recommendations and the member's own search themes. Code counts client, budget and freshness signals; Claude judges fit, out of ten, and that is the score. Runs only when the member runs it.
 
 Read first: [references/upwork.md](../../references/upwork.md) for what is allowed and what the connector gives you, [references/jobs.md](../../references/jobs.md) for where the work comes from and what it pays, `context/me.md`.
+
+## ROADMAP
+
+WHAT HAPPENS: check your search direction, read fresh jobs, check full posts and save fitting leads; about five minutes, longer for first-run discovery. A skip argument changes only that lead.
+I NEED FROM YOU: choose the shown tracks and limits, then name any leads to remove; I wait before search calls. A skip needs its reason only.
+WHAT MIGHT GO WRONG: missing full posts block recommendations, incomplete search pages limit coverage and unknown Connects prevent a cost total.
 
 ## Taking a lead off the list
 
@@ -23,7 +29,7 @@ Then `python3 code/pipeline.py set <job id> skipped --note "not a fit: <reason>"
 Keep the prefix. `python3 code/jobs.py rules` counts a reason only when the note
 carries it, so a note without it takes the lead off the list and loses the lesson.
 
-Report one line: the job title, the reason as saved, and that the lead left the
+Use the completion report below: the job title, saved reason and verified removal from the
 cockpit list. End with `Upwork calls: 0`, and do not continue into Step 0.
 
 ## Step 0 · Files, connector, window
@@ -110,7 +116,7 @@ Run `python3 code/learn.py report`. It counts what happened to applied leads by 
 
 Two lines work from the first run because they count decisions. **Per search branch**: how many candidates reached the pipeline; a branch that keeps producing and never passes one is a keyword list to drop. **The disagreements**: leads the score let through and the member turned down, with reasons; weigh one of those above ten counted outcomes.
 
-Outcome lessons wait for a sample: below eight applications in a bucket nothing is weighted. Past it, `python3 code/learn.py lessons` writes `data/lessons.json` and **`jobs.py score` applies it**: the reply rate of the track, country and job type moves the score by one point either way at most, named in the record as `lesson` and `lesson_reasons`. Say in the run which lesson moved a lead and which dimension is still too thin.
+Outcome lessons wait for a sample: below eight applications in a bucket nothing is weighted. Past it, `python3 code/learn.py lessons` writes `data/lessons.json` and **`jobs.py score` applies it**: the Reply rate of the track, country and job type moves the score by one point either way at most, named in the record as `lesson` and `lesson_reasons`. Say in the run which lesson moved a lead and which dimension is still too thin.
 
 ## Step 4 · Judge niche fit
 
@@ -215,3 +221,28 @@ When the member turns one down, name the next one in the same breath, so the lis
    once for the Connects balance, and include this call in `Upwork calls: N`. One
 line, no advice unless the balance runs out before the ten do.
 6. Use the compact completion report from `CLAUDE.md`. Next step: `/proposal <id>` for the first lead on the list, or the cockpit. Every lead shown has its full posting saved. End with `Upwork calls: N`, measured, never an estimated range.
+
+## Missing sources
+
+For each absent or unreadable source, end the findings with "What I couldn't check":
+name the source, the result or review it blocks and the exact way to supply it below.
+Keep that result unknown, never zero or an estimate. Continue only work supported by
+available evidence; use DRAFT or HELD for partial work and BLOCKED when no next step is
+possible. Never claim a check passed, a source was empty or an action completed without
+its evidence. For any other required local source, name its exact repository path
+and blocked step, then ask for that file at that path or readable source text here.
+For a missing script or reference, restore that exact file from the repository;
+do not replace its writer or validator. Follow `references/copy.md` for member copy.
+
+- Missing `context/me.md` or search direction: run `/about-me` or `/about-me offer`; fit and search recommendations need those facts.
+- Unavailable invitations, recommendations, search pages or full job details: reconnect Upwork through `README.md#connect-upwork` and rerun `/find-jobs` for that source. Name incomplete pagination; never report no invitations or no fitting jobs from a failed read. Without a full post, hold that lead from the final list and `/proposal`.
+- Missing past decisions or outcomes: name `data/decisions.jsonl` or the pipeline history that is unavailable; it blocks history-based lessons only. Use the recorded direction without claiming a comparable result; recover lead evidence through `/brief`, never fabricate history.
+- Missing Connects cost or balance: reconnect Upwork and rerun `/find-jobs` to read that job's details or the balance. The day's application cost or affordable count stays unknown; never invent a price or buy Connects.
+
+## Completion report
+
+For every exit, use under 90 words: COMPLETE only when all applicable checks passed,
+DRAFT or HELD when work exists but a gate remains, or BLOCKED when the member must
+supply the next input. Include Built, Checked (the decisive evidence) and Still needed
+(one action and its owner), omitting empty sections. Name each remaining source gap.
+End with `Upwork calls: N`, counting actual connector calls, including failed calls.

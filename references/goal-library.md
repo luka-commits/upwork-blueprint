@@ -1,74 +1,99 @@
 # Weekly goal library
 
-Start with commitments that worked for this member in `data/analytics-history.jsonl`, then
-these moves. They are coaching defaults from proven sales practice adapted to Upwork, not
-measured claims about this member. Choose three different stages, the focus stage primary.
-Every commitment has a cue, an action, a smaller fallback and the KPI it should move; confirm
-its wording and review date with the member. Keep execution (`done_k of done_n`) separate from
-whether its KPI improved. All contact before a contract stays on Upwork (messages, Upwork
-meetings); never suggest an outside channel.
+Start with commitments in `data/analytics-history.jsonl` that the member carried out and
+whose results had time to finish. These are coaching hypotheses adapted to Upwork;
+before/after improvement does not prove causation. Agree one to three goals in different
+funnel stages, including the focus goal, with exactly one primary. Habits belong to the
+stage they feed. Add a goal only when eligible opportunities and capacity exist this week.
+Every commitment has a cue, action, smaller fallback and KPI. Record its eligible
+opportunity, observable completion evidence, start and review date before agreement.
+Keep full execution, fallback execution and missed opportunities separate; use the
+existing `done_k of done_n` fields for execution, without inventing new field keys.
+Review execution next week; keep effects open until the result has had time to finish.
+Missing evidence is unreviewable; no opportunities is not completion. Choose the move
+that addresses an observed repeated defect, without weakening qualification.
+
+All contact before a contract stays on Upwork. The member submits applications and
+accepts offers themselves; each message needs their yes to that exact text. Share video
+only through the Upwork proposal or message thread, with no external contact or booking
+instructions. Show only public or client-authorised material. Use text when video adds
+no decision value or cannot be made safely. Duration bars are production settings,
+not proven conversion thresholds. Past-results claims use only confirmed evidence in
+`context/me.md` under Results, Reviews or Credentials.
+
+Execution evidence follows the opportunity: submitted copy for application moves,
+messages for reply/follow-up moves, meeting agreement for booking moves, full
+speaker-labelled `jobs/<id>/call.md` and saved `call-review.md` for call points, sent
+proposal for proposal moves and verified offer/contract terms for offer moves. Video
+content needs reviewable video or its transcript; a timestamp alone proves no content.
+For missing evidence, name the blocked measure and ask for the exact sent text, message,
+video or speaker-labelled transcript here; use `/brief <id>`, `/call-review <id>` or
+`/sales-call-proposal <id>` to save it through their existing writers. Do not infer success.
 
 ## Applied → reply · `reply_rate`
 
-- When writing the first line → name the client's problem in their own words and the outcome they want ("You need X so that Y"); fallback: replace only the first line. KPI: `reply_rate`.
-- When choosing proof → one result from a similar client with a number and a timeframe; fallback: one portfolio piece with the problem it solved. KPI: `reply_rate`.
-- When the post is detailed → add one specific observation only an expert would spot, a free sample of your thinking; fallback: one sharp question that proves you read it. KPI: `reply_rate`.
-- When closing the letter → ask one question the client can answer in a line ("Is the launch date fixed?"), never "let me know"; fallback: replace the closing line. KPI: `reply_rate`.
-- When recording the Loom → their problem in their words within 15 seconds, one thing shown on their actual page or account, one ask, under 90 seconds; fallback: 30 seconds on their page with one observation. KPI: `reply_rate`.
+- When writing the first line → name the client's stated problem and desired outcome; if unstated, describe the deliverable without inventing business impact. Fallback: rewrite only the first sentence. KPI: `reply_rate`.
+- When choosing proof → use one relevant, verifiable result, with a number and timeframe only when evidenced and shareable. Fallback: a relevant work sample explaining the problem and your contribution. KPI: `reply_rate`.
+- When the post is detailed → add one job-specific observation and its implication; label an uncertain diagnosis as a hypothesis, without implementation-ready unpaid work. Fallback: one question resolving an important scope uncertainty. KPI: `reply_rate`.
+- When closing the letter → ask one easy question that advances the decision and is not already answered in the post. Fallback: replace the closing line. Answer every required screening question directly and align the bid with scope. KPI: `reply_rate`.
+- When recording the Loom → demonstrate one relevant point using available material and ask for one next step on Upwork, under the video rule above. Keep the chosen production limits: the client's problem within 15 seconds and under 90 seconds total; these are settings, not proven conversion thresholds. Fallback: the same observation in text. KPI: `reply_rate`.
 
-## Speed to lead · `speed_10min` (lever)
+## Speed to lead · `speed_10min` (habit)
 
-- When `/find-jobs` flags a fresh fitting post → apply before any other work, from saved proof blocks; fallback: send the short version within 10 minutes. Lever: `speed_10min`.
-- When planning the day → set two fixed application windows at the hours new posts in your lane appear; fallback: one window. Lever: `speed_10min`.
+- When `/find-jobs` flags a fresh fitting post → apply promptly after qualification and required content checks. Measure the deadline from posting, not discovery, using the member's bar (default 10 minutes). Fallback: a shorter complete proposal within that same bar. Record late submissions honestly. Habit: `speed_10min`.
+- Before submitting → check the chosen service, capability, rate and availability and record fit evidence. Fallback: review an unclear case before submitting. KPI: `job_fit`. This supports the application stage, not a separate goal stage.
 
-## Weekly volume · `weekly_volume` (lever)
+## Weekly volume · `weekly_volume` (habit)
 
-- When the week starts → block application windows in the calendar that add up to the weekly goal; fallback: three qualified applications a day. Lever: `weekly_volume`.
-- When a day is missed → add the missing applications the next day only where job fit passes; fallback: one extra. Lever: `weekly_volume`.
+- When planning the day → use member-agreed application sessions toward the weekly target; name peak posting hours only when observed data supports them. Fallback: one agreed session. Habit: `weekly_volume`.
+- At each agreed session → submit the agreed share of qualified applications toward the weekly target. Fallback: a smaller agreed share. Calendar blocks support the work but do not prove submission. Habit: `weekly_volume`.
+- When a day is missed → redistribute the remaining target across remaining sessions within capacity and fit rules. Fallback: one additional qualified application when available, within the weekly commitment. Habit: `weekly_volume`.
 
 ## Reply → call · `reply_to_call`
 
-- When an interested client replies → answer their question in the first line, then offer two concrete 15-minute Upwork meeting times in their time zone; fallback: one time plus "or suggest yours". KPI: `reply_to_call`.
-- When a client replies in working hours → answer within 5 minutes, even if only to acknowledge and say when the full answer comes; fallback: acknowledge within 15 minutes. Lever: `first_reply`.
-- When a client hesitates about a call → send a 2-minute Loom that answers their question and keep the call offer open; fallback: ask what they need to decide. KPI: `reply_to_call`.
-- When a client is ready without a call → confirm scope and the next Upwork step in one message; fallback: ask the one open scope question. KPI: `reply_to_call` (offer or contract also qualifies).
+- When an interested client replies → answer their question first; offer two concrete available Upwork meeting times in the client's time zone only when a call resolves a decision, otherwise advance in the thread. Fallback: one time or resolve the remaining question in writing. KPI: `reply_to_call`.
+- When the first client message arrives → use the working-hours clock and member bars (default median 5 minutes and p75 15 minutes). Give a substantive answer, or acknowledge with a concrete answer deadline and meet it. Fallback: acknowledge within the p75 bar. Track acknowledgement separately from resolution. Habit: `first_reply`.
+- When a client hesitates about a call → ask what they need to decide and answer in the Upwork thread; use video only if demonstration helps. Fallback: resolve one blocking question. KPI: `reply_to_call`.
+- When a client is ready without a call → confirm scope, price, timing and open terms, then ask for the matching Upwork offer. Fallback: resolve the blocking term. KPI: `reply_to_call` (offer or contract also qualifies).
 
-## Silent clients · `follow_ups_on_time` (lever)
+## Silent clients · `follow_ups_on_time` (habit)
 
-- When a client has been silent 3 business days → send one short message with new value (an idea or a relevant result) and a yes/no question, never "just checking in"; fallback: the yes/no question alone. Lever: `follow_ups_on_time`.
-- When still silent on day 7 → close the loop politely ("Shall I close this for now?"); fallback: skip it rather than chase. Lever: `follow_ups_on_time`.
+- When a client has been silent 3 business days → use an existing, messageable Upwork thread with an unanswered member message. Honour an agreed decision date; otherwise address the unresolved decision on the scheduled day. Fallback: one relevant question. Exclude unanswered applications without a thread. Habit: `follow_ups_on_time`.
+- When still silent on business day 7 → send one final brief question, then stop. Fallback: a shorter question. Stop earlier after a decline, closure or request to stop. Both due dates use the saved silent sequence's `anchor_at`; the first follow-up does not restart the sequence. Habit: `follow_ups_on_time`.
 
 ## Booked → held · `booked_to_held`
 
-- When a call is booked → post a three-line agenda in the thread (their goal, what you will cover, what they get after) and one prep question; fallback: a one-line agenda. KPI: `booked_to_held`.
-- The day before the call → a short reminder with one insight prepared for them; fallback: the reminder alone. KPI: `booked_to_held`.
-- When the client does not show → within 10 minutes, a friendly message with two new times; fallback: one new time. KPI: `booked_to_held`.
+- When a call is booked → confirm time, time zone and agenda in the Upwork thread; ask a prep question only if needed. Fallback: time and a one-line agenda. Count execution per booking, independently of attendance. KPI: `booked_to_held`.
+- The day before the call → at the agreed reminder time, confirm the Upwork meeting time/link and purpose; if booked too late, confirm immediately. Fallback: time/link alone. An extra insight is optional. KPI: `booked_to_held`.
+- When the client does not show → after the agreed grace period, send a courteous message with available replacement times. Fallback: one time. Keep the original booking and later reschedule separate; do not erase a confirmed no-show in a finished measurement period. KPI: `booked_to_held`.
 
 ## The call itself · call review points
 
-- When opening → state the agenda and ask permission ("15 minutes: your goal, what blocks it, then next steps. Okay?"); fallback: state the goal of the call. Call point 1.
-- When the problem is named → ask what it costs per month in money, time or leads, and what happens if nothing changes; fallback: one cost question. Call point 3.
-- Before any price → ask for their budget range and restate the cost of the problem; fallback: ask the range. Call point 5.
-- When ending → summarise scope, price range, who decides and when the proposal arrives, and get a yes; fallback: confirm when the proposal arrives. Call point 9.
+Use applicable rubric coverage from the full speaker-labelled transcript and saved review.
+Each `not needed` point carries a reason. Missing evidence means unreviewable execution.
+
+- When opening → confirm the client's goal and brief agenda within the first two minutes, using the booked duration. Fallback: goal and next-step purpose. Call point 1.
+- When the problem is named → if impact is not known, ask for a concrete consequence in money, time or leads and how the client estimates it. Fallback: one consequence question. No invented ROI or forced monthly calculation for a one-off project. Call point 3.
+- Before any price → confirm budget constraints and relevant scope; a confirmed posted budget counts. Fallback: confirm the known budget or ask the range once. Call point 5.
+- When ending → agree the next step, owner, exact time and client agreement; include scope, price and decision maker where unresolved. Fallback: one next step with owner, time and agreement. When unknown, identify other approvers/timeline, show matching proof and ask what could prevent proceeding; credit information already known. Call points 6 to 9.
 
 ## Held → proposal · `held_to_proposal`, `proposal_on_time`
 
-- When a fit call ends → send the proposal within 30 minutes, written in the client's words from the call; fallback: a recap within 30 minutes and the full proposal the same day. Lever: `proposal_on_time`.
-- When the call shows no fit → say so kindly and record a clean disqualification; fallback: name the unmet requirement. KPI: `held_to_proposal` (never a bad call).
+- When a fit call ends → send a decision-ready proposal within 30 minutes of call end: deliverables, acceptance criteria, exclusions, dependencies, price/payment structure, timing and next step. Fallback: a shorter complete proposal within that deadline. A recap followed by a same-day proposal is partial execution and a timing miss. If essential information is missing, agree its owner and delivery time; do not silently exclude the call. Habit: `proposal_on_time`.
+- When the call shows no fit → record the evidenced unmet requirement and clean disqualification. Fallback: name that requirement. This is qualification or a call-review commitment, not a `held_to_proposal` improvement goal; disqualifications leave that denominator. True North credits informed disqualification.
 
 ## Proposal → won · `proposal_to_won`
 
-- When pricing → offer three options (core, recommended, premium), each tied to the outcome; fallback: two options. KPI: `proposal_to_won`.
-- When presenting the price → set it against the cost of the problem from the call; fallback: restate the outcome above the price. KPI: `proposal_to_won`.
-- When the proposal is sent → agree a decision date and add a 2-minute Loom walking through it; fallback: the decision date alone. KPI: `proposal_to_won`.
-- When the client says "too expensive" → ask which part matters most and offer a smaller scope, never a discount for the same work; fallback: clarify the objection first. KPI: `proposal_to_won`.
+- When pricing → offer alternatives only for a real scope/budget trade-off; otherwise propose one complete best-fit scope, with deliverables, exclusions, timing and price. Fallback: one complete offer. KPI: `proposal_to_won`.
+- When presenting the price → explain it with the agreed scope, client-confirmed outcome and evidenced benefit. Fallback: explain the deliverable and trade-off. Do not guarantee payback from an uncertain estimate. KPI: `proposal_to_won`.
+- When the proposal is sent → ask for or confirm the decision process, date and next Upwork action; offer a walkthrough only to resolve complexity. Fallback: the next-step question in text. A requested date is not an agreed date. KPI: `proposal_to_won`.
+- When the client says "too expensive" → distinguish budget, value, scope, timing and risk before offering smaller scope. Fallback: one clarifying question. Do not reduce price reflexively; any concession must remain commercially viable. KPI: `proposal_to_won`.
 
 ## Invite → call · `invite_to_call`
 
-- When an invite arrives → answer within 5 minutes: decline kindly if it does not fit, otherwise answer and offer two times; fallback: answer within 1 hour. KPI: `invite_to_call`.
-- When a fitting invite is worth it → send a short personal Loom before the call; fallback: one specific observation in text. KPI: `invite_to_call`.
+- When an invite arrives → answer using the working-hours bars and offer a call only when useful; allow offer/contract progression without a call. Fallback: answer the immediate request within the response bar. Declining poor fit is qualification, not conversion success. Habit: `first_reply`; result: `invite_to_call`.
+- When an invite leaves uncertainty about fit → before booking, provide relevant proof that resolves it; video is optional. Fallback: one specific observation in text. KPI: `invite_to_call`.
 
 ## Offer → contract · `offer_to_contract`
 
-- When an offer arrives → check scope, price and milestones against the agreement and accept within the hour when they match; fallback: ask about the one mismatched term. KPI: `offer_to_contract`.
-- When accepting → send a kick-off message with the first milestone date; fallback: confirm the start date. KPI: `offer_to_contract`.
+- When an offer arrives → check scope, deliverables, acceptance criteria, price, dates, capacity and terms against the agreement. The member accepts on Upwork when aligned. Fallback: identify all mismatches and request corrections in Upwork Messages. Start only after the contract is active; verify funded fixed-price milestones before their work. KPI: `offer_to_contract`. Kickoff belongs to delivery, after this result.

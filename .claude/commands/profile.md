@@ -1,5 +1,5 @@
 ---
-description: Writes your Upwork profile from your own facts and three role models, checks it, and puts it live after one yes. Every number in it is backed by your own evidence.
+description: "Writes your Upwork profile from your own facts and three role models, checks it, and puts it live after one yes. Every number in it is backed by your own evidence."
 argument-hint: "[title | overview | skills | portfolio | video | fields]"
 ---
 
@@ -9,7 +9,13 @@ Follow `references/copy.md`, and put every question as a pick ([references/copy.
 
 Read first [references/profile.md](../../references/profile.md), the profile sections of [references/upwork.md](../../references/upwork.md) (what the connector may write), then `context/me.md`.
 
-**Focus:** $ARGUMENTS writes only that section of `profile.md`. Every run writes something. **`video`**: Steps 1, 4, 5 only; script from `context/me.md` and existing `profile.md`, no live read, no role models.
+**Focus:** $ARGUMENTS writes only that section of `profile.md` when its source facts are available. **`video`**: Steps 1, 4, 5 only; script from `context/me.md` and existing `profile.md`, no live read, no role models.
+
+## ROADMAP
+
+WHAT HAPPENS: read your facts and available profiles, write the requested sections, check them and show exact live previews; about ten minutes before your review.
+I NEED FROM YOU: role-model URLs or permission to continue without them, your rate and one decision on the shown profile fields; I wait before publishing.
+WHAT MIGHT GO WRONG: missing proof blocks claims, failed reads block live checks and unsupported writes stay manual.
 
 ## Step 0 · The connector
 
@@ -94,6 +100,31 @@ Create the previews for every writable field first and show them together in one
 
 ## Step 7 · Check what is online, then report
 
-When the member says everything is online, read `get_profile` action `get` and `list_highlights` fresh (never the saved files), run `python3 code/profile_checks.py data/profile.json data/highlights.json --json`, and give the completeness number, then two lists. **Online**: what the read confirms. **Still yours to do**: every missing or unreadable field with its percentage and exact click (photo, categories, rate, portfolio, linked account, the video unless `set_video` ran). List what the connector cannot read under "Still yours to do" instead of asking, never assume it is done.
+When the member says everything is online, read `get_profile` action `get` and `list_highlights` fresh (never the saved files), run `python3 code/profile_checks.py data/profile.json data/highlights.json --json`, and give the checked completeness number, or unknown when the read is incomplete, then two lists. **Online**: what the read confirms. **Still yours to do**: every missing or unreadable field with its percentage and exact click (photo, categories, rate, portfolio, linked account, the video unless `set_video` ran). List what the connector cannot read under "Still yours to do" instead of asking, never assume it is done.
 
-Then run `python3 code/pipeline.py prune` and give the completion report per CLAUDE.md: what is live, what stays manual, completeness number, worst gap first, three lines at most. Link [profile.md](../../profile.md). Next: `/find-jobs`. Rerun only when something real changes. End with `Upwork calls: N`, measured, never estimated; every field put live adds two.
+Then run `python3 code/pipeline.py prune` and give the completion report per CLAUDE.md: what is live, what stays manual, verified completeness number or unknown, worst gap first, under 90 words with verdict, Built, Checked and Still needed; omit empty sections. Link [profile.md](../../profile.md). Next: `/find-jobs`. Rerun only when something real changes. End with `Upwork calls: N`, measured, never estimated; count preview and confirmation calls separately from readback calls.
+
+## Missing sources
+
+For each absent or unreadable source, end the findings with "What I couldn't check":
+name the source, the result or review it blocks and the exact way to supply it below.
+Keep that result unknown, never zero or an estimate. Continue only work supported by
+available evidence; use DRAFT or HELD for partial work and BLOCKED when no next step is
+possible. Never claim a check passed, a source was empty or an action completed without
+its evidence. For any other required local source, name its exact repository path
+and blocked step, then ask for that file at that path or readable source text here.
+For a missing script or reference, restore that exact file from the repository;
+do not replace its writer or validator. Follow `references/copy.md` for member copy.
+
+- Missing or untouched `context/me.md`, or an unfinished proof interview: run `/about-me` or `/about-me proof`; it blocks a supported draft. Missing individual proof blocks that claim only, not a factual offer-led draft.
+- Unreadable profile or highlights: reconnect Upwork through `README.md#connect-upwork` and rerun `/profile`; live completeness and field checks stay unknown. An unreadable response is not an empty profile.
+- Missing role-model pages or postings: paste the role-model Upwork URLs here, or reconnect Upwork and rerun `/profile`; reference averages and market comparisons stay unknown. A declined reference search uses Upwork's limits only.
+- Missing video: record the script, upload a public YouTube video and paste its URL here; the video field stays open. For fields the connector cannot read, name the field and its exact Upwork edit location, then ask for that field's value or a screenshot here; never claim it is online.
+
+## Completion report
+
+For every exit, use under 90 words: COMPLETE only when all applicable checks passed,
+DRAFT or HELD when work exists but a gate remains, or BLOCKED when the member must
+supply the next input. Include Built, Checked (the decisive evidence) and Still needed
+(one action and its owner), omitting empty sections. Name each remaining source gap.
+End with `Upwork calls: N`, counting actual connector calls, including failed calls.

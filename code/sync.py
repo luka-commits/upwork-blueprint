@@ -716,9 +716,12 @@ def cmd_apply(args):
                 saved_rooms[str(previous_thread['room_id'])] = {key: previous_thread.get(key) for key in ('room_id', 'messages', 'awaiting_reply_from')}
             thread_io.save(jid, t.get('messages') or [], t.get('room_id'), t.get('awaiting_reply_from'))
             current_thread = json.loads(thread_path.read_text())
+            current_thread['messages_complete'] = complete_turns(t) is not None
             if t.get('room_id'):
-                saved_rooms[str(t['room_id'])] = {key: current_thread.get(key) for key in ('room_id', 'messages', 'awaiting_reply_from')}
+                saved_rooms[str(t['room_id'])] = {key: current_thread.get(key) for key in ('room_id', 'messages', 'awaiting_reply_from', 'messages_complete', 'fetched_at')}
             current_thread['rooms'] = saved_rooms
+            current_thread['messages_complete'] = bool(saved_rooms) and all(
+                room.get('messages_complete') is True for room in saved_rooms.values())
             thread_io.write_json(thread_path, current_thread)
             if t.get('room_id'):
                 record_metadata(job, {'room_id': str(t['room_id'])})
@@ -726,6 +729,14 @@ def cmd_apply(args):
             messages = [(verified_timestamp(m.get('at')), m) for m in normalized
                         if isinstance(m, dict) and m.get('from') in ('me', 'client') and m.get('kind') not in ('event', 'system')]
             messages = sorted((pair for pair in messages if pair[0]), key=lambda pair: pair[0])
+            if t.get('room_id'):
+                refs = dict(job.get('thread_refs') or {})
+                room_id = str(t['room_id'])
+                refs[room_id] = {'room_id': room_id, 'messages_complete': current_thread['messages_complete'],
+                                'fetched_at': current_thread['fetched_at'],
+                                'last_writer': messages[-1][1]['from'] if messages else 'unknown',
+                                'source': 'upwork-thread'}
+                record_metadata(job, {'thread_refs': refs})
             activity_at = verified_timestamp(job.get('last_activity_at')) or ''
             new_messages = [pair for pair in messages if pair[0] > activity_at]
             plan = job.get('follow_up_plan') or {}

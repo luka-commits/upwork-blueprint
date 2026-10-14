@@ -1,9 +1,15 @@
 ---
-description: Prepares the job’s required application: text/proof or Uma interview; optional pitch page and Loom.
+description: "Prepares the job’s required application: text/proof or Uma interview; optional pitch page and Loom."
 argument-hint: "<job id> [more job ids] | <job id> submitted"
 ---
 
 # /proposal
+
+## ROADMAP
+
+WHAT HAPPENS: read the full post, prepare its required application and check it. A text application takes about five minutes after decisions; a chosen page or Loom takes longer.
+I NEED FROM YOU: confirm missing proof and bid terms; approve each optional publish. You submit on Upwork. For `submitted`, supply the actual copy or confirm it matches. I wait at each decision.
+WHAT MIGHT GO WRONG: missing proof or posting blocks a supported draft; page access or an unfinished Loom may block handoff. Unknown costs stay unknown.
 
 **`/proposal <id> submitted`:** obtain the actual submitted copy, screening answers
 and bid, or explicit confirmation that each matches the approved draft. Only then run
@@ -30,14 +36,17 @@ as an observed boolean using /brief's snapshot shape; true observes `proposal_vi
 with source `upwork-proposal`, verified, at observation time, never an invented view time.
 Reuse saved insights, leave frozen application facts untouched, and never turn proposal
 costs into financial ledger spends. Missing IDs/insights remain named gaps; the submission
-stays recorded. Report measured `Upwork calls: N`, then stop before any other step.
-Award format is `Badge name · Bronze|Silver|Gold|Platinum|Legend: reason`; print returned
-lines unchanged. Badge-check stderr cannot undo the submission write.
+stays recorded. Use the completion report from `CLAUDE.md`, under 90 words. Name missing
+sources, what each blocks and how to supply it in "What I couldn't check".
+Report measured `Upwork calls: N`, then stop before any other step.
+Print returned award lines unchanged; never invent badge names or tiers. Badge-check stderr cannot undo the submission write.
 
 **Several ids run one after another.** Each page gets its own sketch, its own approval and its own publish: the repetition is the command's, never the member's yes.
 
 Follow `references/copy.md` for the page and application. The
-member described in `context/me.md` is the sender.
+member described in `context/me.md` is the sender. Read
+`references/coach-brief.md` for application and proposal judgment. Keep each claim
+grounded in a quote or number and separate observation from interpretation.
 
 Choose `application_modality: text|uma` from the job's actual submission route and
 record it through `pipeline.py record <id> --file -` with
@@ -246,7 +255,9 @@ every line the client will read. The member reviews and submits the proposal
 on Upwork themselves. Prepare the cover letter, screening answers when the
 posting states the questions, and the bid for manual submission.
 
-**The first 230 characters decide.** That is all the applicant card shows a client, roughly the first 45 words. Put the outcome and the one relevant proof there, not a greeting or excitement.
+Keep the opening within the first 230 characters, roughly 45 words, so it works
+in the applicant card. Use `references/coach-brief.md` to choose the relevant
+problem, outcome and verified proof for this job.
 
 ### What is true about you and the scope
 
@@ -266,18 +277,13 @@ between the estimate's cases with another figure typed.
 ### Write the letter
 
 Write a compact pitch, normally 65 to 120 words and never more than 140 words,
-in the member's voice, with no em-dashes. Use four short blocks:
-
-1. One sentence on why the member fits this exact job and outcome.
-2. Only when a walkthrough was chosen, invite the client to watch it with the literal [LOOM LINK] placeholder; otherwise one relevant proof sentence.
-3. One or two short, relevant examples from the evidence sections of `context/me.md`. Never stretch unrelated proof to fill space.
-4. One specific next question or ask on Upwork.
-
-Do not recap the posting, explain a long method, add generic praise, write a
-biography or pad the pitch. Never add a guarantee, refund, free work or delivery
-date as a sales device. Put answers to required screening questions in
-a separate section, not in the cover letter, unless the posting explicitly
-requires the answer there.
+in the member's voice, with no em dashes. Use `references/coach-brief.md` for
+judgment and `references/copy.md` for the member's copy. Choose the shape from the
+full posting and verified proof rather than a fixed sequence of sales lines.
+Only when a walkthrough was chosen, use the literal `[LOOM LINK]` placeholder
+until its verified URL is available. Answer required screening questions in a
+separate section unless the posting explicitly requires them in the letter.
+Never add a guarantee, refund, free work or delivery date as a sales device.
 
 Save the cover letter to `jobs/<id>/application.md` in this exact shape so the
 cockpit can present it separately:
@@ -307,7 +313,7 @@ Record the member-approved bid amount through
 
 ### The gate
 
-`python3 code/application_check.py jobs/<id>/application.md --modality <text|uma> --job-title "<exact job title>"` (plus `--video-required` only when required). Exit 1 means fix it. Then read it once as the client would: does it answer their post, or could it sit under any other job?
+`python3 code/application_check.py jobs/<id>/application.md --modality <text|uma> --job-title "<exact job title>"` (plus `--video-required` only when required). Exit 1 means fix it. Then read it against the full post, using `references/coach-brief.md` for feedback.
 
 ### Manual handoff
 
@@ -336,4 +342,9 @@ Then run `python3 code/pitch_check.py page jobs/<id>/pitch.html --ready` and the
 application check again. Republish with `python3 code/pitch_deploy.py <id>` under the
 member's publish approval, confirm the live URL and say it was republished with the Loom.
 Only then submit on Upwork and run `/proposal <id> submitted`.
-End with `Upwork calls: N`.
+Before the completion report, add "What I couldn't check" whenever a source is
+absent or unreadable: name the source, the blocked result and the exact supply
+step. Use unknown, never zero or an estimate. Missing sent copy blocks review;
+supply it or confirm the approved draft matches the submission. Missing full
+post: reconnect Upwork and fetch this job. Missing Loom: supply its URL or transcript.
+End the report under 90 words with `Upwork calls: N`.

@@ -1,5 +1,5 @@
 ---
-description: Turns a started Upwork contract into a checked handover brief for delivery, with scope, milestones and client inputs.
+description: "Turns a started Upwork contract into a checked handover brief for delivery, with scope, milestones and client inputs."
 argument-hint: "<job id>"
 ---
 
@@ -110,3 +110,30 @@ Say the lines in one block, write them on a yes, and never promote a promise to 
 Use the completion report from `CLAUDE.md` and link the handover brief. The next action
 is to fill the remaining client facts and begin delivery. End with `Upwork calls: N`,
 counting the calls actually made, including accounts, contract pages and milestones.
+
+## Missing sources
+
+For each absent or unreadable source, end the findings with "What I couldn't check":
+name the source, the result or review it blocks and the exact way to supply it below.
+Keep that result unknown, never zero or an estimate. Continue only work supported by
+available evidence; use DRAFT or HELD for partial work and BLOCKED when no next step is
+possible. Never claim a check passed, a source was empty or an action completed without
+its evidence. For any other required local source, name its exact repository path
+and blocked step, then ask for that file at that path or readable source text here.
+For a missing script or reference, restore that exact file from the repository;
+do not replace its writer or validator. Follow `references/copy.md` for member copy.
+
+- Missing contract, terms or milestones: reconnect Upwork through `README.md#connect-upwork` and rerun `/onboarding <id>`; contract confirmation, commercial terms and funded-work checks stay blocked. An offer alone cannot supply a started contract.
+- Missing saved thread or `jobs/<id>/proposal.md`: it blocks agreement comparison; run `/brief <id>` for the thread or supply the exact sent proposal here for `/sales-call-proposal <id>`. Name each unknown scope or term rather than filling it.
+- Missing client access, material, dates or acceptance criteria: name each item and owner under `## Client inputs` in `jobs/<id>/project.md`; ask the member to supply it here for the handover update. Delivery waits on required inputs.
+- Missing delivery result or proof: paste the actual result and its source here, then rerun `/onboarding <id>`; the Results entry stays pending and `result_recorded_at` stays unset until confirmed.
+
+- Missing `context/me.md`: run `/about-me`; it blocks claims about the member and drafts in their voice.
+
+## Completion report
+
+For every exit, use under 90 words: COMPLETE only when all applicable checks passed,
+DRAFT or HELD when work exists but a gate remains, or BLOCKED when the member must
+supply the next input. Include Built, Checked (the decisive evidence) and Still needed
+(one action and its owner), omitting empty sections. Name each remaining source gap.
+End with `Upwork calls: N`, counting actual connector calls, including failed calls.

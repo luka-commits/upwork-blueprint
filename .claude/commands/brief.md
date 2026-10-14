@@ -1,5 +1,5 @@
 ---
-description: Your morning on Upwork in one command: pulls what changed, tells you where every lead stands and what to do, drafts every message that is due, and puts each one to you before it goes out.
+description: "Your morning on Upwork in one command: pulls what changed, tells you where every lead stands and what to do, drafts every message that is due, and puts each one to you before it goes out."
 argument-hint: "[job id, for one lead only]"
 ---
 
@@ -108,10 +108,20 @@ booked and held times with source `upwork-meeting`; request/pending status overr
 `python3 code/sync.py apply --file -`
 
 Before applying, retain the prior successful `synced_at` (or this observation's start).
-Print every instant award line returned by sync/pipeline verbatim, exactly once:
-`Badge name · Bronze|Silver|Gold|Platinum|Legend: reason`. Badge stderr is a named
+Print every earned award line returned by sync/pipeline verbatim, exactly once.
+Use only the actual earned badge name, tier and reason returned by the writer; never a sample name. Badge stderr is a named
 badge-check gap, never a failed data write. Summarise awards in `data/badges.jsonl`
 since that retained timestamp in the brief; do not repeat lines already printed this run.
+
+Badge tiers count accumulated qualifying weeks for that badge's weekly criterion:
+Bronze 1, Silver 3, Gold 6, Platinum 13, Legend 26. At most two badges in the first
+week. Speed needs passed fit and content checks; nothing extra above the weekly
+commitment. Pauses and weeks without opportunities neither advance nor erase progress;
+never award on 0 of 0. Conversion badges use the complete eligible population whose
+measurement period has finished. True North credits informed disqualification;
+every `not needed` point needs a reason. Rank from Deckhand to Admiral counts
+Silver-or-higher badges, not weekly reviews. Print only the writer's verified awards;
+never invent an award or rank when its check is unavailable.
 
 A nonzero result leaves the refresh failed: report its mutation errors and retain
 the previous successful timestamp; never claim fresh coverage from a partial write.
@@ -154,7 +164,7 @@ Name the moment, because it decides the next command:
   invitation or a "spoke yesterday" all count; a vague "happy to jump on a call"
   does not. When the thread names a date, add `--call-at <YYYY-MM-DD>`: until that
   day the lead is left alone, and after a held call its task is the one-pager,
-  `/sales-call-proposal <id> <transcript path or notes>`.
+  `/sales-call-proposal <id> <full transcript path>`.
   Record agreement time as `call_booked`; record the scheduled meeting start separately
   as `call_scheduled_at`. A reschedule replaces the pending session, preserving the
   original booking event. Use zoned verified timestamps; an Upwork recap, eligible recorder evidence or
@@ -215,7 +225,7 @@ week later nobody can say which version went out. Then
 sequence advances on arrival, never on the draft.
 
 
-For weekly quest proof, read the latest agreed goals in `goals.jsonl` and the exact
+For weekly quest proof, read the latest agreed goals in `data/goals.jsonl` and the exact
 stable 20-hex `goal_id` from cockpit state quests or analytics latest quests; never
 reconstruct or guess it from KPI/week. Record a matching action only when observed
 in a saved thread/submitted copy or exact member-confirmed evidence, through:
@@ -242,3 +252,30 @@ nothing in this step changes that.
 Run `python3 code/pipeline.py prune` first. Then the completion report as CLAUDE.md defines
 it. Lead with who is waiting for the member, then what moved overnight, then what went out
 and what is still waiting on them. End with `Upwork calls: N`.
+
+## Missing sources
+
+For each absent or unreadable source, end the findings with "What I couldn't check":
+name the source, the result or review it blocks and the exact way to supply it below.
+Keep that result unknown, never zero or an estimate. Continue only work supported by
+available evidence; use DRAFT or HELD for partial work and BLOCKED when no next step is
+possible. Never claim a check passed, a source was empty or an action completed without
+its evidence. For any other required local source, name its exact repository path
+and blocked step, then ask for that file at that path or readable source text here.
+For a missing script or reference, restore that exact file from the repository;
+do not replace its writer or validator. Follow `references/copy.md` for member copy.
+
+- Missing proposal, invitation, offer, contract, terms, earnings or Connects reads: name the missing source and blocked stage, value or balance result; reconnect Upwork through `README.md#connect-upwork` and rerun `/brief` for the affected lead or full pipeline. Missing contract terms mean value unknown, never zero.
+- Missing or incomplete thread, room metadata or sent application: it blocks reply ownership, conversation coaching or copy review. Reconnect Upwork and run `/brief <id>`; for sent copy the connector cannot return, paste the exact submitted text here with the job id. Never draft without a client message.
+- Missing meetings or recaps: booked time, attendance or no-show stays unknown; reconnect Upwork and run `/brief <id>`, or supply the exact meeting evidence here. Missing call transcript blocks call feedback: run `/call-review <id>` with a full speaker-labelled transcript, saved at `jobs/<id>/call.md` by that command. A summary cannot supply a review.
+- Missing `jobs/<id>/proposal.md` or goal-action evidence: comparison with sent terms or goal completion stays unverified. Supply the exact sent proposal here for `/sales-call-proposal <id>`, or the exact action's source, date and text here for the pipeline note writer; do not infer it from an outcome.
+
+- Missing `context/me.md`: run `/about-me`; it blocks claims about the member and drafts in their voice.
+
+## Completion report
+
+For every exit, use under 90 words: COMPLETE only when all applicable checks passed,
+DRAFT or HELD when work exists but a gate remains, or BLOCKED when the member must
+supply the next input. Include Built, Checked (the decisive evidence) and Still needed
+(one action and its owner), omitting empty sections. Name each remaining source gap.
+End with `Upwork calls: N`, counting actual connector calls, including failed calls.

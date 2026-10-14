@@ -383,7 +383,7 @@ def cmd_reconcile(args):
             for entry in item:
                 if entry not in existing:
                     existing.append(entry)
-        elif key in ('room_reply_metrics', 'call_sessions'):
+        elif key in ('room_reply_metrics', 'call_sessions', 'thread_refs'):
             for identity, record in item.items():
                 target.setdefault(key, {}).setdefault(identity, record)
         elif key not in target or target[key] in (None, '', [], {}):
@@ -680,7 +680,7 @@ def cmd_record(args):
                'call_scheduled_at', 'call_ended_at', 'call_duration_s', 'call_session_id', 'call_sessions',
                'call_outcome', 'proposal_required', 'application_modality', 'application_sent_verified', 'submission_bid',
                'invited_at_source', 'proposal_status', 'proposal_cost', 'proposal_viewed', 'proposal_insights',
-               'call_requested_at', 'call_request', 'recap_state', 'recap_reason'}
+               'call_requested_at', 'call_request', 'recap_state', 'recap_reason', 'thread_refs', 'conversation_review', 'call_review'}
     if not isinstance(value, dict) or not value or set(value) - allowed:
         abort('metadata needs only ' + ', '.join(sorted(allowed)) + '.')
     for key, item in value.items():
@@ -749,6 +749,58 @@ def cmd_record(args):
                 datetime.date.fromisoformat(item['start_date'])
             except (ValueError, TypeError):
                 abort('won_value.start_date needs YYYY-MM-DD.')
+        elif key == 'thread_refs':
+            fields = {'room_id', 'messages_complete', 'fetched_at', 'last_writer', 'source'}
+            if not isinstance(item, dict) or not item:
+                abort('thread_refs needs references keyed by stable Upwork room id.')
+            for room_id, ref in item.items():
+                if (not isinstance(room_id, str) or not room_id.strip() or not isinstance(ref, dict)
+                        or set(ref) != fields or ref['room_id'] != room_id
+                        or not isinstance(ref['messages_complete'], bool)
+                        or ref['last_writer'] not in ('me', 'client', 'unknown')
+                        or ref['source'] != 'upwork-thread'):
+                    abort('thread_refs needs room identity, completeness, fetched_at, last_writer and source upwork-thread.')
+                ref['fetched_at'] = verified_timestamp(ref['fetched_at'])
+        elif key == 'call_review':
+            if (not isinstance(item, dict) or not {'reviewable', 'points'} <= set(item)
+                    or set(item) - {'reviewable', 'points', 'moments', 'fix', 'example', 'next_step'}
+                    or not isinstance(item['reviewable'], bool) or not isinstance(item['points'], list)):
+                abort('call_review needs reviewable and points, with optional moments and coaching text.')
+            if not item['reviewable'] and item['points']:
+                abort('An unreviewable call cannot have point findings.')
+            if item['reviewable'] and (len(item['points']) != 9 or {point.get('point') for point in item['points'] if isinstance(point, dict)} != set(range(1, 10))):
+                abort('A reviewed call needs each of the nine points once.')
+            for point in item['points']:
+                if (not isinstance(point, dict) or not {'point', 'state', 'quote'} <= set(point)
+                        or set(point) - {'point', 'state', 'quote', 'reason'}
+                        or point['state'] not in ('met', 'partly', 'missing', 'not needed')
+                        or not isinstance(point['quote'], str) or not point['quote'].strip()
+                        or ('reason' in point and not isinstance(point['reason'], str))
+                        or (point['state'] == 'not needed' and not str(point.get('reason') or '').strip())):
+                    abort('Call points need point, state and quoted evidence; not needed requires its reason.')
+            if not isinstance(item.get('moments', []), list) or len(item.get('moments', [])) > 3:
+                abort('Call reviews have at most three quoted key moments.')
+            for moment in item.get('moments', []):
+                if (not isinstance(moment, dict) or set(moment) != {'quote', 'better_wording'}
+                        or any(not isinstance(text, str) or not text.strip() for text in moment.values())):
+                    abort('Each call moment needs a quotation and better wording.')
+            if any(not isinstance(item[field], str) for field in ('fix', 'example', 'next_step') if field in item):
+                abort('Call coaching fields need text.')
+        elif key == 'conversation_review':
+            point_keys = {'fast_answer', 'answered_question', 'qualifying_question', 'call_times', 'follow_ups'}
+            if (not isinstance(item, dict) or set(item) != {'points', 'last_writer', 'read'}
+                    or not isinstance(item['read'], bool) or item['last_writer'] not in ('me', 'client', 'unknown')
+                    or not isinstance(item['points'], dict) or set(item['points']) != point_keys):
+                abort('conversation_review needs five points, last_writer and a boolean read flag.')
+            for point in item['points'].values():
+                if (not isinstance(point, dict) or set(point) != {'state', 'quote', 'reason'}
+                        or point['state'] not in ('met', 'partly', 'missing', 'not_needed')
+                        or not isinstance(point['quote'], str) or not isinstance(point['reason'], str)
+                        or (point['state'] == 'not_needed' and not point['reason'].strip())
+                        or (point['state'] in ('met', 'partly') and not point['quote'].strip())):
+                    abort('Conversation points need state, quote and reason; applicable findings need quotes and not_needed needs a reason.')
+            if not item['read'] and any(point['state'] != 'missing' for point in item['points'].values()):
+                abort('An unread conversation has missing points, never inferred findings.')
         elif key == 'room_reply_metrics':
             if not isinstance(item, dict) or any(not isinstance(v, dict) for v in item.values()):
                 abort('room_reply_metrics needs metrics keyed by stable room id.')
@@ -833,6 +885,36 @@ def cmd_record(args):
         abort('client_slug needs a lowercase folder name.')
     jobs = load()
     job = find(jobs, args.job_id)
+    if 'conversation_review' in value and value['conversation_review']['read']:
+        path = jobs_dir() / args.job_id / 'thread.json'
+        try:
+            thread = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, UnicodeError, ValueError):
+            abort('A conversation cannot be marked read without saved Upwork messages.')
+        rooms = list((thread.get('rooms') or {}).values()) or [thread]
+        complete = [room for room in rooms if room.get('messages_complete') is True]
+        if not complete or len(complete) != len(rooms):
+            abort('A conversation cannot be marked read from a partial message window.')
+        texts = [str(turn.get('text') or '') for room in complete for turn in room.get('messages', [])
+                 if isinstance(turn, dict) and turn.get('from') in ('me', 'client') and turn.get('kind', 'message') == 'message']
+        for point in value['conversation_review']['points'].values():
+            if point['quote'].strip() and not any(point['quote'] in text for text in texts):
+                abort('Every conversation quotation must occur in complete saved Upwork messages.')
+    if 'call_review' in value and value['call_review']['reviewable']:
+        import call_stats
+        path = jobs_dir() / args.job_id / 'call.md'
+        try:
+            text = path.read_text(encoding='utf-8')
+        except (OSError, UnicodeError):
+            abort('A reviewed call needs its saved complete transcript.')
+        stats = call_stats.analyze(text)
+        if not stats.get('transcript_complete') or not stats.get('member_attributed'):
+            abort('A reviewed call needs a complete transcript with member attribution.')
+        utterances = [match[2] for match in re.finditer(r'^([^:\n]+):\s*(.+)$', text, re.M)
+                      if match[1].strip().casefold() not in ('duration', 'member', 'call at', 'date', 'recorder', 'speakers', 'complete', 'language')]
+        for point in value['call_review']['points'] + value['call_review'].get('moments', []):
+            if not any(point['quote'] in utterance for utterance in utterances):
+                abort('Every call review quotation must occur in the saved transcript.')
     if ('invited_at' in value and job.get('invited_at_source') == 'room'
             and value.get('invited_at_source') != 'room'):
         value.pop('invited_at', None)

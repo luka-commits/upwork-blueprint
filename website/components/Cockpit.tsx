@@ -38,19 +38,19 @@ function DailyVoyage({ state }: { state: State | null }) {
       <li className="voyage-quest">
         <span className="voyage-quest-label">Qualified applications</span>
         <strong className="voyage-quest-count" aria-label={`${voyage.applications ?? 'Not measured'} of ${voyage.goal ?? 'no set target'} qualified applications today`}>
-          {voyage.applications ?? '—'}<small> / {voyage.goal ?? '—'}</small>
+          {voyage.goal === 0 ? 'No action planned' : <>{voyage.applications ?? 'unknown'}<small> of {voyage.goal ?? 'unknown'}</small></>}
         </strong>
       </li>
       <li className="voyage-quest">
         <span className="voyage-quest-label">Within ten minutes</span>
         <strong className="voyage-quest-count" aria-label={`${voyage.fast_applications ?? 'Not measured'} qualified applications within ten minutes today`}>
-          {voyage.fast_applications ?? '—'}
+          {voyage.fast_applications ?? 'unknown'}
         </strong>
       </li>
       <li className="voyage-quest">
         <span className="voyage-quest-label">Follow-ups completed</span>
         <strong className="voyage-quest-count" aria-label={`${voyage.follow_ups_done ?? 'Not measured'} of ${voyage.follow_ups_due ?? 'unmeasured'} follow-ups due today completed`}>
-          {voyage.follow_ups_done ?? '—'}<small> / {voyage.follow_ups_due ?? '—'}</small>
+          {voyage.follow_ups_due === 0 ? 'No eligible cases yet' : <>{voyage.follow_ups_done ?? 'unknown'}<small> of {voyage.follow_ups_due ?? 'unknown'}</small></>}
         </strong>
       </li>
     </ol> : null}
@@ -61,7 +61,7 @@ function DailyVoyage({ state }: { state: State | null }) {
             <small className="voyage-quest-period">Saved progress{savedQuestPeriod(quest.period) ? ` · ${savedQuestPeriod(quest.period)}` : ' · period not recorded'}</small>
           </span>
           <strong aria-label={`${quest.k ?? 'Not measured'} of ${quest.n ?? 'unmeasured'} opportunities completed`}>
-            {quest.n === 0 ? 'No opportunities' : quest.k == null ? 'Not reviewed' : quest.n == null ? 'Progress not measured' : <>{quest.k}<small> / {quest.n}</small></>}
+            {quest.n === 0 ? 'No eligible cases yet' : quest.k == null ? 'Not reviewed' : quest.n == null ? 'Progress not measured' : <>{quest.k}<small> / {quest.n}</small></>}
           </strong>
         </li>)}
     </ul> : null}
@@ -150,7 +150,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
             <Link href="/" aria-current={pathname === '/' ? 'page' : undefined}>Leads</Link>
             <Link href="/analytics" aria-current={pathname === '/analytics' ? 'page' : undefined}>Analytics</Link>
           </nav>
-          {tracker.goal ? <div className="top-progress">
+          {pathname !== '/analytics' && tracker.goal ? <div className="top-progress">
             <span>All applications today</span>
             <strong aria-label={`${tracker.done} of ${tracker.goal} applications today`}>{tracker.done}<small>/ {tracker.goal}</small></strong>
             <i role="progressbar" aria-label="Daily application target" aria-valuemin={0} aria-valuemax={tracker.goal}

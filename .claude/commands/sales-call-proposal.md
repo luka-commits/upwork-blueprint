@@ -1,5 +1,5 @@
 ---
-description: Turns a sales call into the post-call proposal, with scope, milestones, price and acceptance, ready to paste on Upwork. Takes the call transcript or notes. Sends nothing.
+description: Turns a sales call into the post-call proposal, with scope, milestones, price and acceptance, ready to paste on Upwork. Shows the call review first, then uses verified scope or notes. Sends nothing.
 argument-hint: "<job id> <transcript path or notes>"
 ---
 
@@ -10,14 +10,14 @@ will not, how acceptance works and what the client must provide. It never sends
 or accepts anything on Upwork.
 
 Follow `references/copy.md` for every line the client will read.
-Read first: `context/me.md`, the complete job record, the
-saved thread and the call transcript or notes.
+Read first: `context/me.md`, `references/coach-brief.md`, the complete job post,
+the actual sent application, saved thread and the call transcript or verified notes.
 
 ## ROADMAP
 
-WHAT HAPPENS: read the call, confirm terms, write and check the proposal. About five minutes after decisions.
-I NEED FROM YOU: notes when no transcript exists; confirm scope, price, inputs and timing before client-facing copy.
-WHAT MIGHT GO WRONG: wishes may look like agreement; missing inputs or an unfunded milestone block the start.
+WHAT HAPPENS: show the saved call review or run /call-review first, confirm terms, then write and check the proposal. About five minutes after decisions, plus transcript retrieval.
+I NEED FROM YOU: a labelled full transcript when missing; confirm scope, price, inputs and timing. I wait at those decisions before client-facing copy.
+WHAT MIGHT GO WRONG: a missing transcript blocks feedback; verified notes may still support a proposal. Wishes may look like agreement; missing inputs or an unfunded milestone block the start.
 
 # Part 1 · The conversation
 
@@ -31,30 +31,22 @@ nothing client-facing is written yet.
 Run `python3 code/workspace.py` and `python3 code/pipeline.py get <job id>`.
 Require `replied`, `call`, or `offer` when `jobs/<id>/proposal.md` does not exist yet.
 At offer with an existing proposal, `/brief` owns the thread. Read `references/upwork.md`
-and use fresh saved evidence first. For the room, use only `manage_meetings` read actions
-`list`, `list_recaps`, `get_meeting_summary` and `get_full_transcript`.
-State the planned call budget and respect pacing. Find the session from its recap,
-preserving a recap read error as `recap_state:"unknown"` and `recap_reason` through
-`pipeline.py record` (and /brief's sync coverage), then continue with available evidence.
-An empty recap is not a no-show; a pending meeting request stays “call asked”, with
-`call_requested_at`/request metadata, never `call_booked` or a call-stage move.
-Then fetch `get_full_transcript` first, following offsets until every page is read;
-a summary cannot replace a transcript. Save all pages as a JSON list and run
-`python3 code/call_stats.py <id> --transcript-json <pages.json> --call-at <zoned ISO time>
---duration-s <seconds> --member "<known member speaker>" --source upwork-meeting --complete <yes|no> --language <verified-language>`.
-Omit unverified completeness/language headers; it writes `jobs/<id>/call.md`, one `Speaker: line` per segment,
-with `Call at:` and `Duration:` when known, then derives stats. Remove the temporary pages.
-Only when no Upwork transcript exists, ask about the member's own recorder for Enterprise
-clients or calls after a contract started; pull its transcript when its API is available,
-otherwise take a file or pasted transcript. For other calls use a pasted transcript or notes.
-Read the second argument as a file when it is a path, otherwise as pasted notes.
-Normalise external transcripts to the same call.md format, then run
-`python3 code/call_stats.py <id> --source recorder` (or `--source member` for confirmed notes).
-Notes alone still work, but do not write
-`call_held` unless the member confirms it took place; then use
-`pipeline.py observe <id> call_held <ISO time>`. Without any call record, ask and stop.
+and use fresh saved evidence first. Read `references/call-transcript.md` for the shared
+acquisition procedure; do not copy it here. Reuse `jobs/<id>/call-review.md` when it
+exists. Otherwise run `/call-review <id>` before drafting the proposal. Show the
+member the saved review, including its next step, before discussing the proposal.
 
-Read the whole call. Separate what both sides agreed from what the client wished
+A missing or unreadable transcript blocks the review, never replaced by a summary
+or notes. Name the gap and ask for the full labelled transcript. Independently
+verified scope, thread agreements or member-confirmed notes may still support the
+proposal alone. Say that feedback is blocked before proceeding. Without any call
+evidence, ask for it and stop. Notes never become a transcript or a call review.
+Use `references/call-transcript.md` for the notes-only held-call confirmation
+and writer procedure; never substitute a scheduled time.
+
+Read the whole available call evidence. Use `references/coach-brief.md` for judgment,
+with a quote or number for each claim and observation separate from interpretation.
+Separate what both sides agreed from what the client wished
 for and what the member only floated. Require an agreed proposal next step, including a request for scope/pricing options.
 Without that next step, ask before drafting. Record the verified qualification
 through `pipeline.py record <id> --file -` (`call_outcome`: `proposal_required`,
@@ -67,12 +59,9 @@ wish into scope unless the member agreed to deliver it.
 
 ## Step 2 · What we promised on the call
 
-A call always leaves work on the member's side, and it is the fastest trust the deal
-will ever get: the client watches whether the thing you said in the call arrives.
-Before any proposal text, list every commitment the member made, in their words, with
-the sentence from the call that proves it. Include the quiet ones: "I'll check whether
-that integration exists", "I'll send you an example", "I'll ask about your other
-location".
+Use `references/coach-brief.md` to read the commitments. Before any proposal
+text, list each commitment the member made with its supporting sentence from the
+transcript or verified thread/notes. Name the source; never invent a promise.
 
 Sort them into three piles and say which is which:
 
@@ -126,9 +115,10 @@ Write `jobs/<id>/proposal.md` with exactly these sections:
   Upwork until the contract exists. Name the response time the member can actually hold.
 - `## Next step`: review and act on Upwork
 
-It opens as a summary of the call, not as a sales letter: two or three sentences
-saying what the client described, what was agreed, and what happens next. A client who
-reads only that paragraph should recognise their own call in it.
+Open with two or three sentences grounded in the available evidence: what the
+client described, what was agreed and what happens next. When the transcript is
+missing, identify verified notes or thread agreements as the source; never present
+a summary as a reviewed call.
 
 The first three non-empty lines name the proposal, say when it was prepared and
 give `**Next:**`. Separate assumptions from scope. No tables, raw ids or contact
@@ -175,7 +165,8 @@ detail and no way off Upwork before a contract.
 ## Step 6 · Check it
 
 Run `python3 code/document_check.py check proposal <id>` and fix every failure. Read it
-once as a scope dispute: could both sides tell what is done and what is not?
+back against the verified agreement. Use `references/coach-brief.md` for proposal
+feedback; keep the generation structure and document validator unchanged.
 
 Do not call `manage_proposals` or an offer tool, and send nothing from here: this
 command writes the document, and `/brief` owns the thread. The member
@@ -194,12 +185,15 @@ copy and confirmation time. Keep the complete note ≤1000 characters. Never inf
 completion from a successful outcome, generic status or unsupported self-report;
 absent action proof stays unverified. Do not write jobs directly.
 
-Print instant award lines from every pipeline observation verbatim, once:
-`Badge name · Bronze|Silver|Gold|Platinum|Legend: reason`. A badge-check stderr is a
+Print instant award lines from every pipeline observation verbatim, once.
+Never invent badge names or tiers. A badge-check stderr is a
 named badge gap; the committed observation remains successful.
 
 ## Step 7 · Report
 
-Run `python3 code/pipeline.py prune`, then the completion report from `CLAUDE.md` and link
-the proposal. The next action is the member's review and manual send on Upwork.
+Run `python3 code/pipeline.py prune`, then the completion report from `CLAUDE.md` under 90 words and link
+the proposal. Use COMPLETE, DRAFT, HELD or BLOCKED, then Built, Checked and Still
+needed when relevant. Before the report, add "What I couldn't check" for every
+missing source: name it, what feedback or result it blocks and exactly how to
+supply it. Missing means unknown, never zero or an estimate. The next action is the member's review and manual send on Upwork.
 End with the measured `Upwork calls: N`.

@@ -15,11 +15,12 @@ requested change, call request or offer always outranks scheduled follow-ups.
 
 ## In touch
 
-Use `active` for every lead that has answered (`replied`, `call` or `offer`).
-Follow up nearly every business day until the client declines or says they have no
-interest. Each message gives one new reason to answer: close the named decision,
-reduce scope, answer a likely blocker or make the next choice smaller. A generic
-status request does not count as value.
+Use `active` when the client wrote last and needs an answer. When the member wrote
+last in a messageable thread (`replied`, `call` or `offer`), use `silent`: follow up
+on business days 3 and 7, then stop. Keep the original unanswered turn as `anchor_at`;
+the first follow-up does not restart the clock. Honour an agreed decision date.
+Each message addresses the unresolved decision: answer a blocker, narrow scope or
+make the next choice smaller. A generic status request does not count as value.
 
 ## Previous client
 
@@ -92,7 +93,7 @@ another message would add no reason to answer.
 Keep an existing plan; never restart a finished or stopped sequence unless the client returns.
 For a new sequence, write the decision only through:
 
-`python3 code/pipeline.py follow-up <id> plan --lane <lane> --due <date> --reason "<conversation-based reason>"`
+`python3 code/pipeline.py follow-up <id> plan --lane <lane> --due <date> --at <zoned-ISO-time> --reason "<conversation-based reason>"`
 
 Clear a sequence when a stop condition applies:
 

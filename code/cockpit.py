@@ -144,6 +144,16 @@ def job_view(job_id):
     # A saved evidence row enriches a real pipeline lead; it never creates a lead.
     j['call_cards'] = [row for row in snapshot.get('call_cards') or []
                        if isinstance(row, dict) and str(row.get('lead_id')) == str(job_id)]
+    if (folder / 'call-review.md').is_file() or isinstance(job.get('call_review'), dict):
+        # Immediate /call-review output is saved evidence, independent of the weekly check-in.
+        rubric = dict(job.get('call_review') or {'reviewable': False, 'points': []}, lead_id=str(job_id))
+        current = analytics.call_cards({'generated_at': datetime.datetime.now(pipeline.member_zone()).isoformat(),
+                                       'reviews': {'call': {'rubric': [rubric]}}}, jobs=[job])
+        if current:
+            old = j['call_cards'][0] if j['call_cards'] else {}
+            j['call_cards'] = [dict(old, **current[0]) if isinstance(job.get('call_review'), dict) or not old
+                               else dict(old, coach_read=current[0].get('coach_read'),
+                                         coach_read_state=current[0].get('coach_read_state'))]
     prepared = next((row for row in snapshot.get('lead_cards') or []
                      if isinstance(row, dict) and str(row.get('lead_id', row.get('id'))) == str(job_id)), None)
     j['lead_context'] = {
@@ -457,6 +467,9 @@ def snapshot_view(snapshot):
         if key not in presentation and key in result:
             presentation[key] = result[key]
     result['presentation'] = presentation
+    if os.environ.get('BLUEPRINT_EXAMPLE_DATA') == '1':
+        result['synthetic'] = True
+        result['data_label'] = 'Synthetic example · no member facts'
     return result
 
 
@@ -469,9 +482,11 @@ def analytics_state(today):
                  datetime.datetime.min.replace(tzinfo=datetime.timezone.utc), default=None)
     if latest is not None:
         presentation = latest['presentation']
-        missing = [f'presentation.{key}' for key in ('number_keys', 'kpi_groups', 'insights', 'funnel', 'voyage')
+        missing = [f'presentation.{key}' for key in ('number_keys', 'kpi_groups', 'insights', 'funnel', 'voyage', 'scorecard')
                    if key not in presentation]
-        missing += [key for key in ('call_cards',) if key not in latest]
+        missing += [key for key in ('call_cards', 'funnel_score', 'conversation_review', 'gap') if key not in latest]
+        if not isinstance(latest.get('coverage'), dict) or not {'sources', 'missing'} <= latest['coverage'].keys():
+            missing.append('coverage.missing')
         if missing:
             errors.append({'file': 'analytics-history.jsonl', 'week': latest.get('week'),
                            'fields': missing, 'reason': 'Prepared fields are missing. Run /analytics to refresh this snapshot.'})

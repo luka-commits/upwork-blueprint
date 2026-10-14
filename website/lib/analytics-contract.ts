@@ -30,7 +30,20 @@ export type AnalyticsInsight = {
   evidence?: AnalyticsEvidence;
   target?: { view: string; element: string };
 };
+export type AnalyticsScorecardRow = {
+  key: string; group: 'top' | 'middle' | 'bottom'; name: string; stage_label?: string;
+  period_label: string; period?: AnalyticsPeriod; currency?: string; value: number | null; state?: string;
+  finished: { k: number | null; n: number | null }; pending: { n: number; until?: string | null };
+  change: { previous_value: number | null; comparison_label: string; text?: string };
+  series: { label: string; unit: string; points: (number | null)[] };
+  target: { kind: 'habit' | 'ladder'; value: number | null; level: number | null; thresholds: number[] };
+  next_action: { text: string; lead_filter: { kpi: string; lead_ids: string[] } } | null;
+  split: Record<string, unknown>[]; focus: { reason: string } | null;
+  market: { value: number; source: string | {label?: string; title?: string; url?: string} } | null;
+  evidence?: string[]; insight?: string; counting?: string;
+};
 export type AnalyticsPresentation = {
+  scorecard?: AnalyticsScorecardRow[];
   /** Exactly the writer-selected overview keys; the browser never ranks them. */
   number_keys?: string[];
   kpi_groups?: { top?: string[]; middle?: string[]; bottom?: string[] };
@@ -52,6 +65,9 @@ export type AnalyticsPresentation = {
 };
 export type AnalyticsCallCard = {
   lead_id: string;
+  coach_read?: string | null;
+  coach_read_state?: string;
+  coach_read_prompt?: string;
   label?: string;
   date?: string;
   duration_min?: number;

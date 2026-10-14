@@ -15,12 +15,14 @@ import pathlib
 import tempfile
 
 import pipeline
+import call_stats
 
 TIERS = ('Bronze', 'Silver', 'Gold', 'Platinum', 'Legend')
 BADGE_NAMES = ('Harbour Master', 'First Mate', 'Treasure Hunter', 'Swift Sail',
                "Ship's Bell", 'Lookout', 'Steady Anchor', 'Quick Draw',
                'Message in a Bottle', 'True North', 'Navigator', 'Lighthouse Keeper',
                'First Doubloon', 'Back on Course')
+QUALIFYING_WEEKS = (1, 3, 6, 13, 26)
 LEDGER_KEYS = {'badge', 'tier', 'lead_id', 'at', 'reason'}
 
 
@@ -65,6 +67,24 @@ def _qualified(job):
     fit = _fit(job)
     return fit.get('state') == 'pass' or (fit.get('state') == 'unclear' and
                                          bool(str(fit.get('reason', '')).strip()))
+
+
+def content_pass(job, kind='application'):
+    """Recognition needs an explicit passed content review, not speed or a sent flag."""
+    review = job.get(kind + '_review')
+    if not isinstance(review, dict):
+        prefix = 'analytics ' + kind + '_review: '
+        for row in reversed(job.get('log') or []):
+            if str(row.get('text') or '').startswith(prefix):
+                try: review = json.loads(row['text'][len(prefix):])
+                except (ValueError, TypeError): review = None
+                break
+    if not isinstance(review, dict): return False
+    if review.get('state') == 'pass': return bool(str(review.get('reason') or review.get('quote') or '').strip())
+    points = review.get('points')
+    return bool(review.get('reviewable') is True and isinstance(points, list) and points and
+                all(row.get('state') in ('met', 'not needed', 'not_needed') and
+                    (row.get('state') == 'met' or str(row.get('reason') or '').strip()) for row in points))
 
 
 def _call_end(job):
@@ -118,9 +138,25 @@ def _append(candidates):
         existing = read_ledger()
         seen = {(row['badge'], row['tier']) for row in existing}
         new = []
+        dated = [_stamp(row['at']).astimezone(pipeline.member_zone()).date() for row in existing + candidates]
+        activity = []
+        try:
+            for job in pipeline.load():
+                if job.get('imported'): continue
+                for field in ('applied_at', 'invited_at', 'offer_at', 'offered_at', 'call_held_at', 'won_at'):
+                    event = _stamp(job.get(field))
+                    if event: activity.append(event.astimezone(pipeline.member_zone()).date())
+        except (OSError, ValueError, TypeError):
+            pass
+        first = min(activity or dated, default=None)
+        first_iso = first.isocalendar()[:2] if first else None
+        first_names = {row['badge'] for row in existing if _stamp(row['at']).astimezone(pipeline.member_zone()).date().isocalendar()[:2] == first_iso}
         for row in sorted(candidates, key=lambda item: (item['at'], item['badge'], TIERS.index(item['tier']))):
             key = row['badge'], row['tier']
+            is_first = _stamp(row['at']).astimezone(pipeline.member_zone()).date().isocalendar()[:2] == first_iso
+            if is_first and row['badge'] not in first_names and len(first_names) >= 2: continue
             if key not in seen:
+                if is_first: first_names.add(row['badge'])
                 new.append(row)
                 seen.add(key)
         if not new:
@@ -178,7 +214,7 @@ def _call_fraction(points):
     # Full nine-point evidence is mandatory; not-needed points are excluded.
     if (not isinstance(points, list) or len(points) != 9 or
             {row.get('point') for row in points if isinstance(row, dict)} != set(range(1, 10)) or
-            any(row.get('state') not in ('met', 'partly', 'missing', 'not needed') for row in points)):
+            any(row.get('state') not in ('met', 'partly', 'missing', 'not needed') or row.get('state') == 'not needed' and not str(row.get('reason') or '').strip() for row in points)):
         return None
     applicable = [row for row in points if row['state'] != 'not needed']
     return sum(row['state'] == 'met' for row in applicable) / len(applicable) if applicable else None
@@ -195,38 +231,9 @@ def confirmed_application(job):
 def _events(jobs, now):
     reviews = _call_reviews(jobs)
     for job in jobs:
-        if job.get('imported') or _fit(job).get('state') == 'fail':
+        if job.get('imported'):
             continue
         lead_id = str(job['id'])
-        applied = _stamp(job.get('applied_at'))
-        speed = job.get('speed_to_lead_s')
-        if applied and applied <= now and confirmed_application(job) and _qualified(job) and not job.get('application_date_unknown') and _number(speed) and 0 <= speed <= 120:
-            yield 'Swift Sail', lead_id, applied, 'Applied within 2 minutes of posting.'
-        reply, seconds = _stamp(job.get('first_reply_at')), job.get('first_reply_s')
-        if reply and reply <= now and _number(seconds) and 0 <= seconds <= 60:
-            yield "Ship's Bell", lead_id, reply, 'First reply within 1 minute.'
-        invited = _stamp(job.get('invited_at'))
-        route = (job.get('application_facts') or {}).get('source', job.get('source', 'outbound'))
-        if route == 'invite' and invited and reply and reply <= now and 0 <= (reply - invited).total_seconds() <= 300:
-            yield 'Message in a Bottle', lead_id, reply, 'Invitation answered within 5 minutes.'
-        ended, proposal = _call_end(job), _stamp(job.get('proposal_sent_at'))
-        if _proposal_possible(job) and ended and proposal and proposal <= now and 0 <= (proposal - ended).total_seconds() <= 600:
-            yield 'Quick Draw', lead_id, proposal, 'Proposal sent within 10 minutes of the call end.'
-        answers = _thread_answers(job)
-        for row in job.get('follow_up_history', []):
-            sent = _stamp(row.get('at'))
-            if sent is None:
-                try:
-                    # A date alone proves order only for an answer on a later day.
-                    sent_day = dt.date.fromisoformat(str(row.get('on', '')))
-                    sent = dt.datetime.combine(sent_day + dt.timedelta(days=1), dt.time(),
-                                               pipeline.member_zone()) - dt.timedelta(microseconds=1)
-                except ValueError:
-                    pass
-            if row.get('lane') == 'silent' and row.get('action') == 'sent' and sent:
-                revived = min((answer for answer in answers if sent < answer <= now), default=None)
-                if revived:
-                    yield 'Lookout', lead_id, revived, 'Client revived a silent lead after a sent follow-up.'
         won = _stamp(job.get('won_at'))
         if not won:
             try:
@@ -238,7 +245,10 @@ def _events(jobs, now):
             yield 'First Doubloon', lead_id, won, 'First won contract.'
         held = _stamp(job.get('call_held_at'))
         fraction = _call_fraction(reviews.get(lead_id))
-        if held and held <= now and fraction is not None and fraction >= 7 / 9:
+        transcript_path = pipeline.jobs_dir() / lead_id / 'call.md'
+        try: transcript = call_stats.analyze(transcript_path.read_text(encoding='utf-8')) if transcript_path.is_file() else {}
+        except (OSError, UnicodeError): transcript = {}
+        if held and held <= now and fraction is not None and fraction >= 7 / 9 and transcript.get('transcript_complete') is True and transcript.get('member_attributed') is True:
             yield 'True North', lead_id, held, 'At least 7 of 9 applicable call-review points met.'
 
 
@@ -289,7 +299,7 @@ def rank(badges):
             name, value = row['badge'], TIERS.index(row['tier'])
             highest[name] = max(highest.get(name, -1), value)
     result = 'Deckhand'
-    for tier, title in enumerate(('Boatswain', 'Officer', 'Captain', 'Admiral')):
+    for tier, title in enumerate(('Boatswain', 'Officer', 'Captain', 'Admiral'), start=1):
         if sum(value >= tier for value in highest.values()) >= 3:
             result = title
     return result
@@ -354,7 +364,7 @@ def event_counters(jobs, now=None):
     reviews = _call_reviews(jobs)
     calls = []
     for job in jobs:
-        if job.get('imported') or _fit(job).get('state') == 'fail':
+        if job.get('imported'):
             continue
         ended, sent = _call_end(job), _stamp(job.get('proposal_sent_at'))
         if _proposal_possible(job) and ended and ended + dt.timedelta(minutes=30) <= clock:
@@ -386,6 +396,18 @@ def award_lines(rows):
     return [f"{row['badge']} · {row['tier']}: {row['reason']}" for row in rows]
 
 
+def catalogue_criteria():
+    path = pathlib.Path(__file__).resolve().parents[1] / 'outputs/badges-catalogue.md'
+    try: text = path.read_text(encoding='utf-8')
+    except (OSError, UnicodeError): return {}
+    result = {}
+    for line in text.splitlines():
+        if line.startswith('| '):
+            fields = [field.strip() for field in line.strip().strip('|').split('|')]
+            if len(fields) >= 3 and fields[0] in BADGE_NAMES: result[fields[0]] = fields[2]
+    return result
+
+
 def voyage(awards, snapshot=None):
     """Pure ledger overlay: highest retained tier, rank, and fourteen stations. No KPI writes."""
     snapshot = snapshot or {}
@@ -395,13 +417,11 @@ def voyage(awards, snapshot=None):
         if row.get('badge') not in BADGE_NAMES or row.get('tier') not in TIERS: continue
         if row['badge'] not in top or TIERS.index(row['tier']) >= TIERS.index(top[row['badge']]['tier']): top[row['badge']] = row
     motifs = ('harbour', 'ship', 'treasure', 'hourglass', 'bell', 'spyglass', 'anchor', 'cannon', 'bottle', 'compass', 'wheel', 'lighthouse', 'doubloon', 'storm')
-    requirements = ('Reply Wilson lower bound ≥11%', 'Reply to call Wilson lower bound ≥30%', 'Held call to won Wilson lower bound ≥20%',
-                    'Confirmed qualified application within 2 minutes', 'First response within 1 minute', 'Client revival after a sent follow-up',
-                    'Qualified weekly application goal met', 'Proposal within 10 minutes after call end', 'Invitation response within 5 minutes',
-                    'Complete reviewed call with ≥7/9 applicable points', 'All five levers on target in a week', 'Two weekly reviews', 'First won contract', 'Return after two missed weeks')
+    requirements = catalogue_criteria()
     old = {row.get('badge'): row for row in result.get('stations', [])}
     stations = []
-    for name, motif, requirement in zip(BADGE_NAMES, motifs, requirements):
+    for name, motif in zip(BADGE_NAMES, motifs):
+        requirement = requirements.get(name, 'unknown: badge catalogue unavailable')
         award = top.get(name, {}); tier = award.get('tier'); at = _stamp(award.get('at')); iso = at.isocalendar() if at else None
         week = award.get('earned_week') or (f'{iso.year}-W{iso.week:02d}' if iso else None)
         progress = award.get('progress_to_next') or old.get(name, {}).get('progress_to_next')
@@ -409,10 +429,20 @@ def voyage(awards, snapshot=None):
         image = f'/badges/{slug}-{tier.lower()}.webp' if tier else f'/badges/badge-{motif}.webp'
         stations.append({'badge': name, 'motif': motif, 'tier': tier, 'earned': bool(tier), 'earned_week': week,
                          'image': image, 'fallback_image': f'/badges/badge-{motif}.webp',
-                         'locked': not bool(tier), 'island_revealed': bool(tier), 'requirement': progress or requirement,
+                         'locked': not bool(tier), 'island_revealed': bool(tier), 'requirement': requirement, 'criterion': requirement,
                          'progress_to_next': progress, 'next_tier': TIERS[TIERS.index(tier)+1] if tier and tier != TIERS[-1] else TIERS[0] if not tier else None,
                          'evidence': [award['lead_id']] if award.get('lead_id') else []})
-    result.update(stations=stations, rank=rank(list(top.values())))
+    silver = sum(TIERS.index(row['tier']) >= 1 for row in top.values())
+    current_rank = rank(list(top.values()))
+    titles = ('Deckhand', 'Boatswain', 'Officer', 'Captain', 'Admiral')
+    current_index = titles.index(current_rank)
+    required_tier = TIERS[min(current_index + 1, 4)]
+    eligible = sum(TIERS.index(row['tier']) >= min(current_index + 1, 4) for row in top.values())
+    next_rank = titles[current_index + 1] if current_index < 4 else None
+    progress = {'qualified_badges': silver, 'eligible_badges': eligible, 'needed': 3,
+                'basis': 'Distinct Silver-or-higher badges', 'required_tier': required_tier, 'next_rank': next_rank,
+                'text': f'{min(eligible, 3)} of 3 {required_tier}-or-higher badges toward {next_rank}' if next_rank else 'Admiral requirements met'}
+    result.update(stations=stations, rank=current_rank, rank_progress=progress)
     return result
 
 

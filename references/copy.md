@@ -59,7 +59,7 @@ For a message in a thread, which is the text this system sends most often:
   back; "I can send the plan Thursday, does that suit you" does not.
 - **Nothing you cannot point at.** A number needs its entry in the evidence sections,
   and a claim without one is dropped rather than softened into a vaguer version of
-  itself. `replies.py check` now looks up every number a draft prints.
+  itself. No script checks numbers: this rule is yours to keep while writing.
 - **When there is nothing new to say, the answer is not a message.** A pure check-in
   costs the member standing and buys nothing. Say what you are waiting for and when
   the next real reason to write arrives, and leave the thread alone until then.

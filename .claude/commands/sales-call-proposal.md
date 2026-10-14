@@ -1,6 +1,6 @@
 ---
-description: Turns a sales call into the post-call proposal, with scope, milestones, price and acceptance, ready to paste on Upwork. Takes the call transcript or notes. Sends nothing.
-argument-hint: "<job id> <transcript path or notes>"
+description: Turns a sales call into the post-call proposal, with scope, milestones, price and acceptance, ready to paste on Upwork. Needs the full call transcript and builds the one-pager as a PDF. Sends nothing.
+argument-hint: "<job id> <transcript file>"
 ---
 
 # /sales-call-proposal
@@ -10,13 +10,15 @@ will not, how acceptance works and what the client must provide. It never sends
 or accepts anything on Upwork.
 
 Follow `references/copy.md` for every line the client will read.
-Read first: `context/me.md`, the complete job record, the
-saved thread and the call transcript or notes.
+The page is only as good as the context behind it. Read all of it first: `context/me.md`,
+the complete job record, the saved thread `jobs/<id>/thread.json` oldest first, the call
+brief `jobs/<id>/call-prep.md` and its `call-prep/` sources when `/call-prep` ran, and the
+whole call transcript.
 
 ## ROADMAP
 
 WHAT HAPPENS: read the call, confirm terms, write and check the proposal. About five minutes after decisions.
-I NEED FROM YOU: transcript or notes; confirm scope, price, inputs and timing before client-facing copy.
+I NEED FROM YOU: the full call transcript as a file (notes are not enough); confirm scope, price, inputs and timing before client-facing copy.
 WHAT MIGHT GO WRONG: wishes may look like agreement; missing inputs or an unfunded milestone block the start.
 
 # Part 1 · The conversation
@@ -29,10 +31,14 @@ nothing client-facing is written yet.
 ## Step 1 · Evidence gate
 
 Run `python3 code/workspace.py` and `python3 code/pipeline.py get <job id>`.
-Require `replied`, `call`, or `offer` when `jobs/<id>/proposal.md` does not exist yet.
-At offer with an existing proposal, `/brief` owns the thread. Read the second argument
-as a file when it is a path; otherwise treat it as pasted
-notes. Without a call record, ask for the transcript or notes and stop.
+Require `replied`, `call`, or `offer` when `jobs/<id>/proposal.md` does not exist yet; an earlier lead goes back to `/brief`, which moves it once the client answers, and `/call-prep <id>` prepares the call itself.
+At offer with an existing proposal, `/brief` owns the thread.
+
+The call transcript is required; notes or a summary from memory are not. Read the file the
+second argument names (txt, md, vtt, srt or pdf) and save its full text
+as `jobs/<id>/call-transcript.md`, unchanged. Without a file, ask for the transcript export
+of the call, which runs on Upwork's own video calls before a contract, and stop. `proposal_generate.py` refuses to
+build the page without that file or when it reads like notes, so a page never rests on less.
 
 Read the whole call. Separate what both sides agreed from what the client wished
 for and what the member only floated. When the call shows no mutual agreement on
@@ -119,27 +125,42 @@ and funded milestone. Mark each ready, thin or missing and put gaps in the repor
 
 ## Step 5 · Build the page
 
-The markdown is what the member pastes into Upwork chat. The page is what a client reads
-twice, and it is the same content in a shape that shows the plan instead of describing it.
+The markdown is what the member pastes into Upwork chat. The page is the one pager a
+client reads twice, a professional offer read top to bottom: **a letterhead with the
+member's photo, the headline, an optional video, then numbered sections, one line each.**
+If it runs past one page, cut. `headline` names the build ("Missed-call text-back"), not the client.
 
-**Optional drawing first:** the page embeds `jobs/<id>/proposal-sketch.png` when present.
-Get its client-specific prompt without a call:
+- `photo`: the member's photo file, the same one `/proposal` puts on the pitch page; without
+  one the letterhead shows their initials.
+- `video` `{href, title, note, length}`: when there is one, it leads. A custom Loom for this
+  client when the member has time, otherwise their reusable walkthrough. Title speaks to the
+  client ("Sarah, watch this first"), note says what it covers. Optional: no link, no card.
+- `summary`: two or three sentences under the headline, the same call summary the markdown
+  opens with. `problem` (their pain in their numbers) stands in only when it is missing.
+- `deliverable`: what they get, as a working state. `flow`: three to five short steps of how
+  the build works, drawn as a chain under it. Optional.
+- `scope` (at most five) and `excluded` (at most four): the deliverables and the boundary
+  from `## Scope` and `## Not included`, side by side.
+- `inputs` (at most four): from `## Client inputs`, each with its due point; none, no section.
+- `acceptance`: from `## Acceptance`, `{text, note}` with the review window in the note.
+- `cost` `{text, note, items}`: `text` is the approved total, each item one milestone
+  `{when, label, amount}` ("Days 1–5", "Setup and a working demo", "$600"). Items with a
+  `when` draw timeline and price as one plan; `timeline` is then one sentence for what starts
+  the clock. Without items, `timeline` and `cost` stand apart as before.
+- `worth`: only a figure the client gave on the call, else leave it empty and the line is left out.
+- `tools`: what it runs on, and on whose accounts, one line under the deliverable. `proof`: one line from the evidence
+  sections of `context/me.md`, else leave it empty and the section is left out.
+- `next_steps`: at most three things the client does.
 
-`python3 code/proposal_illustrate.py <id> --niche "<their trade>" --outcome "<what remains>" --scene "<everyday objects>" --dry-run`
-
-The member uses any image model they already have and saves a portrait sketch there.
-Without `--dry-run`, kie.ai needs `KIE_AI_API_KEY`, checks it and reports the cost.
-A missing sketch blocks nothing. It carries no text or numbers; the member reviews it.
-
-Write JSON fields: `member`, `client`, `headline`, `summary`, `date`, `price`, `price_note`,
-`stones_note`, `call_notes` (array of `{said, means}`), `cta`, `cta_href`, `fine` (array),
-`included` (strings or `{label, note}`), `milestones` (array of `{label, amount}`), `weeks` (number),
-`rows` (array of `{label, from, to, kind, colour}`), and optional `labels` (state, plan, stones, included).
-Run `python3 code/proposal_generate.py <id> --file -` for `jobs/<id>/proposal.html`.
-A missing duration renders the plan as open. Provide a real HTTPS `cta_href` or omit the CTA.
+Also `member`, `client`, `date`, `cta`, `cta_href`, `fine` (array), optional `labels`.
+Run `python3 code/proposal_generate.py <id> --file -`. It writes `jobs/<id>/proposal.html`
+and prints it to `jobs/<id>/proposal.pdf`, always exactly one A4 page: the PDF is what the
+member attaches on Upwork. When it reports more than one page, cut and run it again.
+Provide a real HTTPS `cta_href` or omit the CTA. An optional sketch at
+`jobs/<id>/proposal-sketch.png` (`code/proposal_illustrate.py`, no text) dims behind the video.
 The member delivers the page on Upwork themselves; nothing hosts or sends it.
 
-**Every value the call did not settle renders as a visible "open" marker.** Never write a
+**Every other value the call did not settle renders as a visible "open" marker.** Never write a
 zero, a rounded guess or a placeholder that reads like a number: a missing figure is honest
 and the member fills it in one edit, an invented one dies at the first milestone. The run
 says how many are still open.
@@ -156,12 +177,16 @@ once as a scope dispute: could both sides tell what is done and what is not?
 
 Do not call `manage_proposals` or an offer tool, and send nothing from here: this
 command writes the document, and `/brief` owns the thread. The member
-copies the proposal from the cockpit panel and sends it on Upwork. Do not move
+copies the proposal from the cockpit panel, attaches `jobs/<id>/proposal.pdf` and sends
+both on Upwork. Do not move
 the stage to offer: that stage means a client offer exists, and `/brief` sets it.
 After the member confirms they pasted it on Upwork, record
 `python3 code/pipeline.py acted <id> --note "Proposal sent on Upwork"`.
 
 ## Step 7 · Report
 
-Use the completion report from `CLAUDE.md` and link the proposal. The next action
-is the member's review and manual send on Upwork. End with `Upwork calls: 0`.
+Use the completion report from `CLAUDE.md`, link the proposal and the PDF, and open the
+PDF for the member. The next action
+is the member's review and manual send on Upwork; after that, `/brief` reads the client's
+answer and moves the lead to offer, and `/onboarding <id>` follows once the contract starts.
+End with `Upwork calls: 0`.

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Automation Plan</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    /* The house look from website/app/tokens.css: a parchment page, ivory cards with a hairline. */
+    --page-alt: #f5f4ed; --paper: #faf9f5; --ink: #141413; --clay: #c96442; --clay-deep: #a04a2e; --clay-fill: #b05538;
+    --line: #e8e6dc; --muted: #5e5d59; --soft: #66655f; --on-ink: #faf9f5; --on-ink-2: #b8b3a6; --good: #2f6a3c; --good-bg: #e6f0e6;
+    --display: "Tiempos Text", Georgia, "Iowan Old Style", "Times New Roman", ui-serif, serif;
+    --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page-alt); color: var(--ink); font: 400 14.5px/1.45 var(--sans); -webkit-font-smoothing: antialiased; }
+  main { max-width: 1080px; margin: 0 auto; padding: 26px 22px 30px; }
+  .top { display: grid; grid-template-columns: 1fr; }
+  .kicker { font: 400 10.5px/1 var(--mono); letter-spacing: 2.2px; text-transform: uppercase; color: var(--clay-deep); margin: 0 0 8px; }
+  h1 { font: 500 clamp(24px, 3.4vw, 34px)/1.08 var(--display); letter-spacing: -.8px; margin: 0; }
+  .lede { margin: 6px 0 0; color: var(--muted); font-size: 15.5px; }
+  .watch { display: flex; align-items: center; gap: 11px; padding: 10px 15px; border-radius: 12px; background: var(--ink); color: var(--on-ink);
+           text-decoration: none; white-space: nowrap; }
+  .watch .play { width: 30px; height: 30px; border-radius: 50%; background: var(--clay); display: grid; place-items: center; flex: none; }
+  .watch .play svg { width: 18px; height: 18px; color: #fff; }
+  .watch b { display: block; font-weight: 600; font-size: 14px; } .watch i { font-style: normal; color: var(--on-ink-2); font-size: 12.5px; }
+  .who { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 14px 0 12px; }
+  .photo { width: 44px; height: 44px; border-radius: 50%; overflow: hidden; flex: none; }
+  .placeholder { display: grid; place-items: center; border: 1.5px dashed var(--clay); color: var(--clay-deep); font: 400 9px/1 var(--mono); }
+  .who h2 { margin: 0; font: 600 15.5px/1.2 var(--sans); } .who p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .proof { padding: 4px 11px; border-radius: 999px; background: var(--good-bg); color: var(--good); font-size: 12.5px; font-weight: 500; }
+  .flow { margin: 0; }
+  .flow .dg-stage { height: 640px; } .flow .dg-mini { display: none; }
+  .next { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-top: 12px; padding: 14px 20px; border-radius: 14px; background: var(--ink); color: var(--on-ink); }
+  .next p { margin: 0; } .next .offer { font: 500 18px/1.25 var(--display); flex: 1; min-width: 220px; } .next .sub { color: var(--on-ink-2); font-size: 13.5px; }
+  .cta { background: var(--clay-fill); color: #fff; text-decoration: none; padding: 9px 18px; border-radius: 10px; font-weight: 600; }
+  @media (max-width: 720px) { main { padding: 18px 14px 24px; } }
+  @media print { @page { size: A4; margin: 9mm; } body { background: #fff; font-size: 9.6px; } main { padding: 0; max-width: none; }
+    h1 { font-size: 21px; } .lede { font-size: 10.6px; } .watch { display: none; } .who { margin: 8px 0 8px; } .next { margin-top: 8px; padding: 9px 14px; }
+    .next .offer { font-size: 12.5px; } .dg-tools, .dg-legend, .dg-editbar, .dg-foot { display: none !important; } }
+</style>
+<style>{{DIAGRAM_CSS}}</style>
+</head>
+<body>
+<main>
+  <!--
+    The automation plan for Make, Zapier and n8n jobs on ONE page: the headline, who you are,
+    the live flowchart of the work from the first request to the weekly report, and the next step.
+    Fill it for one job with python3 code/roadmap_build.py (see .claude/commands/proposal.md):
+      1. Title and lede in the client's words: the business type and its biggest leak.
+      2. The graph is templates/pitch/graphs/automations.json, cut down to what the posting needs.
+      3. The chips come from the Results and Reviews sections of context/me.md. A chip with nothing behind it is deleted.
+      4. Photo: python3 code/photo.py ~/photo.jpg --into <page>. The profile URL is the member's own.
+         Nothing may point anywhere but Upwork before a contract exists.
+  -->
+  <div class="top">
+    <div>
+      <p class="kicker">The automation plan</p>
+      <h1>&lt;The client's business&gt;: the routine work done by itself</h1>
+      <p class="lede">&lt;One line on the task that eats their hours today and what runs on its own after this build&gt;</p>
+    </div>
+    
+  </div>
+  <section class="who" aria-label="Who I am">
+    <div class="photo placeholder"><span>photo</span></div>
+    <div><h2>&lt;Your name&gt;</h2><p>&lt;What you do, in one line&gt;</p></div>
+    <span class="proof">&lt;A result you can back up&gt;</span>
+    <span class="proof">&lt;A second one, or delete this chip&gt;</span>
+  </section>
+  <section class="flow" aria-label="The system I build">
+    {{DIAGRAM_BLOCK}}
+  </section>
+  <section class="next" aria-label="What you get now">
+    <div class="offer">Tell me which task eats most of your week.<p class="sub">I'll reply with the first three automations I would build for it.</p></div>
+    <a class="cta" href="https://www.upwork.com/freelancers/~PUT-YOUR-PROFILE-ID-HERE">My profile<span aria-hidden="true">&rarr;</span></a>
+  </section>
+</main>
+{{DIAGRAM_SCRIPTS}}
+</body>
+</html>

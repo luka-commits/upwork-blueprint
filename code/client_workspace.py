@@ -84,7 +84,7 @@ right about the work.
 **The outcome:** {open_line}
 **Deliverables:** {open_line}
 **Not included:** {open_line}
-**Price and milestones:** {job.get("budget") or open_line}
+**Price and milestones:** {open_line}
 **Dates:** {open_line}
 
 ## How it runs

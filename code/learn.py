@@ -15,12 +15,15 @@ won. A lead that skipped a stage still counts for the stages it reached.
 """
 import argparse
 import collections
+import functools
 import json
 import os
 import pathlib
+import re
 
 import pipeline
 
+ME = pathlib.Path(os.environ.get('BLUEPRINT_ME') or pathlib.Path(__file__).resolve().parents[1] / 'context' / 'me.md')
 MIN_APPLIED = 8          # below this a dimension is noise, not a lesson
 MAX_POINTS = 5           # the most a lesson may move a score, in either direction
 STAGES = ('applied', 'replied', 'offer', 'won')
@@ -43,12 +46,34 @@ def tracks(job):
 
 
 def branch(slug):
-    """Which kind of search found it: Upwork's own feed, a theme, or a client tool."""
+    """Which kind of search found it: Upwork's own feed, a title term, a query page or a client tool."""
     if slug.startswith('recommended'):
         return 'recommendation'
     if slug.startswith('tool-'):
         return "client's own tool"
+    if slug.startswith('title-'):
+        return 'title search'
+    if slug.startswith('query-'):
+        return 'query search'
     return 'search theme'
+
+
+@functools.lru_cache(maxsize=1)
+def picked_branches():
+    """The member's branches from `**Branches you picked:**`, keyed by the slug of their track.
+
+    `/find-jobs` labels each branch's track with the branch name, so the file a lead was
+    found in (`query-<slug>`) names its branch.
+    """
+    try:
+        text = ME.read_text(encoding='utf-8')
+    except OSError:
+        return {}
+    match = re.search(r'^\*\*Branches you picked:\*\*[ \t]*(.*)$', text, re.M | re.I)
+    if not match or 'not answered yet' in match.group(1).lower():
+        return {}
+    names = [re.sub(r'^\d+\.\s*', '', name.strip()) for name in re.split(r'\s*[·|]\s*', match.group(1)) if name.strip()]
+    return {re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-'): name for name in names}
 
 
 def dimensions(job):
@@ -56,7 +81,10 @@ def dimensions(job):
     out = []
     for slug in tracks(job):
         out.append(('found via', slug))
-        out.append(('search branch', branch(slug)))
+        out.append(('kind of search', branch(slug)))
+        picked = picked_branches().get(re.sub(r'^(?:query|title|search)-', '', slug).split('--')[0])
+        if picked:
+            out.append(('your branch', picked))
     client = job.get('client') or {}
     if client.get('country'):
         out.append(('client country', str(client['country'])))
@@ -69,7 +97,7 @@ def dimensions(job):
         out.append(('client asked for', str(level)))
     score = job.get('score')
     if isinstance(score, (int, float)):
-        out.append(('our own score', f'{int(score) // 10 * 10} to {int(score) // 10 * 10 + 9}'))
+        out.append(('our own score', '9 or 10' if score >= 9 else '7 or 8' if score >= 7 else '6 or less'))
     return out
 
 
@@ -128,7 +156,7 @@ def rejections(path=None):
 
 
 def branch_yield(rows, jobs):
-    """Per search branch: how many it produced, and how many survived the gate.
+    """Per search: how many it produced, and how many survived the gate.
 
     A branch that keeps producing candidates and never one that passes is the
     clearest thing this pipeline can say about its own keywords, and it says it
@@ -170,7 +198,7 @@ def cmd_report(args):
 
     turned_down = rejections()
     if turned_down:
-        print(f'\nThe gate turned down {len(turned_down)} candidate(s). Per search branch, '
+        print(f'\nThe gate turned down {len(turned_down)} candidate(s). Per search, '
               f'how many reached your pipeline:')
         for name, passed, seen in branch_yield(turned_down, jobs):
             verdict = 'nothing passes, stop spending calls on it' if not passed else ''
@@ -193,8 +221,8 @@ def cmd_report(args):
         print(f'{dimension}: {value} | applied {c["applied"]}, replied {c["replied"]}, '
               f'offer {c["offer"]}, won {c["won"]} | {verdict}')
     learned = lessons(counts, args.min)
-    print(f'\n{len(learned)} lesson(s) strong enough to move a score, capped at '
-          f'{MAX_POINTS} points either way.')
+    print(f'\n{len(learned)} lesson(s) strong enough to move a score; jobs.py score applies '
+          f'at most one point in total either way.')
     for lesson in learned:
         print(f'  {lesson["dimension"]} "{lesson["value"]}": {lesson["points"]:+d} '
               f'({lesson["replied"]}/{lesson["applied"]} replied)')

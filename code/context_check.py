@@ -3,6 +3,7 @@
 
     python3 code/context_check.py [--quiet]
     python3 code/context_check.py --status
+    python3 code/context_check.py --gate profile|find-jobs|proposal
 
 /about-me fills context/me.md. Everything after it, from the profile to a
 proposal, quotes that file, so a starter line left in place turns
@@ -17,7 +18,6 @@ names where it can be checked.
 import argparse
 import pathlib
 import re
-import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ME = ROOT / 'context' / 'me.md'
@@ -63,6 +63,8 @@ INTERVIEW = (
     'Daily tools and languages',
 )
 INTERVIEW_FINDING = 'proof interview'
+# A source starting like this is the member's own word, never held back as pending.
+OWN_WORDS = ('your answer', 'your own', 'you said', 'you told')
 CHECKABLE = re.compile(r'(where to check|where it can be checked|checked at|source:|https?://|upwork\.com)', re.I)
 
 
@@ -162,19 +164,48 @@ def proof_entries(text):
             if EMPTY_SECTION not in line.lower() and not line.startswith('One block per')]
 
 
+def awaiting_yes(block):
+    """True for an entry pulled from elsewhere that the member has not confirmed yet.
+
+    What the member said themselves is never held back, whatever an older status
+    line says: their word is the record, and nothing here questions it.
+    """
+    bullets = {m.group(1).strip('* ').lower(): m.group(2).strip()
+               for m in re.finditer(r'^-\s*([^:\n]+):\s*(.*)$', block, re.M)}
+    marked = ('pending' in bullets.get('status', '').lower()
+              or re.search(r'^-\s*(?:\*\*)?pending\b|\(pending\b', block, re.M | re.I))
+    return bool(marked) and not bullets.get('source', '').lower().startswith(OWN_WORDS)
+
+
+def client_proof(text):
+    """The evidence a client may see: the proof sections without anything awaiting a yes.
+
+    Every gate in front of client copy reads this, so a number found in a file,
+    an email or on the web reaches a client only after the member said yes to it.
+    """
+    kept, block = [], []
+
+    def flush():
+        if not awaiting_yes('\n'.join(block)):
+            kept.extend(block)
+
+    for line in proof_only(text).splitlines():
+        if line.startswith('## '):
+            flush()
+            kept.append(line)
+            block = []
+        elif line.startswith('### '):
+            flush()
+            block = [line]
+        else:
+            block.append(line)
+    flush()
+    return '\n'.join(kept)
+
+
 def verified_proof(text):
     """Entries the member stated or confirmed: everything not still waiting for their yes."""
-    return '\n\n'.join(block for block in proof_entries(text)
-                       if not re.search(r'\bpending\b', block, re.I))
-
-
-def usable_proof(text):
-    """Entries the member stated with a concrete figure, verified or not.
-
-    A client-facing profile may carry the member's own numbers. Only entries with
-    no figure, and the starter's instructions, stay out.
-    """
-    return '\n\n'.join(block for block in proof_entries(text) if re.search(r'\d', block))
+    return '\n\n'.join(proof_entries(client_proof(text)))
 
 
 def status(text):
@@ -192,6 +223,25 @@ def status(text):
     return ('complete' if not open_points else 'partial'), filled, proofs, open_points
 
 
+def gate(text, command):
+    """What stops a command before it starts, and what it only names: (stops, notes).
+
+    Each line says which command comes first, so a member who runs the steps out
+    of order is sent back to the right one instead of getting a thin result.
+    """
+    stops, notes = [], []
+    if status(text)[0] == 'untouched':
+        stops.append('your file is still the empty starter. Run /about-me first.')
+    elif command == 'profile' and interview_open(text):
+        stops.append(f'{len(interview_open(text))} proof interview questions are open. '
+                     'Run /about-me proof first.')
+    title = field(text, 'Profile title')
+    if command in ('find-jobs', 'proposal') and not stops and (not title or STARTER in title.lower()):
+        notes.append('no profile title on record: clients open your profile before they reply. '
+                     'Run /profile when you can.')
+    return stops, notes
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('me', nargs='?', default=ME, type=pathlib.Path,
@@ -199,8 +249,13 @@ def main(argv=None):
     parser.add_argument('--quiet', action='store_true', help='print nothing when clean')
     parser.add_argument('--status', action='store_true',
                         help='untouched, partial or complete, for the start of /about-me')
+    parser.add_argument('--gate', choices=('profile', 'find-jobs', 'proposal'),
+                        help='what stops this command, and which command comes first')
     args = parser.parse_args(argv)
     if not args.me.is_file():
+        if args.gate:
+            print('STOP  there is no context file yet. Run /about-me first.')
+            return 1
         if args.status:
             print('untouched: the context file does not exist yet. '
                   'Run python3 code/workspace.py')
@@ -208,6 +263,15 @@ def main(argv=None):
         print(f'FAIL  {args.me} is missing. Run python3 code/workspace.py')
         return 1
     text = args.me.read_text(encoding='utf-8')
+    if args.gate:
+        stops, notes = gate(text, args.gate)
+        for line in stops:
+            print(f'STOP  {line}')
+        for line in notes:
+            print(f'NOTE  {line}')
+        if not stops and not notes:
+            print(f'PASS: /{args.gate} has what it needs.')
+        return 1 if stops else 0
     if args.status:
         state, filled, proofs, open_points = status(text)
         asked = len(INTERVIEW) - len(interview_open(text))

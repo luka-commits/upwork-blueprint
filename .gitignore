@@ -30,7 +30,6 @@ __pycache__/
 node_modules/
 /website/.next/
 *.tsbuildinfo
-/tools/leaks.txt
 
 # Shared permissions ship; each member's saved approvals stay local.
 .claude/settings.local.json

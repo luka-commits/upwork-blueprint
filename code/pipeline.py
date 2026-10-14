@@ -19,12 +19,10 @@ Usage:
     python3 code/pipeline.py set <job_id> <status> [--force] [--follow-up +3d|YYYY-MM-DD] [--note "..."]
     python3 code/pipeline.py acted <job_id> --note "..." [--at <ISO timestamp>]
     python3 code/pipeline.py record <job_id> --file <metadata.json>|-
-    python3 code/pipeline.py follow-up <job_id> plan --lane <lane> --due <date> --reason "..."
+    python3 code/pipeline.py follow-up <job_id> plan --lane active|cold [--due <date> --reason "..."]
     python3 code/pipeline.py follow-up <job_id> sent [--on YYYY-MM-DD]
-    python3 code/pipeline.py follow-up <job_id> clear --reason "..."
+    python3 code/pipeline.py follow-up <job_id> clear --reason "..." [--replied]
     python3 code/pipeline.py note <job_id> "what happened"
-    python3 code/pipeline.py task <job_id> add "what to do" [--due +2d|YYYY-MM-DD] [--time HH:MM]
-    python3 code/pipeline.py task <job_id> done|reopen|delete <task_number>
     python3 code/pipeline.py get <job_id>
     python3 code/pipeline.py list [--status new] [--limit 25]
     python3 code/pipeline.py summary
@@ -44,23 +42,21 @@ import pathlib
 import re
 import sys
 import tempfile
-from urllib.parse import urlparse
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 STATUSES = ('new', 'applied', 'replied', 'call', 'offer', 'won', 'lost', 'skipped')
 ACTIVE = ('applied', 'replied', 'call', 'offer')
 CLOSED = ('won', 'lost', 'skipped')
 
-# Gaps after each sent follow-up, in business days. Step one is scheduled by
-# the reviewer from the conversation. Later steps are mechanical so a missed
-# morning cannot silently stretch or compress the sequence.
+# Calendar days, each counted from the message before, so a missed morning cannot
+# stretch or compress a sequence. 'active' follows the member's unanswered message
+# in a sales conversation: two follow-ups, then the lead is cold (never Lost on its
+# own). 'cold' is the one reactivation offer after that. Won clients get no sequence.
 FOLLOW_UP_GAPS = {
-    'active': (1,),
-    'reactivation': (30, 60),
+    'active': (3, 7),
+    'cold': (30,),
 }
-# 'active' has no last step: while a client is in touch the follow-up comes nearly every
-# business day, and it ends when the client declines or says they have no interest.
-UNBOUNDED = ('active',)
+SALES = ('replied', 'call', 'offer')
 
 # Old unused jobs beyond this many fall out when new ones arrive, oldest first.
 # Fresh intake and anything carrying the member's work never fall out.
@@ -204,7 +200,7 @@ def find(jobs, job_id):
     for j in jobs:
         if j.get('id') == job_id:
             return j
-    abort(f'job "{job_id}" is not in the pipeline.')
+    abort(f'job "{job_id}" is not in the pipeline. /find-jobs puts jobs there; check the id.')
 
 
 def add_history(job, status, at=None):
@@ -222,29 +218,40 @@ def add_history(job, status, at=None):
 
 
 def parse_follow_up(value):
-    """+Nd or a date. N counts business days, because every lane gap does.
-
-    Calendar days here and business days in the lane meant the same "+3d" landed on
-    Monday from a Friday and on Wednesday from a lane step, with nothing saying so.
-    """
+    """+Nd or a date. N counts calendar days, because every lane gap does."""
     m = re.match(r'^\+(\d+)d$', value)
     if m:
-        return add_business_days(datetime.date.today(), int(m.group(1))).isoformat()
+        return (datetime.date.today() + datetime.timedelta(days=int(m.group(1)))).isoformat()
     try:
         return datetime.date.fromisoformat(value).isoformat()
     except ValueError:
         abort(f'--follow-up expects +Nd or YYYY-MM-DD, got: {value}')
 
 
-def add_business_days(day, count):
-    """Move forward by weekdays. Upwork conversations do not need holiday calendars."""
-    current = day
-    added = 0
-    while added < count:
-        current += datetime.timedelta(days=1)
-        if current.weekday() < 5:
-            added += 1
-    return current
+def unanswered_turns(messages):
+    """The member's message times since the client last wrote, oldest first.
+
+    One turn per calendar day: three bubbles sent the same morning are one message to
+    the client, and a client message resets the count. Messages come oldest first.
+    """
+    turns = []
+    for message in messages or []:
+        if not isinstance(message, dict) or message.get('kind') == 'event':
+            continue
+        stamp = parse_verified_timestamp(message.get('at'))
+        if message.get('from') == 'client':
+            turns = []
+        elif message.get('from') == 'me' and stamp and (not turns or turns[-1][:10] != stamp[:10]):
+            turns.append(stamp)
+    return turns
+
+
+def sequence_stopped(job):
+    """A sequence that ran out or was stopped restarts only after the client writes."""
+    last = (job.get('follow_up_history') or [{}])[-1]
+    if last.get('action') == 'cleared':
+        return not (last.get('by') == 'client' or str(last.get('reason') or '').startswith('The client replied'))
+    return bool(last.get('completed'))
 
 
 def trim(jobs):
@@ -363,6 +370,8 @@ def cmd_set(args):
         activity = verified_timestamp(args.activity_at) if args.activity_at else job['status_updated_at']
         job['last_activity_at'] = max(job.get('last_activity_at') or '', activity)
         add_history(job, args.status, job['status_updated_at'])
+        # A stage change means the conversation moved, so the lead is no longer cold.
+        job.pop('cold_since', None)
     # applied_at is the day of the FIRST application and never moves. The daily
     # target counts it, so a later reply must not shift the day you applied.
     if args.status == 'applied' and not job.get('applied_at'):
@@ -377,14 +386,11 @@ def cmd_set(args):
                     abort('--applied-at expects an ISO timestamp or unknown.')
             job['applied_at'] = observed or job['status_updated_at']
             job.pop('application_date_unknown', None)
-    lane = (job.get('follow_up_plan') or {}).get('lane')
     if args.status in ('applied', 'lost', 'skipped'):
         job['next_follow_up'] = None
         job.pop('follow_up_plan', None)
-    elif args.status == 'won' and lane != 'reactivation' and not args.follow_up:
-        # Winning ends a sales sequence. It must not end the reactivation lane, which
-        # exists only for won clients: recording a sent message with `set won` used to
-        # delete that plan, and the 60-day second touch went with it.
+    elif args.status == 'won' and not args.follow_up:
+        # Winning ends every sequence; a won client gets no follow-up from here.
         job['next_follow_up'] = None
         job.pop('follow_up_plan', None)
     elif args.follow_up:
@@ -431,7 +437,8 @@ def cmd_record(args):
     """Store connector identity and workflow markers through the sole writer."""
     value = read_json_arg(args.file)
     allowed = {'proposal_id', 'room_id', 'contract_id', 'contract_client', 'client_slug',
-               'submission_checked_at', 'result_recorded_at', 'next_follow_up', 'follow_up_source'}
+               'submission_checked_at', 'handover_done_at', 'result_recorded_at', 'next_follow_up',
+               'follow_up_source'}
     if not isinstance(value, dict) or not value or set(value) - allowed:
         abort('metadata needs only ' + ', '.join(sorted(allowed)) + '.')
     for key, item in value.items():
@@ -471,8 +478,8 @@ def cmd_follow_up(args):
     source = job.pop('follow_up_source', None)
 
     if args.action == 'plan':
-        if not args.lane or not args.due:
-            abort('plan needs --lane and --due.')
+        if not args.lane:
+            abort('plan needs --lane.')
         try:
             thread = json.loads((jobs_dir() / args.job_id / 'thread.json').read_text(encoding='utf-8'))
         except (OSError, json.JSONDecodeError):
@@ -480,41 +487,55 @@ def cmd_follow_up(args):
         if not str(thread.get('room_id') or '').strip():
             abort('this conversation has no room; a freelancer cannot message first.')
         lane = args.lane
-        if lane == 'reactivation' and job.get('status') != 'won':
-            abort('reactivation is only for a previous or current client in won.')
-        if lane != 'reactivation' and job.get('status') not in ('replied', 'call', 'offer'):
-            abort('sales follow-ups need a lead that has answered; applied proposals cannot message first.')
-        # The lane's own first gap, not whatever date happened to be passed: gaps[0]
-        # existed and was never used, so step 1 was the one step nobody measured.
-        first = FOLLOW_UP_GAPS[lane][0]
-        earliest = add_business_days(datetime.date.today(), first)
-        due = parse_follow_up(args.due)
-        if datetime.date.fromisoformat(due) < earliest:
-            abort(f'a {lane} follow-up waits {first} business day(s), so the earliest is '
-                  f'{earliest.isoformat()}, not {due}.')
+        if job.get('status') not in SALES:
+            abort('follow-ups need a lead in conversation; applied proposals cannot message first and won clients get none.')
+        # The cadence counts from the member's unanswered messages in the saved thread:
+        # one is the message itself, two means follow-up 1 went out, three means both did.
+        turns = unanswered_turns(thread.get('messages'))
+        if not turns:
+            abort('the client wrote last; that needs a reply, not a follow-up.')
+        step = 1
+        if lane == 'active' and len(turns) > len(FOLLOW_UP_GAPS['active']):
+            lane = 'cold'
+        elif lane == 'active':
+            step = len(turns)
+        gaps = FOLLOW_UP_GAPS[lane]
         reason = ' '.join((args.reason or '').split())
-        if not reason:
-            abort('a follow-up plan needs the conversation-based reason.')
+        if args.due:
+            # Off the cadence (a promised date, an open question) is a judgement, so it says why.
+            if not reason:
+                abort('a follow-up off the cadence needs the conversation-based reason.')
+            due = parse_follow_up(args.due)
+        else:
+            base = datetime.date.fromisoformat(turns[-1][:10])
+            due = (base + datetime.timedelta(days=gaps[step - 1])).isoformat()
+            reason = reason or f'No answer since {base.isoformat()}.'
+        if lane == 'cold':
+            job['cold_since'] = job.get('cold_since') or turns[-1]
+        else:
+            job.pop('cold_since', None)
         job['follow_up_plan'] = {
             'lane': lane,
-            'step': 1,
-            'max_steps': None if lane in UNBOUNDED else len(FOLLOW_UP_GAPS[lane]),
+            'step': step,
+            'max_steps': len(gaps),
             'reason': reason[:500],
             'reviewed_at': now_iso(),
         }
         job['next_follow_up'] = due
         save(jobs)
-        of = '' if lane in UNBOUNDED else f' of {len(FOLLOW_UP_GAPS[lane])}'
-        print(f'{args.job_id}: {lane} follow-up 1{of} due {due}.')
+        print(f'{args.job_id}: {lane} follow-up {step} of {len(gaps)} due {due}.')
         return
 
     if args.action == 'clear':
         reason = ' '.join((args.reason or '').split())
         job.pop('follow_up_plan', None)
         job['next_follow_up'] = None
-        job.setdefault('follow_up_history', []).append({
-            'action': 'cleared', 'at': now_iso(), 'reason': reason[:500],
-        })
+        entry = {'action': 'cleared', 'at': now_iso(), 'reason': reason[:500]}
+        if args.replied:
+            # The client wrote, so the lead is warm again and a new sequence may start.
+            job.pop('cold_since', None)
+            entry['by'] = 'client'
+        job.setdefault('follow_up_history', []).append(entry)
         save(jobs)
         print(f'{args.job_id}: follow-up sequence cleared.')
         return
@@ -542,28 +563,39 @@ def cmd_follow_up(args):
     lane = plan.get('lane')
     gaps = FOLLOW_UP_GAPS.get(lane)
     step = plan.get('step')
-    last = lane not in UNBOUNDED
-    if not gaps or not isinstance(step, int) or step < 1 or (last and step > len(gaps)):
+    if not gaps or not isinstance(step, int) or step < 1:
         abort(f'{args.job_id}: follow-up plan is invalid; clear it and review the conversation again.')
+    # A plan from the old endless lane can sit past the last step; it ends here too.
+    final = step >= len(gaps)
     stamp = verified_timestamp(args.at) if args.at else now_iso()
     job['last_activity_at'] = max(job.get('last_activity_at') or '', stamp)
     job.setdefault('follow_up_history', []).append({
         'action': 'sent', 'at': stamp, 'on': sent_day.isoformat(), 'lane': lane, 'step': step,
         'confirmation': confirmation,
-        'completed': last and step == len(gaps),
+        'completed': final,
     })
-    if last and step == len(gaps):
+    if final and lane == 'active':
+        # Two follow-ups without an answer: cold, never Lost, and one offer to reactivate.
+        due = (sent_day + datetime.timedelta(days=FOLLOW_UP_GAPS['cold'][0])).isoformat()
+        job['cold_since'] = stamp
+        job['follow_up_plan'] = {
+            'lane': 'cold', 'step': 1, 'max_steps': len(FOLLOW_UP_GAPS['cold']),
+            'reason': 'Two follow-ups without an answer; offer one reactivation.',
+            'reviewed_at': stamp,
+        }
+        job['next_follow_up'] = due
+        message = f'{args.job_id}: follow-up {step} sent; the lead is cold, reactivation offer due {due}.'
+    elif final:
         job.pop('follow_up_plan', None)
         job['next_follow_up'] = None
         message = f'{args.job_id}: {lane} sequence complete after follow-up {step}.'
     else:
         next_step = step + 1
-        due = add_business_days(sent_day, gaps[min(next_step, len(gaps)) - 1]).isoformat()
+        due = (sent_day + datetime.timedelta(days=gaps[next_step - 1])).isoformat()
         plan['step'] = next_step
         plan['reviewed_at'] = stamp
         job['next_follow_up'] = due
-        of = '' if not last else f' of {len(gaps)}'
-        message = f'{args.job_id}: follow-up {step} sent; {next_step}{of} due {due}.'
+        message = f'{args.job_id}: follow-up {step} sent; {next_step} of {len(gaps)} due {due}.'
     save(jobs)
     print(message)
 
@@ -703,59 +735,6 @@ def cmd_note(args):
     print(f'{args.job_id}: note added.')
 
 
-def cmd_task(args):
-    """Tasks on a lead or a won client: add one, tick it off, reopen or delete it."""
-    jobs = load()
-    job = find(jobs, args.job_id)
-    tasks = job.setdefault('tasks', [])
-    if args.action == 'add':
-        text = ' '.join((args.text or '').split())
-        if not text:
-            abort('a task needs text.')
-        if args.time and not args.due:
-            abort('--time needs --due.')
-        if args.time and not re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', args.time):
-            abort('--time expects HH:MM in 24-hour time.')
-        number = max((t['id'] for t in tasks), default=0) + 1
-        tasks.append({'id': number, 'text': text[:300], 'due': parse_follow_up(args.due) if args.due else None,
-                      'due_time': args.time or None, 'created_at': now_iso(), 'done_at': None})
-        message = f'task {number} added'
-    else:
-        task = next((t for t in tasks if str(t['id']) == str(args.text)), None)
-        if not task:
-            abort(f'there is no task {args.text} on {args.job_id}.')
-        if args.action == 'done':
-            task['done_at'] = now_iso()
-        elif args.action == 'reopen':
-            task['done_at'] = None
-        else:
-            tasks.remove(task)
-        message = f'task {task["id"]} {"deleted" if args.action == "delete" else args.action}'
-    save(jobs)
-    print(f'{args.job_id}: {message}.')
-
-
-def cmd_pitch_url(args):
-    """Save a hosted pitch URL separately from its local preview."""
-    jobs = load()
-    job = find(jobs, args.job_id)
-    value = args.url.strip()
-    if value == '-':
-        job.pop('pitch_url', None)
-    else:
-        parsed = urlparse(value)
-        host = (parsed.hostname or '').lower().rstrip('.')
-        import ipaddress
-        try:
-            private = not ipaddress.ip_address(host).is_global
-        except ValueError:
-            private = (host in ('localhost', '') or host.endswith(('.localhost', '.local', '.test', '.invalid'))
-                       or '.' not in host or bool(re.fullmatch(r'[\d.]+', host)))
-        if parsed.scheme != 'https' or private or parsed.username or parsed.password or any(c.isspace() for c in value):
-            abort('use the public HTTPS URL of your hosted pitch page, not the local preview.')
-        job['pitch_url'] = value
-    save(jobs)
-    print(f'{args.job_id}: pitch link {"removed" if value == "-" else "saved"}.')
 
 
 def cmd_get(args):
@@ -878,12 +857,10 @@ def cmd_prune(args):
                                    'profile.json', 'highlights.json', 'contracts.json')
                  for p in data_dir().glob(pattern)
                  if p.is_file() and datetime.datetime.fromtimestamp(p.stat().st_mtime, datetime.timezone.utc) < cutoff]
-    previews = [p for p in jobs_dir().glob('*/.pitch-preview.png')
-                if p.is_file() and datetime.datetime.fromtimestamp(p.stat().st_mtime, datetime.timezone.utc) < cutoff]
     if args.dry_run:
         print(f'DRY RUN: {hits} of {len(jobs)} jobs older than {args.hours}h, '
-              f'{fields} cached fields, {len(threads)} saved threads, {len(raw_cache)} raw cache files and '
-              f'{len(previews)} pitch previews would be removed. Nothing changed.')
+              f'{fields} cached fields, {len(threads)} saved threads, and {len(raw_cache)} raw cache files would be removed. '
+              f'Nothing changed.')
         return
     if hits:
         save(jobs)
@@ -891,15 +868,13 @@ def cmd_prune(args):
         t.unlink()
     for item in raw_cache:
         item.unlink()
-    for preview in previews:
-        preview.unlink()
     print(f'{hits} jobs pruned, {fields} cached fields removed, {len(threads)} saved threads, '
-          f'{len(raw_cache)} raw cache files and {len(previews)} pitch previews deleted.')
+          f'and {len(raw_cache)} raw cache files deleted.')
 
 
 def protected_search_lead(job, now_utc):
-    """A published page, application, decision or fresh intake keeps the lead."""
-    if (job.get('pitch_url') or job.get('status') != 'new'
+    """An application, a decision or a fresh intake keeps the lead."""
+    if (job.get('status') != 'new'
             or job.get('applied_at') or job.get('application_date_unknown')
             or (jobs_dir() / str(job.get('id')) / 'application.md').is_file()):
         return True
@@ -1073,25 +1048,13 @@ def build_parser():
     p.add_argument('--reason')
     p.add_argument('--on', help='Date a follow-up was sent, for replay and tests.')
     p.add_argument('--at', help='Verified message time, for sync replay.')
+    p.add_argument('--replied', action='store_true', help='clear: the client wrote; the lead is warm again.')
     p.set_defaults(func=cmd_follow_up)
 
     p = sub.add_parser('note', help='Add a line to a job\'s timeline.')
     p.add_argument('job_id')
     p.add_argument('text')
     p.set_defaults(func=cmd_note)
-
-    p = sub.add_parser('task', help='Tasks on a lead or client.')
-    p.add_argument('job_id')
-    p.add_argument('action', choices=('add', 'done', 'reopen', 'delete'))
-    p.add_argument('text', help='The task text for add, the task number otherwise.')
-    p.add_argument('--due')
-    p.add_argument('--time')
-    p.set_defaults(func=cmd_task)
-
-    p = sub.add_parser('pitch-url', help='Save the public URL of a hosted pitch page.')
-    p.add_argument('job_id')
-    p.add_argument('url', help='Public HTTPS URL, or "-" to remove it.')
-    p.set_defaults(func=cmd_pitch_url)
 
     p = sub.add_parser('get', help='One record as JSON.')
     p.add_argument('job_id')

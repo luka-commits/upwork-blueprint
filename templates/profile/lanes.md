@@ -2,11 +2,14 @@
 
 The five branches we recommend, offered to every member first. They are a recommendation, not a menu: steady demand on Upwork, each with a course in the community, and a member's own direction works too. The member names what they can deliver today and what they could grow into, and `/about-me` takes their picks as given, all five included. The services under a branch are the member's menu, not alternatives: record the branch and list only the services they name. The course under each branch is the lesson in the community classroom to watch before the first application. A direction that fits none of these is a custom addition, offered after them.
 
+The `Search:` line is what `/find-jobs` looks for in job titles, one term per call (measured 8 October 2026, ten newest postings per term). The first term is the broad one and is paged across the whole window; every other term is one the first does not contain, since a title search for "SEO" already returns every "local SEO" job. Only the first term is paged; every other term gets one page a run, which is how "website" (579 new postings a day, about 2 in 10 fitting) stays affordable as the newest ten. Google Business Profile, GEO and AEO are unmeasured trial terms: the per-term record of the first runs keeps or drops them.
+
 ## 1. GoHighLevel CRM automations
 
 Course: "Sales: Turn Leads To Customers".
 Profile orientation: `gohighlevel.md`.
 Tools: HighLevel (GoHighLevel), Zapier, Make.
+Search: GoHighLevel · GHL · CRM automation · sales funnel
 
 - CRM build and clean-up: pipelines, custom fields, tags
 - Lead capture: forms, funnels, booking calendars
@@ -20,6 +23,7 @@ Tools: HighLevel (GoHighLevel), Zapier, Make.
 Course: "CRO: 2x Your Website Leads".
 Profile orientation: `wordpress.md`.
 Tools: WordPress, Elementor, WooCommerce.
+Search: WordPress · Elementor · website redesign · website
 
 - Business websites on WordPress
 - Landing pages built to convert
@@ -32,6 +36,7 @@ Tools: WordPress, Elementor, WooCommerce.
 Course: "SEO: How To Rank #1 On Google".
 Profile orientation: `seo-cro.md`.
 Tools: Ahrefs, Semrush, Screaming Frog, Google Search Console, Google Business Profile.
+Search: SEO · Google Business Profile · GEO · AEO
 
 - Technical SEO audit and fixes
 - Local SEO and Google Business Profile
@@ -44,6 +49,7 @@ Tools: Ahrefs, Semrush, Screaming Frog, Google Search Console, Google Business P
 Courses: "Google Ads: 5+ Leads Daily" and "CRO: 2x Your Website Leads".
 Profile orientation: `google-ads-cro.md`.
 Tools: Google Ads, Google Tag Manager, Google Analytics 4.
+Search: Google Ads · conversion tracking · Google Tag Manager
 
 - Search campaign set-up
 - Account audit and clean-up
@@ -56,6 +62,7 @@ Tools: Google Ads, Google Tag Manager, Google Analytics 4.
 Course: "Claude: Automate Anything".
 Profile orientation: none yet.
 Tools: n8n, Make, Zapier, Claude, OpenAI API.
+Search: automation · n8n · Zapier · Make.com · voice agent · AI chatbot
 
 - Workflow automation with Make or n8n
 - Tools and scripts built with Claude Code

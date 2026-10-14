@@ -24,12 +24,21 @@ thing a new profile has.
 ## What you do
 
 **Profession:** not answered yet
+**Branches you picked:** not answered yet
 **The one thing you want to be hired for:** not answered yet
 **Services you sell:** not answered yet
 **Per service, what the client gets, the price, how long, which tool:** not answered yet
 **How settled your direction is (decided, leaning, open):** not answered yet
 **What you do NOT do:** not answered yet
 **Tools and systems you can name confidently:** not answered yet
+
+## Positioning
+
+How your Upwork profile pitches you, as /profile put it live. Every later command
+pitches you the same way, so a proposal never sells a different role than your profile.
+
+**Profile title:** not answered yet
+**Profile hook:** not answered yet
 
 ## How you work
 
@@ -55,7 +64,7 @@ decision easy, use concrete commitments, and never pressure the client.
 
 ## Job search tracks
 
-Not set yet. /find-jobs proposes them from your profile the first time it runs. One short line each, a tool or role a client would put in a job title.
+Your branches' searches come from the Search lines of your branches every run. Add a line here only for a search of your own, as "- Name: term · term": a line named like one of your branches replaces its terms.
 
 ## Proof interview
 

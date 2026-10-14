@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """The counting half of /find-jobs. The judging half (does this job fit you?) is Claude's.
 
-    python3 code/jobs.py window                                   # hours to search back
+    python3 code/jobs.py window                                   # hours to search back, starts the run
+    python3 code/jobs.py pause                                    # five seconds between Upwork calls
     python3 code/jobs.py candidates data/search/*.json [--window-hours 10]
-    python3 code/jobs.py score [--min 50]                         # merges data/fit.json, logs
+    python3 code/jobs.py score [--min 7]                          # merges data/fit.json, logs
     python3 code/jobs.py detail <job_id> <find_jobs-get-response.json>
     python3 code/jobs.py lessons                                  # your past calls, to calibrate
 
-A job's score is out of 100: niche fit 40 (Claude, from data/fit.json), client
-trust 30, deal quality 20, recency 10 (all three counted here). A job under 20
-on niche fit is never logged, whatever the rest says: a great client does not
-rescue an irrelevant job.
+A job's score is out of ten: Claude's fit from data/fit.json, minus at most two
+for client trust, deal quality and recency (counted here), plus or minus one from
+past lessons. A job under fit 6 is never logged, whatever the rest says: a great
+client does not rescue an irrelevant job.
 """
 import argparse
 import collections
@@ -37,8 +38,9 @@ LAST_SEARCH = DATA / 'last-search.json'
 LESSONS = DATA / 'lessons.json'
 PIPELINE = ROOT / 'code' / 'pipeline.py'
 ME = pathlib.Path(os.environ.get('BLUEPRINT_ME') or ROOT / 'context' / 'me.md')
+LANES = ROOT / 'templates' / 'profile' / 'lanes.md'
 TAG = re.compile(r'</?untrusted_participant_content>')
-MIN_WINDOW, MAX_WINDOW = 10, 24
+MIN_WINDOW, MAX_WINDOW = 10, 12
 RUN_FLOOR = 2          # the smallest window a repeat run asks for, in hours
 # Everything a member reads about a job is one number out of ten, so there is no
 # second scale to translate, no "points" behind a "grade", and nothing for the
@@ -97,7 +99,10 @@ def me_number(label):
     """One `**Label:**` figure from context/me.md, or None when it is not answered."""
     if not ME.is_file():
         return None
-    match = re.search(rf'(?im)^\*\*{re.escape(label)}:\*\*[ \t]*\$?([\d,.]+)', ME.read_text(encoding='utf-8'))
+    # A currency in front ("$55", "€55", "USD 55") is read as the same figure: the
+    # limits compare it with Upwork's dollar budgets, close enough to sort by.
+    match = re.search(rf'(?im)^\*\*{re.escape(label)}:\*\*[ \t]*(?:US\$|\$|€|USD|EUR)?[ \t]*([\d,.]+)',
+                      ME.read_text(encoding='utf-8'))
     return float(match.group(1).replace(',', '')) if match else None
 
 
@@ -111,11 +116,6 @@ def member_rate():
     profile = load_json(DATA / 'profile.json', {})
     personal = profile.get('data', {}).get('personalData', {})
     return money_value((personal.get('chargeRate') or {}).get('rawValue')) or me_number('Hourly rate')
-
-
-def member_floor():
-    """The smallest project the member said is worth taking, or the shipped default."""
-    return me_number('Smallest project worth taking') or FIXED_FLOOR
 
 
 def member_limits():
@@ -163,11 +163,11 @@ def record_search():
 
 
 def search_window_hours():
-    """The hours to look back: since the last run, never past a day.
+    """The hours to look back: since the last run, never past twelve hours.
 
     The stamp is the honest source, because a run that found nothing still covered
     its hours. The newest saved lead is the fallback for an account whose stamp was
-    never written, and 24 hours the fallback for a first run. The floor is small on
+    never written, and the twelve-hour ceiling the fallback for a first run. The floor is small on
     purpose: searching four times a day should cost four small windows, not four
     overlapping ten-hour ones.
     """
@@ -182,15 +182,75 @@ def search_window_hours():
     return int(max(MIN_WINDOW, min(MAX_WINDOW, round(hours + 0.5))))
 
 
-def cmd_window(args):
-    """Hours since the newest job in the pipeline, between 10 and 72.
+RUN_START = DATA / 'run-start.json'
 
-    Ten hours is the floor because a job older than that already has a day of
-    proposals on it. The window stretches to cover the gap since the last run, so
-    skipping a weekend never leaves a hole nobody sees.
+
+def cmd_window(args):
+    """Hours to search back, and the start of this run.
+
+    The window runs from the last finished run, at most twelve hours: a posting older
+    than that already carries a queue of proposals. A longer gap is named on a second
+    line, so a member who searches once a day sees what the window left out. Raw search
+    files an aborted run left behind are cleared here, because this run appends pages
+    to fresh ones.
     """
-    print(search_window_hours())
+    import shutil
+    hours = search_window_hours()
+    DATA.mkdir(exist_ok=True)
+    RUN_START.write_text(json.dumps({'at': now().isoformat()}), encoding='utf-8')
+    if (DATA / 'search').is_dir():
+        shutil.rmtree(DATA / 'search')
+    print(hours)
+    stamp = last_search()
+    if stamp:
+        since = (now() - stamp).total_seconds() / 3600
+        if since > MAX_WINDOW + 1:
+            print(f'gap: {int(since - hours)} hours before the window were not searched')
     return 0
+
+
+def cmd_pause(args):
+    """Waits between two Upwork calls.
+
+    Upwork restricted search on 8 October 2026 after about 45 searches in two minutes,
+    partly parallel. It names no safe pace, so five seconds is reasoned, not measured.
+    """
+    import time
+    time.sleep(args.seconds)
+    return 0
+
+
+def theme(label, terms):
+    slug = re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')
+    return {'label': label, 'slug': slug, 'terms': terms, 'query': ', '.join(terms)}
+
+
+def branch_themes(text):
+    """One theme per picked branch, straight from its Search line in lanes.md.
+
+    Nothing is written to the member's file for this: the branches are their answer,
+    the terms are ours, and a run rebuilds them every time. Only what the member
+    adds themselves (a custom direction, an industry) lives under "Job search tracks".
+    """
+    match = re.search(r'^\*\*Branches you picked:\*\*[ \t]*(.*)$', text, re.M | re.I)
+    if not match or 'not answered yet' in match.group(1).lower():
+        return []
+    try:
+        lanes = LANES.read_text(encoding='utf-8')
+    except OSError:
+        return []
+    search = {}
+    for block in re.split(r'(?m)^## ', lanes)[1:]:
+        heading = re.sub(r'^\d+\.\s*', '', block.splitlines()[0]).strip()
+        line = re.search(r'(?m)^Search:\s*(.+)$', block)
+        if line:
+            search[heading.lower()] = (heading, [t.strip() for t in re.split(r'\s*·\s*', line.group(1)) if t.strip()])
+    themes = []
+    for name in re.split(r'\s*[·|]\s*', match.group(1)):
+        found = search.get(re.sub(r'^\d+\.\s*', '', name.strip()).lower())
+        if found:
+            themes.append(theme(*found))
+    return themes
 
 
 def member_search_themes():
@@ -199,10 +259,8 @@ def member_search_themes():
     except OSError:
         return []
     match = re.search(r'(?ms)^## Job search tracks\s*\n(.*?)(?=^## |\Z)', text)
-    if not match:
-        return []
     themes = []
-    for line in match.group(1).splitlines():
+    for line in (match.group(1).splitlines() if match else []):
         if not line.startswith('- ') or not line[2:].strip():
             continue
         item = line[2:].strip()
@@ -215,9 +273,12 @@ def member_search_themes():
         else:
             label, terms = item, [item]
         if label and terms:
-            slug = re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')
-            themes.append({'label': label, 'slug': slug, 'terms': terms, 'query': ', '.join(terms)})
-    return themes
+            themes.append(theme(label, terms))
+    # The member's own lines win over a branch theme of the same name; the branches
+    # come first in their order, then whatever the member added, five at most.
+    own = {t['slug']: t for t in themes}
+    merged = [own.pop(t['slug'], t) for t in branch_themes(text)]
+    return (merged + list(own.values()))[:5]
 
 
 def source_matches_theme(source, theme):
@@ -225,7 +286,7 @@ def source_matches_theme(source, theme):
     source = str(source or '').lower()
     if not source.startswith(('query-', 'title-', 'search-')):
         return False
-    source = re.sub(r'^(?:query|title|search)-', '', source)
+    source = re.sub(r'^(?:query|title|search)-', '', source).split('--')[0]
     source_key = re.sub(r'[^a-z0-9]+', '', source)
     keys = [theme.get('slug', '')] + theme.get('terms', [])
     return source_key in {re.sub(r'[^a-z0-9]+', '', str(key).lower()) for key in keys}
@@ -269,12 +330,12 @@ def cmd_rules(args):
     print(json.dumps({
         'tracks': [theme['label'] for theme in themes],
         'themes': themes,
-        'query_mode': 'Semantic match across the job title and description',
+        'query_mode': 'Job title match per term, plus one meaning-based query page per theme',
         'performance': query_performance(themes),
         'performance_scope': 'Downstream outcomes for saved leads only. Upwork retrieval totals are not retained.',
         'window_hours': search_window_hours(),
         'window_bounds': [MIN_WINDOW, MAX_WINDOW],
-        'sources': ['Upwork recommendations', 'Semantic search themes'],
+        'sources': ['Upwork recommendations', 'Title search per term', 'Query search per theme'],
         'filters': ['Already applied', 'Already in the pipeline', 'Outside the search window',
                     'Unverified payment', 'Full-time role',
                     *([f'More than {_LIMITS["proposals"]:g} proposals'] if _LIMITS['proposals'] else []),
@@ -299,6 +360,9 @@ def cmd_rules(args):
 def normalize(job, track):
     c = job.get('client') or {}
     proposals = job.get('proposal_count')
+    # A search with include_full_details carries the whole posting; the field name is
+    # documented, not yet seen, so both spellings are read and the snippet is the fallback.
+    full = next((v for v in (job.get('description'), job.get('full_description')) if isinstance(v, str) and v.strip()), '')
     return {
         'id': str(job.get('id')),
         'title': clean(job.get('title')),
@@ -311,7 +375,9 @@ def normalize(job, track):
         'duration': job.get('duration'),
         'experience_level': job.get('experience_level'),
         'skills': job.get('skills') or [],
-        'snippet': clean(job.get('description_snippet'))[:400],
+        'snippet': clean(full or job.get('description_snippet'))[:400],
+        'description': clean(full or job.get('description_snippet')),
+        'preview_only': not full,
         'proposals': proposals if proposals is not None else job.get('proposals_tier'),
         'applied': bool(job.get('applied')),
         'client': {
@@ -340,6 +406,23 @@ def budget_top(job):
     return (max(values) if values else None), hourly
 
 
+def drop_kind(reason, limits):
+    """One line per kind of drop in the run summary, not one per figure.
+
+    `disqualified` names the job's own number so a single lead reads clearly; summed
+    over a run, "54 proposals" and "52 proposals" are the same reason.
+    """
+    if 'proposals, over your cap' in reason:
+        return f'over your cap of {limits["proposals"]:g} proposals'
+    if reason.startswith('pays '):
+        return 'hourly top under your share of your rate'
+    if reason.startswith('fixed budget of'):
+        return f'fixed budget under your floor of {limits["fixed_floor"]:g}'
+    if reason.startswith('client rated'):
+        return 'client rated low by freelancers'
+    return reason
+
+
 def disqualified(job, limits):
     """The short list of hard no's. A reason, or None when the posting stays in.
 
@@ -359,7 +442,7 @@ def disqualified(job, limits):
     if (limits['proposals'] and isinstance(proposals, (int, float))
             and proposals > limits['proposals']):
         return f'{int(proposals)} proposals, over your cap of {limits["proposals"]:g}'
-    rating, reviews = c.get('rating'), c.get('total_reviews')
+    rating, reviews = c.get('rating'), c.get('reviews')
     if rating is not None and rating < limits['min_rating'] and (reviews or 0) >= 3:
         return f'client rated {rating} by freelancers'
     top, hourly = budget_top(job)
@@ -378,7 +461,7 @@ def lesson_points(job):
     `learn.py lessons` measures the reply rate per bucket (the track that found it,
     the client's country, the job type) and emits a bucket only once eight
     applications stand behind it, so this cannot learn from a single bad week. It is
-    capped at five points either way, which is enough to tilt a ranking and never
+    capped at one point either way, which is enough to tilt a ranking and never
     enough to overturn a fit. The reasons come back with it, because a member has to
     be able to read why a lesson moved their list rather than trust that it did.
     """
@@ -460,7 +543,7 @@ def cmd_candidates(args):
                 continue
             no = disqualified(n, limits)
             if no:
-                dropped[no] += 1
+                dropped[drop_kind(no, limits)] += 1
                 continue
             shaved, reasons = deductions(n, rate)
             n.update(recency=rec, deduction=shaved, deduction_reasons=reasons)
@@ -480,13 +563,16 @@ def cmd_candidates(args):
               f'${c["spent"] or 0:,.0f} spent · {j["recency"]}/10 fresh')
         shaved = f'-{j["deduction"]} ({"; ".join(j["deduction_reasons"])})' if j['deduction'] else 'nothing against it'
         print(f'    deduction {shaved}')
-        print(f'    {j["snippet"][:220]}')
+        print(f'    {"(preview only) " if j.get("preview_only") else ""}{j["snippet"][:220]}')
     for off in limits['missing']:
         print(f'LIMIT OFF: {off}')
     for default in limits['defaults']:
         print(f'DEFAULT LIMIT: {default}')
     gone = ', '.join(f'{v} {k}' for k, v in dropped.most_common()) or 'none'
     print(f'\n{len(fresh)} new candidate(s), {len(known)} already in the pipeline, dropped: {gone}.')
+    previews = sum(1 for j in fresh if j.get('preview_only'))
+    if previews:
+        print(f'{previews} candidate(s) came without the full posting: judged on the preview only.')
     print(f'Next: judge fit 0 to 10 for each and write data/fit.json, then run score. '
           f'The score is that fit minus the deduction above; the gate is {MIN_SCORE}.')
     return 0
@@ -736,9 +822,31 @@ def cmd_lessons(args):
     return 0
 
 
+RUNS = DATA / 'runs.jsonl'
+
+
+def log_run(calls):
+    """One line per run: when, how many Upwork calls, how many minutes since `window`.
+
+    Upwork names no safe pattern, only that polling which resembles scraping is punished,
+    so the record of runs that passed is the only measure of what a member can safely do.
+    Counts only, never Upwork content, so prune leaves it alone.
+    """
+    start = parse_time(load_json(RUN_START, {}).get('at'))
+    minutes = round((now() - start).total_seconds() / 60, 1) if start else None
+    if RUN_START.is_file():
+        RUN_START.unlink()
+    with RUNS.open('a', encoding='utf-8') as out:
+        out.write(json.dumps({'at': now().isoformat(), 'calls': calls, 'minutes': minutes}) + '\n')
+    return minutes
+
+
 def cmd_clean(args):
     """Deletes this run's raw responses. Only our own scores and records stay."""
     import shutil
+    if args.calls is not None:
+        minutes = log_run(args.calls)
+        print(f'Run logged: {args.calls} Upwork calls' + (f' over about {minutes} minutes.' if minutes is not None else '.'))
     gone = 0
     for name in ('search', 'details'):
         folder = DATA / name
@@ -759,9 +867,13 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='cmd', required=True)
     p = sub.add_parser('clean')
+    p.add_argument('--calls', type=int, help='Upwork calls this run made, logged to data/runs.jsonl')
     p.set_defaults(func=cmd_clean)
     p = sub.add_parser('window')
     p.set_defaults(func=cmd_window)
+    p = sub.add_parser('pause')
+    p.add_argument('seconds', nargs='?', type=float, default=5)
+    p.set_defaults(func=cmd_pause)
     p = sub.add_parser('rules')
     p.set_defaults(func=cmd_rules)
     p = sub.add_parser('candidates')

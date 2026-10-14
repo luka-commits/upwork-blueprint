@@ -4,7 +4,7 @@ The operating half, state of 28 September 2026. `/find-jobs` reads the search st
 client rules. Market figures are not copied here, because a number copied goes stale and nobody
 notices; the two pages at the bottom carry them with their sample sizes and caveats.
 
-## The four branches of search terms
+## The four angles of search terms
 
 Every term comes from one of these four, and a run that uses only one is a run in the crowd.
 
@@ -19,10 +19,10 @@ Every term comes from one of these four, and a run that uses only one is a run i
 - **The client's industry, same logic.** A dental practice, a gym, a law firm, an HVAC company, a
   Shopify store or a clinic writes about its own trade, never about automation. The industry plus
   "booking", "leads", "follow-up" or "no-shows" reaches those postings before any freelancer who
-  searched only their own tool stack. A career changer owns this branch: the industry they already
+  searched only their own tool stack. A career changer owns this angle: the industry they already
   worked in is the one whose language they speak.
 
-**The split inside the tools branch is the actual trick.** The low and no-code platforms (Make,
+**The split inside the tools angle is the actual trick.** The low and no-code platforms (Make,
 n8n, Zapier) are where freelancers who do automation search for themselves. Everything the client
 already runs (Shopify, Salesforce, Monday, Zoho, GoHighLevel, Google Calendar, Gmail) is where
 nobody looks, and it is full of postings that are automation work without saying so. One client
@@ -50,7 +50,7 @@ own target.
 A menu for a first run, so nobody stares at a blank page. **Every term here is
 unmeasured until this account measures it**, and one page of results settles it: how
 many of the ten are real work for this member, and over how many hours they spread.
-A term that fails twice is removed with a line saying so. The four branches are the
+A term that finds nothing another term had not, in three runs, is proposed for removal (`tracks.py measure --log`), and removed only on the member's yes. The four angles are the
 columns; a field the member does not sell is a field to skip.
 
 **Local search and paid search**
@@ -128,7 +128,7 @@ roles     analytics implementation specialist · tracking consultant
 problems  conversions not tracked · duplicate events · reporting dashboard · attribution
 ```
 
-**The client's own systems**, the branch nobody searches. A trade business writes the
+**The client's own systems**, the angle nobody searches. A trade business writes the
 name of the software it runs, never the name of your discipline.
 ```
 home services   Housecall Pro · Jobber · ServiceTitan
@@ -140,7 +140,7 @@ back office     QuickBooks · Wave · Airtable
 Measured 28 September 2026, and the measurement is the point: **"Housecall Pro" returned
 ten postings over seven days with three worth applying to**, among them a GoHighLevel
 role for an agency running 200 local clients. **"Mindbody" returned exactly one posting
-in total**, `hasMore: false`. Two neighbouring terms from the same branch, one a track
+in total**, `hasMore: false`. Two neighbouring terms from the same angle, one a track
 and one a dead end, and nothing but a call could tell them apart.
 
 **The industry line always carries the service word.** Measured 28 September 2026:
@@ -164,56 +164,36 @@ Costs no Upwork call, because it reads the files the run already saved.
 
 ## Ready-made tracks
 
-A first run does not have to invent terms from nothing. Two lanes are written out below, each
-already split across the four branches. Offer the matching lane, let the member cut what they
-cannot deliver, and treat the rest as the exploration set: the ones that produce nothing twice
-still get dropped.
+The `Search:` line of each branch in [templates/profile/lanes.md](../templates/profile/lanes.md)
+is that branch's track, and the only place its terms live. `jobs.py rules` reads
+`**Branches you picked:**` in `context/me.md` and builds one track per picked branch with the
+branch name as its label, every run, writing nothing; a member's own line of the same name
+under "Job search tracks" replaces it. A custom direction
+has no line there: its terms come from its services, tools and roles in `context/me.md`,
+worded the way the catalog above words them.
 
-**Lane A, getting found and getting enquiries.** SEO, Google Ads and the website that carries
-them. One buyer, a local business owner who wants the phone to ring, and the lane this repo
-already delivers for: both roadmap templates are SEO and Google Ads.
+An industry search is the member's own line, the trade plus each picked branch's service
+word (`gym SEO`, `gym Google Ads`, `gym website`), counted within the five; never added unasked.
 
-```
-- Local SEO: Google Business Profile · Google Maps ranking · local SEO
-- SEO problem: not showing on Google · organic traffic · keyword research
-- Google Ads: Google Ads · Performance Max · conversion tracking
-- Ads problem: wasted ad spend · cost per lead · Google Ads audit
-- Website: Webflow · WordPress · Elementor · landing page
-- Industry: dentist SEO · plumber leads · law firm marketing · med spa ads
-```
+**At most five tracks.** Every term is one title search per page, every track adds one `query`
+page and every run one page of Upwork's recommendations, and a run stops at 25 pages, so
+more tracks buy coverage at the cost of depth per term, which is how a run stops finding the
+fresh postings that are the whole point. Branches go first in the member's order; a branch left
+out is named in the report.
 
-**Lane B, what happens to an enquiry after it arrives.** CRM, follow-up and booking, sold to
-agencies and to owners who already have traffic. A different promise from lane A, so it is a
-lane of its own rather than three more terms.
+## The member's limits
 
-```
-- GoHighLevel: GoHighLevel · GHL · HighLevel snapshot
-- CRM problem: missed call text back · appointment booking · CRM setup
-- Role: GoHighLevel expert · marketing automation specialist
-```
-
-**One lane at a time.** Every track is one search call per page, so six tracks cost twelve of a
-run's roughly two dozen calls. Two lanes at once buys twice the coverage at half the depth per
-term, which is how a run stops finding the fresh postings that are the whole point. The rotating
-slot for a new candidate term is the place to test across lanes, not a second lane.
-
-## The member's limits, sent with the query
-
-A boundary belongs in the search itself, not in a judgement after the results
-arrive: the filters cost nothing and every one of them turns ten random rows into
-ten rows worth reading.
+`jobs.py candidates` applies these after the search, with the defaults below. A figure the
+member writes into `context/me.md` is also sent as the search filter in the third column,
+so their own boundary costs no page; a default never is, because a filter removes jobs
+before anyone scores them.
 
 **These figures are a starting point, not a rule.** Three of the five scale with
 experience, and the wrong figure is expensive in both directions: an established member
 floored at a hundred dollars takes work that pays worse than their afternoon, and a
 beginner floored too high finds nothing.
-`/find-jobs` therefore opens by showing these numbers with a recommendation for that
-person, and whatever they answer is written into `context/me.md` and read from there on
-every later run. Three tiers: **no reviews yet** puts the fixed floor near 100, because
-the first two reviews are worth more than the first two hundred dollars, and halves the
-hourly floor, since the rate is still a hope. **A rate and a few finished contracts** fits
-the figures below. **A high rate with proof and a narrow niche** raises the hourly floor
-toward 80 percent, and their honest day is three good leads rather than ten.
+`/find-jobs` applies the defaults below and asks nothing; a member who wants other figures
+writes them into `context/me.md`, and every later run reads them there.
 
 | Limit | Default | Filter | Why this number |
 |---|---|---|---|
@@ -222,7 +202,7 @@ toward 80 percent, and their honest day is three good leads rather than ten.
 | Hourly floor | 60% of the member's rate | `rate_min` | The same day returned hourly postings at $3 to $5 |
 | Engagement | no `FULL_TIME` | `job_type`, `workload` | An employee disguised as a contract, and the one trap a generous budget hides best |
 | Client rating | drop below 3.0, and only with at least 3 reviews | after the search | One bad review is one freelancer's bad week; three are a pattern. The rating is not a search filter |
-| Age | over 24 hours | the window | Measured 28 September 2026: a three-hour-old posting already carried 23 proposals. A day old is a queue, not an opening |
+| Age | older than the window, at most 12 hours | the window | Measured 28 September 2026: a three-hour-old posting already carried 23 proposals. A day old is a queue, not an opening |
 
 **A posting that caps itself is a no whatever the client looks like**, for example
 "$500 fixed price, done by Friday". The posting is evidence about the budget, the

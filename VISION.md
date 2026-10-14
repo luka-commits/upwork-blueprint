@@ -7,8 +7,10 @@
 ## The outcome
 
 A freelancer opens one place and knows what matters and what to do next. The
-system carries the work from profile positioning through job discovery, pitch
-page and application, conversation and follow-up, to a won contract handed over.
+system carries the work from the member's own facts and profile positioning through
+job discovery, the Loom one-pager and application, conversation and follow-up, the
+sales call and its proposal, to a won contract handed over and its result recorded as
+proof for the next application.
 
 The goal is not more automated activity. The goal is more good-fit applications,
 more useful client conversations and more won work. Speed matters only when the
@@ -62,7 +64,7 @@ The cockpit applies these principles to the interface in
 ## Review contract
 
 Review the system against this file, then against the evidence a run actually
-leaves: what `tools/check_repo.py` reports, what the built report shows at 1440
+leaves: what the commands' own checks report, what the built report shows at 1440
 and 390 pixels, and what the real interface does. A review ends PASS or FAIL and
 answers five questions:
 

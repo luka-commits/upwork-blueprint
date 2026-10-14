@@ -7,14 +7,13 @@ The full product goal and review standard are in [VISION.md](VISION.md).
 ## Quick start
 
 Before you clone: `/about-me` runs on a Claude plan alone. Every Upwork command
-needs the free Upwork connector. Publishing a pitch page needs a free
-Vercel account. Details are in
+needs the free Upwork connector. Details are in
 [Requirements](#requirements) and [What it costs to run](#what-it-costs-to-run).
 
 1. Clone it anywhere on your computer:
    `git clone https://github.com/luka-commits/upwork-blueprint.git`
 2. Open a terminal in the folder and run `./setup.sh` once. It creates your own
-   files and writes `.env` with your unique Vercel project
+   files and `.env`
 3. Follow [Connect Upwork](#connect-upwork), then run `/about-me`. It asks about
    your background once; later commands write from those answers
 
@@ -45,12 +44,13 @@ Claude Code session. `RESEARCH.md` is background reading; no command uses it.
 | Step | Command | What it does |
 |------|---------|--------------|
 | 1 | `/about-me` | Your work history, your offer, your terms and every result you can prove |
-| 2 | `/profile` | Measures your live profile, then writes the version that fixes it |
+| 2 | `/profile` | Writes your profile from your facts and top examples, and puts it live after one yes |
 | 3 | `/find-jobs` | Ten leads a day worth applying to, scored against what you sell, straight into your cockpit |
-| 4 | `/proposal` | A one-page pitch site plus the cover letter and bid you submit with your Loom |
+| 4 | `/proposal` | The one-pager for your Loom, plus the cover letter and screening answers you submit with your Loom |
 | 5 | `/brief` | Your morning: what changed on Upwork, where every lead stands, and the messages that are due |
-| 6 | `/sales-call-proposal` | Turns your sales call into the proposal you send, and says whether it is ready to start a project on |
-| 7 | `/onboarding` | Turns a started contract into the handover brief and the onboarding. Run it again after delivery to record what came out of it |
+| 6 | `/call-prep` | Before a sales call: what the call has to settle, the client's business, the person and their market, every fact linked, plus what is worth preparing |
+| 7 | `/sales-call-proposal` | Turns your sales call into the proposal you send, and says whether it is ready to start a project on |
+| 8 | `/onboarding` | Turns a started contract into the handover brief and the onboarding. Run it again after delivery to record what came out of it |
 
 /about-me also works before connecting or creating a public Upwork profile. Run it
 first: every later command writes from it, and `/find-jobs` on an empty `me.md`
@@ -70,18 +70,14 @@ from.
   make a virtual environment first: `python3 -m venv .venv && source .venv/bin/activate`
   Activate it with `source .venv/bin/activate` in every new terminal before `claude`.
 - [Node.js](https://nodejs.org) 20.19+ (20.x) or 22.12+ for the cockpit
-- Google Chrome, which `/proposal` uses to check the page on a phone screen
 - Optional: Claude's Google Drive and Gmail connectors. `/about-me` then looks there,
   and in your Documents, Downloads and Desktop, for old CVs, results and client
   messages on its own. Read only; Claude Code still asks before it opens a file
   outside this folder, and saying no just skips that source.
-- Vercel CLI: `npm i -g vercel`, then `vercel login` (or set `VERCEL_TOKEN`).
-  If that install fails with EACCES, use `npm i -g --prefix "$HOME/.local" vercel`
-  and add `export PATH="$HOME/.local/bin:$PATH"` to your shell startup file.
 
 `./setup.sh` and `python3 code/tools_status.py` list what each command still needs.
-Upwork commands need the connector; publishing needs Vercel. /about-me can start
-before either is ready.
+Upwork commands need the connector. /about-me can start
+before it is ready.
 
 ## What it costs to run
 
@@ -89,11 +85,12 @@ before either is ready.
 |------|------|
 | Claude Code | a paid Claude plan that includes Claude Code, or API billing |
 | Upwork applications | About 70 Connects/day for ten applications; the actual job costs vary and /find-jobs counts them |
-| Public pitch pages | Vercel's free plan, within its limits |
 | Optional image API | Usage billed separately; paid images require your yes after the cost is shown |
 
 The keys and bills are yours. `KIE_AI_API_KEY` generates images; you can instead
-use an image model you already have. Details are in `.env.example`.
+use an image model you already have. `/call-prep` uses `APIFY_API_TOKEN` for review and
+ad pulls (at most $0.50 and $0.10 each, only on your pick) and a free `PAGESPEED_API_KEY`.
+Details are in `.env.example`.
 
 ## Updating
 
@@ -104,10 +101,12 @@ Run `git pull`, then `./setup.sh` again. Activate `.venv` first if you use it.
 Everything below is yours and gitignored, so `git pull` never touches it.
 
 - `context/me.md` - who you are and what you can back up
+- `context/samples/` - one sample one-pager and its 45-second script per branch,
+  for the Loom you record once
 - `profile.md` - the profile to paste, written against what is live today
 - `data/jobs.json` - your pipeline, written only by `code/pipeline.py`
 - `jobs/<id>/` - one folder per job: the pitch page, the application,
-  the proposal, the threads and the drafts
+  the call transcript, the proposal and its PDF, the threads and the drafts
 - `clients/<slug>/` - a won job: the brief, the inputs, the work, what you delivered
 
 ## What this will never do
@@ -141,7 +140,5 @@ Three things in here are not ours. The tool logos in `templates/pitch/logos/`
 come from Simple Icons under CC0; brand marks stay their owners' property and
 only name a tool a client already runs. The diagram look in
 `templates/pitch/diagram.js` follows the design system of diagram-design by
-Cathryn Lavery, MIT licence, with no code copied from it. The ink drawing behind
-the pitch page headline comes from the automatable.co landing page, used with
-permission. Everything else is the author's: it ships to members to use in their
+Cathryn Lavery, MIT licence, with no code copied from it. Everything else is the author's: it ships to members to use in their
 own freelancing, not to republish or resell.

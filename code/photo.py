@@ -4,8 +4,8 @@
     python3 code/photo.py ~/Desktop/me.jpg
     python3 code/photo.py ~/Desktop/me.jpg --into jobs/2104512976561523960/pitch.html
 
-The deploy uploads one HTML file and nothing beside it, so every image a client sees
-has to live inside that file. Converting a photo by hand is a detour through a website
+The page is one HTML file the member opens and shows in the Loom, so every image on
+it has to live inside that file. Converting a photo by hand is a detour through a website
 nobody should have to find, and the first member who tries it pastes a 4 MB phone
 picture into a page that then takes six seconds to open on a phone.
 

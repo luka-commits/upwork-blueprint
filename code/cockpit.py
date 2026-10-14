@@ -32,6 +32,7 @@ sys.path.insert(0, str(ROOT / 'code'))
 import pipeline  # noqa: E402  (read-only use: load, jobs_dir)
 import application_check  # noqa: E402
 import pitch_check  # noqa: E402
+from analytics import bars  # noqa: E402
 
 APP = ROOT / 'website'
 JOBS_DIR = pipeline.jobs_dir()
@@ -336,8 +337,6 @@ def profile_history():
 
 
 MIN_RATE = 50
-BARS = {'Volume': 10, 'Profile': 100, 'Proposal': 10, 'Loom': 100, 'Speed': 2,
-        'Messaging': 30, 'Sales call': 80, 'Call proposal': 90, 'Opened': 80}
 NEXT_ACTIONS = {
     'Volume': 'Apply to your daily goal today.',
     'Profile': 'Fill the missing profile items in /profile.',
@@ -349,25 +348,6 @@ NEXT_ACTIONS = {
     'Call proposal': 'Send the agreed proposal within 24 hours of the call.',
     'Opened': 'Review the proposal link and follow up on Upwork.',
 }
-
-
-def bars():
-    result = dict(BARS)
-    path = pathlib.Path(os.environ.get('BLUEPRINT_CONTEXT') or ROOT / 'context') / 'me.md'
-    if not path.is_file():
-        return result
-    section = False
-    for line in path.read_text(encoding='utf-8').splitlines():
-        if line.startswith('## '):
-            section = line.strip() == '## Bars'
-        elif section:
-            match = re.fullmatch(r'\s*([^:]+):\s*(\d+(?:\.\d+)?)\s*', line)
-            if match and match[1].strip() in result:
-                name, value = match[1].strip(), float(match[2])
-                maximum = 14 if name == 'Volume' else (None if name == 'Speed' else 100)
-                if math.isfinite(value) and value >= 0 and (maximum is None or value <= maximum):
-                    result[name] = value
-    return result
 
 
 def bottleneck(jobs, daily, profile, timing):

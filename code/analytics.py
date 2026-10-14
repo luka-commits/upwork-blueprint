@@ -1,0 +1,845 @@
+#!/usr/bin/env python3
+"""Weekly analytics. Read the pipeline; write only weekly snapshots and goals.
+
+    python3 code/analytics.py compute [--today YYYY-MM-DD]
+    python3 code/analytics.py record --file - [--replace]
+    python3 code/analytics.py goals add --file -
+    python3 code/analytics.py last
+    python3 code/analytics.py due [--today YYYY-MM-DD]
+"""
+import argparse
+import copy
+import datetime as dt
+import json
+import math
+import os
+import pathlib
+import re
+import statistics
+import sys
+from zoneinfo import ZoneInfo
+
+import pipeline
+import call_stats
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+DEFAULTS = {'won_value': None, 'value_per_100_connects': None, 'reply_rate': 20, 'reply_to_call': 50, 'booked_to_held': 90,
+            'held_to_proposal': 90, 'proposal_to_won': 30, 'invite_to_call': 50,
+            'offer_to_contract': 80, 'weekly_volume': 25, 'speed_10min': 80,
+            'first_reply': 5, 'first_reply_p75': 15, 'follow_ups_on_time': 100,
+            'proposal_on_time': 90, 'job_fit': 100}
+LEGACY_BARS = {'Volume': 10, 'Profile': 100, 'Proposal': 10, 'Loom': 100, 'Speed': 2,
+               'Messaging': 30, 'Sales call': 80, 'Call proposal': 90, 'Opened': 80}
+FUNNEL = ('reply_rate', 'reply_to_call', 'booked_to_held', 'held_to_proposal',
+          'proposal_to_won', 'invite_to_call', 'offer_to_contract')
+LABELS = {'won_value': 'Won value per week', 'value_per_100_connects': 'Won value per 100 Connects',
+          'reply_rate': 'Applied → reply', 'reply_to_call': 'Reply → call',
+          'booked_to_held': 'Booked → held', 'held_to_proposal': 'Held → proposal',
+          'proposal_to_won': 'Proposal → won', 'invite_to_call': 'Invite → call',
+          'offer_to_contract': 'Offer → contract', 'weekly_volume': 'Weekly applications',
+          'speed_10min': 'Applied within 10 minutes', 'first_reply': 'Our first reply',
+          'follow_ups_on_time': 'Follow-ups on their due day', 'proposal_on_time': 'Proposal within 30 minutes',
+          'job_fit': 'Jobs that fit lane and rate', 'application_review': 'Application review',
+          'conversation_review': 'Conversation review', 'call_review': 'Call review',
+          'proposal_review': 'Proposal review', 'segments': 'Segments', 'behaviour': 'Behaviour',
+          'lost_reasons': 'Lost reasons', 'goal_effect': 'Effect of last week’s goals', 'goal_done': 'Goals carried out'}
+ACTIONS = {'reply_rate': 'Name the client problem and one matching proof in your application.',
+           'reply_to_call': 'Offer two concrete call times in your reply.',
+           'booked_to_held': 'Confirm the call and its agenda before the booked time.',
+           'held_to_proposal': 'Agree the scope and next step before ending the call.',
+           'proposal_to_won': 'Confirm the decision date and follow up on that day.',
+           'invite_to_call': 'Answer the invitation with a clear next step.',
+           'offer_to_contract': 'Clarify the terms and agree the contract start.',
+           'weekly_volume': 'Set aside time for the weekly application goal.',
+           'speed_10min': 'Prepare your proof before checking newly posted jobs.',
+           'first_reply': 'Check interested replies during working hours.',
+           'follow_ups_on_time': 'Complete the silent-lane follow-ups due today.',
+           'proposal_on_time': 'Draft the proposal immediately after the held call.'}
+
+
+def context_text():
+    path = pathlib.Path(os.environ.get('BLUEPRINT_CONTEXT') or ROOT / 'context') / 'me.md'
+    return path.read_text(encoding='utf-8') if path.is_file() else ''
+
+
+def sections():
+    result, name = {}, None
+    for line in context_text().splitlines():
+        if line.startswith('## '):
+            name = line[3:].strip()
+            result.setdefault(name, [])
+        elif name:
+            result[name].append(line.strip())
+    return {key: '\n'.join(value).strip() for key, value in result.items()}
+
+
+def bars():
+    """Package 2 names plus unchanged legacy names for the existing cockpit."""
+    result = {**LEGACY_BARS, **DEFAULTS}
+    for line in sections().get('Bars', '').splitlines():
+        match = re.fullmatch(r'\s*([^:]+):\s*(\d+(?:\.\d+)?)\s*', line)
+        if not match or match[1].strip() not in result:
+            continue
+        name, value = match[1].strip(), float(match[2])
+        maximum = (14 if name == 'Volume' else None if name in
+                   ('Speed', 'first_reply', 'first_reply_p75', 'weekly_volume', 'won_value', 'value_per_100_connects') else 100)
+        if math.isfinite(value) and value >= 0 and (maximum is None or value <= maximum):
+            result[name] = value
+    weekly = re.search(r'\d+', sections().get('Weekly goal', ''))
+    if weekly and 'weekly_volume' not in sections().get('Bars', ''):
+        result['weekly_volume'] = int(weekly[0])
+    return result
+
+
+def data_path(name):
+    return pipeline.data_dir() / name
+
+
+def read_lines(name):
+    path = data_path(name)
+    return [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()] if path.is_file() else []
+
+
+def timestamp(value):
+    try:
+        stamp = dt.datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        return stamp if stamp.tzinfo is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def day(value):
+    try:
+        return dt.date.fromisoformat(str(value)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def local_zone():
+    try:
+        name = sections().get('Timezone', '').strip() or os.environ.get('TZ')
+        if not name:
+            match = re.search(r'\b([A-Za-z_]+/[A-Za-z_]+)\b', sections().get('Working hours', ''))
+            name = match[1] if match else None
+        return ZoneInfo(name) if name else dt.datetime.now().astimezone().tzinfo
+    except (KeyError, ValueError, TypeError):
+        return dt.datetime.now().astimezone().tzinfo
+
+
+def as_today(value=None):
+    return value if isinstance(value, dt.date) else dt.date.fromisoformat(value) if value else dt.datetime.now(local_zone()).date()
+
+
+def event(job, name):
+    if name == 'offer':
+        names = ('offered_at', 'offer_at')
+    elif name == 'won':
+        names = ('won_at',)
+    else:
+        names = (name + '_at',)
+    values = [timestamp(job.get(key)) for key in names]
+    if name in ('offer', 'won'):
+        values.extend(timestamp(item.get('at')) for item in job.get('history', []) if item.get('status') == name)
+    values = [value for value in values if value]
+    if values:
+        return min(values)
+    if name == 'won':
+        started = day((job.get('won_value') or {}).get('start_date'))
+        if started:
+            return dt.datetime.combine(started, dt.time(), local_zone())
+    return None
+
+
+def route(job):
+    return (job.get('application_facts') or {}).get('source', job.get('source', 'outbound'))
+
+
+def assessment(job, key):
+    direct = job.get(key)
+    if isinstance(direct, dict):
+        return direct
+    prefix = 'analytics ' + key + ': '
+    for item in reversed(job.get('log') or []):
+        if str(item.get('text', '')).startswith(prefix):
+            try:
+                value = json.loads(item['text'][len(prefix):])
+                valid = value.get('state') in ('pass', 'fail', 'unclear') if key == 'job_fit' else value.get('kind') in ('stated', 'observed', 'unknown')
+                if valid and isinstance(value.get('reason'), str):
+                    return value
+            except (ValueError, TypeError, AttributeError):
+                pass
+    return None
+
+
+def wilson(k, n):
+    if not n:
+        return None, None
+    z = 1.959963984540054
+    p, z2 = k / n, z * z
+    middle = (p + z2 / (2 * n)) / (1 + z2 / n)
+    radius = z * math.sqrt(p * (1 - p) / n + z2 / (4 * n * n)) / (1 + z2 / n)
+    return max(0.0, 100 * (middle - radius)), min(100.0, 100 * (middle + radius))
+
+
+def rate_state(k, n, target):
+    low, high = wilson(k, n)
+    return 'undecided' if not n else 'pass' if low >= target else 'fail' if high < target else 'undecided'
+
+
+def cases_needed(k, n, target):
+    """More cases at the current observed rate; no finite estimate at the target."""
+    if not n or k / n == target / 100:
+        return None
+    if rate_state(k, n, target) != 'undecided':
+        return 0
+    p, q = k / n, target / 100
+    distance = abs(p - q)
+    coefficient = 1.959963984540054 * math.sqrt(q * (1 - q))
+    # Wilson inversion is the score test. Even the favourable rounding of the
+    # future success count cannot decide before this quadratic lower bound.
+    root = (coefficient + math.sqrt(max(0, coefficient * coefficient - 2 * distance))) / (2 * distance)
+    total = max(n + 1, math.floor(root * root) - 2)
+    for candidate in range(total, total + 100000):
+        if rate_state(round(p * candidate), candidate, target) != 'undecided':
+            return candidate - n
+    return None
+
+
+def span(today, days, back=0):
+    end = today - dt.timedelta(days=1 + back)
+    return end - dt.timedelta(days=days - 1), end
+
+
+def inside(value, bounds):
+    stamp = timestamp(value)
+    value = stamp.astimezone(local_zone()).date() if stamp else day(value)
+    return value is not None and bounds[0] <= value <= bounds[1]
+
+
+def period(bounds):
+    return {'start': bounds[0].isoformat(), 'end': bounds[1].isoformat()}
+
+
+def ids(rows):
+    return sorted({str(job['id']) for job in rows})
+
+
+def number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def rounded(value):
+    return round(value, 4) if number(value) else value
+
+
+def metric(key, k=None, n=None, value=None, target=None, state='undecided', evidence=None, reason=None):
+    order = list(LABELS).index(key) + 1
+    layer = 'result' if order < 3 else 'funnel' if order < 10 else 'lever' if order < 16 else 'insight' if order in (20, 21) else 'coaching'
+    unit = 'usd' if order < 3 else 'min' if key == 'first_reply' else 'count' if key in ('weekly_volume', 'goal_done') else 'text' if order >= 16 else '%'
+    return {'label': LABELS[key], 'layer': layer, 'strand': 'outbound' if order in (3, 4, 5, 6, 7) else 'inbound' if order in (8, 9) else None,
+            'order': order, 'unit': unit, 'value': rounded(value), 'k': k, 'n': n, 'low': None, 'high': None,
+            'target': target, 'target_text': f'{target:g} %' if number(target) and unit == '%' else str(target) if target is not None else 'one fix' if order in (16, 17, 18, 19) else 'up vs own four weeks' if order < 3 else None,
+            'direction': 'down' if key == 'first_reply' else 'up', 'state': state, 'reason': reason,
+            'baseline': None, 'delta': None, 'history': [], 'evidence': evidence or []}
+
+
+def rate_metric(key, rows, good, target):
+    k, n = sum(bool(good(job)) for job in rows), len(rows)
+    result = metric(key, k, n, 100 * k / n if n else None, target, rate_state(k, n, target), ids(rows))
+    result['low'], result['high'] = map(rounded, wilson(k, n))
+    result['cases_needed'] = cases_needed(k, n, target) if result['state'] == 'undecided' else 0
+    if result['state'] == 'undecided':
+        result['reason'] = ('No mature cases; a current rate cannot be estimated.' if not n else 'At the target rate, more cases at this rate cannot decide the result.' if k / n == target / 100 else 'Too few cases to decide against the target.')
+    return result
+
+
+def cohort(jobs, name, maturity, today, bounds, strand=None):
+    cutoff = dt.datetime.combine(today, dt.time(), local_zone())
+    return [job for job in jobs if not job.get('imported') and (strand is None or route(job) == strand)
+            and event(job, name) and inside(event(job, name).astimezone(local_zone()).date(), bounds)
+            and event(job, name) + dt.timedelta(days=maturity) <= cutoff]
+
+
+def has_after(job, outcome, entry, cutoff):
+    result = event(job, outcome)
+    return bool(result and entry <= result < cutoff)
+
+
+def financial(jobs, earnings, bounds, full_week=False):
+    fixed = [job for job in jobs if (job.get('won_value') or {}).get('type') == 'fixed'
+             and inside(job['won_value'].get('start_date'), bounds) and number(job['won_value'].get('amount'))]
+    hourly_ids = {str(job.get('contract_id')) for job in jobs if (job.get('won_value') or {}).get('type') == 'hourly'}
+    bills = [row for row in earnings if str(row.get('contract_id')) in hourly_ids and inside(row.get('week_start'), bounds) and number(row.get('billed'))]
+    currencies = {job['won_value']['currency'] for job in fixed} | {row['currency'] for row in bills}
+    currency = next(iter(currencies)) if len(currencies) == 1 else 'USD' if not currencies else None
+    fixed_value = sum(job['won_value']['amount'] for job in fixed)
+    billed = sum(row['billed'] for row in bills)
+    return {'value': fixed_value + billed if currency else None, 'fixed_value': fixed_value if currency else None,
+            'hourly_billed': billed if currency else None, 'currency': currency, 'evidence': ids(fixed),
+            'wins': sum(inside((job.get('won_value') or {}).get('start_date') or event(job, 'won'), bounds) for job in jobs),
+            'hourly_note': 'Multiple currencies cannot be added without a verified exchange rate.' if not currency else None}
+
+
+def source_coverage(jobs, today):
+    sync_path = data_path('sync.json')
+    sync = json.loads(sync_path.read_text(encoding='utf-8')) if sync_path.is_file() else {}
+    synced = timestamp(sync.get('synced_at'))
+    cutoff = dt.datetime.combine(today, dt.time(), local_zone())
+    upwork = 'missing' if not synced else 'stale' if cutoff - synced > dt.timedelta(hours=24) else 'ok'
+    jobdir = pipeline.jobs_dir()
+    recorder = bool(sections().get('Call recorder') or sections().get('Recorder') or any(event(job, 'call_held') for job in jobs) or any(jobdir.glob('*/call.md')))
+    loom = bool(any(jobdir.glob('*/loom.md')) or any(job.get('loom_hook') for job in jobs))
+    loom_used = any(job.get('loom_url') for job in jobs) or any(re.search(r'https?://(?:www\.)?(?:loom\.com|youtu\.be|youtube\.com)/', path.read_text(encoding='utf-8')) for path in jobdir.glob('*/application.sent.md'))
+    tracking = bool(os.environ.get('BLOB_READ_WRITE_TOKEN') or any(job.get('pitch_url') or event(job, 'opened') or event(job, 'pitch_opened') for job in jobs))
+    rows = []
+    for source, state, affects, fix in (
+        ('upwork', upwork, list(LABELS)[:15], 'Run /brief to sync Upwork.'),
+        ('recorder', 'ok' if recorder else 'missing', ['call_review'], 'Add a labelled call transcript or confirm held calls.'),
+        ('tracking', 'ok' if tracking else 'missing', [], 'Check the tracking link and its saved click source.'),
+        ('loom', 'ok' if loom else 'missing', ['application_review'] if loom_used else [], 'Add the Loom transcript when the application uses Loom.'),
+        ('earnings', 'ok' if data_path('earnings.jsonl').is_file() else 'missing', ['won_value', 'value_per_100_connects'], 'Read the earnings summary in /brief.'),
+        ('connects', 'ok' if data_path('connects.jsonl').is_file() else 'missing', ['value_per_100_connects'], 'Read the Connects history in /brief.')):
+        rows.append({'source': source, 'state': state, 'affects': affects, 'fix': fix if state != 'ok' else ''})
+    return rows, sync.get('synced_at')
+
+
+def working_reply(job):
+    reply = timestamp(job.get('first_reply_at'))
+    seconds = job.get('first_reply_s')
+    if not reply or not number(seconds) or seconds < 0:
+        return None
+    config = sections().get('Working hours', '09:00-18:00 Mon-Fri')
+    match = re.search(r'(\d{2}:\d{2})\s*[-–]\s*(\d{2}:\d{2})', config)
+    start, end = (dt.time.fromisoformat(value) for value in match.groups()) if match else (dt.time(9), dt.time(18))
+    weekdays = range(7) if re.search(r'Mon[-–]Sun|every day|daily', config, re.I) else range(5)
+    zone_match = re.search(r'\b([A-Za-z_]+/[A-Za-z_]+)\b', config)
+    zone = ZoneInfo(zone_match[1]) if zone_match else local_zone()
+    client, response = (reply - dt.timedelta(seconds=seconds)).astimezone(zone), reply.astimezone(zone)
+    if not (client.weekday() in weekdays and start <= client.time() < end):
+        return None
+    elapsed = 0
+    current = client.date()
+    while current <= response.date():
+        if current.weekday() in weekdays:
+            opening, closing = dt.datetime.combine(current, start, zone), dt.datetime.combine(current, end, zone)
+            elapsed += max(0, (min(response, closing) - max(client, opening)).total_seconds())
+        current += dt.timedelta(days=1)
+    return elapsed / 60
+
+
+def calculate(jobs, today, since=None):
+    limits, bounds, activity = bars(), span(today, 28), span(today, 7)
+    cutoff = dt.datetime.combine(today, dt.time(), local_zone())
+    kpis = {}
+    specs = [('reply_rate', 'applied', 7, 'outbound', ('replied',)),
+             ('reply_to_call', 'replied', 14, None, ('call_booked', 'offer', 'won')),
+             ('booked_to_held', 'call_booked', 2, None, ('call_held',)),
+             ('held_to_proposal', 'call_held', 7, None, ('proposal_sent',)),
+             ('proposal_to_won', 'proposal_sent', 21, None, ('won',)),
+             ('invite_to_call', 'invited', 14, 'invite', ('call_booked', 'offer', 'won')),
+             ('offer_to_contract', 'offer', 21, None, ('won',))]
+    for key, entry, maturity, strand, outcomes in specs:
+        rows = cohort(jobs, entry, maturity, today, bounds, strand)
+        def success(job):
+            return not (key == 'booked_to_held' and job.get('call_no_show')) and any(has_after(job, outcome, event(job, entry), cutoff) for outcome in outcomes)
+        result = rate_metric(key, rows, success, limits[key])
+        winners = [job for job in rows if has_after(job, 'won', event(job, entry), cutoff)]
+        result['bypass'] = {'call': sum(not event(job, 'call_booked') and not event(job, 'call_held') for job in winners),
+                            'proposal': sum(not event(job, 'proposal_sent') for job in winners)}
+        result['delta_pp'] = None
+        kpis[key] = result
+    applied = cohort(jobs, 'applied', 0, today, activity, 'outbound')
+    n = len(applied)
+    kpis['weekly_volume'] = metric('weekly_volume', n, int(limits['weekly_volume']), n, limits['weekly_volume'], 'pass' if n >= limits['weekly_volume'] else 'fail', ids(applied))
+    known = [job for job in applied if (job.get('application_facts') or {}).get('posted_age_band') not in (None, 'unknown')]
+    kpis['speed_10min'] = rate_metric('speed_10min', known, lambda job: job['application_facts']['posted_age_band'] == '<10m', limits['speed_10min'])
+    proposal_known = [job for job in applied if (job.get('application_facts') or {}).get('proposals_band') not in (None, 'unknown')]
+    kpis['speed_10min']['proposals_under_5'] = {'k': sum(job['application_facts']['proposals_band'] == '<5' for job in proposal_known), 'n': len(proposal_known)}
+    kpis['speed_10min']['unknown_n'] = n - len(known)
+    if n and not known:
+        kpis['speed_10min'].update(state='missing', reason='No frozen posting age is known for this week’s applications.')
+    reply_rows = [(job, working_reply(job)) for job in jobs if not job.get('imported') and inside(job.get('first_reply_at'), activity)]
+    reply_rows = [(job, value) for job, value in reply_rows if value is not None]
+    values = sorted(value for _, value in reply_rows)
+    median = statistics.median(values) if values else None
+    p75 = values[max(0, math.ceil(.75 * len(values)) - 1)] if values else None
+    state = 'undecided' if len(values) < 10 else 'pass' if median <= limits['first_reply'] and p75 <= limits['first_reply_p75'] else 'fail'
+    kpis['first_reply'] = metric('first_reply', sum(value <= limits['first_reply'] for value in values), len(values), median, limits['first_reply'], state, ids([job for job, _ in reply_rows]), 'Fewer than ten replies inside working hours.' if len(values) < 10 else None)
+    kpis['first_reply'].update(p75=p75, p75_target=limits['first_reply_p75'], target_text=f"{limits['first_reply']:g} min / {limits['first_reply_p75']:g} min")
+    follow = []
+    for job in jobs:
+        if job.get('imported'):
+            continue
+        seen = set()
+        for item in job.get('follow_up_history') or []:
+            due_on = item.get('due_on')
+            if item.get('lane') == 'silent' and inside(due_on, activity) and due_on not in seen:
+                seen.add(due_on)
+                follow.append((job, item))
+        plan = job.get('follow_up_plan') or {}
+        due_on = job.get('next_follow_up')
+        if plan.get('lane') == 'silent' and inside(due_on, activity) and due_on not in seen:
+            follow.append((job, {'due_on': due_on}))
+    proxies = [{'id': job['id'], 'entry': item} for job, item in follow]
+    kpis['follow_ups_on_time'] = rate_metric('follow_ups_on_time', proxies, lambda job: job['entry'].get('action') == 'sent' and day(job['entry'].get('on') or job['entry'].get('at')) == day(job['entry']['due_on']), limits['follow_ups_on_time'])
+    held = cohort(jobs, 'call_held', 0, today, activity)
+    kpis['proposal_on_time'] = rate_metric('proposal_on_time', held, lambda job: event(job, 'proposal_sent') is not None and 0 <= (event(job, 'proposal_sent') - event(job, 'call_held')).total_seconds() <= 1800, limits['proposal_on_time'])
+    assessed = [(job, assessment(job, 'job_fit')) for job in applied]
+    clear = [job for job, value in assessed if value and value.get('state') in ('pass', 'fail')]
+    kpis['job_fit'] = rate_metric('job_fit', clear, lambda job: assessment(job, 'job_fit')['state'] == 'pass', limits['job_fit'])
+    kpis['job_fit']['unclear_n'] = len(applied) - len(clear)
+    if applied and not clear:
+        kpis['job_fit'].update(state='missing', reason='Applications have no clear lane-and-rate fit judgments yet.')
+    earnings = [row for row in read_lines('earnings.jsonl') if since is None or (day(row.get('week_start')) and day(row['week_start']) >= since)]
+    prior_monday = today - dt.timedelta(days=today.weekday() + 7)
+    fixed = financial(jobs, [], activity)
+    hourly = financial(jobs, earnings, (prior_monday, prior_monday + dt.timedelta(days=6)))
+    currencies = {item['currency'] for item in (fixed, hourly) if item['value']}
+    mixed = len(currencies) > 1 or fixed['currency'] is None or hourly['currency'] is None
+    weekly_value = None if mixed else fixed['fixed_value'] + hourly['hourly_billed']
+    kpis['won_value'] = metric('won_value', fixed['wins'], len([job for job in jobs if event(job, 'won') and inside(event(job, 'won'), activity)]), weekly_value, limits['won_value'], 'undecided', fixed['evidence'])
+    total = financial(jobs, earnings, bounds)
+    spend = sum(-row['amount'] for row in read_lines('connects.jsonl') if number(row.get('amount')) and row['amount'] < 0 and inside(row.get('at'), bounds) and (since is None or day(row.get('at')) >= since))
+    kpis['value_per_100_connects'] = metric('value_per_100_connects', total['wins'], spend, total['value'] / spend * 100 if spend and total['value'] is not None else None, limits['value_per_100_connects'], 'undecided', total['evidence'], 'No Connects spend in this period.' if not spend else total['hourly_note'])
+    for key in list(LABELS)[15:]:
+        kpis[key] = metric(key, state='undecided', reason='Requires the weekly evidence review.')
+    for key in ('segments', 'behaviour'):
+        kpis[key].update(value='nothing new', state='undecided', reason='Available in package 4; nothing new this week.')
+    lost = [job for job in jobs if job.get('status') == 'lost' and inside(job.get('status_updated_at') or next((item.get('at') for item in reversed(job.get('history') or []) if item.get('status') == 'lost'), None), activity)]
+    reasons = {kind: sum((assessment(job, 'lost_reason') or {}).get('kind', 'unknown') == kind for job in lost) for kind in ('stated', 'observed', 'unknown')}
+    kpis['lost_reasons'].update(k=len(lost) - reasons['unknown'], n=len(lost), value=reasons, evidence=ids(lost))
+    coverage, _ = source_coverage(jobs, today)
+    for source in coverage:
+        if source['state'] == 'ok':
+            continue
+        for key in source['affects']:
+            if source['state'] == 'stale' and kpis[key]['n']:
+                continue
+            # Optional Loom/tracking absence leaves the whole review explicitly missing.
+            kpis[key].update(state='missing', reason=f"{source['source']} source is absent. {source['fix']}", value=None)
+    if mixed:
+        kpis['won_value'].update(state='missing', reason='Multiple currencies need a verified exchange rate.', value=None)
+    if not data_path('earnings.jsonl').is_file():
+        hourly['hourly_billed'] = None
+        weekly_value = None
+    if any(source['source'] == 'upwork' and (source['state'] == 'missing' or (source['state'] == 'stale' and not fixed['wins'])) for source in coverage):
+        weekly_value = None
+    return {key: kpis[key] for key in LABELS}, {'value': weekly_value, 'currency': next(iter(currencies), 'USD') if not mixed else None,
+            'fixed_value': fixed['fixed_value'], 'hourly_billed': hourly['hourly_billed'], 'wins': fixed['wins'],
+            'hourly_note': 'Hourly billed value uses the last full calendar week.' if not mixed else 'Multiple currencies need a verified exchange rate.'}
+
+
+def verdict(kpis):
+    failure = next((key for key in FUNNEL if kpis[key]['state'] == 'fail'), None)
+    unavailable = [key for key in FUNNEL if kpis[key]['state'] in ('undecided', 'missing')]
+    if failure:
+        key, mode, state = failure, 'funnel', 'confirmed'
+        earlier = [name for name in FUNNEL[:FUNNEL.index(key)] if name in unavailable]
+        sentence = f"You lose leads at {kpis[key]['label']}: {kpis[key]['k']} of {kpis[key]['n']}; the target is {kpis[key]['target']:g} %."
+    elif len(unavailable) == len(FUNNEL):
+        levers = [key for key in ('weekly_volume', 'speed_10min', 'first_reply', 'follow_ups_on_time', 'proposal_on_time') if kpis[key]['state'] == 'fail']
+        key = min(levers, key=lambda name: kpis[name]['value'] / kpis[name]['target'] if kpis[name]['direction'] == 'up' and kpis[name]['target'] else -kpis[name]['value']) if levers else next((name for name in ('weekly_volume', 'speed_10min') if kpis[name]['state'] != 'missing'), None)
+        mode, state, earlier = 'levers', 'levers', unavailable
+        sentence = 'Funnel not decidable yet; meanwhile: ' + (f"{kpis[key]['k']} of {kpis[key]['n']} at {kpis[key]['label']}." if key else 'restore the missing sources.')
+    else:
+        measured = [key for key in FUNNEL if kpis[key]['value'] is not None and kpis[key]['target'] is not None]
+        key = min(measured, key=lambda name: (kpis[name]['low'] if kpis[name]['low'] is not None else kpis[name]['value']) - kpis[name]['target']) if measured else None
+        mode, state, earlier = 'funnel', 'none', unavailable
+        sentence = 'No bottleneck this week.' + (f" Closest to failing: {kpis[key]['label']}, {kpis[key]['k']} of {kpis[key]['n']}." if key else '')
+    if earlier:
+        sentence += ' Earlier stages not decidable or missing: ' + ', '.join(kpis[name]['label'] for name in earlier) + '.'
+    return {'label': "This week's focus", 'state': state, 'mode': mode, 'kpi': key,
+            'stage': kpis[key]['label'] if key else None, 'sentence': sentence,
+            'next_action': ACTIONS.get(key, 'Keep the routine and review the next evidence.'), 'undecided_before': earlier}
+
+
+def pipeline_counts(jobs, today):
+    result = {'outbound': [], 'inbound': []}
+    for strand in result:
+        for stage in ('new', 'applied', 'replied', 'call', 'offer'):
+            rows = [job for job in jobs if job.get('status') == stage and (route(job) == 'outbound') == (strand == 'outbound')]
+            movements = [day(job.get('last_activity_at') or job.get('status_updated_at') or job.get('found_at')) for job in rows]
+            stages = [day(job.get('status_updated_at') or next((item.get('at') for item in reversed(job.get('history') or []) if item.get('status') == stage), None) or job.get('found_at')) for job in rows]
+            ages = [(today - value).days for value in movements if value]
+            stage_ages = [(today - value).days for value in stages if value]
+            values = [job.get('price_estimate') or (job.get('details') or {}).get('price_estimate') or job.get('bid_amount') or (job.get('details') or {}).get('bid_amount') for job in rows]
+            result[strand].append({'stage': stage, 'count': len(rows), 'known_value': sum(value for value in values if number(value)),
+                                   'oldest_days': max(stage_ages, default=None), 'stalled': sum(age >= 7 for age in ages)})
+    return result
+
+
+def latest_goals(today):
+    monday = today - dt.timedelta(days=today.weekday())
+    previous = (monday - dt.timedelta(weeks=1)).isocalendar()
+    week = f'{previous.year}-W{previous.week:02d}'
+    return next((row['goals'] for row in reversed(read_lines('goals.jsonl')) if row.get('week') == week), [])
+
+
+def goal_reviews(jobs, today):
+    rows = []
+    for goal in latest_goals(today):
+        start = day(goal.get('start'))
+        if not start or goal.get('kpi') not in LABELS:
+            continue
+        before = calculate(jobs, start)[0][goal['kpi']]
+        after = calculate(jobs, today)[0][goal['kpi']]
+        # Restrict post-start data by excluding earlier entry events, rather than
+        # comparing a rolling window that still contains the before observations.
+        post = copy.deepcopy(jobs)
+        for job in post:
+            for name in ('applied', 'replied', 'call_booked', 'call_held', 'proposal_sent', 'invited', 'first_reply'):
+                if day(job.get(name + '_at')) and day(job[name + '_at']) < start:
+                    job.pop(name + '_at', None)
+            job['history'] = [item for item in job.get('history', []) if day(item.get('at')) and day(item['at']) >= start]
+            job['follow_up_history'] = [item for item in job.get('follow_up_history', []) if day(item.get('due_on')) and day(item['due_on']) >= start]
+        for job in post:
+            value = job.get('won_value') or {}
+            if value.get('type') == 'fixed' and day(value.get('start_date')) and day(value['start_date']) < start:
+                job.pop('won_value', None)
+        after = calculate(post, today, since=start)[0][goal['kpi']]
+        if goal['kpi'] in ('won_value', 'value_per_100_connects') and after['state'] != 'missing' and number(before['value']) and number(after['value']):
+            after['state'] = ('pass' if after['value'] >= after['target'] else 'fail') if number(after['target']) else 'pass' if after['value'] > before['value'] else 'fail' if after['value'] < before['value'] else 'undecided'
+        effect = 'worked' if after['state'] == 'pass' else 'not' if after['state'] == 'fail' else 'undecided'
+        rows.append({'change': goal['change'], 'kpi': goal['kpi'], 'done_k': 0, 'done_n': 0, 'effect': effect,
+                     'before': before['value'], 'after': after['value'], 'decision': 'adjust', 'before_k': before['k'],
+                     'before_n': before['n'], 'after_k': after['k'], 'after_n': after['n'], 'state': after['state'],
+                     'evidence_lead_ids': [], 'done_lead_ids': [], 'outcome_evidence': after['evidence']})
+    return rows
+
+
+def compute(today=None, jobs=None):
+    today = as_today(today)
+    jobs = pipeline.load() if jobs is None else jobs
+    kpis, north = calculate(jobs, today)
+    baseline, _ = calculate(jobs, today - dt.timedelta(days=28))
+    own_weeks = [calculate(jobs, today - dt.timedelta(weeks=index))[0]['won_value']['value'] for index in range(1, 5)]
+    north['baseline'] = statistics.mean(own_weeks) if all(number(value) for value in own_weeks) else None
+    for key, row in kpis.items():
+        row['baseline'] = north['baseline'] if key == 'won_value' else baseline[key]['value']
+        row['delta'] = rounded(row['value'] - row['baseline']) if number(row['value']) and number(row['baseline']) else None
+        if key in FUNNEL:
+            row['delta_pp'] = row['delta']
+        if key in ('won_value', 'value_per_100_connects') and row['state'] != 'missing' and number(row['value']):
+            if number(row['target']):
+                row['state'] = 'pass' if row['value'] >= row['target'] else 'fail'
+            elif number(row['baseline']):
+                row['state'] = 'pass' if row['value'] > row['baseline'] else 'fail' if row['value'] < row['baseline'] else 'undecided'
+    history = read_lines('analytics-history.jsonl')
+    iso = today.isocalendar()
+    week = f'{iso.year}-W{iso.week:02d}'
+    monday = today - dt.timedelta(days=today.weekday())
+    previous_weeks = []
+    for index in range(7, 0, -1):
+        old = (monday - dt.timedelta(weeks=index)).isocalendar()
+        previous_weeks.append(f'{old.year}-W{old.week:02d}')
+    by_week = {row['week']: row for row in history if row.get('week') != week}
+    for key, row in kpis.items():
+        row['history'] = [by_week.get(old, {}).get('kpis', {}).get(key, {}).get('value') for old in previous_weeks] + [row['value']]
+    north['history'] = [by_week.get(old, {}).get('north_star', {}).get('value') for old in previous_weeks] + [north['value']]
+    reviews = goal_reviews(jobs, today)
+    kpis['goal_effect'].update(k=sum(row['effect'] == 'worked' for row in reviews), n=len(reviews), value=None, evidence=sorted({jid for row in reviews for jid in row['outcome_evidence']}))
+    kpis['goal_done'].update(k=0, n=len(reviews), value=0, target=3, target_text='3 of 3', state='undecided', reason='Execution evidence must be reviewed.')
+    coverage, synced_at = source_coverage(jobs, today)
+    streak = 1
+    back = 1
+    while True:
+        old_iso = (monday - dt.timedelta(weeks=back)).isocalendar()
+        if f'{old_iso.year}-W{old_iso.week:02d}' not in by_week:
+            break
+        streak += 1
+        back += 1
+    return {'week': week, 'generated_at': dt.datetime.combine(today, dt.datetime.now(local_zone()).timetz().replace(tzinfo=None), local_zone()).isoformat(),
+            'window': period(span(today, 28)), 'periods': {'activity': period(span(today, 7)), 'cohort': period(span(today, 28)), 'outcome': period(span(today, 7)), 'synced_at': synced_at},
+            'coverage': coverage, 'pipeline': pipeline_counts(jobs, today), 'kpis': kpis,
+            'verdict': verdict(kpis), 'verdict_history': [{'week': old, 'kpi': by_week[old]['verdict']['kpi'], 'stage': by_week[old]['verdict']['stage']} for old in previous_weeks if old in by_week],
+            'north_star': north, 'goals_review': reviews, 'goals_next': [], 'findings': [],
+            'reviews': {name: {'fix': '', 'example': '', 'evidence_lead_ids': [], 'goal_ref': None} for name in ('application', 'conversation', 'call', 'proposal')},
+            'streak_weeks': streak, 'report': ''}
+
+
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+def validate_goals(value):
+    require(isinstance(value, dict) and set(value) == {'week', 'goals'}, 'Goals need week and goals only.')
+    require(bool(re.fullmatch(r'\d{4}-W\d{2}', str(value['week']))), 'Goals need an ISO week.')
+    dt.date.fromisocalendar(int(value['week'][:4]), int(value['week'][6:]), 1)
+    goals = value['goals']
+    require(isinstance(goals, list) and len(goals) == 3, 'Agree exactly three goals.')
+    keys = {'stage', 'kpi', 'change', 'start', 'primary', 'cue', 'action', 'fallback', 'review_on'}
+    for goal in goals:
+        require(isinstance(goal, dict) and set(goal) == keys, 'Each goal needs stage, kpi, change, start, primary, cue, action, fallback and review_on.')
+        require(goal['kpi'] in LABELS and all(isinstance(goal[name], str) and goal[name].strip() for name in ('stage', 'change', 'cue', 'action', 'fallback')), 'Goals need a known KPI and nonempty commitments.')
+        start, review_on = dt.date.fromisoformat(goal['start']), dt.date.fromisoformat(goal['review_on'])
+        require(review_on >= start and isinstance(goal['primary'], bool), 'Goals need ordered start/review dates and boolean primary.')
+    require(len({goal['stage'].strip().casefold() for goal in goals}) == 3 and len({goal['kpi'] for goal in goals}) == 3, 'Two goals cannot share one stage or KPI.')
+    require(sum(goal['primary'] for goal in goals) == 1, 'Exactly one goal must be primary.')
+    return value
+
+
+def privacy(value, jobs=None):
+    """Reject raw-client fields and known source strings, except member examples."""
+    jobs = pipeline.load() if jobs is None else jobs
+    forbidden = {'client_name', 'client_text', 'client', 'thread', 'messages', 'title', 'description', 'contract_client', 'quote'}
+    source_text = set()
+    client_text = set()
+    for job in jobs:
+        for key in ('client_name', 'contract_client', 'title', 'description'):
+            if isinstance(job.get(key), str) and job[key].strip():
+                source_text.add(job[key].strip())
+                if key in ('title', 'description'):
+                    client_text.add(job[key].strip())
+        client = job.get('client')
+        if isinstance(client, dict) and isinstance(client.get('name'), str):
+            source_text.add(client['name'])
+    for path in pipeline.jobs_dir().glob('*/thread.json'):
+        thread = json.loads(path.read_text(encoding='utf-8'))
+        for item in thread.get('messages') or []:
+            node = item.get('node', item)
+            side = str(node.get('from_side') or node.get('from') or '').lower()
+            if side in ('client', 'them'):
+                for key in ('text', 'message', 'content'):
+                    if isinstance(node.get(key), str) and node[key].strip():
+                        source_text.add(node[key].strip())
+                        client_text.add(node[key].strip())
+    def walk(item, path=()):
+        if len(path) == 3 and path[0] == 'reviews' and path[2] == 'example':
+            require(isinstance(item, str), 'Review examples need the member’s own wording.')
+            require(not any(text.casefold() in item.casefold() for text in client_text), 'Review examples cannot quote the client’s wording.')
+            return
+        if isinstance(item, dict):
+            require(not (set(item) & forbidden), 'Snapshot contains raw client fields.')
+            for key, child in item.items():
+                walk(child, path + (key,))
+        elif isinstance(item, list):
+            for index, child in enumerate(item):
+                walk(child, path + (index,))
+        elif isinstance(item, str):
+            require(not any(text.casefold() in item.casefold() for text in source_text if text), 'Stored text contains a known client name or source text.')
+    walk(value)
+
+
+def add_goals(value):
+    validate_goals(value)
+    privacy(value)
+    rows = read_lines('goals.jsonl')
+    require(not any(row.get('week') == value['week'] for row in rows), 'Goals already exist for this ISO week.')
+    data_path('goals.jsonl').parent.mkdir(parents=True, exist_ok=True)
+    with data_path('goals.jsonl').open('a', encoding='utf-8') as handle:
+        handle.write(json.dumps(value, ensure_ascii=False, allow_nan=False) + '\n')
+    return value
+
+
+def rubric_coverage(rubric, today, name):
+    require(isinstance(rubric, list), 'Rubric must be a list of lead judgments.')
+    seen = set()
+    counts = {point: {'point': point, 'met': 0, 'partly': 0, 'missing': 0, 'not_needed': 0, 'n': 0} for point in range(1, 10 if name == 'call' else 8)}
+    for item in rubric:
+        require(isinstance(item, dict) and set(item) == {'lead_id', 'reviewable', 'points'}, 'Call rubric needs lead_id, reviewable and points.')
+        require(item['lead_id'] not in seen and isinstance(item['reviewable'], bool), 'Call rubric needs unique leads and boolean reviewable.')
+        seen.add(item['lead_id'])
+        path = pipeline.jobs_dir() / str(item['lead_id']) / ('call.md' if name == 'call' else 'application.sent.md')
+        text = path.read_text(encoding='utf-8') if path.is_file() else ''
+        speakers = {match[1].strip() for match in re.finditer(r'^([^:\n]+):\s*\S', text, re.M) if match[1].strip().lower() not in ('call at', 'duration', 'member', 'speakers', 'date', 'recorder')}
+        require(not item['reviewable'] or (len(speakers) >= 2 and 'talk_share_basis' in call_stats.analyze(text) if name == 'call' else path.is_file()), 'A reviewable call needs complete speaker labels and member identity; an application needs its sent copy.')
+        points = item['points']
+        require(isinstance(points, list), 'Call points must be a list.')
+        if not item['reviewable']:
+            require(not points, 'An unreviewable call cannot have point judgments.')
+            continue
+        required = set(range(1, 10 if name == 'call' else 7))
+        got = {row.get('point') for row in points}
+        require(got == required or (name == 'application' and got == required | {7}), 'Review all nine call points or six application points, plus the optional Loom point.')
+        require(len(points) == len(got), 'Review each rubric point once.')
+        for row in points:
+            require(set(row) == {'point', 'state'} and row['state'] in (('met', 'partly', 'missing', 'not needed') if name == 'call' else ('met', 'partly', 'missing')), 'Call point needs point and state only; quotes stay in lead evidence.')
+            target = counts[row['point']]
+            target[row['state'].replace(' ', '_')] += 1
+            target['n'] += row['state'] != 'not needed'
+    history = read_lines('analytics-history.jsonl')
+    monday = today - dt.timedelta(days=today.weekday())
+    by_week = {row['week']: row for row in history}
+    for point, row in counts.items():
+        values = []
+        for back in range(7, 0, -1):
+            iso = (monday - dt.timedelta(weeks=back)).isocalendar()
+            week = f'{iso.year}-W{iso.week:02d}'
+            old = next((item for item in by_week.get(week, {}).get('reviews', {}).get(name, {}).get('coverage', []) if item.get('point') == point), None)
+            values.append(old['met'] / old['n'] * 100 if old and old['n'] else None)
+        row['history'] = values + [row['met'] / row['n'] * 100 if row['n'] else None]
+    return list(counts.values())
+
+
+def call_coverage(rubric, today):
+    return rubric_coverage(rubric, today, 'call')
+
+
+def prepare_snapshot(value, today=None):
+    """Apply human judgments, deriving their numbers before the coaching conversation."""
+    require(isinstance(value, dict), 'Review input needs one JSON object.')
+    today = as_today(today or day(value.get('generated_at')))
+    result = compute(today)
+    known_ids = {str(job['id']) for job in pipeline.load()}
+    for name, review in value.get('reviews', {}).items():
+        require(name in result['reviews'] and isinstance(review, dict), 'Unknown weekly review.')
+        require({'fix', 'example', 'evidence_lead_ids', 'goal_ref'} <= set(review) and set(review) <= {'fix', 'example', 'evidence_lead_ids', 'goal_ref', 'rubric', 'coverage'}, 'Review needs fix, example, evidence_lead_ids and goal_ref; optional call rubric.')
+        require(isinstance(review['fix'], str) and isinstance(review['example'], str) and isinstance(review['evidence_lead_ids'], list), 'Review text and evidence types are invalid.')
+        require(set(review['evidence_lead_ids']) <= known_ids and len(set(review['evidence_lead_ids'])) == len(review['evidence_lead_ids']), 'Review evidence must be unique known lead ids.')
+        result['reviews'][name] = copy.deepcopy(review)
+        row = result['kpis'][name + '_review']
+        complete = bool(review['fix'].strip() and review['evidence_lead_ids'])
+        row.update(k=int(complete), n=1, value='one fix' if complete else None, state='pass' if complete else 'undecided', reason=None if complete else 'No evidenced weekly fix yet.', evidence=review['evidence_lead_ids'])
+        row['history'][-1] = row['value']
+        if name in ('call', 'application'):
+            rubric = review.get('rubric', [])
+            require({item.get('lead_id') for item in rubric} <= set(review['evidence_lead_ids']), 'Rubric leads must be in call review evidence.')
+            coverage = rubric_coverage(rubric, today, name)
+            if 'coverage' in review:
+                require(review['coverage'] == coverage, 'Coverage counts must be computed from the rubric.')
+            result['reviews'][name]['coverage'] = coverage
+            if rubric and not any(item['reviewable'] for item in rubric):
+                row.update(k=0, value=None, state='missing', reason='Calls have no complete speaker labels or submitted application copies are absent.')
+                row['history'][-1] = None
+    supplied = value.get('goals_review', result['goals_review'])
+    require(len(supplied) == len(result['goals_review']), 'Review every previous goal.')
+    for given, review in zip(supplied, result['goals_review']):
+        require(isinstance(given, dict) and set(given) <= set(review), 'Goal review has unknown fields.')
+        for key in set(review) - {'done_k', 'done_n', 'decision', 'evidence_lead_ids', 'done_lead_ids'}:
+            if key in given:
+                require(given[key] == review[key], 'Goal effect and before/after numbers must come from compute.')
+        evidence, done_ids = given.get('evidence_lead_ids', []), given.get('done_lead_ids', [])
+        require(isinstance(evidence, list) and isinstance(done_ids, list) and len(set(evidence)) == len(evidence) and len(set(done_ids)) == len(done_ids) and set(done_ids) <= set(evidence) <= known_ids, 'Goal execution needs unique known evidence lead ids and a done subset.')
+        review.update(evidence_lead_ids=evidence, done_lead_ids=done_ids, done_k=len(done_ids), done_n=len(evidence), decision=given.get('decision', 'adjust'))
+        require(review['decision'] in ('keep', 'adjust', 'stop'), 'Goal decision needs keep, adjust or stop.')
+    done = sum(row['done_n'] > 0 and row['done_k'] == row['done_n'] for row in result['goals_review'])
+    result['kpis']['goal_done'].update(k=done, n=len(result['goals_review']), value=done, state='pass' if len(result['goals_review']) == 3 and done == 3 else 'fail' if result['goals_review'] else 'undecided', reason=None if result['goals_review'] else 'No previous goals to review.', evidence=sorted({jid for row in result['goals_review'] for jid in row['evidence_lead_ids']}))
+    result['kpis']['goal_done']['history'][-1] = done
+    for given in value.get('coverage', []):
+        require(isinstance(given, dict) and {'source', 'state', 'fix'} <= set(given) and set(given) <= {'source', 'state', 'fix', 'affects'}, 'Source judgment needs source, state and fix.')
+        source = next((row for row in result['coverage'] if row['source'] == given['source']), None)
+        require(source is not None and given['state'] in ('ok', 'missing', 'stale') and isinstance(given['fix'], str), 'Unknown source or invalid coverage judgment.')
+        require('affects' not in given or given['affects'] == source['affects'], 'Source dependencies are computed.')
+        require(source['state'] == given['state'] or given['state'] in ('missing', 'stale'), 'Live checks may degrade coverage; they cannot invent a missing saved source.')
+        source.update(state=given['state'], fix=given['fix'])
+        if source['state'] == 'missing':
+            for key in source['affects']:
+                row = result['kpis'][key]
+                row.update(value=None, delta=None, state='missing', reason=f"{source['source']} source is absent. {source['fix']}")
+                if 'delta_pp' in row:
+                    row['delta_pp'] = None
+                row['history'][-1] = None
+            if source['source'] in ('earnings', 'upwork'):
+                result['north_star']['value'] = None
+                result['north_star']['history'][-1] = None
+                if source['source'] == 'earnings':
+                    result['north_star']['hourly_billed'] = None
+    result['verdict'] = verdict(result['kpis'])
+    if 'verdict' in value:
+        for key in ('sentence', 'next_action'):
+            if key in value['verdict']:
+                require(isinstance(value['verdict'][key], str) and value['verdict'][key].strip(), 'Verdict prose needs nonempty text.')
+                result['verdict'][key] = value['verdict'][key]
+    for key in ('goals_next', 'report'):
+        if key in value:
+            result[key] = copy.deepcopy(value[key])
+    require(not value.get('findings'), 'Package 2 has no new findings; package 4 owns insights.')
+    privacy(result)
+    return result
+
+
+def record_snapshot(value, replace=False):
+    require(isinstance(value, dict), 'Snapshot needs one JSON object.')
+    generated = timestamp(value.get('generated_at'))
+    require(generated is not None, 'generated_at needs a valid zoned ISO timestamp.')
+    today = generated.astimezone(local_zone()).date()
+    base = compute(today)
+    require(set(value) == set(base), 'Snapshot has missing or unknown top-level keys.')
+    require(set(value['reviews']) == set(base['reviews']), 'Snapshot needs all four weekly reviews.')
+    result = prepare_snapshot(value, today)
+    require(value['week'] == result['week'], 'Week does not match generated_at.')
+    goals = [dict(goal, start=today.isoformat()) if 'start' not in goal else goal for goal in result['goals_next']]
+    validate_goals({'week': result['week'], 'goals': goals})
+    agreed = next((row['goals'] for row in reversed(read_lines('goals.jsonl')) if row.get('week') == result['week']), None)
+    require(agreed is None or goals == agreed, 'Snapshot goals must match the agreed goals saved for this ISO week.')
+    focus = result['verdict']['kpi']
+    require(focus is None or next(goal['kpi'] for goal in goals if goal['primary']) == focus, 'The focus KPI must be the primary goal.')
+    require(isinstance(result['report'], str) and result['report'].strip(), 'Snapshot needs the chat report.')
+    for review in result['reviews'].values():
+        require(review['goal_ref'] is None or review['goal_ref'] in {goal['kpi'] for goal in goals}, 'Review goal_ref must refer to an agreed goal KPI.')
+    for key in ('window', 'periods', 'pipeline', 'streak_weeks', 'verdict_history'):
+        require(value[key] == result[key], f'{key} must come unchanged from compute.')
+    require(value['coverage'] == result['coverage'], 'Coverage must come from reviewed compute.')
+    require(value['north_star'] == result['north_star'], 'North star numbers must come from reviewed compute.')
+    for key in set(result['verdict']) - {'sentence', 'next_action'}:
+        require(value['verdict'].get(key) == result['verdict'][key], 'Verdict identity and state must come from compute.')
+    require(set(value['kpis']) == set(result['kpis']), 'Snapshot needs all 24 KPI keys.')
+    derived = {'application_review', 'conversation_review', 'call_review', 'proposal_review', 'goal_done'}
+    for key, row in result['kpis'].items():
+        supplied = copy.deepcopy(value['kpis'][key])
+        reference = supplied.pop('external_reference', None)
+        require(supplied == row or (key in derived and supplied == base['kpis'][key]), f'{key} numbers must come from reviewed compute.')
+        if reference is not None:
+            require(isinstance(reference, dict) and set(reference) == {'value', 'population', 'definition', 'source', 'date'} and number(reference['value']) and dt.date.fromisoformat(reference['date']), 'External reference needs value, population, definition, source and date.')
+            row['external_reference'] = reference
+    result['generated_at'] = value['generated_at']
+    privacy(result)
+    rows = read_lines('analytics-history.jsonl')
+    duplicate = any(row.get('week') == result['week'] for row in rows)
+    require(not duplicate or replace, 'This ISO week already has a snapshot; use --replace.')
+    path = data_path('analytics-history.jsonl')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if replace and duplicate:
+        rows = [result if row.get('week') == result['week'] else row for row in rows]
+        encoded = ''.join(json.dumps(row, ensure_ascii=False, allow_nan=False) + '\n' for row in rows)
+        path.write_text(encoded, encoding='utf-8')
+    else:
+        with path.open('a', encoding='utf-8') as handle:
+            handle.write(json.dumps(result, ensure_ascii=False, allow_nan=False) + '\n')
+    return result
+
+
+def last():
+    rows = read_lines('analytics-history.jsonl')
+    return max(rows, key=lambda row: timestamp(row['generated_at'])) if rows else None
+
+
+def due(today=None):
+    snapshot = last()
+    if snapshot is None:
+        return True
+    cutoff = dt.datetime.combine(as_today(today), dt.time(), local_zone()) if today is not None else dt.datetime.now(local_zone())
+    return cutoff - timestamp(snapshot['generated_at']) > dt.timedelta(days=7)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest='command', required=True)
+    calc = sub.add_parser('compute'); calc.add_argument('--today'); calc.add_argument('--file')
+    record = sub.add_parser('record'); record.add_argument('--file', required=True); record.add_argument('--replace', action='store_true')
+    goals = sub.add_parser('goals').add_subparsers(dest='action', required=True)
+    goals.add_parser('add').add_argument('--file', required=True)
+    sub.add_parser('last')
+    due_parser = sub.add_parser('due'); due_parser.add_argument('--today')
+    args = parser.parse_args(argv)
+    try:
+        if args.command == 'compute':
+            overlay = json.load(sys.stdin) if args.file == '-' else json.loads(pathlib.Path(args.file).read_text(encoding='utf-8')) if args.file else None
+            result = prepare_snapshot(overlay, args.today) if overlay is not None else compute(args.today)
+        elif args.command == 'last':
+            result = last()
+        elif args.command == 'due':
+            result = due(args.today)
+        else:
+            value = json.load(sys.stdin) if args.file == '-' else json.loads(pathlib.Path(args.file).read_text(encoding='utf-8'))
+            result = record_snapshot(value, args.replace) if args.command == 'record' else add_goals(value)
+        print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+    except (ValueError, TypeError, KeyError, OSError) as error:
+        print(f'ABORT: {error}', file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -21,6 +21,8 @@ sys.path.insert(0, str(CODE))
 ORIGINAL_RUN = subprocess.run
 REAL_JOBS = ROOT / 'data' / 'jobs.json'
 REAL_HASH = hashlib.sha256(REAL_JOBS.read_bytes()).hexdigest() if REAL_JOBS.exists() else None
+REAL_DATA_HASHES = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+                    for path in (ROOT / 'data').rglob('*') if path.is_file()}
 TODAY = dt.datetime.now(ZoneInfo('Europe/Berlin')).date()
 BASE = dt.datetime.combine(TODAY - dt.timedelta(days=2), dt.time(12), dt.timezone.utc)
 
@@ -671,21 +673,30 @@ def review_proofs():
     assert 'code/call_stats.py' in sales and 'call_held' in sales
     for relative in ('.claude/commands', 'references'):
         result = ORIGINAL_RUN(['git', 'diff', '--numstat', '--', relative], cwd=ROOT, capture_output=True, text=True, check=True)
-        delta = sum(int(row.split()[0]) - int(row.split()[1]) for row in result.stdout.splitlines())
+        # Keep the earlier repair's limits on its scope; package 2 explicitly
+        # authorizes the weekly reminder and these member-setting docs.
+        package2 = {'.claude/commands/find-jobs.md', 'references/jobs.md'}
+        legacy = [row for row in result.stdout.splitlines() if row.split('\t')[-1] not in package2]
+        delta = sum(int(row.split()[0]) - int(row.split()[1]) for row in legacy)
         if relative == '.claude/commands':
             allowed = {'.claude/commands/brief.md', '.claude/commands/proposal.md',
                        '.claude/commands/sales-call-proposal.md'}
-            assert all(row.split('\t')[-1] in allowed for row in result.stdout.splitlines())
+            assert all(row.split('\t')[-1] in allowed for row in legacy)
             assert delta <= 45, (relative, delta)
         else:
             assert delta <= 0, (relative, delta)
+    find_jobs = (commands / 'find-jobs.md').read_text()
+    assert find_jobs.count('Analytics due: run /analytics') == 1 and 'code/analytics.py due' in find_jobs
+    settings = (ROOT / 'references/jobs.md').read_text()
+    assert all(key in settings for key in ('## Bars', '## Analytics day', '## Weekly goal', '## Working hours'))
+    assert (commands / 'analytics.md').is_file() and (ROOT / 'references/goal-library.md').is_file()
     application = (CODE / 'application_check.py').read_text()
     assert application.index('import pipeline') < application.index('def ')
     analytics = (ROOT / 'website/components/AnalyticsPage.tsx').read_text()
     assert 'No applications yet. The funnel fills as /brief records them.' in analytics
     assert "counts.applied >= MIN_RATE" in analytics and 'overall win rate' in analytics
     assert "observed (call history)" in analytics
-    print('SYNTHETIC fixes 7/10 PASS: recorder transcript/fallback in sales command, hook writer, import cleanup, existing UI contracts; scoped short command additions/references net≤0')
+    print('SYNTHETIC fixes 7/10 PASS: recorder transcript/fallback in sales command, hook writer, import cleanup, existing UI contracts; legacy command/reference budgets retained, authorized analytics reminder/settings/files verified')
 
 
 def bottlenecks():
@@ -1012,6 +1023,587 @@ def package1():
     print('SYNTHETIC F12 PASS: invitations, terms, earnings and Connects reads/snapshot wired with bounded read-only pacing')
 
 
+ANALYTICS_TODAY = dt.date(2026, 10, 14)
+
+
+def analytics_stamp(day, hour=10, minute=0):
+    return dt.datetime.combine(day, dt.time(hour, minute), ZoneInfo('Europe/Berlin')).isoformat()
+
+
+def analytics_sync_marker(folder):
+    (folder / 'data/sync.json').write_text(json.dumps({'synced_at': analytics_stamp(ANALYTICS_TODAY, 11)}))
+
+
+def analytics_rows():
+    """Eight weekly cohorts; every expected event is fixed before running analytics."""
+    rows = []
+    for week in range(8):
+        day = dt.date(2026, 8, 24) + dt.timedelta(weeks=week)
+        for source, count in (('outbound', 40), ('invite', 20), ('direct_offer', 20)):
+            for index in range(count):
+                jid = str(970000000 + week * 1000 + len(rows) % 1000)
+                row = {'id': jid, 'source': source, 'title': 'SYNTHETIC PRIVATE CLIENT TITLE',
+                       'client': {'name': 'SYNTHETIC PRIVATE CLIENT NAME'},
+                       'description': 'SYNTHETIC PRIVATE CLIENT WORDS',
+                       'found_at': analytics_stamp(day), 'status': 'applied',
+                       'history': [], 'last_activity_at': analytics_stamp(day),
+                       'notes': 'SYNTHETIC member evidence',
+                       'log': [{'at': analytics_stamp(day), 'text': 'analytics job_fit: ' +
+                                json.dumps({'state': 'pass' if index < 36 else 'fail',
+                                            'reason': 'Fits the member lane'})}]}
+                def event(name, at):
+                    row[name + '_at'] = at
+                    row[name + '_observation'] = {'source': 'member', 'verified': True}
+                if source == 'outbound':
+                    event('applied', analytics_stamp(day))
+                    row['application_facts'] = {'source': source, 'posted_age_band': '<10m' if index < 32 else '10-60m',
+                                                'proposals_band': '<5' if index < 30 else '5-15'}
+                    row['history'].append({'status': 'applied', 'at': row['applied_at']})
+                    if index < 32:
+                        event('replied', analytics_stamp(day, 10, 1))
+                        row.update(first_reply_s=180, first_reply_at=analytics_stamp(day, 10, 4))
+                    if index < 24:
+                        event('call_booked', analytics_stamp(day + dt.timedelta(days=1)))
+                    if index < 22:
+                        event('call_held', analytics_stamp(day + dt.timedelta(days=1), 11))
+                    if index < 21:
+                        event('proposal_sent', analytics_stamp(day + dt.timedelta(days=1), 11, 10))
+                    won = index < 18
+                    if index in (22, 23):
+                        row['call_no_show'] = True
+                    row['follow_up_history'] = [{'action': 'sent', 'lane': 'silent',
+                                                 'due_on': (day + dt.timedelta(days=1)).isoformat(),
+                                                 'on': (day + dt.timedelta(days=1 if index < 36 else 2)).isoformat(),
+                                                 'at': analytics_stamp(day + dt.timedelta(days=1 if index < 36 else 2))}]
+                elif source == 'invite':
+                    row['application_date_unknown'] = True
+                    row['invited_at'] = analytics_stamp(day)
+                    if index < 15:
+                        event('call_booked', analytics_stamp(day + dt.timedelta(days=1)))
+                    if index < 12:
+                        row['history'].append({'status': 'offer', 'at': analytics_stamp(day + dt.timedelta(days=1), 12)})
+                    won = index < 10
+                else:
+                    row['application_date_unknown'] = True
+                    row['history'].append({'status': 'offer', 'at': analytics_stamp(day)})
+                    won = index < 16
+                if won:
+                    row['status'] = 'won'
+                    row['contract_id'] = 'synthetic-' + jid
+                    row['history'].append({'status': 'won', 'at': analytics_stamp(day + dt.timedelta(days=2))})
+                    row['won_value'] = {'type': 'fixed', 'amount': 100, 'currency': 'USD',
+                                        'start_date': (day + dt.timedelta(days=2)).isoformat()}
+                elif row.get('call_booked_at'):
+                    row['status'] = 'call'
+                elif source != 'outbound':
+                    row['status'] = 'offer' if row['history'] else 'new'
+                elif row.get('replied_at'):
+                    row['status'] = 'replied'
+                rows.append(row)
+    return rows
+
+
+def analytics_interval(k, n):
+    """Independent Wilson oracle, in percent, from the frozen formula."""
+    if not n:
+        return None, None
+    z = 1.959963984540054
+    p = k / n
+    divisor = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / divisor
+    half = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** .5) / divisor
+    return 100 * (centre - half), 100 * (centre + half)
+
+
+def analytics_rate_state(k, n, target):
+    low, high = analytics_interval(k, n)
+    return 'undecided' if not n else 'pass' if low >= target else 'fail' if high < target else 'undecided'
+
+
+def analytics_event(row, event):
+    if row.get(event + '_at'):
+        return dt.datetime.fromisoformat(row[event + '_at'])
+    values = [dt.datetime.fromisoformat(item['at']) for item in row.get('history', [])
+              if item.get('status') == event]
+    return min(values) if values else None
+
+
+def analytics_rate_oracle(rows, today, baseline=False):
+    end = dt.datetime.combine(today - dt.timedelta(days=28 if baseline else 0), dt.time(), ZoneInfo('Europe/Berlin'))
+    start = end - dt.timedelta(days=28)
+    cutoff = end
+    definitions = {
+        'reply_rate': ('applied', 7, 20, ('replied',), 'outbound'),
+        'reply_to_call': ('replied', 14, 50, ('call_booked', 'offer', 'won'), None),
+        'booked_to_held': ('call_booked', 2, 90, ('call_held',), None),
+        'held_to_proposal': ('call_held', 7, 90, ('proposal_sent',), None),
+        'proposal_to_won': ('proposal_sent', 21, 30, ('won',), None),
+        'invite_to_call': ('invited', 14, 50, ('call_booked', 'offer', 'won'), 'invite'),
+        'offer_to_contract': ('offer', 21, 80, ('won',), None),
+    }
+    expected = {}
+    for key, (entry, maturity, target, successes, source) in definitions.items():
+        cohort = [row for row in rows if not row.get('imported')
+                  and (source is None or row.get('source', 'outbound') == source)
+                  and analytics_event(row, entry) and start <= analytics_event(row, entry) < end
+                  and analytics_event(row, entry) + dt.timedelta(days=maturity) <= cutoff]
+        k = sum(any(analytics_event(row, event) and analytics_event(row, entry) <= analytics_event(row, event) < cutoff
+                    for event in successes) and not (key == 'booked_to_held' and row.get('call_no_show'))
+                for row in cohort)
+        expected[key] = (k, len(cohort), target)
+    return expected
+
+
+def analytics_payload(snapshot):
+    """A member-approved synthetic coaching addition, without client words."""
+    value = json.loads(json.dumps(snapshot))
+    primary = value['verdict'].get('kpi') or 'reply_rate'
+    keys = [primary] + [key for key in ('reply_rate', 'reply_to_call', 'booked_to_held', 'held_to_proposal')
+                        if key != primary][:2]
+    value['goals_next'] = [{'stage': value['kpis'][key]['label'], 'kpi': key,
+                            'change': 'Use the agreed next step', 'primary': index == 0,
+                            'cue': 'When this stage starts', 'action': 'Offer the agreed next step',
+                            'fallback': 'Offer one smaller next step',
+                            'review_on': (dt.date.fromisoformat(value['window']['end']) + dt.timedelta(days=8)).isoformat()}
+                           for index, key in enumerate(keys)]
+    value['report'] = 'SYNTHETIC weekly coaching report; nothing new this week.'
+    value['reviews'] = {kind: {'fix': 'Make one next step clear',
+                               'example': 'I can offer Tuesday at ten.',
+                               'evidence_lead_ids': [], 'goal_ref': keys[index % 3]}
+                        for index, kind in enumerate(('application', 'conversation', 'call', 'proposal'))}
+    return value
+
+
+def analytics_decisions():
+    import analytics
+    assert analytics.rate_state(5, 18, 30) == 'undecided'
+    assert analytics.rate_state(0, 0, 30) == 'undecided'
+    assert analytics.rate_state(0, 40, 30) == 'fail'
+    assert analytics.rate_state(40, 40, 90) == 'pass'
+    for k, n in ((5, 18), (0, 40), (40, 40), (17, 40), (96, 120)):
+        low, high = analytics.wilson(k, n)
+        expected = analytics_interval(k, n)
+        assert abs(low - expected[0]) < .05 and abs(high - expected[1]) < .05, (k, n, low, high, expected)
+    funnel = ('reply_rate', 'reply_to_call', 'booked_to_held', 'held_to_proposal',
+              'proposal_to_won', 'invite_to_call', 'offer_to_contract')
+    with fixture('analytics-verdict'):
+        base = analytics.compute(ANALYTICS_TODAY)
+        for selected in funnel:
+            kpis = json.loads(json.dumps(base['kpis']))
+            for key in funnel:
+                kpis[key].update(k=40, n=40, value=100, low=91.2, high=100, state='pass')
+            kpis[selected].update(k=0, n=40, value=0, low=0, high=8.8, state='fail')
+            result = analytics.verdict(kpis)
+            assert result['kpi'] == selected and result['state'] == 'confirmed', result
+            assert result['mode'] == 'funnel' and result['label'] == "This week's focus", result
+            print(f'SYNTHETIC A2 verdict PASS: first failing stage={selected}')
+        kpis[funnel[0]].update(state='missing', reason='No measured source')
+        kpis[funnel[1]].update(state='undecided')
+        kpis[funnel[2]].update(state='fail')
+        result = analytics.verdict(kpis)
+        assert result['kpi'] == funnel[2]
+        assert result['undecided_before'] == list(funnel[:2]), result
+        for key in funnel:
+            kpis[key].update(state='undecided')
+        kpis['weekly_volume'].update(state='fail', value=2, k=2, n=25)
+        result = analytics.verdict(kpis)
+        assert result['mode'] == 'levers' and result['state'] == 'levers', result
+        for key in funnel:
+            kpis[key].update(state='pass')
+        result = analytics.verdict(kpis)
+        assert result['state'] == 'none', result
+    print('SYNTHETIC A2 states PASS: independent Wilson intervals; 5 of 18 vs 30% undecided; earlier unknowns, cold-start levers and no failure')
+
+
+def analytics_boundaries():
+    import analytics
+    with fixture('analytics-boundaries') as folder:
+        analytics_sync_marker(folder)
+        zone = ZoneInfo('Europe/Berlin')
+        def at(text):
+            return dt.datetime.fromisoformat(text).replace(tzinfo=zone).isoformat()
+        entries = [('2026-09-16T00:00:00', False), ('2026-09-15T23:59:59', False),
+                   ('2026-10-07T00:00:00', False), ('2026-10-07T00:00:01', False),
+                   ('2026-10-14T00:00:00', False), ('2026-09-17T10:00:00', True),
+                   ('2026-08-19T00:00:00', False), ('2026-09-09T00:00:00', False),
+                   ('2026-09-09T00:00:01', False), ('2026-08-23T10:00:00', True)]
+        rows = [{'id': str(971000000 + index), 'status': 'replied', 'source': 'outbound',
+                 'found_at': at(text), 'applied_at': at(text), 'imported': imported,
+                 'replied_at': (dt.datetime.fromisoformat(at(text)) + dt.timedelta(minutes=3)).isoformat(),
+                 'history': [{'status': 'applied', 'at': at(text)}]}
+                for index, (text, imported) in enumerate(entries)]
+        seed(rows)
+        before = (folder / 'data/jobs.json').read_bytes()
+        result = analytics.compute(ANALYTICS_TODAY)
+        reply = result['kpis']['reply_rate']
+        assert (reply['k'], reply['n'], reply['value'], reply['baseline']) == (2, 2, 100, 100), reply
+        assert set(reply['evidence']) == {'971000000', '971000002'}, reply
+        assert (folder / 'data/jobs.json').read_bytes() == before
+        no_ledger = result['kpis']['value_per_100_connects']
+        assert no_ledger['state'] == 'missing' and no_ledger['value'] is None and no_ledger['reason'], no_ledger
+        assert result['north_star']['hourly_billed'] is None
+        assert any(row['source'] == 'connects' and row['state'] == 'missing' for row in result['coverage'])
+        assert any(row['source'] == 'earnings' and row['state'] == 'missing' for row in result['coverage'])
+    with fixture('analytics-pooled') as folder:
+        analytics_sync_marker(folder)
+        rows = []
+        for week, count, success in ((0, 100, 10), (1, 10, 10)):
+            day = dt.date(2026, 9, 22) + dt.timedelta(weeks=week)
+            for index in range(count):
+                row = {'id': str(972000000 + len(rows)), 'status': 'applied', 'source': 'outbound',
+                       'applied_at': analytics_stamp(day), 'found_at': analytics_stamp(day)}
+                if index < success:
+                    row['replied_at'] = analytics_stamp(day, 10, 3)
+                rows.append(row)
+        seed(rows)
+        rate = analytics.compute(ANALYTICS_TODAY)['kpis']['reply_rate']
+        assert (rate['k'], rate['n']) == (20, 110) and abs(rate['value'] - 2000 / 110) < .01, rate
+    with fixture('analytics-working-hours') as folder:
+        analytics_sync_marker(folder)
+        day = dt.date(2026, 10, 8)
+        rows = []
+        for index, minutes in enumerate([1] * 10 + [100]):
+            start = dt.datetime.fromisoformat(analytics_stamp(day))
+            rows.append({'id': str(973000000 + index), 'status': 'replied', 'source': 'outbound',
+                         'first_reply_s': minutes * 60,
+                         'first_reply_at': (start + dt.timedelta(minutes=minutes)).isoformat()})
+        rows += [{'id': '973000011', 'status': 'replied', 'first_reply_s': 3600,
+                  'first_reply_at': analytics_stamp(dt.date(2026, 10, 10), 11)},
+                 {'id': '973000012', 'status': 'replied', 'first_reply_s': 300,
+                  'first_reply_at': analytics_stamp(day, 9, 4)},
+                 {'id': '973000013', 'status': 'replied', 'first_reply_s': 3600,
+                  'first_reply_at': analytics_stamp(day, 20)},
+                 {'id': '973000014', 'status': 'replied', 'first_reply_s': 0,
+                  'first_reply_at': analytics_stamp(day, 18)}]
+        seed(rows)
+        first = analytics.compute(ANALYTICS_TODAY)['kpis']['first_reply']
+        assert first['n'] == 11 and first['value'] == 1 and first['state'] == 'pass', first
+        assert first['p75'] == 1, first
+    print('SYNTHETIC A2 boundaries PASS: mature cutoffs/current/baseline, imports excluded from rates, missing ledgers, pooled 20/110 and business-hour median/p75')
+
+
+def analytics_member():
+    import analytics
+    with fixture('analytics-eight-weeks') as folder:
+        rows = analytics_rows()
+        hourly = {'id': '979999999', 'status': 'won', 'source': 'direct_offer', 'imported': True,
+                  'contract_id': 'synthetic-hourly', 'history': [{'status': 'won', 'at': analytics_stamp(dt.date(2026, 8, 1))}],
+                  'won_value': {'type': 'hourly', 'amount': 9999, 'currency': 'USD', 'start_date': '2026-08-01'}}
+        run('sync.py', 'apply', '--file', '-', value={
+            'earnings': [{'week_start': (dt.date(2026, 8, 24) + dt.timedelta(weeks=index)).isoformat(),
+                          'contract_id': 'synthetic-hourly', 'billed': 200, 'currency': 'USD'} for index in range(7)],
+            'connects': [{'at': row['applied_at'], 'amount': -16, 'reason': 'Application submitted', 'job_id': row['id']}
+                         for row in rows if row.get('applied_at')] +
+                        [{'at': analytics_stamp(dt.date(2026, 10, 1)), 'amount': 100, 'reason': 'Receipt', 'job_id': None}]})
+        seed(rows + [hourly])
+        run('pipeline.py', 'note', rows[-80]['id'], 'analytics job_fit: ' + json.dumps({'state': 'pass', 'reason': 'Fits the member lane'}))
+        before = (folder / 'data/jobs.json').read_bytes()
+        result = json.loads(run('analytics.py', 'compute', '--today', ANALYTICS_TODAY).stdout)
+        assert len(result['kpis']) == 24
+        expected = analytics_rate_oracle(rows, ANALYTICS_TODAY)
+        baseline = analytics_rate_oracle(rows, ANALYTICS_TODAY, baseline=True)
+        for key, (k, n, target) in expected.items():
+            row = result['kpis'][key]
+            assert (row['k'], row['n'], row['target'], row['state']) == (k, n, target, analytics_rate_state(k, n, target)), (key, row)
+            assert abs(row['value'] - 100 * k / n) < .01, (key, row)
+            bk, bn, _ = baseline[key]
+            assert abs(row['baseline'] - 100 * bk / bn) < .01, (key, row)
+            assert row['delta_pp'] == row['delta'] == 0, (key, row)
+            assert row['history'] == [None] * 7 + [row['value']], (key, row)
+            low, high = analytics_interval(k, n)
+            assert abs(row['low'] - low) < .01 and abs(row['high'] - high) < .01, (key, row)
+        other = {
+            'won_value': (44, 44, 'undecided', 4600),
+            'value_per_100_connects': (176, 2560, 'pass', 546.875),
+            'weekly_volume': (40, 25, 'pass', 40),
+            'speed_10min': (32, 40, 'undecided', 80),
+            'first_reply': (32, 32, 'pass', 3),
+            'follow_ups_on_time': (36, 40, 'fail', 90),
+            'proposal_on_time': (21, 22, 'undecided', 2100 / 22),
+            'job_fit': (36, 40, 'fail', 90),
+            'application_review': (None, None, 'undecided', None),
+            'conversation_review': (None, None, 'undecided', None),
+            'call_review': (None, None, 'undecided', None),
+            'proposal_review': (None, None, 'undecided', None),
+            'segments': (None, None, 'undecided', 'nothing new'),
+            'behaviour': (None, None, 'undecided', 'nothing new'),
+            'lost_reasons': (0, 0, 'undecided', {'stated': 0, 'observed': 0, 'unknown': 0}),
+            'goal_effect': (0, 0, 'undecided', None),
+            'goal_done': (0, 0, 'undecided', None),
+        }
+        for key, values in other.items():
+            row = result['kpis'][key]
+            assert (row['k'], row['n'], row['state']) == values[:3], (key, row, values)
+            if isinstance(values[3], (int, float)):
+                assert row['baseline'] is not None, (key, row, values)
+                assert abs(row['baseline'] - values[3]) < .001, (key, row, values)
+            else:
+                assert row['baseline'] == values[3], (key, row, values)
+        assert result['kpis']['won_value']['value'] == 4600
+        assert abs(result['kpis']['value_per_100_connects']['value'] - 710.9375) < .001
+        assert result['kpis']['speed_10min']['proposals_under_5'] == {'k': 30, 'n': 40}
+        assert result['kpis']['first_reply']['p75'] == 3
+        assert result['north_star']['value'] == 4600 and result['north_star']['fixed_value'] == 4400
+        assert result['north_star']['hourly_billed'] == 200 and result['north_star']['wins'] == 44
+        assert result['north_star']['baseline'] == 4600
+        assert result['periods']['activity'] == result['periods']['outcome'] == {'start': '2026-10-07', 'end': '2026-10-13'}
+        assert result['periods']['cohort'] == result['window'] == {'start': '2026-09-16', 'end': '2026-10-13'}
+        assert set(row['source'] for row in result['coverage']) == {'recorder', 'upwork', 'tracking', 'loom', 'earnings', 'connects'}
+        assert result['verdict']['kpi'] == 'booked_to_held' and result['verdict']['state'] == 'confirmed'
+        assert result['findings'] == []
+        assert all(set(row) == {'stage', 'count', 'known_value', 'oldest_days', 'stalled'}
+                   for strand in result['pipeline'].values() for row in strand)
+        assert sum(row['count'] for row in result['pipeline']['outbound']) == 8 * 22
+        assert sum(row['count'] for row in result['pipeline']['inbound']) == 8 * 14
+        assert (folder / 'data/jobs.json').read_bytes() == before
+        analytics_storage(result, folder, rows)
+    print('SYNTHETIC A2 member PASS: eight weeks/640 leads/three routes; every one of 24 KPI k/n/state/baseline; value4600=fixed4400+billed200; spend2560 and pooled cohorts')
+
+
+def analytics_storage(snapshot, folder, rows):
+    import analytics
+    value = analytics_payload(snapshot)
+    goal_input = {'week': value['week'], 'goals': [dict(goal, start='2026-10-14') for goal in value['goals_next']]}
+    def rejected(command, payload, *extra):
+        result = run('analytics.py', *command, '--file', '-', *extra, value=payload, success=False)
+        assert result.returncode != 0, (command, payload, result.stdout)
+    duplicate_stage = json.loads(json.dumps(goal_input))
+    duplicate_stage['goals'][1]['stage'] = duplicate_stage['goals'][0]['stage']
+    rejected(('goals', 'add'), duplicate_stage)
+    invalid_primary = json.loads(json.dumps(goal_input))
+    invalid_primary['goals'][1]['primary'] = True
+    rejected(('goals', 'add'), invalid_primary)
+    invalid_week = dict(goal_input, week='2026-W99')
+    rejected(('goals', 'add'), invalid_week)
+    missing_commitment = json.loads(json.dumps(goal_input))
+    del missing_commitment['goals'][0]['fallback']
+    rejected(('goals', 'add'), missing_commitment)
+    run('analytics.py', 'goals', 'add', '--file', '-', value=goal_input)
+    rejected(('goals', 'add'), goal_input)
+    changed_agreement = json.loads(json.dumps(value))
+    changed_agreement['goals_next'][0]['action'] = 'Change the agreed action without a new agreement'
+    rejected(('record',), changed_agreement)
+    stored_goals = [json.loads(line) for line in (folder / 'data/goals.jsonl').read_text().splitlines()]
+    assert stored_goals == [goal_input]
+    bad = dict(value, unexpected='client_text')
+    rejected(('record',), bad)
+    for timestamp_value in ('junk', '2026-99-99T12:00:00+02:00', '2026-10-14'):
+        rejected(('record',), dict(value, generated_at=timestamp_value))
+    bad = json.loads(json.dumps(value))
+    bad['kpis']['reply_rate']['value'] = 99
+    rejected(('record',), bad)
+    for key, item in (('target', 777), ('baseline', 777), ('client_text', 'private')):
+        bad = json.loads(json.dumps(value))
+        bad['kpis']['goal_done'][key] = item
+        rejected(('record',), bad)
+    for name in ('SYNTHETIC PRIVATE CLIENT NAME', 'SYNTHETIC PRIVATE CLIENT WORDS', 'SYNTHETIC PRIVATE CLIENT TITLE'):
+        rejected(('record',), dict(value, report='Do this for ' + name))
+    bad = json.loads(json.dumps(value))
+    bad['reviews']['application']['fix'] = 'SYNTHETIC PRIVATE CLIENT WORDS'
+    rejected(('record',), bad)
+    bad = json.loads(json.dumps(value))
+    bad['reviews']['application']['example'] = 'SYNTHETIC PRIVATE CLIENT WORDS'
+    rejected(('record',), bad)
+    run('analytics.py', 'record', '--file', '-', value=value)
+    rejected(('record',), value)
+    run('analytics.py', 'record', '--file', '-', '--replace', value=value)
+    lines = (folder / 'data/analytics-history.jsonl').read_text().splitlines()
+    assert len(lines) == 1
+    stored = json.loads(lines[0])
+    assert json.loads(run('analytics.py', 'last').stdout) == stored
+    assert analytics.due(ANALYTICS_TODAY + dt.timedelta(days=7)) is False
+    assert analytics.due(ANALYTICS_TODAY + dt.timedelta(days=8)) is True
+    assert json.loads(run('analytics.py', 'due', '--today', '2026-10-22').stdout) is True
+    assert all(secret not in lines[0] for secret in ('SYNTHETIC PRIVATE CLIENT NAME', 'SYNTHETIC PRIVATE CLIENT WORDS', 'SYNTHETIC PRIVATE CLIENT TITLE'))
+    assert stored['reviews']['application']['example'] == 'I can offer Tuesday at ten.'
+    # Last week's goals separate execution from the independently measured outcome.
+    previous = analytics_payload(analytics.compute(ANALYTICS_TODAY - dt.timedelta(days=7)))
+    keys = ('booked_to_held', 'first_reply', 'follow_ups_on_time')
+    previous_goals = {'week': previous['week'], 'goals': [dict(previous['goals_next'][index],
+                      kpi=key, stage=snapshot['kpis'][key]['label'], start='2026-10-07')
+                      for index, key in enumerate(keys)]}
+    run('analytics.py', 'goals', 'add', '--file', '-', value=previous_goals)
+    reviewed = analytics_payload(analytics.compute(ANALYTICS_TODAY))
+    assert [goal['effect'] for goal in reviewed['goals_review']] == ['undecided', 'worked', 'not'], reviewed['goals_review']
+    assert abs(reviewed['goals_review'][0]['before'] - 6600 / 117) < .001 and reviewed['goals_review'][0]['after'] is None
+    assert [(goal['before'], goal['after']) for goal in reviewed['goals_review'][1:]] == [(3, 3), (90, 90)]
+    evidence = [row['id'] for row in rows[-80:-76]]
+    for index, goal in enumerate(reviewed['goals_review']):
+        goal['evidence_lead_ids'] = evidence[:index + 2]
+        goal['done_lead_ids'] = evidence[:2] if index < 2 else []
+        goal['decision'] = ('adjust', 'keep', 'stop')[index]
+    run('analytics.py', 'record', '--file', '-', '--replace', value=reviewed)
+    stored = json.loads(run('analytics.py', 'last').stdout)
+    assert [(goal['done_k'], goal['done_n']) for goal in stored['goals_review']] == [(2, 2), (2, 3), (0, 4)]
+    assert [goal['effect'] for goal in stored['goals_review']] == ['undecided', 'worked', 'not']
+    assert stored['kpis']['goal_effect']['k'] == 1 and stored['kpis']['goal_effect']['n'] == 3
+    assert (stored['kpis']['goal_done']['k'], stored['kpis']['goal_done']['n'], stored['kpis']['goal_done']['state']) == (1, 3, 'fail')
+    for key in ('application_review', 'conversation_review', 'call_review', 'proposal_review'):
+        assert (stored['kpis'][key]['k'], stored['kpis'][key]['n'], stored['kpis'][key]['state'], stored['kpis'][key]['baseline']) == (0, 1, 'undecided', None)
+    print('SYNTHETIC A2 storage PASS: exact schema/numbers/privacy, duplicate/replace and last/due; stage/commitment/week gates; goal execution 2/2,2/3,0/4 apart from undecided/worked/not outcomes')
+
+
+def analytics_history_and_coaching():
+    import analytics
+    with fixture('analytics-history') as folder:
+        (folder / 'data/earnings.jsonl').write_text('')
+        (folder / 'data/connects.jsonl').write_text('')
+        rows = []
+        for index in range(8):
+            day = dt.date(2026, 8, 24) + dt.timedelta(weeks=index)
+            row = {'id': str(974000000 + index), 'status': 'won', 'source': 'outbound',
+                   'found_at': analytics_stamp(day), 'first_reply_at': analytics_stamp(day, 10, index + 1),
+                   'first_reply_s': 60 * (index + 1), 'pitch_url': 'https://synthetic.example/member-proof',
+                   'won_value': {'type': 'fixed', 'amount': 100 * (index + 1), 'currency': 'USD', 'start_date': day.isoformat()},
+                   'history': [{'status': 'won', 'at': analytics_stamp(day)}]}
+            rows.append(row)
+            path = folder / 'jobs' / row['id']
+            path.mkdir()
+            (path / 'call.md').write_text('Member: Alex\nAlex: What is the problem?\nClient: Too many manual steps.\n')
+            (path / 'application.sent.md').write_text('SYNTHETIC sent member application')
+            (path / 'loom.md').write_text('SYNTHETIC member Loom transcript')
+        seed(rows)
+        for index, row in enumerate(rows):
+            today = dt.date(2026, 8, 26) + dt.timedelta(weeks=index)
+            (folder / 'data/sync.json').write_text(json.dumps({'synced_at': analytics_stamp(today, 11)}))
+            value = analytics_payload(analytics.compute(today))
+            for review in value['reviews'].values():
+                review['evidence_lead_ids'] = [row['id']]
+            value['reviews']['call']['rubric'] = [{'lead_id': row['id'], 'reviewable': True,
+                'points': [{'point': point, 'state': 'not needed' if point == 6 else 'met'} for point in range(1, 10)]}]
+            value['reviews']['application']['rubric'] = [{'lead_id': row['id'], 'reviewable': True,
+                'points': [{'point': point, 'state': 'met'} for point in range(1, 8)]}]
+            reviewed = analytics.prepare_snapshot(value, today)
+            for key in ('application_review', 'conversation_review', 'call_review', 'proposal_review'):
+                assert (reviewed['kpis'][key]['k'], reviewed['kpis'][key]['n'], reviewed['kpis'][key]['state']) == (1, 1, 'pass')
+                assert reviewed['kpis'][key]['baseline'] is None
+            coverage = reviewed['reviews']['call']['coverage']
+            assert coverage[0]['n'] == coverage[0]['met'] == 1 and coverage[0]['history'][-1] == 100
+            assert coverage[5]['n'] == 0 and coverage[5]['not_needed'] == 1 and coverage[5]['history'][-1] is None
+            assert reviewed['reviews']['application']['coverage'][0]['n'] == 1
+            analytics.record_snapshot(reviewed)
+        latest = analytics.last()
+        assert latest['north_star']['history'] == [100, 200, 300, 400, 500, 600, 700, 800]
+        assert latest['kpis']['first_reply']['history'] == list(range(1, 9))
+        assert latest['reviews']['call']['coverage'][0]['history'] == [100] * 8
+        assert latest['reviews']['application']['coverage'][0]['history'] == [100] * 8
+        assert latest['streak_weeks'] == 8 and len(latest['verdict_history']) == 7
+        assert latest['north_star']['baseline'] == 550
+        no_labels = folder / 'jobs' / rows[-1]['id'] / 'call.md'
+        no_labels.write_text('Unlabelled synthetic notes with no recorded speakers.')
+        unknown = analytics_payload(analytics.compute(ANALYTICS_TODAY))
+        unknown['reviews']['call'].update(evidence_lead_ids=[rows[-1]['id']],
+            rubric=[{'lead_id': rows[-1]['id'], 'reviewable': False, 'points': []}])
+        reviewed = analytics.prepare_snapshot(unknown, ANALYTICS_TODAY)
+        assert reviewed['kpis']['call_review']['state'] == 'missing' and reviewed['kpis']['call_review']['k'] == 0
+        unknown['reviews']['call']['rubric'][0].update(reviewable=True, points=[{'point': point, 'state': 'met'} for point in range(1, 10)])
+        try:
+            analytics.prepare_snapshot(unknown, ANALYTICS_TODAY)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('Unlabelled call was reviewable')
+        # A skipped week leaves null in its position and stops the consecutive streak.
+        path = folder / 'data/analytics-history.jsonl'
+        old = [json.loads(line) for line in path.read_text().splitlines()]
+        old = [row for row in old if row['week'] != '2026-W41']
+        path.write_text(''.join(json.dumps(row) + '\n' for row in old))
+        gap = analytics.compute(ANALYTICS_TODAY)
+        assert gap['north_star']['history'][-2] is None and gap['streak_weeks'] == 1
+    print('SYNTHETIC A2 history/coaching PASS: eight chronological snapshots, null gaps/streak/baseline550; all four review KPI counts; nine-point coverage/history and unlabelled-call gate')
+
+
+def analytics_levers_and_imports():
+    import analytics
+    import cockpit
+    with fixture('analytics-levers') as folder:
+        analytics_sync_marker(folder)
+        (folder / 'context/me.md').write_text('## Bars\nreply_rate: 25\nfirst_reply: 2\nfirst_reply_p75: 10\nweekly_volume: 30\nVolume: 8\nProposal: 33\nreply_to_call: 101\nunknown: 50\n## Weekly goal\n12\n## Working hours\n09:00-18:00 Mon-Fri Europe/Berlin\n')
+        assert analytics.bars()['reply_rate'] == 25 and analytics.bars()['reply_to_call'] == 50
+        assert analytics.bars()['first_reply'] == 2 and analytics.bars()['weekly_volume'] == 30
+        assert cockpit.bars()['Volume'] == 8 and cockpit.bars()['Proposal'] == 33
+        path = folder / 'context/me.md'
+        path.write_text(path.read_text().replace('weekly_volume: 30\n', ''))
+        assert analytics.bars()['weekly_volume'] == 12
+        start = dt.datetime.fromisoformat(analytics_stamp(dt.date(2026, 10, 9), 17, 55))
+        end = dt.datetime.fromisoformat(analytics_stamp(dt.date(2026, 10, 12), 9, 10))
+        assert analytics.working_reply({'first_reply_at': end.isoformat(), 'first_reply_s': (end - start).total_seconds()}) == 15
+        rows = [
+            {'id': '975000001', 'status': 'applied', 'source': 'outbound', 'found_at': analytics_stamp(dt.date(2026, 10, 1)),
+             'status_updated_at': analytics_stamp(dt.date(2026, 10, 1)), 'last_activity_at': analytics_stamp(dt.date(2026, 10, 13)),
+             'details': {'price_estimate': 500}, 'next_follow_up': '2026-10-08', 'follow_up_plan': {'lane': 'silent'},
+             'follow_up_history': [{'action': 'sent', 'lane': 'silent', 'due_on': '2026-10-09', 'on': '2026-10-09'},
+                                   {'action': 'sent', 'lane': 'silent', 'due_on': '2026-10-09', 'on': '2026-10-09'},
+                                   {'action': 'sent', 'lane': 'silent', 'due_on': '2026-10-12', 'on': '2026-10-13'}]},
+            {'id': '975000002', 'status': 'offer', 'source': 'direct_offer', 'imported': True,
+             'found_at': analytics_stamp(dt.date(2026, 10, 2)), 'status_updated_at': analytics_stamp(dt.date(2026, 10, 2)),
+             'last_activity_at': analytics_stamp(dt.date(2026, 10, 2)), 'details': {'bid_amount': 700}},
+            {'id': '975000003', 'status': 'won', 'source': 'outbound', 'imported': True,
+             'applied_at': analytics_stamp(dt.date(2026, 9, 20)), 'replied_at': analytics_stamp(dt.date(2026, 9, 21)),
+             'won_value': {'type': 'fixed', 'amount': 700, 'currency': 'USD', 'start_date': '2026-10-08'},
+             'history': [{'status': 'won', 'at': analytics_stamp(dt.date(2026, 10, 8))}]},
+            {'id': '975000004', 'status': 'won', 'source': 'outbound', 'imported': True,
+             'won_value': {'type': 'fixed', 'amount': 400, 'currency': 'USD', 'start_date': '2026-09-10'},
+             'history': [{'status': 'won', 'at': analytics_stamp(dt.date(2026, 9, 10))}]},
+            {'id': '975000005', 'status': 'lost', 'status_updated_at': analytics_stamp(dt.date(2026, 10, 8))}]
+        seed(rows)
+        run('pipeline.py', 'note', '975000005', 'analytics lost_reason: ' + json.dumps({'kind': 'stated', 'reason': 'Timing changed'}))
+        (folder / 'data/earnings.jsonl').write_text('')
+        value = analytics.compute(ANALYTICS_TODAY)
+        assert value['north_star']['value'] == value['north_star']['fixed_value'] == 700
+        assert value['north_star']['wins'] == 1 and value['north_star']['baseline'] == 100
+        assert value['kpis']['reply_rate']['n'] == 0
+        assert (value['kpis']['follow_ups_on_time']['k'], value['kpis']['follow_ups_on_time']['n']) == (1, 3)
+        assert value['kpis']['lost_reasons']['value'] == {'stated': 1, 'observed': 0, 'unknown': 0}
+        applied = next(row for row in value['pipeline']['outbound'] if row['stage'] == 'applied')
+        offer = next(row for row in value['pipeline']['inbound'] if row['stage'] == 'offer')
+        assert applied == {'stage': 'applied', 'count': 1, 'known_value': 500, 'oldest_days': 13, 'stalled': 0}
+        assert offer == {'stage': 'offer', 'count': 1, 'known_value': 700, 'oldest_days': 12, 'stalled': 1}
+        (folder / 'data/connects.jsonl').write_text(json.dumps({'at': analytics_stamp(dt.date(2026, 10, 8)),
+            'amount': -100, 'reason': 'Application spend', 'job_id': '975000003'}) + '\n')
+        path.write_text(path.read_text().replace('## Bars\n', '## Bars\nwon_value: 650\nvalue_per_100_connects: 800\n'))
+        monetary = analytics.compute(ANALYTICS_TODAY)
+        assert monetary['kpis']['won_value']['target'] == 650 and monetary['kpis']['won_value']['state'] == 'pass'
+        assert monetary['kpis']['value_per_100_connects']['value'] == 700 and monetary['kpis']['value_per_100_connects']['target'] == 800
+        assert monetary['kpis']['value_per_100_connects']['state'] == 'fail'
+        live_missing = analytics.prepare_snapshot({'coverage': [{'source': 'upwork', 'state': 'missing', 'fix': 'Reconnect the connector'}]}, ANALYTICS_TODAY)
+        assert live_missing['kpis']['reply_rate']['state'] == 'missing' and live_missing['north_star']['value'] is None
+    needed = analytics.cases_needed(5, 18, 30)
+    assert needed == 1575
+    assert analytics_rate_state(round(5 / 18 * (18 + needed)), 18 + needed, 30) != 'undecided'
+    assert analytics.cases_needed(3, 10, 30) is None
+    print('SYNTHETIC A2 levers/imports PASS: overrides and legacy bars; weekend business clock15min; due lanes1/3 dedup; imported money700/baseline100 only; stage age vs movement; lost-note writer; live missing source and cases needed')
+
+
+def analytics_source_and_timezone():
+    import analytics
+    with fixture('analytics-source-timezone') as folder:
+        analytics_sync_marker(folder)
+        (folder / 'data/earnings.jsonl').write_text('')
+        seed([{'id': '976000001', 'status': 'applied', 'found_at': analytics_stamp(dt.date(2026, 10, 12)),
+               'applied_at': analytics_stamp(dt.date(2026, 10, 12))}])
+        optional = analytics.compute(ANALYTICS_TODAY)
+        assert optional['kpis']['application_review']['state'] == 'undecided'
+        assert optional['kpis']['proposal_review']['state'] == 'undecided'
+        assert next(row for row in optional['coverage'] if row['source'] == 'tracking')['affects'] == []
+        jobdir = folder / 'jobs/976000001'
+        jobdir.mkdir()
+        (jobdir / 'application.sent.md').write_text('Member wording: please see https://www.loom.com/share/synthetic')
+        required = analytics.compute(ANALYTICS_TODAY)
+        assert required['kpis']['application_review']['state'] == 'missing'
+        (jobdir / 'loom.md').write_text('SYNTHETIC recorded member words')
+        present = analytics.compute(ANALYTICS_TODAY)
+        assert present['kpis']['application_review']['state'] == 'undecided'
+        (folder / 'context/me.md').write_text('## Timezone\nAmerica/New_York\n## Working hours\n09:00-18:00 Mon-Fri\n')
+        assert str(analytics.local_zone()) == 'America/New_York'
+        # 15:00 UTC is inside New York working hours, but 18:30 UTC is also
+        # outside Berlin's hours. The member's zone is authoritative.
+        assert analytics.working_reply({'first_reply_at': '2026-10-08T18:30:00+00:00', 'first_reply_s': 300}) == 5
+        local = analytics.compute(ANALYTICS_TODAY)
+        assert dt.datetime.fromisoformat(local['generated_at']).utcoffset() == dt.timedelta(hours=-4)
+    print('SYNTHETIC A2 sources/timezone PASS: optional Loom/tracking retain reviews; used Loom missing until transcript; member New York clock and zoned snapshot')
+
+
 def main():
     with fixture('dashboard'):
         s = dashboard_fixture()
@@ -1028,9 +1620,17 @@ def main():
     package1()
     bottlenecks()
     rendered_ui()
+    analytics_decisions()
+    analytics_boundaries()
+    analytics_member()
+    analytics_history_and_coaching()
+    analytics_levers_and_imports()
+    analytics_source_and_timezone()
     current = hashlib.sha256(REAL_JOBS.read_bytes()).hexdigest() if REAL_JOBS.exists() else None
     assert current == REAL_HASH, 'Real data/jobs.json changed'
-    print('PASS: all dashboard numbers reproduced by labelled synthetic fixtures; real data/jobs.json unchanged.')
+    assert REAL_DATA_HASHES == {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+                               for path in (ROOT / 'data').rglob('*') if path.is_file()}, 'Real data files changed'
+    print('PASS: dashboard and weekly analytics numbers reproduced by labelled synthetic fixtures; all real data files unchanged.')
 
 
 if __name__ == '__main__':

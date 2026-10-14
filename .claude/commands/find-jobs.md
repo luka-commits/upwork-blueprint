@@ -30,6 +30,8 @@ cockpit list. End with `Upwork calls: 0`, and do not continue into Step 0.
 
 Run `python3 code/workspace.py`, `python3 code/pipeline.py prune` and `python3 code/pipeline.py reset-search` (yesterday's unused leads expire, with skip reasons kept), then `list_accounts` (if missing, walk the member through connecting as CLAUDE.md says and stop). Then `python3 code/jobs.py window`: the hours since **the last run rather than the last saved lead**, with a two-hour floor and 24-hour ceiling. A first run looks back 24 hours. `jobs.py clean` writes the stamp even when nothing was found, so the run must finish for the next one to narrow.
 
+On `context/me.md`'s `## Analytics day`, run `python3 code/analytics.py due`; when it is true, print once: “Analytics due: run /analytics”.
+
 ## Step 0b · Is this the first run, or a run with a direction?
 
 If `python3 code/context_check.py --status` says `untouched`, stop and send the member to `/about-me`.

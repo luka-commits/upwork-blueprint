@@ -251,6 +251,36 @@ Friday": the posting is evidence about the budget, the history only evidence abo
 Record which kind of client actually paid, and let the member's own numbers settle it
 within months rather than a rule written here.
 
+## Weekly analytics settings in `context/me.md`
+
+These optional sections configure `/analytics`; confirm changes with the member.
+`/analytics` asks for missing recorder details inside the command, not during setup.
+
+- `## Bars`: one `name: value` per line, using KPI keys. Defaults: `reply_rate: 20`,
+  `reply_to_call: 50`, `booked_to_held: 90`, `held_to_proposal: 90`,
+  `proposal_to_won: 30`, `invite_to_call: 50`, `offer_to_contract: 80`,
+  `speed_10min: 80`, `first_reply: 5`, `first_reply_p75: 15`,
+  `follow_ups_on_time: 100`, `proposal_on_time: 90`, `job_fit: 100`.
+  Rates are percentages; first-reply targets are minutes. Won value and value per
+  100 Connects aim up against the own previous four weeks by default; optional
+  `won_value: 1000` or `value_per_100_connects: 500` sets a monetary threshold.
+  Weekly volume uses the goal below. `code/analytics.py bars()` supplies defaults
+  and reads overrides.
+- `## Analytics day`: one weekday, for example `Wednesday`. `/find-jobs` prints
+  “Analytics due: run /analytics” on that day when the latest snapshot is older
+  than seven days or absent. No unattended schedule is created.
+- `## Weekly goal`: one whole application count, for example `25` (the default).
+  This is qualified applications per seven days, separate from the search's
+  `Applications per day` setting.
+- `## Working hours`: `09:00-18:00`, the default Monday–Friday schedule in the
+  member's local time zone. First-reply timing counts client messages received
+  inside that schedule. Append an IANA time zone to override it, for example
+  `09:00-18:00 Europe/Berlin`; `Mon-Sun`, `daily` or `every day` enables weekends.
+  Never assume availability outside it.
+- `## Call recorder`: the confirmed recorder name and available connector/API or
+  transcript source. No credentials belong in this section; without labelled
+  speakers, calls cannot be reviewed.
+
 ## Where the numbers come from
 
 Anyone who needs a current figure reads it there and cites the date, never taking it from here:

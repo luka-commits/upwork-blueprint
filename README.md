@@ -51,6 +51,7 @@ Claude Code session. `RESEARCH.md` is background reading; no command uses it.
 | 5 | `/brief` | Your morning: what changed on Upwork, where every lead stands, and the messages that are due |
 | 6 | `/sales-call-proposal` | Turns your sales call into the proposal you send, and says whether it is ready to start a project on |
 | 7 | `/onboarding` | Turns a started contract into the handover brief and the onboarding. Run it again after delivery to record what came out of it |
+| Weekly | `/analytics` | Checks last week's goals, measures your funnel and agrees three commitments for this week |
 
 /about-me also works before connecting or creating a public Upwork profile. Run it
 first: every later command writes from it, and `/find-jobs` on an empty `me.md`

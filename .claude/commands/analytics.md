@@ -33,12 +33,6 @@ Ask only for reconnection or evidence the tools cannot supply. Code and its erro
 
 ## 2. Recover source evidence and missed weeks
 
-Claude checks missing Loom tooling (`yt-dlp`, `whisper-cli`, `code/loom.py`'s `find_model()`). Show `brew install yt-dlp whisper.cpp` and the script's `MODEL_DOWNLOAD`, or platform-specific instructions; install only after the member agrees. Recover an existing recorded Loom with:
-
-```bash
-python3 code/loom.py <id> <recorded-Loom-URL>
-```
-
 Obtain calls through [call transcript](../../references/call-transcript.md). A recap proves held, never its absence a no-show. Requested meetings remain requested; preserve sessions and reschedules. Reuse `jobs/<id>/call-review.md`; invoke [/call-review <id>](call-review.md) only for an unreviewed session. Preserve verified session identity, language and completeness; a summary or excerpt cannot support a whole-call review.
 
 Check one registered tracking link with `?check=1`, its redirect and `X-Tracking-Status: check: not logged`, then run:
@@ -65,13 +59,13 @@ Prepare a full evidence inventory first run. Otherwise review at most five focus
 
 ### Coaching rubrics
 
-Judge from the coach brief, actual sent artifacts, full post and verified thread. For applications, check posted problem, matching proof, screening answers, bid/scope, concision, closing question and Loom when used. Uma reviews use requested interview questions and submitted answers/video. Repair the failed artifact; missing sent copy is unreviewed: "Your sent application is unavailable. Paste it to receive a review." Every correction includes the sent passage/job, missed point, grounded replacement and next-application instruction.
+Judge from the coach brief, the full post and the verified thread or call. Every correction includes the quoted passage, missed point, grounded replacement and next instruction.
 
 For chats, paginate read-only `get_messages` / `list_messages` to documented exhaustion and read oldest first. Judge the client's question answered, one useful qualifying question, and two concrete Upwork call times when useful. Timing comes from code. Honour stated decisions and agreed steps; count patterns only through code.
 
 The comparable call scan covers: (1) opening/agenda within two minutes; (2) current state; (3) problem and cost; (4) goal/scope; (5) budget before price; (6) decision maker/timeline; (7) distinguishing proof addressing the client's concern; (8) objections invited/handled; (9) agreed next step on Upwork, owner, terms and deadline. Credit sourced information already established; explain inapplicable points. Reuse the full saved review, exact turning quotes, better wording, fix, example, read and next message. If its original scan was not recorded, use `/call-review` to record it without new judgment; otherwise name the writer gap.
 
-Compare sent proposals with the held call's agreement using the original review criteria. Separate stated, observed and unknown loss reasons. Save assessments only through:
+Separate stated, observed and unknown loss reasons. Save assessments only through:
 
 ```bash
 python3 code/pipeline.py note <id> 'analytics job_fit: {"state":"pass","reason":"<quoted judgment>"}'
@@ -95,7 +89,7 @@ python3 code/analytics.py check-report <report-file> --snapshot <snapshot-file>
 
 Require check-report PASS before displaying; fix every rejected value, period or unsupported claim. Follow the brief's order; the money and Funnel Score come from code. Carry every item once, with missing sources under **Couldn't check**. Distinguish fixed won value, hourly terms and billed earnings. Name periods, units and k of n; show code's plain sample notes. List each missing source in **Couldn't check** with its exact command. Quote job-linked evidence; label interpretations and counterevidence. Use code's award wording once per new award.
 
-Each early week improves an application, checks use of the prior fix, resolves low activity, or decides what to keep/change. Baseline collection never implies established improvement.
+Each early week improves one habit, checks use of the prior fix, resolves low activity, or decides what to keep/change. Baseline collection never implies established improvement.
 
 Ask for source gaps or a decision needed to resolve a supported obstacle; recommendations alone do not save goals.
 
@@ -107,7 +101,7 @@ This week retains progress, focus/goals and the complete top/middle/bottom score
 
 Each scorecard row's detail has one **Open these N leads →** button opening Leads filtered to that row's exact IDs, with no embedded lead list. The chart uses actual week labels, faint horizontal ladder bands labelled at right, and value labels above bars without overlap. Accent only the current bar; keep others neutral and fit height to content. The right column has at most three short lines: the count in one sentence, one job-fit finding only when present, and the market reference with a **Source** link rather than a raw URL. Omit Possible range text.
 
-Conversations retains Applications, Chats, Calls and Proposals, actual titles/dates, review markers, criterion charts, supported patterns and full inline reviews. Default to this week, sort by importance, three rows per section plus Show all; criterion selection reveals all affected rows. Absent sent Loom says "No Loom sent" or "Loom requested, not sent"; only a sent Loom missing its transcript needs recovery. Missing sources show their supply route. Achievements retains the badge gallery, targeted badge, rank/progress, score history, current/best commitment streak and goals that worked.
+Conversations retains Chats and Calls, actual titles/dates, review markers, criterion charts, supported patterns and full inline reviews. Default to this week, sort by importance, three rows per section plus Show all; criterion selection reveals all affected rows. Missing sources show their supply route. Achievements retains the badge gallery, targeted badge, rank/progress, score history, current/best commitment streak and goals that worked.
 
 Use `python3 code/analytics.py compute --file -` for presentation. No member question is needed; name code gaps. This command cannot claim measured UI or real-account acceptance.
 

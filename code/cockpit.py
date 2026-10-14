@@ -365,7 +365,6 @@ NEXT_ACTIONS = {
     'Volume': 'Apply to your daily goal today.',
     'Profile': 'Fill the missing profile items in /profile.',
     'Proposal': 'Review your application opening against the client problem.',
-    'Loom': 'Name the client problem in the first 15 seconds of your Loom.',
     'Speed': 'Answer the first client message sooner.',
     'Messaging': 'Review the reply and ask for a clear call next step.',
     'Sales call': 'Agree one next step before ending the call.',
@@ -377,7 +376,6 @@ NEXT_ACTIONS = {
 def bottleneck(jobs, daily, profile, timing):
     counts = funnel(jobs)
     eligible = applications(jobs)
-    hooks = [job['loom_hook'] for job in eligible if job.get('loom_hook') in ('pass', 'fail')]
     next_steps = [job['call_next_step'] for job in eligible
                   if isinstance(job.get('call_next_step'), bool) and
                   (reached(job)[1] or _when(job.get('call_at')))]
@@ -392,7 +390,6 @@ def bottleneck(jobs, daily, profile, timing):
         ('Volume', daily['days_on_goal'], 14, 14),
         ('Profile', latest['pct'] if latest else None, 1 if latest else 0, 1),
         ('Proposal', rate(counts['replied'], counts['applied']), counts['applied'], MIN_RATE),
-        ('Loom', rate(hooks.count('pass'), len(hooks)), len(hooks), MIN_RATE),
         ('Speed', timing['our_reply']['median_s'] / 3600 if timing['our_reply']['median_s'] is not None else None,
          timing['our_reply']['n'], MIN_MEDIAN),
         ('Messaging', rate(counts['call'], counts['replied']), counts['replied'], MIN_RATE),

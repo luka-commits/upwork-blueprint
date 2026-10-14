@@ -74,15 +74,15 @@ def privacy_contract():
                        'n': 1, 'state': 'undone'}
         unagreed = copy.deepcopy(card); unagreed['goals'] = [legacy_goal]
         refused(lambda: analytics.validate_community_card(unagreed, []), 'unagreed library prefix')
-        goal = {'stage': analytics.LABELS['reply_rate'], 'kpi': 'reply_rate',
+        goal = {'stage': analytics.LABELS['speed_10min'], 'kpi': 'speed_10min',
                 'change': 'Ask Acme Corporation for $200/hour', 'start': '2026-10-01',
                 'primary': True, 'cue': 'Before submitting', 'action': 'Use the approved proof',
                 'fallback': 'Use one sample', 'review_on': '2026-10-08',
-                'goal_library_id': 'reply-proof'}
+                'goal_library_id': 'speed-qualified'}
         analytics.validate_goals({'week': '2026-W40', 'goals': [goal]})
         identity = analytics.goal_id(goal, '2026-W40')
-        public_goal = {'goal_id': identity, 'goal_library_id': 'reply-proof',
-                       'text': 'Use one relevant proof', 'done': False, 'k': 0,
+        public_goal = {'goal_id': identity, 'goal_library_id': 'speed-qualified',
+                       'text': 'Apply promptly after checking fit', 'done': False, 'k': 0,
                        'n': 1, 'state': 'undone'}
         candidate = copy.deepcopy(card); candidate['goals'] = [public_goal]
         refused(lambda: analytics.validate_community_card(copy.deepcopy(candidate), []), 'no agreed ledger')
@@ -91,7 +91,7 @@ def privacy_contract():
         (folder / 'data/goals.jsonl').write_text(json.dumps({'week': '2026-W40', 'goals': [goal]}) + '\n')
         validated = analytics.validate_community_card(copy.deepcopy(candidate), sources)
         markup = analytics.public_onepager_html(validated)
-        assert 'Use one relevant proof' in markup and 'Acme' not in markup and '$200/hour' not in markup
+        assert 'Apply promptly after checking fit' in markup and 'Acme' not in markup and '$200/hour' not in markup
         for bypass in ('Ask Acme Corporation for $200/hour', 'Ask Secret, Client about work',
                        'Review Migration', 'Review the hidden budget', 'Visit example.com',
                        'When choosing proof → use one'):
@@ -398,10 +398,10 @@ def custom_coverage_contract():
         for row in gaps:
             assert row in snapshot['coverage']['missing'], row
             assert row in analytics.facts_sheet(snapshot)['coverage']['missing'], row
-        assert snapshot['coverage']['sources'][:6] == base['coverage']['sources'], 'Six known sources retain their wording and dependencies.'
+        assert snapshot['coverage']['sources'][:5] == base['coverage']['sources'], 'Five known sources retain their wording and dependencies.'
         assert [row for row in snapshot['coverage']['missing'] if row['source'] in {source['source'] for source in base['coverage']['sources']}] == base['coverage']['missing']
         assert all(set(row) == {'source', 'blocks', 'how_to_supply'} for row in base['coverage']['missing'])
-        assert len(base['coverage']['sources']) == 6
+        assert len(base['coverage']['sources']) == 5
         for source in base['coverage']['sources']:
             canonical = dict(source=source['source'], what='Source unavailable',
                              blocks=source['affects'], how_to_supply=source['fix'])
@@ -495,17 +495,13 @@ def review_fixture_jobs(folder):
                     points=[{'point': p, 'state': ('not needed' if state == 'not_needed' else state) if p == 1 else 'met',
                              'quote': quote, 'reason': repeated if index < 2 else 'Separate call reason.'}
                             for p in range(1, 10)])
-        proposal = dict(review, points=[dict(point, label=('Scope', 'Price', 'Decision date')[i]) for i, point in enumerate(review['points'][:3])])
-        for filename in ('application.sent.md', 'proposal.md'):
-            (home / filename).write_text(quote)
         (home / 'thread.json').write_text(json.dumps({'messages_complete': True, 'messages': [
             {'from': 'me', 'at': '2026-10-13T10:00:00+02:00', 'text': quote}]}))
         (home / 'call.md').write_text('Member: Maya\nComplete: yes\nLanguage: English\nMaya: Who owns the inputs?\nClient: ' + quote + '\n')
         job = {'id': jid, 'title': f'Collection SEO audit {index + 1}', 'source': 'outbound',
                'applied_at': '2026-10-12T09:00:00+02:00', 'replied_at': '2026-10-13T10:00:00+02:00',
                'call_held_at': '2026-10-13T11:00:00+02:00', 'proposal_sent_at': '2026-10-13T12:00:00+02:00',
-               'application_sent_verified': True, 'application_review': review, 'conversation_review': chat,
-               'call_review': call, 'proposal_review': proposal}
+               'application_sent_verified': True, 'conversation_review': chat, 'call_review': call}
         jobs.append(job)
     return jobs
 
@@ -516,13 +512,13 @@ def product_review_computations():
         snapshot = {'week': '2026-W42', 'generated_at': '2026-10-14T15:00:00+02:00', 'reviews': {}}
         snapshot['call_cards'] = analytics.call_cards(snapshot, jobs)
         projected = analytics.conversations_fields(snapshot, jobs)
-        assert set(projected['criteria']) == {'applications', 'chats', 'calls', 'proposals'}
+        assert set(projected['criteria']) == {'chats', 'calls'} and set(projected['sections']) == {'chats', 'calls'}
         for kind, entries in projected['sections'].items():
             assert len(entries) == 4 and all(row['reviewable'] for row in entries), (kind, entries)
             for row in entries:
-                expected = jobs[int(row['lead_id']) - 991100100]['application_review']['key_finding']
+                expected = jobs[int(row['lead_id']) - 991100100]['conversation_review']['key_finding']
                 assert row['key_finding'] == expected and len(row['key_finding'].split()) <= 12
-                if kind != 'applications': assert row['duplicate_of_stage'] == 'applications', (kind, row)
+                if kind != 'chats': assert row['duplicate_of_stage'] == 'chats', (kind, row)
             chart = projected['criteria'][kind]
             assert chart['reviewed_n'] == 4 and chart['too_few'] is False, chart
             point = chart['points'][0]
@@ -531,16 +527,16 @@ def product_review_computations():
         patterns = projected['patterns']
         assert patterns, 'The repeated, source-backed cross-stage finding disappeared.'
         pattern = next(row for row in patterns if row['better_line'] == 'Who will supply the audit inputs before we agree the date?')
-        assert (pattern['k'], pattern['n']) == (8, 16), pattern
+        assert (pattern['k'], pattern['n']) == (4, 8), pattern
         assert isinstance(pattern['better_line'], str) and pattern['better_line'].strip(), pattern
         assert len({q['quote'] for q in pattern['quotes']}) == len(pattern['quotes']), pattern
         assert 1 <= len(pattern['quotes']) <= 2
         for support in pattern['quotes']:
             assert support['title'] and support['date'] and support['lead_id']
-            assert support['quote'] in (folder / 'jobs' / support['lead_id'] / {'applications': 'application.sent.md', 'chats': 'thread.json', 'calls': 'call.md', 'proposals': 'proposal.md'}[support['stage']]).read_text()
+            assert support['quote'] in (folder / 'jobs' / support['lead_id'] / {'chats': 'thread.json', 'calls': 'call.md'}[support['stage']]).read_text()
         canonical = copy.deepcopy(jobs)
         original_threads = {}
-        stage_kinds = {'applications':'application', 'chats':'conversation', 'calls':'call', 'proposals':'proposal'}
+        stage_kinds = {'chats':'conversation', 'calls':'call'}
         thin = dict(snapshot, reviews={})
         for stage, kind in stage_kinds.items():
             thin['reviews'][kind] = {'rubric': []}
@@ -565,7 +561,6 @@ def product_review_computations():
                            for point_id, point in reversed(items)]
                 if stage == 'chats' and index % 2 == 0:
                     overlay = {point['point']:{'state':point['state']} for point in overlay}
-                if stage == 'applications': overlay = [point for point in overlay if point['point'] != 7]
                 thin['reviews'][kind]['rubric'].append({'lead_id':job['id'], 'reviewable':True, 'points':overlay})
         assert 'quote' not in json.dumps(thin['reviews']), 'Weekly fixture must remain quote-free.'
         thin['call_cards'] = analytics.call_cards(thin, canonical)
@@ -584,7 +579,7 @@ def product_review_computations():
                 weekly = weekly if isinstance(weekly, dict) else {point['point']:point for point in weekly}
                 actual = {point['point']:point for point in row['points']}
                 assert set(actual) == set(original), (stage, actual)
-                path = folder/'jobs'/job['id']/{'applications':'application.sent.md','chats':'thread.json','calls':'call.md','proposals':'proposal.md'}[stage]
+                path = folder/'jobs'/job['id']/{'chats':'thread.json','calls':'call.md'}[stage]
                 artifact = path.read_text()
                 for point_id, point in original.items():
                     for field in ('quote','reason','better_line','pattern_sentence'):
@@ -601,7 +596,7 @@ def product_review_computations():
         for field, value in (('pattern_sentence','In 99 of 100 reviews, the owner was missing.'),('better_line','')):
             malformed=copy.deepcopy(jobs)
             for job in malformed:
-                for kind in ('application','conversation','call','proposal'):
+                for kind in ('conversation','call'):
                     job[kind+'_review'][field]=value
             invalid_snapshot=dict(snapshot,call_cards=analytics.call_cards(snapshot,malformed))
             assert analytics.conversations_fields(invalid_snapshot,malformed)['patterns']==[], field
@@ -611,18 +606,18 @@ def product_review_computations():
                 ('Use the dedicated finding', 'Fallback comes second. Extra sentence.', 'Use the dedicated finding'),
                 (None, 'Use the first sentence. Never include this second sentence.', 'Use the first sentence.'),
                 (' '.join(['word'] * 20), 'Fallback.', ' '.join(['word'] * 12))):
-            changed = copy.deepcopy(jobs[:1]); review = changed[0]['application_review']
+            changed = copy.deepcopy(jobs[:1]); review = changed[0]['conversation_review']
             review['key_finding'] = dedicated; review['free_read'] = free
-            rows = analytics.conversations_fields(snapshot, changed)['sections']['applications']
+            rows = analytics.conversations_fields(snapshot, changed)['sections']['chats']
             assert rows[0]['key_finding'] == expected, rows[0]
-        changed = copy.deepcopy(jobs[:1]); changed[0]['application_review'].update(key_finding=None, free_read=None)
-        row = analytics.conversations_fields(snapshot, changed)['sections']['applications'][0]
+        changed = copy.deepcopy(jobs[:1]); changed[0]['conversation_review'].update(key_finding=None, free_read=None)
+        row = analytics.conversations_fields(snapshot, changed)['sections']['chats'][0]
         assert repeated not in row['key_finding'], 'A rubric point reason leaked into the finding.'
-        (folder / 'jobs' / jobs[0]['id'] / 'application.sent.md').unlink()
-        absent = analytics.conversations_fields(snapshot, jobs)['sections']['applications']
+        (folder / 'jobs' / jobs[0]['id'] / 'thread.json').unlink()
+        absent = analytics.conversations_fields(snapshot, jobs)['sections']['chats']
         missing = next(row for row in absent if row['lead_id'] == jobs[0]['id'])
         assert missing['marker'] == 'not reviewed' and not missing['reviewable']
-        markers = {row['lead_id']: row['marker'] for row in projected['sections']['applications']}
+        markers = {row['lead_id']: row['marker'] for row in projected['sections']['chats']}
         assert markers[jobs[0]['id']] == markers[jobs[3]['id']] == 'keep'
         assert markers[jobs[1]['id']] == markers[jobs[2]['id']] == 'needs work'
 
@@ -933,140 +928,6 @@ PREVIEW2_BACKEND_SLICE = {'agreement': {'week': '2026-W42',
              'lead_id': None,
              'at': '2026-10-12T10:29:31.063616+01:00',
              'reason': 'Weekly analytics criteria met for 2026-W42.'}],
- 'applications': [{'job': {'id': '970007009',
-                           'source': 'outbound',
-                           'title': 'Framer landing page for a design agency',
-                           'application_sent_verified': True,
-                           'application_review': {'state': 'fail',
-                                                  'reviewable': True,
-                                                  'quote': 'I have not included the requested mobile walkthrough.',
-                                                  'free_read': 'Include the mobile walkthrough explicitly requested in '
-                                                               'the post. Keep the other specific passages.',
-                                                  'next_message': 'Which part of the website should resolve “the cms '
-                                                                  'migration must retain urls” first?',
-                                                  'points': [{'point': 1,
-                                                              'state': 'met',
-                                                              'quote': 'The CMS migration must retain URLs. I would '
-                                                                       'put that buyer decision first.',
-                                                              'reason': 'The first line names the posted buyer '
-                                                                        'problem'},
-                                                             {'point': 2,
-                                                              'state': 'met',
-                                                              'quote': 'My relevant example shows a framer landing '
-                                                                       'page with editable content and mobile QA.',
-                                                              'reason': 'The example matches this page and editing '
-                                                                        'concern'},
-                                                             {'point': 3,
-                                                              'state': 'met',
-                                                              'quote': 'Your team will edit native CMS fields; I will '
-                                                                       'document them and include a short handover.',
-                                                              'reason': 'The screening answer explains native CMS '
-                                                                        'ownership'},
-                                                             {'point': 4,
-                                                              'state': 'met',
-                                                              'quote': 'The fixed scope is the agreed marketing page, '
-                                                                       'mobile QA and CMS handover; I quote $65/h or '
-                                                                       '$2,500-$6,000 after confirming the page count.',
-                                                              'reason': 'The bid states the scope and rate boundary'},
-                                                             {'point': 5,
-                                                              'state': 'met',
-                                                              'quote': 'I would keep the first step focused on the '
-                                                                       'page decision.',
-                                                              'reason': 'The application stays focused and concise'},
-                                                             {'point': 6,
-                                                              'state': 'met',
-                                                              'quote': 'Which buyer objection should this page answer '
-                                                                       'first?',
-                                                              'reason': 'One easy buyer question closes the '
-                                                                        'application'},
-                                                             {'point': 7,
-                                                              'state': 'missing',
-                                                              'quote': 'I have not included the requested mobile '
-                                                                       'walkthrough.',
-                                                              'reason': 'Include the mobile walkthrough explicitly '
-                                                                        'requested in the post'}]},
-                           'applied_at': '2026-10-09T10:00:00+01:00'},
-                   'sent': 'The CMS migration must retain URLs. I would put that buyer decision first.\n'
-                           'My relevant example shows a framer landing page with editable content and mobile QA.\n'
-                           'Your team will edit native CMS fields; I will document them and include a short handover.\n'
-                           'The fixed scope is the agreed marketing page, mobile QA and CMS handover; I quote $65/h or '
-                           '$2,500-$6,000 after confirming the page count.\n'
-                           'Which buyer objection should this page answer first?\n'
-                           'I would keep the first step focused on the page decision.\n'
-                           'I have not included the requested mobile walkthrough.\n',
-                   'post': '# Framer landing page for a design agency\n'
-                           'Fictional brief: The CMS migration must retain URLs. B2B SaaS or agency marketing site. '
-                           'Budget $2,500-$6,000 or $65/h.\n'
-                           '\n'
-                           'Please include a short Loom showing the mobile comparison interaction.\n'
-                           '\n'
-                           'Please include a short Loom showing the mobile comparison interaction.\n'
-                           '\n'
-                           'Screening question: How will our team edit the content after handover?\n'},
-                  {'job': {'id': '970007019',
-                           'source': 'outbound',
-                           'title': 'Framer homepage for a partnership agency',
-                           'application_sent_verified': True,
-                           'application_review': {'state': 'pass',
-                                                  'reviewable': True,
-                                                  'quote': 'A Loom is optional here; the written plan covers the '
-                                                           'decision.',
-                                                  'free_read': 'Keep the problem-led opener, matching proof and '
-                                                               'specific CMS answer. The close asks one useful buyer '
-                                                               'question.',
-                                                  'next_message': 'Which part of the website should resolve “the cms '
-                                                                  'migration must retain urls” first?',
-                                                  'points': [{'point': 1,
-                                                              'state': 'met',
-                                                              'quote': 'The CMS migration must retain URLs. I would '
-                                                                       'put that buyer decision first.',
-                                                              'reason': 'The first line names the posted buyer '
-                                                                        'problem'},
-                                                             {'point': 2,
-                                                              'state': 'met',
-                                                              'quote': 'My relevant example shows a framer homepage '
-                                                                       'with editable content and mobile QA.',
-                                                              'reason': 'The example matches this page and editing '
-                                                                        'concern'},
-                                                             {'point': 3,
-                                                              'state': 'met',
-                                                              'quote': 'Your team will edit native CMS fields; I will '
-                                                                       'document them and include a short handover.',
-                                                              'reason': 'The screening answer explains native CMS '
-                                                                        'ownership'},
-                                                             {'point': 4,
-                                                              'state': 'met',
-                                                              'quote': 'The fixed scope is the agreed marketing page, '
-                                                                       'mobile QA and CMS handover; I quote $65/h or '
-                                                                       '$2,500-$6,000 after confirming the page count.',
-                                                              'reason': 'The bid states the scope and rate boundary'},
-                                                             {'point': 5,
-                                                              'state': 'met',
-                                                              'quote': 'I would keep the first step focused on the '
-                                                                       'page decision.',
-                                                              'reason': 'The application stays focused and concise'},
-                                                             {'point': 6,
-                                                              'state': 'met',
-                                                              'quote': 'Which buyer objection should this page answer '
-                                                                       'first?',
-                                                              'reason': 'One easy buyer question closes the '
-                                                                        'application'}]},
-                           'applied_at': '2026-10-09T10:00:00+01:00'},
-                   'sent': 'The CMS migration must retain URLs. I would put that buyer decision first.\n'
-                           'My relevant example shows a framer homepage with editable content and mobile QA.\n'
-                           'Your team will edit native CMS fields; I will document them and include a short handover.\n'
-                           'The fixed scope is the agreed marketing page, mobile QA and CMS handover; I quote $65/h or '
-                           '$2,500-$6,000 after confirming the page count.\n'
-                           'Which buyer objection should this page answer first?\n'
-                           'I would keep the first step focused on the page decision.\n'
-                           'A Loom is optional here; the written plan covers the decision.\n',
-                   'post': '# Framer homepage for a partnership agency\n'
-                           'Fictional brief: The CMS migration must retain URLs. B2B SaaS or agency marketing site. '
-                           'Budget $2,500-$6,000 or $65/h.\n'
-                           '\n'
-                           'A Loom is optional; a specific written approach is sufficient.\n'
-                           '\n'
-                           'Screening question: How will our team edit the content after handover?\n'}],
  'call': {'job': {'id': '970006003',
                   'title': 'Webflow resource hub for a procurement SaaS',
                   'call_held_at': '2026-10-08T14:00:00+01:00',
@@ -1226,26 +1087,7 @@ def owner_badge_progress_contract():
 
 def owner_review_fields_contract():
     with fixture('owner-review-fields') as folder:
-        jobs = []
-        for source in PREVIEW2_BACKEND_SLICE['applications']:
-            job = copy.deepcopy(source['job']); jobs.append(job)
-            home = folder / 'jobs' / str(job['id']); home.mkdir()
-            (home / 'job.md').write_text(source['post'])
-            (home / 'application.sent.md').write_text(source['sent'])
         snapshot = {'generated_at': '2026-10-12T10:00:00+02:00', 'reviews': {}, 'call_cards': []}
-        rows = {row['lead_id']: row for row in analytics.conversations_fields(snapshot, jobs)['sections']['applications']}
-        for jid, expected, requested in [('970007009', 'requested_not_sent', True), ('970007019', 'not_sent', False)]:
-            row = rows[jid]
-            assert row['reviewable'] and row['loom_status'] == expected and row['loom_requested'] is requested
-            assert row['loom_transcript'] is None and row['loom_source_state'] == 'not_applicable'
-        home = folder / 'jobs/970007019'
-        job = dict(jobs[-1], loom_url='https://www.loom.com/share/stale-link')
-        assert analytics.application_loom_fields(job, home, PREVIEW2_BACKEND_SLICE['applications'][-1]['sent'], '')['loom_status'] == 'not_sent'
-        assert analytics.application_loom_fields(job, home, '', '')['loom_status'] == 'unknown'
-        assert analytics.application_loom_fields(job, home, 'I have not included a Loom.', '')['loom_status'] == 'not_sent'
-        for sent in ('https://www.loom.com/share/actual-sent', 'My short Loom shows the mobile pricing toggle.'):
-            row = analytics.application_loom_fields(job, home, sent, '')
-            assert row['loom_status'] == 'sent' and row['loom_source_state'] == 'unknown'
         call = PREVIEW2_BACKEND_SLICE['call']; job = copy.deepcopy(call['job'])
         home = folder / 'jobs' / str(job['id']); home.mkdir()
         (home / 'call.md').write_text(call['transcript'])

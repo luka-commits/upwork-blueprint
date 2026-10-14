@@ -19,7 +19,7 @@ follows the client's language (`references/copy.md`).
 ## The path
 
 `/about-me` · `/profile` · `/find-jobs` · `/proposal` · `/brief` ·
-`/sales-call-proposal` · `/onboarding` · `/analytics` · `/call-review`, plus the helper `/dashboard`. A focus argument
+`/sales-call-proposal` · `/onboarding` · `/analytics` · `/call-review` · `/loom-review`, plus the helper `/dashboard`. A focus argument
 runs only that part; an input matching no focus value gets the list and a question.
 Everything after `/about-me` reads that one file.
 

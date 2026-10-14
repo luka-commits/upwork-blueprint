@@ -128,13 +128,11 @@ export type AnalyticsCriteria = {
   too_few: boolean;
 };
 export type AnalyticsConversations = {
-  criteria?: Partial<Record<'applications' | 'chats' | 'calls' | 'proposals', AnalyticsCriteria>>;
-  sections?: { applications?: Record<string, any>[]; chats?: Record<string, any>[]; calls?: AnalyticsCallCard[]; proposals?: Record<string, any>[] };
+  criteria?: Partial<Record<'chats' | 'calls', AnalyticsCriteria>>;
+  sections?: { chats?: Record<string, any>[]; calls?: AnalyticsCallCard[] };
   patterns?: AnalyticsConversationPattern[];
-  applications?: Record<string, any>[];
   chats?: Record<string, any>[];
   calls?: AnalyticsCallCard[];
-  proposals?: Record<string, any>[];
 };
 
 /** Translate member copy; unsafe quoted spans are omitted without changing source words. */
@@ -146,8 +144,8 @@ export const ANALYTICS_FIELD_LABELS: Record<string, string> = {
   first_reply: 'First reply', follow_ups_on_time: 'Follow-ups on their due day',
   proposal_on_time: 'Proposal within 30 minutes', job_fit: 'Jobs that fit your lane and rate',
   won_value: 'New contract value', value_per_100_connects: 'Contract value per 100 Connects',
-  application_review: 'Application review', conversation_review: 'Conversation review',
-  call_review: 'Call review', proposal_review: 'Proposal review', call_to_won: 'Call to won',
+  conversation_review: 'Conversation review',
+  call_review: 'Call review', call_to_won: 'Call to won',
   goal_effect: 'Goal results', goal_done: 'Goals carried out', lost_reasons: 'Reasons deals ended',
   done_k: 'Times carried out', done_n: 'Opportunities', goal_id: 'Goal',
   evidence_lead_ids: 'Source leads', lead_id: 'Lead', review_on: 'Review date',

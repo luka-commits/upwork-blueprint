@@ -5,7 +5,7 @@ import { useCockpit } from '@/lib/context';
 import FunnelScorecard from './FunnelScorecard';
 import AnalyticsConversations, { CallMoments } from './AnalyticsConversations';
 import { readAnalyticsReturn, restoreAnalyticsReturnScroll } from '@/lib/analytics-navigation';
-import AnalyticsAchievements from './AnalyticsAchievements';
+import AnalyticsAchievements, { effectWords } from './AnalyticsAchievements';
 import CopyButton from './CopyButton';
 import { analyticsMemberText, type AnalyticsPresentation } from '@/lib/analytics-contract';
 
@@ -18,6 +18,19 @@ const plain = analyticsMemberText;
 const evidence = (row: Row = {}) => list(row.evidence || row.evidence_lead_ids || row.lead_ids);
 const periodText = (value: any) => !value ? 'Period unavailable' : typeof value === 'string' ? plain(value) : `${value.start || 'Unknown start'} to ${value.end || 'Unknown end'}`;
 const effectText = (goal: Row) => goal.effect_text || ({worked:'Improvement observed',not:'No improvement observed',undecided:'Too early to tell'} as Row)[goal.effect] || 'Effect unknown';
+/** Member copy without the measurement-window phrasing: "14 of 20 reached a booking", nothing more. */
+const tidy = (value: any) => plain(value).replace(/\s+(?:in|within|over) the (?:observed )?(?:last )?\d*-?(?:day )?window\b/gi, '');
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const checkDay = (iso: any) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  if (!m) return '';
+  const date = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return `${DAYS[date.getUTCDay()]} ${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}`;
+};
+const lowerFirst = (text: string) => /^[A-Z][a-z]/.test(text) ? text[0].toLowerCase() + text.slice(1) : text;
+const whenDo = (goal: Row) => goal.when || goal.when_line ? plain(goal.when || goal.when_line)
+  : goal.cue ? `${/^(when|before|after|once|if|while|as)\b/i.test(goal.cue) ? plain(goal.cue) : `When ${lowerFirst(plain(goal.cue))}`} → ${lowerFirst(plain(goal.action || 'agree the action in /analytics'))}`
+    : 'Agree a cue in /analytics.';
 const sourceLabel=(gap:Row,jobs:Row[]=[])=> {
   const source=String(gap.source || 'Source'), id=source.match(/[:#](\d{6,25})\b/)?.[1], title=id && jobs.find(job=>String(job.id)===id)?.title;
   const label=plain(source.replace(/[:#]\d{6,25}\b/g,''));
@@ -63,19 +76,6 @@ export function CallCard({card: savedCard,showTitle=true}: {card: Row;showTitle?
     {id && <p><a href={`/files/${encodeURIComponent(id)}/call.md`} target="_blank" rel="noreferrer">Open full transcript →</a></p>}
   </article>;
 }
-/** A recorded transcript alone does not establish that the member sent a Loom. */
-export function loomStatus(review: Row, job: Row = {}): 'sent' | 'requested' | 'none' | 'unknown' {
-  if(review.loom_status==='sent')return 'sent';
-  if(review.loom_status==='requested_not_sent')return 'requested';
-  if(review.loom_status==='not_sent')return 'none';
-  if(review.loom_status==='unknown')return 'unknown';
-  const copy=String(review.sent_copy || '');
-  if(review.loom_sent === true || job.loom_sent === true || review.loom_sent_at || job.loom_sent_at || /https?:\/\/(?:www\.)?loom\.com\//i.test(copy))return 'sent';
-  const raw=review.points || review.rubric || {}, points:Row[]=Array.isArray(raw)?raw:Object.entries(raw).map(([key,value])=>({...value as Row,point:key}));
-  const loom=points.find(point=>Number(point.point || point.key)===7 || point.key==='loom' || point.point==='loom');
-  if(review.loom_requested === true || job.loom_requested === true || job.loom_required === true || review.loom_required === true || loom && /requested|required|explicitly.*post/i.test([loom.reason,loom.quote].join(' ')))return 'requested';
-  return 'none';
-}
 const CHAT_POINTS: Row = {answered_question:"Answered the client's question", qualifying_question:'Qualifying question', call_proposal:'Call proposal when useful'};
 export function ReviewCard({review,kind,job = {}}: {review:Row;kind?:string;job?:Row}) {
   const points = review.points || review.rubric || {};
@@ -87,14 +87,14 @@ export function ReviewCard({review,kind,job = {}}: {review:Row;kind?:string;job?
     {kind === 'chats' && <p className="an-meta">Last writer: {plain(review.last_writer)}</p>}
     {allowed.length > 0 && <details><summary>{kind === 'chats' ? 'Content checks' : 'Review scan'}</summary>{allowed.map((point:Row,i:number) => <section key={point.key || i}><h4>{CHAT_POINTS[point.key] || plain(point.label || point.name || point.key || `Point ${i+1}`)}</h4><p>{plain(point.state || point.status)}</p>{point.quote && <SourceQuote value={point.quote}/>}{point.reason && <Text value={point.reason}/>}</section>)}</details>}
     {list(review.missing_sources).map((gap,i) => <FullText key={i} value={`${sourceLabel(typeof gap==='object'?gap:{source:gap})} unknown. ${sourceInstruction(typeof gap==='object'?gap:{source:gap})}`}/>)}
-    {kind === 'applications' && <details><summary>Sent application and Loom</summary>{review.sent_copy ? <Text verbatim value={review.sent_copy}/> : <Empty>Sent copy unknown. Paste the application you sent, then run <code>/analytics</code>.</Empty>}{loomStatus(review,job)==='sent' ? review.loom_transcript ? <Text verbatim value={review.loom_transcript}/> : <Empty>Loom transcript unknown. Paste the transcript of the Loom you sent, then run <code>/analytics</code>.</Empty> : <p>{loomStatus(review,job)==='requested' ? 'Loom requested, not sent' : loomStatus(review,job)==='unknown' ? 'Loom sent status unknown. Supply the application you sent, then run /analytics.' : 'No Loom sent'}</p>}</details>}
-    {kind === 'proposals' && <dl className="an-evidence-facts">{['scope','price','decision_date'].map(key => <div key={key}><dt>{plain(key)}</dt><dd>{plain(review[key])}</dd></div>)}</dl>}
   </article>;
 }
-function PriorGoal({goal,choose}: {goal:Row;choose:(s:Selection)=>void}) {
-  const checked = goal.done_n === 0 ? 'No opportunities this week' : goal.done_k == null || goal.done_n == null
-    ? 'Could not check yet' : `did it ${goal.done_k} of ${goal.done_n}`;
-  return <article className="an-prior-goal"><p><span aria-label={goal.done_n>0 && goal.done_k===goal.done_n ? 'Goal carried out' : 'Goal check'}>{goal.done_n>0 && goal.done_k===goal.done_n ? '✓' : '·'}</span> <strong>{plain(goal.change || goal.text || 'Agreed goal')}</strong>: {checked}. {plain(effectText(goal))}</p><button className="an-text-button" onClick={() => choose({title:goal.change || 'Goal review',period:goal.period,evidence:evidence(goal),note:[effectText(goal),goal.effect_note,goal.decision,goal.two_weeks_undone ? goal.fallback : null].filter(Boolean).join(' ')})}>Evidence →</button></article>;
+/** One line: mark, "did it k of n", the effect in a few words. */
+function PriorGoal({goal,choose,showTitle=false}: {goal:Row;choose:(s:Selection)=>void;showTitle?:boolean}) {
+  const k=goal.done_k,n=goal.done_n,known=typeof k==='number'&&typeof n==='number';
+  const checked = n === 0 ? 'nothing came up' : !known ? 'not checked yet' : `did it ${k} of ${n}`;
+  const [mark,label] = !known || n===0 ? ['·','Goal check'] : k===n ? ['✓','Goal carried out'] : k===0 ? ['✗','Goal not carried out'] : ['◐','Goal partly carried out'];
+  return <article className="an-prior-goal"><p><span aria-label={label}>{mark}</span> {showTitle && <><strong>{plain(goal.change || goal.text || 'Agreed goal')}</strong> · </>}{checked} · {effectWords(goal)}</p><button className="an-text-button" onClick={() => choose({title:goal.change || 'Goal review',period:goal.period,evidence:evidence(goal),note:[effectText(goal),goal.effect_note,goal.decision,goal.two_weeks_undone ? goal.fallback : null].filter(Boolean).join(' ')})}>Evidence →</button></article>;
 }
 export const goalMatches = (goal:Row, other:Row) => {
   if (goal.goal_id && goal.goal_id===other.goal_id) return true;
@@ -112,21 +112,25 @@ export default function AnalyticsPage() {
   const go=(index:number)=>{closeDrawer?.();setTab(index);tabs.current[index]?.focus();};
   if(!state)return null;
   const analytics=state.analytics || {},snapshot=analytics.latest,jobs=list(state.jobs);
-  if(!snapshot)return <section className="an-shell"><h1>Your weekly analytics</h1><Empty>No saved weekly review yet. Run <code>/analytics</code> to review your evidence and agree your focus.</Empty></section>;
+  if(!snapshot)return <section className="an-shell"><h1>Your weekly analytics</h1><Empty>No weekly review yet. Run <code>/analytics</code>.</Empty></section>;
   const p:AnalyticsPresentation & Row=snapshot.presentation || {},progress:Row=p.progress_strip || p.progress || {},north=snapshot.north_star || {},verdict=snapshot.verdict || {},periods=snapshot.periods || {},conversations:Row=snapshot.conversations || p.conversations || {};
   const activeGoals=list(analytics.goals?.goals || analytics.goals);
   const goals=(analytics.goals_week ? activeGoals : list(snapshot.goals_next).length ? list(snapshot.goals_next) : activeGoals.length ? activeGoals : list(p.goal_cards)).map(goal => ({...goal,...list(p.goal_cards).find(card => goalMatches(goal,card))})).filter((goal,index,all)=>all.findIndex(other=>String(other.goal_id || other.change || other.text || other.kpi).trim().toLowerCase()===String(goal.goal_id || goal.change || goal.text || goal.kpi).trim().toLowerCase())===index);
   const legacy:Row=(p as Row).voyage || {},badges=list(p.badges || progress.badges || legacy.stations || snapshot.badge_catalogue || snapshot.badges),history=[...list(p.goals_history),...list(legacy.goals_history),...list(legacy.goal_history),...list(analytics.history)].flatMap(row=>Array.isArray(row.goals_review)?row.goals_review.map((goal:Row)=>({...goal,week:row.week})):row);
   const sections=conversations.sections || conversations;
   const calls=list(sections.calls || snapshot.call_cards),reviews=snapshot.reviews || {};
-  const entries:Row={applications:list(sections.applications || reviews.application?.entries || reviews.application?.items),chats:list(sections.chats || snapshot.conversation_review?.threads || reviews.conversation?.threads),calls,proposals:list(sections.proposals || reviews.proposal?.entries || reviews.proposal?.items)};
+  const entries:Row={chats:list(sections.chats || snapshot.conversation_review?.threads || reviews.conversation?.threads),calls};
   const patterns=list(conversations.patterns || p.conversation_patterns);
   const score=snapshot.funnel_score || {},savedHistory=list(analytics.history).filter(row=>row.week!==snapshot.week);
   const scoreHistory=list(progress.score_history || p.score_history || score.history || [...savedHistory.map(row=>({week:row.week,value:row.funnel_score?.score ?? null})),{week:snapshot.week,value:score.score ?? null}]).slice().sort((a,b)=>String(a.week).localeCompare(String(b.week)));
   const allScoreHistory=[...savedHistory.map(row=>({week:row.week,value:row.funnel_score?.score ?? null})),...scoreHistory,{week:snapshot.week,value:score.score ?? null}].filter((row,index,all)=>all.findLastIndex(other=>other.week===row.week)===index).sort((a,b)=>String(a.week).localeCompare(String(b.week)));
   const rawRank:Row=(typeof p.rank==='object' && p.rank) || p.rank_progress || (typeof snapshot.rank==='object' && snapshot.rank) || snapshot.rank_progress || legacy.rank_progress || {};
   const rank:Row={...rawRank,name:rawRank.name || rawRank.rank || (typeof p.rank==='string'?p.rank:null) || (typeof snapshot.rank==='string'?snapshot.rank:null),next_name:rawRank.next_name || rawRank.next_rank};
-  const priorGoals=list(snapshot.goals_review), endedGoals=priorGoals.filter(prior=>!goals.some(goal=>goalMatches(goal,prior)));
+  const priorGoals=list(snapshot.goals_review),titleOf=(goal:Row)=>String(goal.change || goal.text || goal.title || '').trim().toLowerCase().replace(/\s+/g,' ');
+  // A card shows its own last-week line; a goal whose id changed but whose title carried on still counts as that card's.
+  const priorFor=(goal:Row)=>priorGoals.find(row=>goalMatches(goal,row)) || [...priorGoals].reverse().find(row=>titleOf(row) && titleOf(row)===titleOf(goal));
+  const endedTitles=new Set<string>(goals.slice(0,3).flatMap(goal=>[titleOf(goal)]));
+  const endedGoals=[...priorGoals].reverse().filter(prior=>{const title=titleOf(prior);if(!title || endedTitles.has(title))return false;endedTitles.add(title);return true;}).reverse().slice(0,3);
   const accountability:Row={...(p.accountability || {}),...(snapshot.accountability || {})};
   if (!accountability.application_streak) accountability.application_streak={current:snapshot.streak_weeks ?? p.streak_weeks ?? legacy.streak_weeks,best:snapshot.best_streak_weeks ?? p.best_streak_weeks ?? legacy.best_streak_weeks};
   const live=snapshot.report_facts?.live || {}, proposals=live.proposals;
@@ -138,15 +142,15 @@ export default function AnalyticsPage() {
   return <div className="an-shell"><div className="an-page-content">
     {snapshot.synthetic && <p className="an-sample-label">Example data. No member facts.</p>}
     <div className="an-tabs" role="tablist" aria-label="Weekly review">{TABS.map((name,i)=><button key={name} ref={node=>{tabs.current[i]=node;}} id={`analytics-tab-${i}`} role="tab" aria-selected={tab===i} aria-controls={`analytics-panel-${i}`} tabIndex={tab===i?0:-1} onClick={()=>go(i)} onKeyDown={event=>{let index=i;if(event.key==='ArrowRight'||event.key==='ArrowLeft')index=(i+(event.key==='ArrowRight'?1:-1)+TABS.length)%TABS.length;else if(event.key==='Home')index=0;else if(event.key==='End')index=TABS.length-1;else return;event.preventDefault();go(index);}}>{name}</button>)}</div>
-    <details className={`an-methodology${tab===1 ? ' an-methodology-inline' : ''}`}><summary aria-label="How this review is measured" title="How this review is measured">ⓘ</summary><div><p>{periodText(periods.activity || snapshot.window)}. Funnel results compare the last 28 days with the 28 days before. Finished cases count; pending cases stay separate.</p><p>Last sync {plain(periods.synced_at || state.sync?.synced_at || 'not recorded')}. Next review {plain(p.next_run_day || analytics.next_run_day || 'Monday')}.</p>{list(snapshot.coverage?.missing).filter((gap,i,all)=>all.findIndex(other=>sourceLabel(other,jobs)===sourceLabel(gap,jobs) && sourceInstruction(other)===sourceInstruction(gap))===i).map((gap,i)=><p key={i}>{sourceLabel(gap,jobs)} unknown. {sourceInstruction(gap)}</p>)}</div></details>
+    <details className={`an-methodology${tab===1 ? ' an-methodology-inline' : ''}`}><summary aria-label="How this review is measured" title="How this review is measured">ⓘ</summary><div><p>{periodText(periods.activity || snapshot.window)}. Rates compare the last 28 days with the 28 days before; open cases stay separate.</p><p>Last sync {plain(periods.synced_at || state.sync?.synced_at || 'not recorded')}. Next review {plain(p.next_run_day || analytics.next_run_day || 'Monday')}.</p>{list(snapshot.coverage?.missing).filter((gap,i,all)=>all.findIndex(other=>sourceLabel(other,jobs)===sourceLabel(gap,jobs) && sourceInstruction(other)===sourceInstruction(gap))===i).map((gap,i)=><p key={i}>{sourceLabel(gap,jobs)} unknown. {sourceInstruction(gap)}</p>)}</div></details>
     {(state.analytics_due || list(analytics.errors).length>0) && <p className="an-due">{state.analytics_due ? 'Weekly review due.' : 'Some saved evidence could not be read.'} Run <code>/analytics</code>. {list(analytics.errors).map(plain).join(' ')}</p>}
     <section role="tabpanel" id="analytics-panel-0" aria-labelledby="analytics-tab-0" hidden={tab!==0} tabIndex={0}>
-      <section className="an-week-plan"><p className="an-open-deals"><b>Open deals:</b> {startHere}. <button className="an-text-button" onClick={()=>choose({title:proposals>0 ? `Open proposals (${proposals})` : 'Open chats',evidence:startIds})}>{proposals>0 ? `Show the ${proposals} ${proposals===1?'proposal':'proposals'}` : 'Show open chats'}</button></p><h1>This week: {plain(p.focus?.headline || verdict.headline || list(p.scorecard).find(row=>row.key===verdict.kpi)?.name || snapshot.kpis?.[verdict.kpi]?.label || 'Agree your focus in /analytics')}</h1><p>{plain(p.focus?.reason || verdict.reason || verdict.sentence || 'Reason unavailable')}</p><div className="an-goals">{goals.slice(0,3).map((goal,i)=>{
+      <section className="an-week-plan"><p className="an-open-deals"><b>Open deals:</b> {startHere}. <button className="an-text-button" aria-label={proposals>0 ? `Show the ${proposals} ${proposals===1?'proposal':'proposals'}` : 'Show open chats'} onClick={()=>choose({title:proposals>0 ? `Open proposals (${proposals})` : 'Open chats',evidence:startIds})}>{proposals>0 ? 'Show them' : 'Show open chats'}</button></p><h1>This week: {plain(p.focus?.headline || verdict.headline || list(p.scorecard).find(row=>row.key===verdict.kpi)?.name || snapshot.kpis?.[verdict.kpi]?.label || 'Agree your focus in /analytics')}</h1>{(p.focus?.reason || verdict.reason || verdict.sentence) && <p>{tidy(p.focus?.reason || verdict.reason || verdict.sentence)}</p>}<div className="an-goals">{goals.slice(0,3).map((goal,i)=>{
         const coach=Object.values(reviews).find((row:any)=>row.goal_ref && (row.goal_ref===goal.goal_id || row.goal_ref===goal.kpi)&&row.example) as Row|undefined;
         const example=goal.example_state==='unknown' ? null : goal.coach_example || goal.example || coach?.example;
-        const prior=priorGoals.find(row=>goalMatches(goal,row));
-        return <article className="an-goal" key={goal.goal_id || i}><h3>{plain(goal.title || goal.change || goal.text || 'Agreed goal')}</h3><p>{goal.when || goal.when_line ? plain(goal.when || goal.when_line) : goal.cue ? `${/^when\b/i.test(goal.cue)?plain(goal.cue):`When ${plain(goal.cue)}`}, ${plain(goal.action || 'agree the action in /analytics')}` : 'When to act: agree a cue in /analytics.'}</p>{example ? <blockquote>“{plain(example)}”</blockquote> : <p>{plain(goal.example_prompt || 'Save a matching quoted example, then run /analytics.')}</p>}<p>Checked: {plain(goal.measurement || goal.measurement_text || 'Save how to check this goal in /analytics.')}</p>{prior ? <div className="an-goal-check"><span className="an-kicker">Last week</span><PriorGoal goal={prior} choose={choose}/></div> : <p className="an-meta">New this week</p>}</article>;
-      })}</div>{!goals.length&&<Empty>No agreed goals recorded. Run <code>/analytics</code> to agree one to three.</Empty>}{endedGoals.length>0 && <p className="an-ended-goals">Ended last week: {endedGoals.map(goal=>plain(goal.change || goal.text || 'Agreed goal')).join('; ')}. <button className="an-text-button" onClick={()=>choose({title:'Ended last week',note:endedGoals.map(goal=>`${plain(goal.change || goal.text)}: ${goal.done_k==null || goal.done_n==null?'Could not check yet':`did it ${goal.done_k} of ${goal.done_n}`}. ${plain(effectText(goal))}`).join(' '),evidence:endedGoals.flatMap(evidence)})}>Evidence →</button></p>}</section>
+        const prior=priorFor(goal),day=checkDay(goal.review_on);
+        return <article className="an-goal" key={goal.goal_id || i}><h3>{plain(goal.title || goal.change || goal.text || 'Agreed goal')}</h3><p>{whenDo(goal)}</p>{example ? <blockquote>“{plain(example)}”</blockquote> : <p>{plain(goal.example_prompt || 'No example quote yet. Run /analytics.')}</p>}{day && <p className="an-meta" title={plain(goal.measurement || goal.measurement_text || '') || undefined}>Check: {day}</p>}{prior && <div className="an-goal-check"><span className="an-meta">Last week</span><PriorGoal goal={prior} choose={choose}/></div>}</article>;
+      })}</div>{!goals.length&&<Empty>No goals yet. Run <code>/analytics</code>.</Empty>}{endedGoals.length>0 && <div className="an-ended-goals"><span className="an-meta">Ended last week</span>{endedGoals.map((goal,i)=><PriorGoal key={goal.goal_id || i} goal={goal} choose={choose} showTitle/>)}</div>}</section>
       <FunnelScorecard scorecard={list(p.scorecard)} kpis={snapshot.kpis || {}} jobs={jobs} currency={north.currency} weekStart={periods.activity?.start} choose={choose} onConversations={()=>go(1)}/>
     </section>
     <section role="tabpanel" id="analytics-panel-1" aria-labelledby="analytics-tab-1" hidden={tab!==1} tabIndex={0}>

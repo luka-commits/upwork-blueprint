@@ -119,19 +119,9 @@ def main():
                 if row.get('applied_at'):
                     row['speed_to_lead_s'] = 600 if row.get('application_facts', {}).get('posted_age_band') == '<10m' else 1200
                     row['application_sent_verified'] = True
-                    row['application_review'] = {'state': 'pass', 'reason': 'Example coach confirms relevant submitted audit copy'}
-                if row['id'] in reviewed:
-                    for kind in ('application', 'proposal'):
-                        row[kind+'_review']={'state':'pass','reason':'Example saved content review.','quote':quote,
-                            'key_finding':pattern,'pattern_sentence':'the audit input owner was not confirmed.',
-                            'better_line':'Who will supply the audit inputs before Friday?',
-                            'free_read':'The saved example names the cost; confirm who owns the inputs.',
-                            'next_message':'Who will own the audit inputs?',
-                            'points':[{'point':1,'state':'met','quote':quote,'reason':pattern}]}
                 path = folder/'jobs'/row['id'];path.mkdir()
                 if row.get('applied_at'):
                     (path/'application.sent.md').write_text('EXAMPLE submitted application: '+quote+' I can map your audit gaps and agree a clear scope.\n')
-                    if row['id'] in reviewed: (path/'loom.md').write_text('EXAMPLE Loom transcript: '+quote+'\n')
                 if row.get('proposal_sent_at'): (path/'proposal.md').write_text('EXAMPLE sent audit scope: '+quote+' Client reviews the agreed next step Friday.\n')
                 if row.get('call_held_at'):
                     (path/'call.md').write_text('Member: Maya\nComplete: yes\nLanguage: English\nMaya: '+own+'\nClient: '+quote+'\nMaya: Let us agree the next step.\n')
@@ -166,10 +156,7 @@ def main():
             value = analytics_payload(analytics.compute(today), agree=False)
             call = next(row for row in new if row.get('call_held_at'))
             value['reviews']['call'].pop('coverage', None)
-            value['reviews']['application'].pop('coverage', None)
             value['reviews']['call'].update(evidence_lead_ids=reviewed, rubric=rubrics)
-            value['reviews']['application'].update(evidence_lead_ids=reviewed, rubric=[{'lead_id':jid,'reviewable':True,'points':[{'point':p,'state':'met'} for p in range(1,7)]} for jid in reviewed])
-            value['reviews']['proposal']['evidence_lead_ids']=reviewed
             value['summary']=[f"This example week won {value['north_star']['wins']} new contracts.",
                               f"Qualified applications reached {value['kpis']['weekly_volume']['k']} against a commitment of {value['kpis']['weekly_volume']['target']:g}.",
                               'Next, use the agreed next step with each fitting lead.']

@@ -41,7 +41,7 @@ DEFAULTS = {'won_value': None, 'value_per_100_connects': None, 'reply_rate': 20,
             'offer_to_contract': 80, 'weekly_volume': 25, 'speed_10min': 80,
             'first_reply': 5, 'first_reply_p75': 15, 'follow_ups_on_time': 100,
             'proposal_on_time': 90, 'job_fit': 100}
-LEGACY_BARS = {'Volume': 10, 'Profile': 100, 'Proposal': 10, 'Loom': 100, 'Speed': 2,
+LEGACY_BARS = {'Volume': 10, 'Profile': 100, 'Proposal': 10, 'Speed': 2,
                'Messaging': 30, 'Sales call': 80, 'Call proposal': 90, 'Opened': 80}
 MIN_OUTCOME_CASES = 1  # Nonempty cohort; Wilson alone gates performance and promotion.
 FUNNEL = ('reply_rate', 'reply_to_call', 'booked_to_held', 'held_to_proposal',
@@ -53,9 +53,9 @@ LABELS = {'won_value': 'New contract value won this week', 'value_per_100_connec
           'offer_to_contract': 'Offer → contract', 'weekly_volume': 'Weekly applications',
           'speed_10min': 'Applied within 10 minutes', 'first_reply': 'Our first reply',
           'follow_ups_on_time': 'Follow-ups on their due day', 'proposal_on_time': 'Proposal within 30 min of call end',
-          'job_fit': 'Jobs that fit lane and rate', 'application_review': 'Application review',
+          'job_fit': 'Jobs that fit lane and rate',
           'conversation_review': 'Conversation review', 'call_review': 'Call review',
-          'proposal_review': 'Proposal review', 'segments': 'Segments', 'behaviour': 'Behaviour',
+          'segments': 'Segments', 'behaviour': 'Behaviour',
           'lost_reasons': 'Lost reasons', 'goal_effect': 'Effect of last week’s goals', 'goal_done': 'Goals carried out'}
 ACTIONS = {'reply_rate': 'Name the client problem and one matching proof in your application.',
            'reply_to_call': 'Offer two concrete call times in your reply.',
@@ -499,15 +499,12 @@ def source_coverage(jobs, today, now=None):
     upwork = 'missing' if sync.get('status') == 'error' or not synced or synced > cutoff else 'stale' if cutoff - synced >= dt.timedelta(hours=24) else 'ok'
     jobdir = pipeline.jobs_dir()
     recorder = bool(sections().get('Call recorder') or sections().get('Recorder') or any(event(job, 'call_held') for job in jobs) or any(jobdir.glob('*/call.md')))
-    loom = bool(any(jobdir.glob('*/loom.md')) or any(job.get('loom_hook') for job in jobs))
-    loom_used = any(job.get('loom_url') for job in jobs) or any(re.search(r'https?://(?:www\.)?(?:loom\.com|youtu\.be|youtube\.com)/', (read_source(path) or '')) for path in jobdir.glob('*/application.sent.md'))
     tracking = bool(os.environ.get('BLOB_READ_WRITE_TOKEN') or any(job.get('pitch_url') or event(job, 'opened') or event(job, 'pitch_opened') for job in jobs))
     rows = []
     for source, state, affects, fix in (
         ('upwork', upwork, list(LABELS)[:15] + ['segments','behaviour'], 'Run /brief to sync Upwork.'),
         ('recorder', 'ok' if recorder else 'missing', ['call_review'], 'Add a labelled call transcript or confirm held calls.'),
         ('tracking', 'ok' if tracking else 'missing', [], 'Check the tracking link and its saved click source.'),
-        ('loom', 'ok' if loom else 'missing', ['application_review'] if loom_used else [], 'Add the Loom transcript when the application uses Loom.'),
         ('earnings', 'ok' if readable_lines('earnings.jsonl') else 'missing', [], 'Read the earnings summary in /brief.'),
         ('connects', 'ok' if readable_lines('connects.jsonl') else 'missing', ['value_per_100_connects'], 'Read the Connects history in /brief.')):
         rows.append({'source': source, 'state': state, 'affects': affects, 'fix': fix if state != 'ok' else ''})
@@ -535,11 +532,6 @@ def coverage_fields(sources, jobs, today, include_available=False):
         if entry not in missing: missing.append(entry)
     for job in jobs:
         jid = str(job['id']); folder = pipeline.jobs_dir() / jid
-        if event(job, 'applied') and not job.get('imported'):
-            if include_available or not read_source(folder / 'application.sent.md') or job.get('application_sent_verified') is not True:
-                absent('sent copy:' + jid, ['application_review'], 'Open the submitted Upwork application and save its sent copy.')
-            if job.get('loom_url') and (include_available or not read_source(folder / 'loom.md')):
-                absent('Loom:' + jid, ['application_review'], 'Paste the Loom transcript for ' + jid + '.')
         if event(job, 'call_held'):
             text = read_source(folder / 'call.md')
             stats = call_stats.analyze(text) if text else {}
@@ -551,8 +543,6 @@ def coverage_fields(sources, jobs, today, include_available=False):
 
 
 CONVERSATION_POINTS = ('answered_question', 'qualifying_question', 'call_times')
-APPLICATION_POINT_LABELS = dict(enumerate(('Posted problem', 'Matching proof', 'Screening answers',
-    'Bid and scope', 'Concise application', 'Easy closing question', 'Loom (when used)'), 1))
 CHAT_POINT_LABELS = dict(zip(CONVERSATION_POINTS, ('Answered question', 'Qualifying question', 'Call proposal when useful')))
 CALL_POINT_LABELS = {1: 'Opening and agenda', 2: 'Current state', 3: 'Problem and cost',
     4: 'Goal and scope', 5: 'Budget before price', 6: 'Decision maker and timeline',
@@ -1130,7 +1120,7 @@ def calculate(jobs, today, since=None, now=None, cohort_days=28, activity_bounds
         for key in source['affects']:
             if source['state'] == 'stale' and kpis[key]['n']:
                 continue
-            # Optional Loom/tracking absence leaves the whole review explicitly missing.
+            # Absence of an optional source leaves the whole review explicitly missing.
             kpis[key].update(state='missing', reason=f"{source['source']} source is absent. {source['fix']}", value=None)
             if key in ('segments','behaviour') and source['state']=='missing':
                 kpis[key].update(k=None,n=None)
@@ -2131,14 +2121,12 @@ def badge_results(snapshot, jobs, history, today, snapshot_only=False):
     weekly = [job for job in jobs if not job.get('imported') and inside(event(job, 'applied'), span(today, 7)) and qualified(job)]
     qualifying = {name: criterion(snapshot, name) for name in BADGE_NAMES}
     qualifying["Ship's Bell"] = passing(snapshot, 'first_reply')
-    def application_content(job):
-        return badge_ledger.content_pass(job, 'application') or any(item.get('lead_id') == str(job['id']) and item.get('reviewable') and item.get('points') and all(point['state'] == 'met' for point in item['points']) for item in snapshot.get('reviews', {}).get('application', {}).get('rubric', []))
-    swift_good = sum((job.get('application_facts') or {}).get('posted_age_band') == '<10m' and application_content(job) for job in weekly)
+    swift_good = sum((job.get('application_facts') or {}).get('posted_age_band') == '<10m' for job in weekly)
     qualifying['Swift Sail'] = bool(weekly) and snapshot['kpis']['speed_10min']['state'] != 'missing' and swift_good / len(weekly) * 100 >= snapshot['kpis']['speed_10min']['target']
     replies = [job for job in jobs if inside(job.get('first_client_message_at') or job.get('replied_at') or job.get('invited_at'), span(today, 7))]
     qualifying["Ship's Bell"] = qualifying["Ship's Bell"] and bool(replies) and all(badge_ledger.content_pass(job, 'conversation') for job in replies)
     calls = [job for job in jobs if inside(event(job, 'call_held'), span(today, 7)) and proposal_eligible(job)]
-    quick_good = sum(bool(badge_ledger.content_pass(job, 'proposal') and call_end(job) and event(job, 'proposal_sent') and 0 <= (event(job, 'proposal_sent') - call_end(job)).total_seconds() <= 1800) for job in calls)
+    quick_good = sum(bool(call_end(job) and event(job, 'proposal_sent') and 0 <= (event(job, 'proposal_sent') - call_end(job)).total_seconds() <= 1800) for job in calls)
     qualifying['Quick Draw'] = bool(calls) and snapshot['kpis']['proposal_on_time']['state'] != 'missing' and quick_good / len(calls) * 100 >= snapshot['kpis']['proposal_on_time']['target']
     invites = [job for job in jobs if route(job) == 'invite' and inside(event(job, 'invited'), span(today, 7))]
     times = [working_reply(job) for job in invites]
@@ -2206,7 +2194,7 @@ def presentation_fields(snapshot):
         if key not in selected: selected.append(key)
     if efficiency in kpis: selected.append(efficiency)
     groups = {'top': [], 'middle': [], 'bottom': []}
-    top = {'job_fit', 'weekly_volume', 'speed_10min', 'application_review', 'segments', 'behaviour'}
+    top = {'job_fit', 'weekly_volume', 'speed_10min', 'segments', 'behaviour'}
     middle = {'reply_rate', 'reply_to_call', 'booked_to_held', 'invite_to_call', 'first_reply', 'follow_ups_on_time', 'conversation_review', 'call_review'}
     for key in kpis: groups['top' if key in top else 'middle' if key in middle else 'bottom'].append(key)
     # Six visual slots; placeholders never masquerade as eligible KPI comparisons.
@@ -2563,31 +2551,15 @@ def progress_strip(snapshot):
             'newest_badge_basis': basis}
 
 
-def application_loom_fields(job, folder, sent, transcript):
-    """Sent copy establishes delivery; saved job instructions establish the request."""
-    post = read_source(folder / 'job.md') or job.get('description') or ''
-    mentions = [line for line in re.split(r'[.\n]', post) if re.search(r'\b(?:loom|walkthrough|video)\b', line, re.I)]
-    requested = any(re.search(r'\b(?:please|include|send|record|provide|required|must|need|request)\b', line, re.I)
-                    and not re.search(r'\b(?:optional|not required|not needed|no need|do not|don.t)\b', line, re.I) for line in mentions)
-    known = bool(sent.strip()) and job.get('application_sent_verified') is True and not _RECONSTRUCTING.get()
-    # A stale loom_url on the job cannot override the exact sent application.
-    positive = [line for line in re.split(r'[.\n]', sent) if not re.search(r'\b(?:not|no|never|haven.t|didn.t|without)\b', line, re.I)]
-    sent_loom = bool(re.search(r'https?://(?:www\.)?(?:loom\.com|youtu\.be|youtube\.com)/', sent, re.I) or
-        re.search(r'\b(?:my|this|the|a)\s+(?:short\s+)?loom\s+(?:shows|covers|walks|explains)|\b(?:included|attached)\s+(?:a\s+|the\s+|my\s+)?(?:short\s+)?loom\b', '\n'.join(positive), re.I))
-    status = 'unknown' if not known else 'sent' if sent_loom else 'requested_not_sent' if requested else 'not_sent'
-    return {'loom_status': status, 'loom_requested': bool(requested),
-            'loom_source_state': 'present' if status == 'sent' and transcript else 'unknown' if status in ('sent', 'unknown') else 'not_applicable'}
-
-
 def conversations_fields(snapshot, jobs):
     """Project saved coaching and sent evidence; never turn source text into coach judgment."""
-    sections = {'applications': [], 'chats': [], 'calls': copy.deepcopy(snapshot.get('call_cards', [])), 'proposals': []}
+    sections = {'chats': [], 'calls': copy.deepcopy(snapshot.get('call_cards', []))}
     statements = {}
     saved_by_entry = {}
     def full_points(saved, stage):
         points = saved.get('points', [])
         points = [dict(point, point=key) for key, point in points.items()] if isinstance(points, dict) else points
-        labels = APPLICATION_POINT_LABELS if stage == 'applications' else CHAT_POINT_LABELS if stage == 'chats' else CALL_POINT_LABELS if stage == 'calls' else {}
+        labels = CHAT_POINT_LABELS if stage == 'chats' else CALL_POINT_LABELS if stage == 'calls' else {}
         return [dict(copy.deepcopy(point), label=labels.get(point.get('point')) or point.get('label'))
                 for point in points if isinstance(point, dict)]
     def supported_points(saved, text):
@@ -2616,9 +2588,7 @@ def conversations_fields(snapshot, jobs):
         if job.get('imported'): continue
         jid = str(job['id']); folder = pipeline.jobs_dir() / jid
         for stage, kind, event_key, filename, prompt in (
-                ('applications', 'application', 'applied', 'application.sent.md', 'Save the exact sent application with code/pipeline.py sent ' + jid + '; supply the Loom transcript when used.'),
-                ('chats', 'conversation', 'replied', 'thread.json', 'Read and save every page of the Upwork thread, then record its three quoted content checks.'),
-                ('proposals', 'proposal', 'proposal_sent', 'proposal.md', 'Save the exact sent proposal in jobs/' + jid + '/proposal.md and confirm proposal_sent through the pipeline.')):
+                ('chats', 'conversation', 'replied', 'thread.json', 'Read and save every page of the Upwork thread, then record its three quoted content checks.'),):
             if not event(job, event_key): continue
             source = read_source(folder / filename) or ''
             saved = assessment(job, kind + '_review') or {}
@@ -2627,17 +2597,6 @@ def conversations_fields(snapshot, jobs):
             saved = merge_review(saved, rubric)
             valid = bool(source) and not _RECONSTRUCTING.get()
             extra = {}
-            if stage == 'applications':
-                valid = valid and job.get('application_sent_verified') is True
-                loom = read_source(folder / 'loom-transcript.txt') or read_source(folder / 'loom.md') or ''
-                extra.update(application_loom_fields(job, folder, source, loom))
-                loom_used = extra['loom_status'] == 'sent'
-                if loom_used and not loom:
-                    valid = False
-                    prompt = 'Supply the Loom transcript at jobs/' + jid + '/loom.md, or run code/loom.py ' + jid + ' <verified Loom URL>.'
-                extra.update(sent_copy=source if job.get('application_sent_verified') is True and source else None,
-                             loom_transcript=loom or None)
-                source += '\n' + loom
             if stage == 'chats':
                 thread = chats.get(jid, {})
                 valid = valid and thread.get('read') is True
@@ -2663,16 +2622,6 @@ def conversations_fields(snapshot, jobs):
             for point in points:
                 if not valid or not isinstance(point.get('quote'), str) or point['quote'] not in source:
                     point.pop('quote', None)
-            if stage == 'proposals':
-                # Only quoted saved judgments/facts; never guess terms from prose.
-                for key in ('scope', 'price', 'decision_date'):
-                    fact = saved.get(key)
-                    extra[key] = fact if reviewable and isinstance(fact, str) and fact.strip() and fact in source else None
-                if any(extra[key] is None for key in ('scope', 'price', 'decision_date')):
-                    extra['source_prompt'] = 'Save quoted scope, price and decision date from the sent proposal; missing facts remain unknown.'
-            if stage == 'applications' and reviewable and not loom_used and not any(point.get('point') == 7 for point in points):
-                points.append({'point': 7, 'label': APPLICATION_POINT_LABELS[7],
-                               'state': 'not_needed', 'reason': 'No Loom used'})
             read = saved.get('free_read') if reviewable else None
             next_message = saved.get('next_message') if reviewable else None
             if next_message is not None: short_text(next_message, 100, 'Coaching next message', optional=True)
@@ -2689,7 +2638,7 @@ def conversations_fields(snapshot, jobs):
     for stage, rows in sections.items():
         for row in rows:
             job = by_id.get(str(row['lead_id']), {})
-            kind = {'applications': 'application', 'chats': 'conversation', 'calls': 'call', 'proposals': 'proposal'}[stage]
+            kind = {'chats': 'conversation', 'calls': 'call'}[stage]
             saved = assessment(job, kind + '_review') or {}
             rubric = next((item for item in snapshot.get('reviews', {}).get(kind, {}).get('rubric', []) if str(item.get('lead_id')) == str(row['lead_id'])), {})
             saved = merge_review(saved, rubric)
@@ -2708,9 +2657,9 @@ def conversations_fields(snapshot, jobs):
             row['key_finding'] = ' '.join(str(finding).split()[:12]).rstrip(' ,;:')
             row['title'] = job.get('title') or row.get('title') or row.get('label') or 'Untitled job'
             row['marker'] = 'not reviewed' if not row.get('reviewable') else 'needs work' if weakness else 'keep'
-            labels = APPLICATION_POINT_LABELS if stage == 'applications' else CHAT_POINT_LABELS if stage == 'chats' else CALL_POINT_LABELS if stage == 'calls' else {}
+            labels = CHAT_POINT_LABELS if stage == 'chats' else CALL_POINT_LABELS if stage == 'calls' else {}
             for point in points: point['label'] = labels.get(point.get('point')) or point.get('label')
-            required = set(labels) - ({7} if stage == 'applications' else set())
+            required = set(labels)
             if row.get('reviewable') and (not points or required - {p.get('point') for p in points} or any(p.get('state') not in ('met', 'not needed', 'not_needed') for p in points)):
                 row['marker'] = 'needs work'
             row['better_line'] = saved.get('better_line') or saved.get('example') or row.get('example')
@@ -2721,7 +2670,7 @@ def conversations_fields(snapshot, jobs):
         rows.sort(key=lambda row: (row['importance'], -(day(row.get('date')) or dt.date.min).toordinal(), row['title']))
     # Display the same finding once at the first stage while retaining later evidence.
     first_findings = {}
-    for stage in ('applications', 'chats', 'calls', 'proposals'):
+    for stage in ('chats', 'calls'):
         for row in sections[stage]:
             if not row.get('reviewable'): continue
             identity = (str(row['lead_id']), public_normalized(row['key_finding']))
@@ -2766,7 +2715,7 @@ def conversation_criteria(sections):
     result = {}
     for stage, rows in sections.items():
         reviewed = list({str(row['lead_id']): row for row in rows if row.get('reviewable')}.values())
-        labels = dict(APPLICATION_POINT_LABELS if stage == 'applications' else CHAT_POINT_LABELS if stage == 'chats' else CALL_POINT_LABELS if stage == 'calls' else {})
+        labels = dict(CHAT_POINT_LABELS if stage == 'chats' else CALL_POINT_LABELS if stage == 'calls' else {})
         for row in reviewed:
             for point in row.get('points', []):
                 if point.get('label'): labels.setdefault(point['point'], point['label'])
@@ -3098,7 +3047,7 @@ def compute(today=None, jobs=None, now=None, history_override=None):
             'coverage': coverage_fields(coverage, jobs, today), 'pipeline': pipeline_counts(jobs, today), 'kpis': kpis,
             'verdict': verdict(kpis), 'verdict_history': [{'week': old, 'kpi': by_week[old].get('verdict', {}).get('kpi'), 'stage': by_week[old].get('verdict', {}).get('stage')} for old in previous_weeks if old in by_week],
             'north_star': north, 'goals_review': reviews, 'goals_next': [], 'findings': [],
-            'reviews': {name: {'fix': '', 'example': '', 'evidence_lead_ids': [], 'goal_ref': None} for name in ('application', 'conversation', 'call', 'proposal')},
+            'reviews': {name: {'fix': '', 'example': '', 'evidence_lead_ids': [], 'goal_ref': None} for name in ('conversation', 'call')},
             'streak_weeks': streak, 'report': '', 'summary': [], 'gap': original_gap}
     saved_calls = []
     for job in jobs:
@@ -3243,10 +3192,10 @@ def add_goals(value):
 
 def rubric_coverage(rubric, today, name):
     require(isinstance(rubric, list), 'Rubric must be a list of lead judgments.')
-    if name in ('conversation', 'proposal'):
+    if name == 'conversation':
         seen, rows = set(), []
         for item in rubric:
-            allowed = {'lead_id', 'reviewable', 'read', 'last_writer', 'points', 'fix', 'example', 'next_message', 'free_read', 'scope', 'price', 'decision_date'} | pipeline.REVIEW_METADATA
+            allowed = {'lead_id', 'reviewable', 'read', 'last_writer', 'points', 'fix', 'example', 'next_message', 'free_read'} | pipeline.REVIEW_METADATA
             require(isinstance(item, dict) and {'lead_id', 'reviewable', 'points'} <= set(item) <= allowed and isinstance(item['reviewable'], bool), 'Review needs lead_id, reviewable and recorded points.')
             require(item['lead_id'] not in seen, 'Review each lead once.')
             seen.add(item['lead_id']); pipeline.validate_review_metadata(item)
@@ -3256,40 +3205,35 @@ def rubric_coverage(rubric, today, name):
             points = [dict(point, point=key) for key, point in points.items()] if isinstance(points, dict) else points
             require(isinstance(points, list), 'Review points need a list or named conversation points.')
             require(item['reviewable'] or not points, 'An unreviewable source has no point judgments.')
-            text = read_source(pipeline.jobs_dir() / str(item['lead_id']) / ('thread.json' if name == 'conversation' else 'proposal.md')) or ''
-            if name == 'conversation':
-                try:
-                    thread = json.loads(text); rooms = list((thread.get('rooms') or {}).values()) or [thread]
-                    complete = bool(rooms) and all(room.get('messages_complete') is True for room in rooms)
-                    text = '\n'.join(turn.get('text', '') for room in rooms for turn in room.get('messages', []) if turn.get('from') in ('me', 'client'))
-                except (ValueError, TypeError): complete = False; text = ''
-                require(not item['reviewable'] or complete and {point.get('point') for point in points} == set(CONVERSATION_POINTS), 'Reviewed chats require complete messages and all three content points.')
-            require(not item['reviewable'] or bool(text.strip()) and bool(points), 'Reviewed proposals require the sent source and recorded criteria.')
+            text = read_source(pipeline.jobs_dir() / str(item['lead_id']) / 'thread.json') or ''
+            try:
+                thread = json.loads(text); rooms = list((thread.get('rooms') or {}).values()) or [thread]
+                complete = bool(rooms) and all(room.get('messages_complete') is True for room in rooms)
+                text = '\n'.join(turn.get('text', '') for room in rooms for turn in room.get('messages', []) if turn.get('from') in ('me', 'client'))
+            except (ValueError, TypeError): complete = False; text = ''
+            require(not item['reviewable'] or complete and {point.get('point') for point in points} == set(CONVERSATION_POINTS), 'Reviewed chats require complete messages and all three content points.')
+            require(not item['reviewable'] or bool(text.strip()) and bool(points), 'Reviewed chats require the saved messages and recorded criteria.')
             identities = set()
             for point in points:
                 require(isinstance(point, dict) and {'point', 'state'} <= set(point) <= ({'point', 'state', 'quote', 'reason', 'label'} | pipeline.REVIEW_METADATA), 'Unknown review point fields.')
                 require(isinstance(point['point'], (str, int)) and not isinstance(point['point'], bool) and point['point'] not in identities, 'Review each point once.')
                 identities.add(point['point']); pipeline.validate_review_metadata(point)
                 require(point['state'] in ('met', 'partly', 'missing', 'not needed', 'not_needed'), 'Unknown review point state.')
-                if name == 'proposal': require(isinstance(point.get('label'), str) and point['label'].strip(), 'Proposal points require the original review labels.')
                 if point['state'] in ('not needed', 'not_needed'): require(isinstance(point.get('reason'), str) and point['reason'].strip(), 'Not needed requires a reason.')
                 if point.get('quote'): require(isinstance(point['quote'], str) and point['quote'] in text, 'Review quotes must occur in the saved source.')
             rows.append(dict(item, points=points))
-        stage = 'chats' if name == 'conversation' else 'proposals'
-        return conversation_criteria({stage: rows})[stage]['points']
+        return conversation_criteria({'chats': rows})['chats']['points']
     seen = set()
-    jobs_by_id = {str(job['id']): job for job in pipeline.load()} if name == 'application' else {}
-    uma_counts = {}
-    counts = {point: {'point': point, 'met': 0, 'partly': 0, 'missing': 0, 'not_needed': 0, 'n': 0} for point in range(1, 10 if name == 'call' else 8)}
+    counts = {point: {'point': point, 'met': 0, 'partly': 0, 'missing': 0, 'not_needed': 0, 'n': 0} for point in range(1, 10)}
     for item in rubric:
-        allowed = {'lead_id', 'reviewable', 'points', 'moments', 'fix', 'example', 'next_step', 'next_message', 'free_read'} | pipeline.REVIEW_METADATA | ({'agreed_step'} if name == 'call' else set())
+        allowed = {'lead_id', 'reviewable', 'points', 'moments', 'fix', 'example', 'next_step', 'next_message', 'free_read'} | pipeline.REVIEW_METADATA | {'agreed_step'}
         require(isinstance(item, dict) and {'lead_id', 'reviewable', 'points'} <= set(item) and set(item) <= allowed, 'Call rubric needs lead_id, reviewable and points.')
         require(item['lead_id'] not in seen and isinstance(item['reviewable'], bool), 'Call rubric needs unique leads and boolean reviewable.')
         seen.add(item['lead_id'])
         pipeline.validate_review_metadata(item)
-        for field, limit in (('next_message', 100), ('free_read', 180 if name == 'call' else 150)):
+        for field, limit in (('next_message', 100), ('free_read', 180)):
             if field in item: short_text(item[field], limit, field, optional=True)
-        path = pipeline.jobs_dir() / str(item['lead_id']) / ('call.md' if name == 'call' else 'application.sent.md')
+        path = pipeline.jobs_dir() / str(item['lead_id']) / 'call.md'
         text = path.read_text(encoding='utf-8') if path.is_file() else ''
         utterances = '\n'.join(match[2] for match in re.finditer(r'^([^:\n]+):\s*(.+)$', text, re.M) if match[1].strip().lower() not in ('call at', 'duration', 'member', 'speakers', 'date', 'recorder', 'complete', 'language'))
         speakers = {match[1].strip() for match in re.finditer(r'^([^:\n]+):\s*\S', text, re.M) if match[1].strip().lower() not in ('call at', 'duration', 'member', 'speakers', 'date', 'recorder', 'complete', 'language')}
@@ -3310,39 +3254,30 @@ def rubric_coverage(rubric, today, name):
         if not item['reviewable']:
             require(not points, 'An unreviewable call cannot have point judgments.')
             continue
-        job = jobs_by_id.get(str(item['lead_id']), {})
-        uma = name == 'application' and job.get('application_modality') == 'uma'
-        required = set(range(1, 4 if uma else 10 if name == 'call' else 7))
         got = {row.get('point') for row in points}
-        require(got == required or (name == 'application' and not uma and got == required | {7}),
-                'Review all nine call points; Uma requires its three answer/video points; text requires six application points plus optional Loom.')
+        require(got == set(range(1, 10)), 'Review all nine call points.')
         require(len(points) == len(got), 'Review each rubric point once.')
-        if name == 'application' and (not path.is_file() or job.get('application_sent_verified') is not True):
-            continue
-        if uma and not uma_counts:
-            uma_counts = {point: {'point': point, 'modality': 'uma', 'met': 0, 'partly': 0, 'missing': 0, 'not_needed': 0, 'n': 0} for point in range(1, 4)}
         for row in points:
             require({'point', 'state'} <= set(row) and set(row) <= ({'point', 'state', 'quote', 'reason', 'label'} | pipeline.REVIEW_METADATA) and row['state'] in ('met', 'partly', 'missing', 'not needed', 'not_needed'), 'Review points need point and state with optional source quote and reason.')
             pipeline.validate_review_metadata(row)
             if row['state'] in ('not needed', 'not_needed'):
                 require(isinstance(row.get('reason'), str) and row['reason'].strip(), 'Every not needed call point needs a reason.')
             if row.get('quote'):
-                source = utterances if name == 'call' else text + '\n' + (read_source(path.parent / 'loom.md') or read_source(path.parent / 'loom-transcript.txt') or '')
-                require(isinstance(row['quote'], str) and row['quote'] in source, 'Review quote must occur in local source evidence.')
-            target = (uma_counts if uma else counts)[row['point']]
+                require(isinstance(row['quote'], str) and row['quote'] in utterances, 'Review quote must occur in local source evidence.')
+            target = counts[row['point']]
             target[row['state'].replace(' ', '_')] += 1
             target['n'] += row['state'] not in ('not needed', 'not_needed')
     history = read_lines('analytics-history.jsonl')
     monday = today - dt.timedelta(days=today.weekday())
     by_week = {row['week']: row for row in history}
-    result = list(counts.values()) + list(uma_counts.values())
+    result = list(counts.values())
     for row in result:
         point = row['point']
         values = []
         for back in range(7, 0, -1):
             iso = (monday - dt.timedelta(weeks=back)).isocalendar()
             week = f'{iso.year}-W{iso.week:02d}'
-            old = next((item for item in by_week.get(week, {}).get('reviews', {}).get(name, {}).get('coverage', []) if item.get('point') == point and item.get('modality', 'text') == row.get('modality', 'text')), None)
+            old = next((item for item in by_week.get(week, {}).get('reviews', {}).get(name, {}).get('coverage', []) if item.get('point') == point), None)
             values.append(old['met'] / old['n'] * 100 if old and old['n'] else None)
         row['history'] = values + [row['met'] / row['n'] * 100 if row['n'] else None]
     return result
@@ -3380,9 +3315,9 @@ FOCUS_HEADLINES = {
     'offer_to_contract': 'Turn offers into contracts', 'weekly_volume': 'Send more applications each week',
     'speed_10min': 'Apply sooner to fresh jobs', 'first_reply': 'Answer client messages faster',
     'follow_ups_on_time': 'Follow up on the day it is due', 'proposal_on_time': 'Send proposals right after the call',
-    'job_fit': 'Apply to jobs that fit you', 'application_review': 'Improve how you write applications',
+    'job_fit': 'Apply to jobs that fit you',
     'conversation_review': 'Keep conversations moving', 'call_review': 'Run stronger sales calls',
-    'proposal_review': 'Sharpen your proposals', 'segments': 'Focus on the job types that work',
+    'segments': 'Focus on the job types that work',
     'behaviour': 'Build a steady weekly routine', 'lost_reasons': 'Learn from lost proposals',
     'goal_effect': 'Check whether last week\u2019s goals worked', 'goal_done': 'Carry out your agreed goals'}
 assert set(FOCUS_HEADLINES) == set(LABELS), 'Every focus key needs a plain headline.'
@@ -3434,11 +3369,6 @@ def public_question_text(card):
 
 # Stable goal-library IDs select fixed public words, never the agreed private prose.
 PUBLIC_GOAL_LIBRARY = {
-    'reply-opener': ('reply_rate', 'Name the posted problem'),
-    'reply-proof': ('reply_rate', 'Use one relevant proof'),
-    'reply-observation': ('reply_rate', 'Add one useful job observation'),
-    'reply-close': ('reply_rate', 'Ask one useful closing question'),
-    'reply-video': ('reply_rate', 'Show one relevant point'),
     'speed-qualified': ('speed_10min', 'Apply promptly after checking fit'),
     'fit-check': ('job_fit', 'Check fit before applying'),
     'volume-sessions': ('weekly_volume', 'Keep agreed application sessions'),
@@ -3459,8 +3389,6 @@ PUBLIC_GOAL_LIBRARY = {
     'call-step': ('call_review', 'Agree the next step and owner'),
     'proposal-prompt': ('proposal_on_time', 'Send the complete proposal promptly'),
     'proposal-fit': ('held_to_proposal', 'Record the evidenced fit decision'),
-    'proposal-scope': ('proposal_to_won', 'Offer one complete fitting scope'),
-    'proposal-value': ('proposal_to_won', 'Explain price with the agreed scope'),
     'proposal-decision': ('proposal_to_won', 'Confirm the next decision step'),
     'proposal-objection': ('proposal_to_won', 'Clarify the price concern'),
     'invite-answer': ('first_reply', 'Answer the immediate invite request'),
@@ -3766,32 +3694,28 @@ def prepare_snapshot(value, today=None, now=None):
         row = result['kpis'][name + '_review']
         complete = bool(review['fix'].strip() and review['evidence_lead_ids'])
         relevant = [job for job in pipeline.load() if str(job['id']) in review['evidence_lead_ids']]
-        files = {'application': 'application.sent.md', 'conversation': 'thread.json', 'call': 'call.md', 'proposal': 'proposal.md'}
+        files = {'conversation': 'thread.json', 'call': 'call.md'}
         supported = bool(relevant) and all((pipeline.jobs_dir() / str(job['id']) / files[name]).is_file() for job in relevant)
-        if name == 'application': supported = supported and all(job.get('application_sent_verified') is True for job in relevant)
         if name == 'call':
             supported = supported and all(event(job, 'call_held') for job in relevant)
             for job in relevant:
                 call_path = pipeline.jobs_dir() / str(job['id']) / 'call.md'
                 stats = call_stats.analyze(call_path.read_text()) if call_path.is_file() else {}
                 supported = supported and stats.get('transcript_complete') is True and stats.get('member_attributed') is True and str(stats.get('language') or '').casefold() in ('en', 'english')
-        if name == 'proposal': supported = supported and all(event(job, 'proposal_sent') for job in relevant)
-        if name in ('call', 'application', 'conversation', 'proposal'):
-            judgments = review.get('rubric', [])
-            supported = supported and bool(judgments) and {item.get('lead_id') for item in judgments if item.get('reviewable')} == set(review['evidence_lead_ids'])
+        judgments = review.get('rubric', [])
+        supported = supported and bool(judgments) and {item.get('lead_id') for item in judgments if item.get('reviewable')} == set(review['evidence_lead_ids'])
         complete = complete and supported
         row.update(k=int(complete), n=1, value='one fix' if complete else None, state='pass' if complete else 'undecided', reason=None if complete else 'No evidenced weekly fix yet.', evidence=review['evidence_lead_ids'])
         row['history'][-1] = row['value']
-        if name in ('call', 'application', 'conversation', 'proposal'):
-            rubric = review.get('rubric', [])
-            require({item.get('lead_id') for item in rubric} <= set(review['evidence_lead_ids']), 'Rubric leads must be in call review evidence.')
-            coverage = rubric_coverage(rubric, today, name)
-            if 'coverage' in review:
-                require(review['coverage'] == coverage, 'Coverage counts must be computed from the rubric.')
-            result['reviews'][name]['coverage'] = coverage
-            if review['evidence_lead_ids'] and (not rubric or not supported or not any(item['reviewable'] for item in rubric)):
-                row.update(k=0, value=None, state='missing', reason='Calls have no complete speaker labels or submitted application copies are absent.')
-                row['history'][-1] = None
+        rubric = review.get('rubric', [])
+        require({item.get('lead_id') for item in rubric} <= set(review['evidence_lead_ids']), 'Rubric leads must be in call review evidence.')
+        coverage = rubric_coverage(rubric, today, name)
+        if 'coverage' in review:
+            require(review['coverage'] == coverage, 'Coverage counts must be computed from the rubric.')
+        result['reviews'][name]['coverage'] = coverage
+        if review['evidence_lead_ids'] and (not rubric or not supported or not any(item['reviewable'] for item in rubric)):
+            row.update(k=0, value=None, state='missing', reason='Calls have no complete speaker labels, or chats have no complete saved messages.')
+            row['history'][-1] = None
     supplied = value.get('goals_review', result['goals_review'])
     require(len(supplied) == len(result['goals_review']), 'Review every previous goal.')
     for given, review in zip(supplied, result['goals_review']):
@@ -3902,7 +3826,7 @@ def record_snapshot(value, replace=False):
     today = generated.astimezone(local_zone()).date()
     base = compute(today, now=generated)
     require(set(base) <= set(value) <= set(base) | {'community'}, 'Snapshot has missing or unknown top-level keys.')
-    require(set(value['reviews']) == set(base['reviews']), 'Snapshot needs all four weekly reviews.')
+    require(set(value['reviews']) == set(base['reviews']), 'Snapshot needs both weekly reviews.')
     result = prepare_snapshot(value, today, now=generated)
     require(value['week'] == result['week'], 'Week does not match generated_at.')
     goals = [dict(goal, start=today.isoformat()) if 'start' not in goal else goal for goal in result['goals_next']]
@@ -3925,7 +3849,7 @@ def record_snapshot(value, replace=False):
     for key in set(result['verdict']) - {'sentence', 'next_action'}:
         require(value['verdict'].get(key) == result['verdict'][key], 'Verdict identity and state must come from compute.')
     require(set(value['kpis']) == set(result['kpis']), 'Snapshot needs all 24 KPI keys.')
-    derived = {'application_review', 'conversation_review', 'call_review', 'proposal_review', 'goal_done'}
+    derived = {'conversation_review', 'call_review', 'goal_done'}
     for key, row in result['kpis'].items():
         supplied = copy.deepcopy(value['kpis'][key])
         require(supplied == row or (key in derived and supplied == base['kpis'][key]), f'{key} numbers must come from reviewed compute.')

@@ -178,12 +178,10 @@ Include message ID/date/excerpt or submitted source and confirmation time. An ou
 
 1. Claude reads the full post with `python3 code/pipeline.py get <id>`.
    If absent, fetch this one job with `find_jobs action=get`, then
-   `python3 code/jobs.py detail <id> <file>`. Judge with the coach brief.
-   Record the actual text/Uma route through
-   `python3 code/pipeline.py record <id> --file -`. Prepare Uma's requested
+   `python3 code/jobs.py detail <id> <file>`. Prepare Uma's requested
    answers/video instead of a cover letter. Ask for missing mandatory proof
    and bid terms before drafting; the member submits on Upwork.
-2. Loom/page are optional, chosen for requirements, value and preparation cost.
+2. A walkthrough video/page is optional, chosen for requirements, value and preparation cost.
    Without them, go straight to Application. For a chosen existing page run
    `python3 code/pitch_check.py page jobs/<id>/pitch.html`; reuse a passing page,
    and publish through the caller's approval gate if no public URL exists.
@@ -195,26 +193,23 @@ Include message ID/date/excerpt or submitted source and confirmation time. An ou
    adding `--video-required` only when explicitly required. Fix errors and read
    against the post. Before manual handoff run
    `python3 code/application_check.py jobs/<id>/application.md --ready --modality <text|uma>`.
-4. For an agreed Loom run `python3 code/loom.py <id> <url>`; missing tools/model:
-   show its install line. Read `jobs/<id>/loom.md` when available and record
-   the reasoned hook judgment through the record writer. Check any chosen page
+4. Check any chosen page
    with `python3 code/pitch_check.py page jobs/<id>/pitch.html --ready`, repeat
    the ready application gate and republish with
    `python3 code/pitch_deploy.py <id>` under the member's publish approval.
-5. For `submitted`, ask for actual submitted copy, answers, bid and modality,
-   or explicit confirmation each matches its approved source. Record modality,
-   then run `python3 code/pipeline.py sent <id> --file <submitted-copy> --answers-file <submitted-answers.json> --bid <actual-amount>`;
+5. For `submitted`, ask for actual submitted copy, answers and bid,
+   or explicit confirmation each matches its approved source. Run `python3 code/pipeline.py sent <id> --file <submitted-copy> --answers-file <submitted-answers.json> --bid <actual-amount>`;
    use `--confirmed-match` instead of `--file` for a confirmed draft match,
    and omit answers-file only when none were required. Preserve actual Uma
    answers/video. Read back `application.sent.md`, applicable `answers.sent.json`,
-   bid and modality with `python3 code/pipeline.py get <id>` before
+   and bid with `python3 code/pipeline.py get <id>` before
    `python3 code/pipeline.py set <id> applied`. A conflicting immutable copy
    is a reconciliation gap; missing submission proof blocks this shortcut.
 6. Claude obtains missing proposal ID through Brief's bounded discovery,
    captures missing insights/view/cost evidence as above and records supported
    quest actions. Missing IDs/insights do not undo recorded submission.
    Missing post: reconnect/fetch this job; missing submitted source: supply or
-   confirm the approved source; missing used Loom: URL/transcript.
+   confirm the approved source.
    Run `python3 code/pipeline.py prune`, report actual calls and stop the shortcut.
 
 ## Sales call proposal

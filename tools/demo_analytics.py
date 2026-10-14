@@ -6,7 +6,7 @@ through the real pipeline and analytics writers, then starts the cockpit on it.
 Nothing touches a real member's data/, jobs/ or context/. The eight weeks end with the current
 week (Monday of today in Lisbon), so "This week" is always filled.
 
-    python3 tools/analytics_example.py [--port 4370] [--no-serve]
+    python3 tools/demo_analytics.py [--port 4370] [--no-serve]
 """
 import argparse
 import copy as fixture_copy
@@ -70,13 +70,9 @@ def build(OUT, today=None):
     def score(s,history=None):
         r=orig_score(s,history);i=max(0,min(7,(dt.date.fromisoformat(s['generated_at'][:10])-day(2026,8,24)).days//7));r.update(score=series[i],previous=series[i-1] if i else None,baseline_only=False);return r
     a.funnel_score=score
-    orig_verdict=a.verdict
-    def verdict(k):
-        r=orig_verdict(k);r.update(reason=f"{k['reply_to_call']['k']} of {k['reply_to_call']['n']} interested replies reached a booking in the observed 28-day window.",kpi='reply_to_call',stage=a.LABELS['reply_to_call'],sentence='Interested replies still lack a specific next step.',next_action=a.ACTIONS['reply_to_call']);return r
-    a.verdict=verdict
     orig_conv=a.conversations_fields
     def conversations(s,jobs):
-        projected=fixture_copy.deepcopy(s);projected['reviews']['application'].pop('rubric',None)
+        projected=fixture_copy.deepcopy(s)
         r=orig_conv(projected,jobs)
         for rows in r['sections'].values():
             for row in rows:row['this_week']=bool(row.get('date') and s['periods']['activity']['start']<=row['date']<=s['periods']['activity']['end'])
@@ -127,23 +123,15 @@ def build(OUT, today=None):
     names=['Beatrice','Celeste','Dominic','Elodie','Felicity','Gabriel','Henrietta','Imogen','Joachim','Katarina','Leonora','Meredith','Nikolai','Octavia','Penelope','Quentin','Rosalie','Sebastian','Tabitha','Viola']
     titles=['Webflow pricing page for a workflow SaaS','Framer launch site for a research agency','Webflow demo funnel for a logistics SaaS','Framer case-study library for a brand agency','Webflow migration for an invoicing SaaS','Framer positioning site for a strategy agency','Webflow integrations pages for a data SaaS','Framer service pages for a content agency','Webflow CMS for a scheduling SaaS','Framer landing page for a design agency','Webflow conversion rebuild for a reporting SaaS','Framer lead capture for a growth agency','Webflow resource hub for a procurement SaaS','Framer mobile rebuild for a creative agency','Webflow product tour for a support SaaS','Framer offer page for a video agency','Webflow localization for a planning SaaS','Framer accessibility refresh for an insights agency','Webflow comparison pages for a security SaaS','Framer homepage for a partnership agency']
     problems=['Visitors miss the pricing comparison','The launch story buries the buyer benefit','Demo requests fall on mobile','Case studies lack a clear next step','The CMS migration must retain URLs']
-    reasons=['Name the buyer problem before introducing yourself','Match proof to the stated buying concern','Ask one easy question before asking for a call','Keep the application focused on the immediate decision','Show the relevant page interaction in the Loom']
-    rows=[];appreviews={};copies={}
+    rows=[]
     for w in range(8):
         start=day(2026,8,17)+dt.timedelta(weeks=w);n=20 if w==7 else 23 if w in (4,5) else 25;reply_n=3 if w<4 else 5
         for i in range(n):
-            d=start+dt.timedelta(days=i%5);jid=str(970000000+w*1000+i);problem=problems[i%5];good=(i%5==0 if w<4 else i%4!=1);category=i%5
-            passages=[f'{problem}. I would put the buyer decision above the fold.' if good else f'I am a Webflow expert with extensive experience. {problem}.',f'My fictional scheduling-site rebuild used a comparison grid for this exact decision.' if good else 'Please browse my entire portfolio for examples.', 'Which buyer objection should the page answer first?' if good else 'Can we jump on a call today?', 'I would rebuild this page, test mobile and hand over the CMS.' if good else 'I can provide strategy, branding, design, development, automation, maintenance and every other digital service you may ever need.', 'My short Loom shows the mobile pricing toggle and the next demo action.' if good else 'I have not included a walkthrough of the page.']
-
-            if not good and category==3:passages[3]+=' '+('I would also explore an additional service package before we have agreed the specific page decision. '*11)
-            copy='\n'.join(passages)+f'\nFor this {titles[i%20]}, my rate is $65/h or $2,500-$6,000 fixed after scope.'
-            points=[{'point':[1,2,6,5,7][p],'state':'met' if good or p!=category else 'partly','quote':passages[p],'reason':('Agree one clear next action (5 quoted cases across four stages)' if w==7 and not good and p==2 and category==2 else reasons[p]) if p==category else f'Checked {titles[i%20].split(" for ")[0].lower()} against point {p+1}'} for p in range(5)]
-            points.extend([{'point':3,'state':'met','quote':problem,'reason':'Screening answer addresses the stated website problem'},{'point':4,'state':'met','quote':'$65/h','reason':'Rate fits the stated website scope'}])
-            review={'state':'pass' if good else 'fail','reviewable':True,'quote':passages[category],'free_read':f'{problem} is the decision to address. '+('Keep the specific observation and its matching proof.' if good else reasons[category]+'.')+f' Replace only the weak passage for this {titles[i%20].split(" for ")[0].lower()}.','next_message':f'Which part of the website should resolve “{problem.lower()}” first?','points':points}
-            r={'id':jid,'source':'outbound','title':titles[i%20],'client':{'name':names[i%20]},'status':'lost','found_at':stamp(d,9,55),'last_activity_at':stamp(d),'history':[],'application_sent_verified':True,'application_facts':{'source':'outbound','posted_age_band':'<10m','proposals_band':'<5','lane':'Webflow and Framer marketing websites','connects_cost':12},'application_review':review,'log':[{'at':stamp(d),'text':'analytics job_fit: '+json.dumps({'state':'pass','reason':'B2B SaaS or agency marketing website within Daniel’s service and $65/h rate.'})}]}
+            d=start+dt.timedelta(days=i%5);jid=str(970000000+w*1000+i);problem=problems[i%5]
+            r={'id':jid,'source':'outbound','title':titles[i%20],'client':{'name':names[i%20]},'status':'lost','found_at':stamp(d,9,55),'last_activity_at':stamp(d),'history':[],'application_sent_verified':True,'application_facts':{'source':'outbound','posted_age_band':'<10m','proposals_band':'<5','lane':'Webflow and Framer marketing websites','connects_cost':12},'log':[{'at':stamp(d),'text':'analytics job_fit: '+json.dumps({'state':'pass','reason':'B2B SaaS or agency marketing website within Daniel’s service and $65/h rate.'})}]}
             ev(r,'applied',d)
             if i<reply_n:ev(r,'replied',d,11);r.update(first_reply_at=stamp(d,11,4 if w==7 else 20),first_reply_s=240 if w==7 else 1200)
-            rows.append(r);copies[jid]=copy;appreviews[jid]=review
+            rows.append(r)
     # Three steady bookings per week; one historical attendance dip.
     for w in range(7):
         batch=[r for r in rows if int(r['id'])//1000==(970000000+w*1000)//1000 and r.get('replied_at')]
@@ -157,7 +145,6 @@ def build(OUT, today=None):
         r['client']['name']=['Beatrice','Celeste','Dominic','Elodie','Felicity'][i]
         r['title']=['Webflow pricing rebuild for a workflow SaaS','Framer launch website for a creative agency','Webflow mobile demo flow for a reporting SaaS','Webflow resource hub for a procurement SaaS','Framer website scope for a growth agency'][i]
         r['price_estimate']=[2500,3800,5200,4200,3500][i]
-        copies[r['id']]='Your website needs a clearer buyer decision. I would focus on the agreed page flow and editable CMS. Which launch page comes first? My rate is $65/h or $2,500-$6,000 fixed.'
         d=day(2026,10,5)+dt.timedelta(days=i);ev(r,'call_booked',day(2026,10,4) if i<2 else d-dt.timedelta(days=1),12);ev(r,'call_held',d,14);ev(r,'call_ended',d,14,30);r['call_scheduled_at']=stamp(d,14)
         r['status']='offer' if i<3 else 'won' if i==3 else 'call'
         if i<3:ev(r,'proposal_sent',d,15,0);r['proposal_required']=True;r['call_outcome']='proposal_required'
@@ -169,10 +156,9 @@ def build(OUT, today=None):
     run('pipeline.py','add','--file','-',value=rows)
     for r in rows:
         folder=OUT/'jobs'/r['id'];folder.mkdir(exist_ok=True)
-        (folder/'application.sent.md').write_text(copies[r['id']]);(folder/'job.md').write_text(f"# {r['title']}\nFictional brief: {problems[int(r['id'])%5]}. B2B SaaS or agency marketing site. Budget $2,500-$6,000 or $65/h.\n")
+        (folder/'job.md').write_text(f"# {r['title']}\nFictional brief: {problems[int(r['id'])%5]}. B2B SaaS or agency marketing site. Budget $2,500-$6,000 or $65/h.\n")
         (folder/'source.md').write_text('Source: local fictional fixture; no marketplace request or outgoing action.\n')
 
-        if 'My short Loom' in copies[r['id']]: (folder/'loom.md').write_text('Daniel: [00:00] '+problems[int(r['id'])%5]+'.\nDaniel: [00:20] Move this buyer decision above the next page action.\n')
         if r.get('replied_at'):
             current=r['replied_at'][:10]>=day(2026,10,5).isoformat();i=int(r['id'])%1000
             client=['Could we edit the CMS without a developer?','How would you preserve our old URLs?','Will the pricing toggle work on a phone?','Which pages would you prioritize for our launch?','I am ready to approve this scope without a call.'][i%5]
@@ -186,12 +172,6 @@ def build(OUT, today=None):
             if current and i==4:pts['qualifying_question'].update(state='not_needed',reason='The client already confirms the scope and direct approval route')
             if current and i==4:pts['call_times'].update(state='not_needed',reason='Client explicitly chooses written scope approval without a call')
             run('pipeline.py','record',r['id'],'--file','-',value={'conversation_review':{'read':True,'last_writer':'me','free_read':f'{names[i%20]} asks: {client} '+(['You answered the substance but left the next action open. Offer two useful times after this answer.','Keep the direct technical answer and tie the invitation to one decision.','The mobile test answers the actual question and makes the meeting useful.','The buyer question qualifies the page hierarchy instead of adding generic discovery.','A call is not needed because the client chooses written approval. Check terms before the offer.'][i%5]),'next_message':own if i>=2 else 'Would Tuesday 10:00 or Wednesday 15:00 Lisbon time work for a 15-minute scope review?','points':pts}})
-        if r.get('proposal_sent_at'):
-            idx=callrows.index(r) if r in callrows else 3;scope=['Pricing page, comparison grid and Webflow CMS handover.','Framer launch homepage, two case studies and CMS training.','Webflow demo flow, mobile QA and analytics event mapping.','Webflow resource hub and CMS handover.'][idx];price=['$2,500 fixed.','$3,800 fixed.','$5,200 fixed.','$3,600 fixed.'][idx];decision=[f'Decision {when(2026,10,8)}.',f'Decision {when(2026,10,9)}.','',f'Decision {when(2026,9,21,False)}.'][idx]
-            (folder/'proposal.md').write_text(scope+'\n'+price+'\n'+decision+'\n')
-            reason=['The scope makes the pricing decision easy to compare','The handover owner and decision date are explicit','Agree one clear next action (5 quoted cases across four stages)','Keep the resource hub scope attached to the agreed value'][idx]
-            review={'state':'pass','reason':reason,'quote':scope,'free_read':["Clear comparison scope and price; retain Thursday’s explicit decision checkpoint.","Training is part of the scope, so confirm who attends before the Friday decision.","The mobile QA scope is concrete, but the client has no decision date to answer against.","The accepted resource hub scope has an explicit price and decision checkpoint."][idx],'next_message':f'Can we agree {when(2026,10,12)} as your decision date?' if not decision else 'Is the quoted scope ready for your decision on the agreed date?','scope':scope,'price':price,'decision_date':decision,'points':[{'point':1,'state':'met' if decision else 'missing','quote':scope,'reason':reason}]}
-            run('pipeline.py','note',r['id'],'analytics proposal_review: '+json.dumps(review))
     reads=[
     "Beatrice explains that buyers abandon the pricing comparison because they cannot see which plan covers their team. You established the current page and the desired decision before suggesting a layout. The strongest moment was asking what the lost demo requests cost; that made the comparison grid a business decision rather than a visual preference. Budget came before your price, so keep that order. The proof was relevant because it showed a similar plan comparison, although the transcript does not establish a measured conversion uplift. Your objection invitation was brief and could have tested whether the CMS handover worried the client. The next step is specific: you send a fixed proposal by 15:00 and Beatrice reviews it Thursday. Keep that agreement in the message rather than promising a build date. In the next call, ask one follow-up about who maintains the pricing table before you close.",
     "Celeste needs a launch page that explains the agency offer before visitors reach the case studies. You gave the call a useful agenda and checked which buyer segment matters first. The launch deadline was clear, but its business cost stayed vague; ask what happens if the existing page remains in place for another month. You quoted a price before establishing the available budget. That creates an avoidable second negotiation even though the scope sounds plausible. Your portfolio example matched the agency context, which is more useful than a tour of unrelated work. Celeste raised an editing concern and you answered it with native CMS training, so retain that concrete response. The agreement is to send the fixed scope today and let Celeste decide Friday. Your next message should repeat training and the review checkpoint, then ask the unanswered budget question. Do not add extra pages or a delivery promise that the call did not settle.",
@@ -230,20 +210,20 @@ def build(OUT, today=None):
         # The sync writer records freshness; adapter avoids writing fabricated sync JSON.
         run('sync.py','apply','--file','-',value={})
         value=a.compute(today)
-        keys=['reply_to_call','first_reply','speed_10min'] if w==6 else ['reply_to_call','call_review','proposal_to_won']
+        focus=value['verdict'].get('kpi');keys=['reply_to_call','first_reply','speed_10min'] if w==6 else ['reply_to_call','call_review','proposal_to_won']
+        keys=([focus]+[k for k in keys if k!=focus])[:3] if focus else keys
         actions={'reply_to_call':('Offer two useful times','When the client shows interest','Answer the real question, then offer two useful call times','call-times'),'first_reply':('Answer promptly','When a client asks a question','Answer the client within five working minutes','first-answer'),'speed_10min':('Apply after fit check','When a fitting website brief appears','Check fit and send the tailored application within ten minutes','speed-qualified'),'call_review':('Budget before price','Before quoting a website price','Confirm scope and budget before naming the price','call-budget'),'proposal_to_won':('Decision checkpoint','When sending the scope','Confirm the decision owner and review date','proposal-decision')}
-        value['goals_next']=[dict(stage=a.LABELS[k],kpi=k,change=actions[k][0],start=today.isoformat(),cue=actions[k][1],action=actions[k][2],fallback='Resolve one blocking question in the platform thread',review_on=(today+dt.timedelta(days=7)).isoformat(),primary=i==0,goal_library_id=actions[k][3]) for i,k in enumerate(keys)]
-        value['community_card']['next_focus']=a.LABELS['reply_to_call']
+        for k in keys:actions.setdefault(k,('Keep the routine','When this stage starts','Use the agreed next step','' ))
+        value['goals_next']=[dict(stage=a.LABELS[k],kpi=k,change=actions[k][0],start=today.isoformat(),cue=actions[k][1],action=actions[k][2],fallback='Resolve one blocking question in the platform thread',review_on=(today+dt.timedelta(days=7)).isoformat(),primary=i==0,**({'goal_library_id':actions[k][3]} if actions[k][3] else {})) for i,k in enumerate(keys)]
+        value['community_card']['next_focus']=value['verdict']['stage']
         value['report']=f"Funnel Score {series[w]}. Daniel’s fictional website practice is reviewed for the preceding Monday through Sunday. The priority is to turn interested replies into an agreed next step. Confirm the page scope, budget and decision checkpoint. This is a local demonstration with no real-account claims."
-        # Application rubric supplies states only; verbatim quote/reason assessments live on jobs.
         selected=[r for r in rows if a.inside(a.event(r,'applied'),a.span(today,7))]
-        value['reviews']['application'].update(fix='Name the buyer problem before introducing yourself',example='The mobile demo action disappears below the comparison. Which buyer objection should the page answer first?',evidence_lead_ids=[r['id'] for r in selected],goal_ref='speed_10min' if 'speed_10min' in keys else None,rubric=[{'lead_id':r['id'],'reviewable':True,'free_read':appreviews[r['id']]['free_read'],'next_message':appreviews[r['id']]['next_message'],'points':[{'point':p['point'],'state':p['state']} for p in appreviews[r['id']]['points']]} for r in selected])
-        examples={'conversation':('reply_to_call','Would Tuesday 10:00 or Wednesday 15:00 Lisbon time work for a 15-minute scope review?'),'call':('call_review','Before I quote, what budget range should this scope fit?'),'proposal':('proposal_to_won','Who signs off, and can we agree Monday as your decision date?')}
+        examples={'conversation':('reply_to_call','Would Tuesday 10:00 or Wednesday 15:00 Lisbon time work for a 15-minute scope review?'),'call':('call_review','Before I quote, what budget range should this scope fit?')}
         jobs=a.pipeline.load()
         for kind,(key,example) in examples.items():
-            eventname={'conversation':'replied','call':'call_held','proposal':'proposal_sent'}[kind]
+            eventname={'conversation':'replied','call':'call_held'}[kind]
             ids=[r['id'] for r in rows if a.inside(a.event(r,eventname),a.span(today,7)) and (kind!='call' or next(j for j in jobs if j['id']==r['id']).get('call_review',{}).get('reviewable'))]
-            review=value['reviews'][kind];review.update(fix={'conversation':'Offer two useful times after answering','call':'Confirm budget before price','proposal':'Agree the decision checkpoint'}[kind],example=example,evidence_lead_ids=ids,goal_ref=key if key in keys else None)
+            review=value['reviews'][kind];review.update(fix={'conversation':'Offer two useful times after answering','call':'Confirm budget before price'}[kind],example=example,evidence_lead_ids=ids,goal_ref=key if key in keys else None)
             if kind=='call':review.pop('coverage',None);review['rubric']=[dict(next(j for j in jobs if j['id']==jid)['call_review'],lead_id=jid) for jid in ids]
         for g in value['goals_review']:
             ids=[r['id'] for r in selected if r.get('replied_at')] if g['kpi']=='first_reply' else [r['id'] for r in selected] if g['kpi']=='speed_10min' else [r['id'] for r in selected if r.get('replied_at')]

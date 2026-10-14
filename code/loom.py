@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure a recorded Loom locally: loom.py <job_id> <url>."""
+"""Transcribe a sent Loom locally: loom.py <job_id> <url>. Score a review: loom.py score <state> x4."""
 import argparse
 import json
 import math
@@ -38,7 +38,27 @@ def words(text):
     return re.findall(r"\b[\w]+(?:['’-]\w+)*\b", text)
 
 
+LOOM_POINTS = ('opens with the client problem', 'shows something relevant to this job',
+               'length fits', 'ends with one easy ask')
+
+
+def loom_score(states):
+    """Loom Score 0 to 100, computed here and never by Claude: met and half of partly over applicable points."""
+    states = [str(state).replace(' ', '_') for state in states]
+    if len(states) != len(LOOM_POINTS) or any(state not in ('met', 'partly', 'missing', 'not_needed') for state in states):
+        raise ValueError('four states needed: met, partly, missing or not_needed')
+    met, partly = states.count('met'), states.count('partly')
+    applicable = met + partly + states.count('missing')
+    if not applicable: return {'score': None, 'met': met, 'partly': partly, 'applicable': 0}
+    return {'score': math.floor(100 * (met + 0.5 * partly) / applicable + .5), 'met': met, 'partly': partly, 'applicable': applicable}
+
+
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ['score']:
+        try: print(json.dumps(loom_score(argv[1:])))
+        except ValueError as exc: print(exc, file=sys.stderr); return 2
+        return 0
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('job_id')
     parser.add_argument('url')
@@ -85,9 +105,6 @@ def main(argv=None):
         (folder / 'loom.md').write_text(
             f'# Loom transcript\n\nDuration: {metrics["loom_duration_s"]} seconds\n'
             f'Words per minute: {metrics["loom_wpm"]}\n\n{turns}\n', encoding='utf-8')
-        subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name('pipeline.py')),
-                        'record', args.job_id, '--file', '-'],
-                       input=json.dumps(metrics), text=True, check=True)
         print(json.dumps(metrics))
         return 0
     except (subprocess.CalledProcessError, OSError, ValueError) as exc:

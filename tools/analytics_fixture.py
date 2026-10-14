@@ -65,234 +65,6 @@ def run(script, *args, value=None, env=None, success=True):
         raise AssertionError(f'{script} failed ({result.returncode}):\n{result.stdout}\n{result.stderr}')
     return result
 
-def maya_preview_review(index, kind='application'):
-    """Varied, quote-backed SEO coaching for the disposable Maya preview.
-
-    The caller writes ``source`` as the actual artifact before recording ``review``.
-    No summary counts live here: analytics derives them from the recorded reviews.
-    """
-    scenarios = (
-        ('Collection pages disappeared from search after our theme change',
-         'Lead with the indexing problem before introducing yourself', 'missing', 1),
-        ('Our clinic appears below nearby practices in local search',
-         'Keep the relevant local search example', 'met', 2),
-        ('Product variants compete with each other in search results',
-         'Match the audit deliverable to the variant problem', 'partly', 4),
-        ('Search Console shows excluded category pages after the migration',
-         'End with one question about the affected pages', 'missing', 6),
-        ('Our buying guides attract visits but few product page clicks',
-         'Keep the audit scope tied to the affected pages', 'met', 1),
-    )
-    problem, finding, state, weak = scenarios[index % len(scenarios)]
-    subjects = ('linen bedding collections', 'dental implant service pages', 'running shoe variants',
-                'garden furniture categories', 'hiking equipment buying guides', 'ceramic dinnerware collections',
-                'physiotherapy treatment pages', 'skincare product variants', 'coffee subscription categories',
-                'cycling accessory buying guides', 'organic cotton collections', 'bakery catering pages',
-                'leather bag variants', 'office lighting categories', 'camping tent buying guides',
-                'handmade jewellery collections', 'estate agent neighbourhood pages', 'haircare product variants',
-                'kitchen storage categories', 'trail shoe buying guides', 'children’s clothing collections',
-                'veterinary consultation pages', 'tea gift set variants', 'home fragrance categories',
-                'paddleboard buying guides', 'wool blanket collections', 'accountancy service pages',
-                'bathroom tap variants', 'pet food categories', 'camera accessory buying guides',
-                'recycled stationery collections', 'roof repair service pages', 'protein powder variants',
-                'indoor plant categories', 'travel backpack buying guides', 'silk scarf collections',
-                'optician eye test pages', 'water bottle variants', 'desk organiser categories',
-                'dog harness buying guides')
-    subject = subjects[index % 100 % len(subjects)]
-    title = ('Shopify collection indexing audit', 'Local service SEO audit', 'Product variant SEO audit',
-             'Migration category SEO audit', 'Buying guide content audit')[index % len(scenarios)] + ': ' + subject
-    page_count = 2 + index % 19
-    slot = index % len(scenarios)
-    opener = (f'I am Maya, an SEO consultant applying to review your {subject}.' if slot == 0 else
-              f'Your {subject} need an audit because {problem[0].lower() + problem[1:]}.')
-    proof = (f'My local search audit sample shows listing and service-page fixes for {subject}.' if slot == 1 else
-             f'My comparable SEO audit sample shows a prioritised fix list for {subject}.')
-    screening = f'I can start Monday and have Search Console experience relevant to {subject}.'
-    scope = (f'My bid for {subject} covers SEO improvements; I will work out the deliverables later.' if slot == 2 else
-             f'My fixed bid covers {page_count} pages for {subject}, an evidence sheet and a prioritised fix list.')
-    closing = (f'Can we book a call to discuss your {subject}?' if slot == 3 else
-               f'Which page in your {subject} should I check first?')
-    source = '\n'.join((opener, proof, screening, scope, closing, 'Maya'))
-    quote = (opener, proof, scope, closing, opener)[slot]
-    read = f'{finding}. The review is grounded in the submitted audit copy.'
-    review = {'state': 'pass', 'reviewable': True, 'quote': quote,
-              'key_finding': finding, 'free_read': read,
-              'better_line': (
-                  f'I will check why your {subject} disappeared from search after the theme change.',
-                  f'My local search audit sample shows listing and service-page fixes relevant to your {subject}.',
-                  f'The audit of your {subject} will deliver an evidence sheet and a prioritised list of canonical fixes.',
-                  f'Which excluded page in your {subject} should I check first?',
-                  f'The audit will cover {page_count} pages in your {subject}, their product links and a prioritised fix list.'
-              )[slot],
-              'next_message': 'Which affected page should the audit address first?',
-              'points': [{'point': p, 'state': state if p == weak else 'not_needed' if p == 7 else 'met',
-                          'quote': (opener, proof, screening, scope, 'Maya', closing, scope)[p - 1],
-                          'reason': finding if p == weak else 'No Loom was requested or sent.' if p == 7 else
-                                    'The sent application records this check.'}
-                         for p in range(1, 8)]}
-    if kind == 'conversation':
-        slot = index % 4
-        clients = (
-            'Can you start with our excluded collection pages before checking the rest of the store?',
-            'Does the local audit cover both clinic listings and their landing pages?',
-            'Can you check the variant canonical tags and meet to confirm the product scope?',
-            'Can we agree the buying guide audit in writing? A call would not help this decision.',
-        )
-        answers = (
-            'Yes, I will check the excluded collection pages first. Who can share Search Console access?',
-            'Yes, the audit includes both clinic listings and their landing pages. Which clinic location takes priority?',
-            'Yes, I will check the variant canonical tags. Which product range matters most? Tuesday at ten or Wednesday at two on Upwork?',
-            'Yes, we can agree the buying guide audit in writing here on Upwork. Which guide should take priority?',
-        )
-        findings = ('Offer two concrete call times after answering the question',
-                    'Ask for a call time after narrowing the clinic scope',
-                    'Keep the clear answer and two available call times',
-                    'Keep the decision in writing when a call adds nothing')
-        own = answers[slot]
-        quote = clients[slot]
-        review.update(read=True, last_writer='me', key_finding=findings[slot],
-                      better_line=(
-                          'I will check the excluded collection pages first; would Tuesday at ten or Wednesday at two suit you on Upwork?',
-                          'The audit covers both clinic listings and landing pages; would Tuesday at ten or Wednesday at two suit you on Upwork?',
-                          'I will check the variant canonical tags; shall we confirm the product range Tuesday at ten or Wednesday at two on Upwork?',
-                          'We can agree the buying guide audit in writing here on Upwork; which guide should take priority?'
-                      )[slot],
-                      free_read=findings[slot] + '. The complete thread supports this read.',
-                      next_message=('Would Tuesday at ten or Wednesday at two suit you on Upwork?'
-                                    if slot < 2 else 'I will send the agreed audit scope here on Upwork.'),
-                      points={key: {'state': ('missing' if slot < 2 else 'not_needed' if slot == 3 else 'met')
-                                           if key == 'call_times' else 'met',
-                                    'quote': quote if slot == 3 and key == 'call_times' else own,
-                                    'reason': ('The client explicitly prefers a written decision; no call is needed.' if slot == 3 else findings[slot])
-                                              if key == 'call_times' else 'The reply addresses this check.'}
-                              for key in ('answered_question', 'qualifying_question', 'call_times')})
-        review = {key:review[key] for key in ('read','last_writer','key_finding','better_line','free_read','next_message','points')}
-        return {'quote': quote, 'own': own, 'source': quote + '\n' + own, 'review': review}
-    if kind == 'proposal':
-        missing = index % 2 == 1
-        scope = ('Audit the Shopify collection and indexing issues.' if not missing else
-                 'Audit the clinic listings and local landing pages.')
-        price = '$1,800 fixed.' if not missing else '$1,400 fixed.'
-        decision = 'We will decide Friday on Upwork.'
-        finding = 'Agree a decision date before waiting for approval' if missing else 'Keep the audit scope tied to the affected pages'
-        quote = scope
-        source = scope + '\n' + price + ('\n' + decision if not missing else '')
-        review.update(quote=quote, key_finding=finding, free_read=finding + '. The scope is specific to this audit.',
-                      scope=scope, price=price, decision_date=None if missing else decision,
-                      better_line='When will you decide on this clinic listings and local landing page audit here on Upwork?' if missing else
-                                  'The fixed scope covers the Shopify collection indexing audit; I will wait for your Friday decision on Upwork.',
-                      next_message='Can we agree a day to decide on this audit here on Upwork?' if missing else
-                                   'I will wait for your Friday decision here on Upwork.',
-                      points=[{'point': p, 'label': ('Scope', 'Price', 'Decision date')[p - 1], 'state': 'missing' if missing and p == 3 else 'met',
-                               'quote': scope if p == 3 and missing else (scope, price, decision)[p - 1],
-                               'reason': 'No decision date was agreed.' if p == 3 and missing else 'The proposal records this term.'}
-                              for p in range(1, 4)])
-        if missing: review.pop('decision_date')
-        if missing:
-            review['points'][2].update(pattern_sentence='you left the decision date open.',
-                                       better_line='When will you decide on this audit here on Upwork?')
-    if kind == 'call':
-        slot = index % 3
-        reads = (
-            'The client narrowed the audit to collection pages and explained the lost search traffic. '
-            'Maya confirmed the page list and budget before giving a fixed price. '
-            'Keep that order because it ties the price to a scope the client has already accepted.',
-            'The clinic owner gave a clear local search problem, but Maya quoted a price before checking the available budget. '
-            'The client also left the purchase decision date open. Ask for the budget range after confirming the locations and before offering a package. '
-            'The written follow-up should resolve that gap rather than assume the price was accepted.',
-            'This follow-up call revisits the retailer’s existing buying guide audit offer. '
-            'The retailer wants a content audit rather than a technical migration. '
-            'Maya separated those needs and named the buying guides in scope. '
-            'The client will share the guide list on Upwork before Maya updates the existing proposal. '
-            'Keep the follow-up tied to those inputs instead of promising a delivery date too early.',
-        )
-        # Full reads remain in the requested 120-180 word envelope.
-        context = (' The transcript records the client’s own explanation of the search issue and Maya’s response. '
-                   'It supports the agreed next action, but it does not establish a signed contract or delivered results. '
-                   'Use the same page list when preparing the written scope so the client can compare it with the conversation. '
-                   'If a required input changes, confirm the change in the Upwork thread before treating it as agreed. '
-                   'The next message should keep that one decision easy to answer and leave the remaining work for the agreed review.')
-        steps = ('Maya sends the collection audit scope on Upwork by Friday.',
-                 'Client confirms the clinic audit budget on Upwork by Thursday.',
-                 'Client shares the buying guide list on Upwork by Wednesday.')
-        messages = ('Thanks for confirming the pages and budget. I will send the collection audit scope here by Friday.',
-                    'Before I prepare the clinic audit scope, which budget range should it fit?',
-                    'Please share the buying guide list here by Wednesday, then I will confirm the audit scope.')
-        agenda = ('Let us cover the collection indexing issue, scope, budget and next step.',
-                  'Let us cover the clinic visibility issue, locations, budget and next step.',
-                  'Let us cover the buying guides, content scope, budget and next step.')[slot]
-        current = ('Our collection pages dropped out of search after the theme change.',
-                   'Both clinics rank below nearby practices despite accurate listings.',
-                   'Our buying guides get visits but send few people to the product pages.')[slot]
-        cost = ('We lost about forty collection-page visits a day and need those visitors back.',
-                'We miss about five appointment enquiries a week and want more local bookings.',
-                'We lose about twenty product clicks a week and want the guides to drive purchases.')[slot]
-        call_scope = ('I will audit the twelve affected collection pages and prioritise indexing fixes.',
-                      'I will audit both clinic listings and six local landing pages.',
-                      'I will audit eight buying guides and their links to product pages.')[slot]
-        proof = ('My Shopify audit sample shows how I diagnosed collection indexing after a theme change.',
-                 'My clinic audit sample connects listing corrections with local landing-page fixes.',
-                 'My retailer audit sample shows how guide structure and links support product discovery.')[slot]
-        budget_question = ('What budget have you set aside for these collection pages?',
-                           'What budget have you set aside for the clinic audit?',
-                           'Is the twelve hundred dollar budget agreed in our Upwork thread still right for these guides?')[slot]
-        budget_answer = ('We have set aside eighteen hundred dollars for these pages.',
-                         'We have not decided the budget or when we will purchase the audit.',
-                         'Yes, the twelve hundred dollar budget in our Upwork thread still stands.')[slot]
-        price_line = ('The collection audit will cost eighteen hundred dollars fixed.',
-                      'The clinic audit will cost fourteen hundred dollars fixed.',
-                      'The buying guide audit will cost twelve hundred dollars fixed.')[slot]
-        decision_line = ('I am the sole decision maker and will decide on the collection audit this Friday.',
-                         'I own the clinics, but the budget and purchase decision timeline are still unresolved.',
-                         'I approve this myself and will decide on the buying guide audit next Monday.')[slot]
-        no_objections = ('I have no objections to the collection audit scope; send it in writing.',
-                         'I have no objections to the clinic page scope; I still need to confirm the budget.',
-                         'I have no objections to the buying guide scope; I will share the page list.')[slot]
-        finding = ('Keep the audit scope tied to the affected pages', 'Confirm budget before quoting the audit',
-                   'Keep the input owner and next Upwork step clear')[slot]
-        turns = [('Maya', '00:12', agenda), ('Maya', '00:24', 'What is happening now and what would a useful result look like?'),
-                 ('Client', '00:40', current), ('Maya', '01:05', 'What does that problem cost you each week?'),
-                 ('Client', '01:22', cost), ('Maya', '02:00', call_scope),
-                 ('Client', '02:20', 'Yes, that is the page scope I need.'), ('Maya', '02:42', proof)]
-        if slot == 2:
-            turns.insert(0, ('Maya', '00:05', 'This is our follow-up on the existing buying guide audit offer; today we will confirm the remaining inputs.'))
-        if slot == 1:
-            turns += [('Maya', '03:05', price_line), ('Maya', '03:22', budget_question), ('Client', '03:40', budget_answer)]
-        else:
-            turns += [('Maya', '03:05', budget_question), ('Client', '03:22', budget_answer), ('Maya', '03:40', price_line)]
-        turns += [('Maya', '04:00', 'Who will decide on the purchase, and when will you decide?'),
-                  ('Client', '04:20', decision_line), ('Maya', '04:42', 'Do you have any objections to the scope?'),
-                  ('Client', '05:00', no_objections), ('Maya', '05:18', 'Let us agree the next action here on Upwork.'),
-                  ('Client', '05:35', steps[slot])]
-        title = ('Shopify collection audit', 'Clinic local SEO audit', 'Buying guide content audit')[slot]
-        source = f'Call at: 2026-10-{(6, 7, 9)[slot]:02d}T11:00:00+02:00\nMember: Maya\nComplete: yes\nLanguage: English\n' + '\n'.join(
-            f'{speaker}: [{time}] {line}' for speaker, time, line in turns) + '\n'
-        quote = price_line if slot == 1 else budget_question
-        review = {'reviewable': True, 'key_finding': finding,
-                  'better_line': (
-                      'I will send the agreed collection page audit scope here on Upwork by Friday.',
-                      'Before I quote a price for the clinic audit, what budget range have you set aside?',
-                      'Please share the buying guide list here on Upwork by Wednesday so I can update the existing audit scope.'
-                  )[slot],
-                  'free_read': reads[slot] + context, 'next_message': messages[slot],
-                  'next_step': steps[slot], 'agreed_step': steps[slot],
-                  'fix': finding, 'example': 'Which budget range should this audit scope fit?',
-                  'moments': [{'quote': quote, 'better_wording': messages[slot]}],
-                  'points': [{'point': p, 'state': 'missing' if slot == 1 and p == 5 else
-                                                   'missing' if slot == 1 and p == 6 else 'not needed' if p == 8 else 'met',
-                              'quote': (agenda, current, cost, call_scope, quote, decision_line, proof, no_objections, steps[slot])[p - 1],
-                              'reason': 'No decision date was agreed.' if slot == 1 and p == 6 else
-                                        'The client explicitly raised no scope objections, so no objection handling was needed.' if p == 8 else
-                                        'The price preceded the budget question; the client has not decided a budget.' if slot == 1 and p == 5 else
-                                        'The client named the sole decision maker and purchase decision date.' if p == 6 else
-                                        'The client confirmed the budget before Maya gave the price.' if p == 5 else
-                                        'The transcript records this check.'}
-                             for p in range(1, 10)]}
-        if slot == 1:
-            review['points'][5].update(pattern_sentence='you left the decision date open.',
-                                      better_line='When will you decide on this audit here on Upwork?')
-    return {'title': title, 'quote': quote, 'source': source, 'review': review}
-
 def seed(rows):
     run('pipeline.py', 'add', '--file', '-', value=rows)
 
@@ -306,9 +78,10 @@ def record(jid, values):
 def analytics_stamp(day, hour=10, minute=0):
     return dt.datetime.combine(day, dt.time(hour, minute), ZoneInfo('Europe/Berlin')).isoformat()
 
-def analytics_sync_marker(folder):
+def analytics_sync_marker(folder, now=None):
     import analytics
-    (folder / 'data/sync.json').write_text(json.dumps({'synced_at': analytics.run_timestamp(ANALYTICS_TODAY).isoformat()}))
+    stamp = now or analytics.run_timestamp(ANALYTICS_TODAY).isoformat()
+    (folder / 'data/sync.json').write_text(json.dumps({'synced_at': stamp}))
 
 def analytics_rows():
     """Eight weekly cohorts; every expected event is fixed before running analytics."""
@@ -468,7 +241,7 @@ def analytics_payload(snapshot, agree=True):
     value['reviews'] = {kind: {'fix': 'Make one next step clear',
                                'example': 'I can offer Tuesday at ten.',
                                'evidence_lead_ids': [], 'goal_ref': keys[index % 3]}
-                        for index, kind in enumerate(('application', 'conversation', 'call', 'proposal'))}
+                        for index, kind in enumerate(('conversation', 'call'))}
     import analytics
     today=dt.date.fromisoformat(value['generated_at'][:10])
     agreement={'week':value['week'],'goals':[dict(goal,start=today.isoformat()) for goal in value['goals_next']]}
@@ -607,7 +380,7 @@ def analytics_member():
         run('pipeline.py', 'note', rows[-80]['id'], 'analytics job_fit: ' + json.dumps({'state': 'pass', 'reason': 'Fits the member lane'}))
         before = (folder / 'data/jobs.json').read_bytes()
         result = json.loads(run('analytics.py', 'compute', '--today', ANALYTICS_TODAY).stdout)
-        assert len(result['kpis']) == 24
+        assert len(result['kpis']) == 22
         expected = analytics_rate_oracle(rows, ANALYTICS_TODAY)
         baseline = analytics_rate_oracle(rows, ANALYTICS_TODAY, baseline=True)
         for key, (k, n, target) in expected.items():
@@ -637,10 +410,8 @@ def analytics_member():
             'follow_ups_on_time': (36, 40, 'fail', 90),
             'proposal_on_time': (21, 22, 'pass', 2100 / 22),
             'job_fit': (36, 40, 'fail', 90),
-            'application_review': (None, None, 'undecided', None),
             'conversation_review': (None, None, 'undecided', None),
             'call_review': (None, None, 'undecided', None),
-            'proposal_review': (None, None, 'undecided', None),
             'segments': (0, 25, 'observed', 0),
             'behaviour': (0, 3, 'observed', 0),
             'lost_reasons': (0, 0, 'undecided', {'stated': 0, 'observed': 0, 'unknown': 0}),
@@ -664,7 +435,7 @@ def analytics_member():
         assert result['north_star']['baseline'] == 4400
         assert result['periods']['activity'] == result['periods']['outcome'] == {'start': '2026-10-07', 'end': '2026-10-13'}
         assert result['periods']['cohort'] == result['window'] == {'start': '2026-09-16', 'end': '2026-10-13'}
-        assert set(row['source'] for row in analytics.coverage_sources(result['coverage'])) == {'recorder', 'upwork', 'tracking', 'loom', 'earnings', 'connects'}
+        assert set(row['source'] for row in analytics.coverage_sources(result['coverage'])) == {'recorder', 'upwork', 'tracking', 'earnings', 'connects'}
         assert result['verdict']['kpi'] == 'follow_ups_on_time' and result['verdict']['state'] == 'levers'
         assert result['findings'] == []
         assert result['community_card']['applications'] == 36, result['community_card']
@@ -698,7 +469,7 @@ def analytics_storage(snapshot, folder, rows):
     assert analytics.due(ANALYTICS_TODAY+dt.timedelta(days=7))
     for surface in (json.dumps(stored['community_card']),analytics.public_onepager_html(stored['community_card'])):
         assert all(secret not in surface for secret in ('SYNTHETIC PRIVATE CLIENT NAME','SYNTHETIC PRIVATE CLIENT WORDS','Operations dashboard and audit automation'))
-    assert stored['reviews']['application']['example']=='I can offer Tuesday at ten.'
+    assert stored['reviews']['conversation']['example']=='I can offer Tuesday at ten.'
     previous = analytics_payload(analytics.compute(ANALYTICS_TODAY - dt.timedelta(days=7)),agree=False)
     keys = ('booked_to_held', 'first_reply', 'follow_ups_on_time')
     previous_goals = {'week': previous['week'], 'goals': [dict(previous['goals_next'][index],
@@ -722,7 +493,7 @@ def analytics_storage(snapshot, folder, rows):
     assert [goal['effect'] for goal in stored['goals_review']] == ['undecided', 'not', 'not']
     assert stored['kpis']['goal_effect']['k'] == 0 and stored['kpis']['goal_effect']['n'] == 3
     assert (stored['kpis']['goal_done']['k'], stored['kpis']['goal_done']['n'], stored['kpis']['goal_done']['state']) == (4, 9, 'fail')
-    for key in ('application_review', 'conversation_review', 'call_review', 'proposal_review'):
+    for key in ('conversation_review', 'call_review'):
         assert (stored['kpis'][key]['k'], stored['kpis'][key]['n'], stored['kpis'][key]['state'], stored['kpis'][key]['baseline']) == (0, 1, 'undecided', None)
 
 
@@ -794,17 +565,8 @@ def analytics_source_and_timezone():
         seed([{'id': '976000001', 'status': 'applied', 'found_at': analytics_stamp(dt.date(2026, 10, 12)),
                'applied_at': analytics_stamp(dt.date(2026, 10, 12))}])
         optional = analytics.compute(ANALYTICS_TODAY)
-        assert optional['kpis']['application_review']['state'] == 'undecided'
-        assert optional['kpis']['proposal_review']['state'] == 'undecided'
+        assert set(k for k in optional['kpis'] if k.endswith('_review')) == {'conversation_review', 'call_review'}
         assert next(row for row in analytics.coverage_sources(optional['coverage']) if row['source'] == 'tracking')['affects'] == []
-        jobdir = folder / 'jobs/976000001'
-        jobdir.mkdir()
-        (jobdir / 'application.sent.md').write_text('Member wording: please see https://www.loom.com/share/synthetic')
-        required = analytics.compute(ANALYTICS_TODAY)
-        assert required['kpis']['application_review']['state'] == 'missing'
-        (jobdir / 'loom.md').write_text('SYNTHETIC recorded member words')
-        present = analytics.compute(ANALYTICS_TODAY)
-        assert present['kpis']['application_review']['state'] == 'undecided'
         (folder / 'context/me.md').write_text('## Timezone\nAmerica/New_York\n## Working hours\n09:00-18:00 Mon-Fri\n')
         assert str(analytics.local_zone()) == 'America/New_York'
         assert analytics.working_reply({'first_reply_at': '2026-10-08T18:30:00+00:00', 'first_reply_s': 300}) == 5
@@ -855,7 +617,6 @@ def analytics_privacy_and_badge_replace():
                'applied_at': analytics_stamp(date), 'speed_to_lead_s': 120,
                'applied_observation': {'verified': True, 'source': 'upwork-proposal'},
                'job_fit': {'state': 'pass', 'reason': 'Verified lane and rate fit'},
-               'application_review': {'state': 'pass', 'reason': 'Submitted copy fits the agreed problem and offer'},
                'application_facts': {'source': 'outbound', 'posted_age_band': '<10m'}}])
         payload = analytics_payload(analytics.compute(ANALYTICS_TODAY))
         run('analytics.py', 'record', '--file', '-', value=payload)
@@ -948,9 +709,12 @@ def goal_effect_execution_forecast_and_record_races():
         (folder/'data/sync.json').write_text(json.dumps({'synced_at':now}))
         (folder/'data/earnings.jsonl').write_text('');(folder/'data/connects.jsonl').write_text('')
     def commitment(key,start='2026-09-01'):
-        return {'kpi':key,'goal_library_id':{'reply_rate':'reply-proof','first_reply':'first-answer','weekly_volume':'volume-sessions'}[key],'stage':analytics.LABELS[key],'change':'Review applications once','start':start,
+        goal={'kpi':key,'stage':analytics.LABELS[key],'change':'Review applications once','start':start,
                 'primary':True,'cue':'When reviewing the week','action':'Review applications once',
                 'fallback':'Review one application','review_on':(dt.date.fromisoformat(start)+dt.timedelta(days=7)).isoformat()}
+        library={'first_reply':'first-answer','weekly_volume':'volume-sessions'}.get(key)
+        if library: goal['goal_library_id']=library
+        return goal
     with fixture('audit-real-effects') as folder:
         setup(folder)
         for before_min,after_min,expected in ((1,3,'not'),(10,6,'worked'),(3,3,'not')):  # Frozen §13.7: unchanged is no effect.
@@ -979,7 +743,7 @@ def goal_effect_execution_forecast_and_record_races():
         setup(folder)
         rows=[{'id':str(933000000+index),'title':'Automate client onboarding in Airtable'} for index in range(27)]
         seed(rows)
-        analytics.add_goals({'week':'2026-W36','goals':[commitment('reply_rate')]})
+        analytics.add_goals({'week':'2026-W36','goals':[commitment('first_reply')]})
         for done,eligible,state in ((22,27,'partial'),(0,27,'undone'),(0,0,'no opportunity')):
             value=analytics.compute(today,now=now)
             review=value['goals_review'][0]
@@ -998,8 +762,7 @@ def goal_effect_execution_forecast_and_record_races():
         for index in range(10):
             date=today-dt.timedelta(days=2)
             rows.append({'id':str(934000000+index),'source':'outbound','call_held_at':analytics_stamp(date,10),
-                         'call_ended_at':analytics_stamp(date,11),'proposal_sent_at':analytics_stamp(date,11,5) if index<9 else analytics_stamp(date,12),
-                         'proposal_review':{'state':'pass','reason':'Reviewed relevant scope and next step'}})
+                         'call_ended_at':analytics_stamp(date,11),'proposal_sent_at':analytics_stamp(date,11,5) if index<9 else analytics_stamp(date,12)})
         snapshot=analytics.compute(today,jobs=rows,now=now)
         snapshot['kpis']['call_review']['state']='pass'  # Unit input: validated review; source gating has a separate negative case.
         snapshot['reviews']['call']['rubric']=[{'lead_id':rows[0]['id'],'reviewable':True,
@@ -1111,38 +874,6 @@ def pipeline_progression_and_jobfit_coverage():
         for row in fitrows:row.pop('job_fit')
         assert analytics.calculate(fitrows,today,now=now)[0]['job_fit']['state']=='missing'
 
-def uma_source_rubric_coverage():
-    import analytics
-    import copy
-    today=dt.date(2026,10,14);now='2026-10-14T15:00:00+02:00'
-    with fixture('audit-uma-review') as folder:
-        (folder/'data/sync.json').write_text(json.dumps({'synced_at':now}))
-        (folder/'data/earnings.jsonl').write_text('');(folder/'data/connects.jsonl').write_text('')
-        jid='938000001'
-        seed([{'id':jid,'title':'Automate client onboarding in Airtable','status':'applied','source':'outbound'}])
-        record(jid,{'application_modality':'uma','application_sent_verified':True})
-        path=folder/'jobs'/jid
-        path.mkdir(exist_ok=True)
-        sent=path/'application.sent.md';sent.write_text('SYNTHETIC submitted interview answers and video evidence')
-        value=analytics.compute(today,now=now)
-        value['reviews']['application'].update(fix='Keep specific evidence in answers',example='I implemented this workflow.',evidence_lead_ids=[jid],
-            rubric=[{'lead_id':jid,'reviewable':True,'points':[{'point':point,'state':'met'} for point in range(1,4)]}])
-        reviewed=analytics.prepare_snapshot(value,today,now=now)
-        assert reviewed['kpis']['application_review']['state']=='pass'
-        coverage=[row for row in reviewed['reviews']['application']['coverage'] if row.get('modality')=='uma']
-        assert [row['point'] for row in coverage]==[1,2,3]
-        assert all(row['n']==row['met']==1 for row in coverage)
-        assert all(not row['n'] for row in reviewed['reviews']['application']['coverage'] if row.get('modality')!='uma')
-        bad=copy.deepcopy(value)
-        bad['reviews']['application']['rubric'][0]['points']=[{'point':point,'state':'met'} for point in range(1,7)]
-        try:analytics.prepare_snapshot(bad,today,now=now)
-        except ValueError:pass
-        else:raise AssertionError('Uma accepted cover-letter rubric')
-        sent.unlink()
-        missing=analytics.prepare_snapshot(value,today,now=now)
-        assert missing['kpis']['application_review']['state']=='missing'
-        assert all(not row['n'] for row in missing['reviews']['application']['coverage'])
-
 def complete_call_source_badge_gate():
     import analytics
     today=dt.date(2026,10,14);now='2026-10-14T15:00:00+02:00'
@@ -1181,7 +912,7 @@ def analytics_final_numerical():
     today = dt.date(2026, 10, 14)
     now = '2026-10-14T15:00:00+02:00'
     with fixture('final-numerical') as folder:
-        analytics_sync_marker(folder)
+        analytics_sync_marker(folder, now)
         (folder / 'data/connects.jsonl').write_text('')
         (folder / 'data/earnings.jsonl').write_text('')
         expected_rungs = {'reply_rate': (11, 15, 20), 'reply_to_call': (30, 40, 50),
@@ -1278,7 +1009,7 @@ def analytics_public_onepager_contract():
     import struct
     today=dt.date(2026,10,14);now='2026-10-14T15:00:00+02:00'
     with fixture('final-public-onepager') as folder:
-        analytics_sync_marker(folder)
+        analytics_sync_marker(folder, now)
         snapshot=analytics.compute(today,jobs=[],now=now)
         card=copy.deepcopy(snapshot['community_card'])
         card['next_focus']=analytics.LABELS['weekly_volume']
@@ -1373,7 +1104,7 @@ def analytics_private_call_cards_contract():
     import copy
     today=dt.date(2026,10,14);now='2026-10-14T15:00:00+02:00'
     with fixture('final-private-call-cards') as folder:
-        analytics_sync_marker(folder)
+        analytics_sync_marker(folder, now)
         (folder/'data/earnings.jsonl').write_text('');(folder/'data/connects.jsonl').write_text('')
         jid='943000001'
         seed([{'id':jid,'source':'outbound','status':'call','call_held_at':analytics_stamp(today-dt.timedelta(days=2)),
@@ -1572,7 +1303,7 @@ def badge_event_persistence():
         assert badges.read_ledger() == awards
         assert not (folder/'data/jobs.json').exists() and not (folder/'data/analytics-history.jsonl').exists()
 
-CHECKS = (badge_event_persistence,analytics_decisions, analytics_boundaries, analytics_member, analytics_levers_and_imports, analytics_source_and_timezone, outcome_badge_interval, analytics_privacy_and_badge_replace, obligations_finance_and_atomic_goals, goal_effect_execution_forecast_and_record_races, pipeline_progression_and_jobfit_coverage, uma_source_rubric_coverage, complete_call_source_badge_gate, analytics_final_numerical, analytics_public_onepager_contract, analytics_private_call_cards_contract, explicit_goal_action_execution, analytics_fix_round,)
+CHECKS = (badge_event_persistence,analytics_decisions, analytics_boundaries, analytics_member, analytics_levers_and_imports, analytics_source_and_timezone, outcome_badge_interval, analytics_privacy_and_badge_replace, obligations_finance_and_atomic_goals, goal_effect_execution_forecast_and_record_races, pipeline_progression_and_jobfit_coverage, complete_call_source_badge_gate, analytics_final_numerical, analytics_public_onepager_contract, analytics_private_call_cards_contract, explicit_goal_action_execution, analytics_fix_round,)
 
 if __name__ == "__main__":
     run_checks(CHECKS)

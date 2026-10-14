@@ -494,3 +494,22 @@
 }
 
 .sc-development{display:block;max-height:160px;width:100%;height:auto}.sc-step-band rect{fill:var(--ring);opacity:.25}.sc-step-band text{font-size:10px;fill:var(--label)}.sc-development .sc-value-label{fill:var(--ink);font-size:10px}.sc-counting p{margin:0 0 6px;font-size:12px;line-height:1.4}.sc-open-leads{margin-top:8px}.sc-detail td{padding:12px 16px}.sc-detail-grid{gap:18px}.an-methodology[open]{width:100%;margin:8px 0 16px;z-index:auto}.an-methodology[open]>summary{text-align:right}.an-methodology[open]>div{position:static;width:100%;box-shadow:none;margin-top:8px}
+
+/* Lean analytics: stage, now, before, target, state; one line per goal; no method text. */
+.sc-kpi{width:42%}.sc-trend,.sc-target{width:auto;white-space:nowrap}.sc-now{min-width:0}.sc-now b{white-space:nowrap}
+.sc-state{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--label)}
+.sc-state-pass{color:var(--criterion-met,#0072b2)}.sc-state-fail{color:var(--terracotta-text)}
+.sc-kpi-in .an-chip{margin:0 0 0 8px;font-size:9px}
+.sc-detail .sc-next{margin:8px 0 0;font-size:13px}
+.sc-detail-chart,.sc-detail td>.sc-development{margin-bottom:4px}
+.an-ended-goals{display:grid;gap:4px;margin-top:14px}.an-ended-goals>.an-meta{font-size:12px}
+.an-goal-check{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.an-criteria-heading:has(>span:empty:first-child){justify-content:flex-end}
+@media(max-width:640px){
+ .sc-row{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"kpi kpi action" "now trend target"}
+ .sc-row .sc-action{grid-area:action;grid-column:auto;text-align:right;padding:9px 10px 0}
+ .sc-row .sc-now,.sc-row .sc-trend,.sc-row .sc-target{text-align:left;max-width:none;padding:2px 10px 8px}
+ .sc-row .sc-now::before,.sc-row .sc-trend::before,.sc-row .sc-target::before{display:block;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--label)}
+ .sc-row .sc-now::before{content:'Now'}.sc-row .sc-trend::before{content:'Before'}.sc-row .sc-target::before{content:'Target'}
+ #analytics-panel-0 .sc-row .sc-action{padding:5px 10px 0}
+}

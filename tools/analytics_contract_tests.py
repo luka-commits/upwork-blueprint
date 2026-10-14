@@ -173,7 +173,7 @@ def scorecard_missing_and_cards():
         assert missing and all(set(row) == {'source','blocks','how_to_supply'} and row['how_to_supply'] for row in missing)
         assert any(row['source'] == 'call transcript:945000010' for row in missing)
         assert any(row['source'] == 'contract terms:945000010' for row in missing)
-        assert any(row['source'] == 'sent copy:945000010' for row in missing)
+        assert not any(row['source'].startswith('sent copy:') for row in missing)
         review = snapshot['conversation_review']['threads'][0]
         assert review['lead_id'] == '945000011' and review['read'] is False
         assert all(point['state'] == 'missing' for point in review['points'].values())
@@ -199,7 +199,7 @@ def badge_calibration():
     with fixture('final-qualifying-weeks') as folder:
         analytics_sync_marker(folder)
         jobs=[{'id':'945000020','source':'outbound','applied_at':'2026-10-12T10:00:00+02:00','job_fit':{'state':'pass','reason':'Fits'},
-               'application_review':{'state':'pass','reason':'Reviewed submitted content'},'speed_to_lead_s':120,'application_facts':{'posted_age_band':'<10m'}}]
+               'speed_to_lead_s':120,'application_facts':{'posted_age_band':'<10m'}}]
         base=analytics.compute(today,jobs=jobs)
         base['kpis']['speed_10min'].update(state='pass',value=100,n=1,k=1)
         base.pop('badge_qualifying',None)
@@ -214,7 +214,7 @@ def badge_calibration():
                 dict(base,week='2026-W41',badges=[],badge_qualifying={'Swift Sail':True})]
         actual=analytics.badge_results(copy.deepcopy(base),jobs,pauses,today)
         assert [row for row in actual if row['badge']=='Swift Sail'][-1]['tier']=='Silver'
-        low_quality=copy.deepcopy(jobs);low_quality[0].pop('application_review')
+        low_quality=copy.deepcopy(jobs);low_quality[0].pop('job_fit')
         assert not any(row['badge']=='Swift Sail' for row in analytics.badge_results(copy.deepcopy(base),low_quality,[],today))
         none=copy.deepcopy(base);none['kpis']['speed_10min'].update(n=0,value=None,state='no opportunities')
         assert not any(row['badge']=='Swift Sail' for row in analytics.badge_results(none,[],[],today))
@@ -264,8 +264,8 @@ def public_latest_goals_contract():
         reviews=[{'start':start,'change':f'{prefix} goal {index}','done_k':done,'done_n':1,'execution_state':'complete' if done else 'undone'}
                  for start,prefix,done in (('2026-09-30','Older',0),('2026-10-07','Recent',1)) for index in range(3)]
         for start,week in (('2026-09-30','2026-W40'),('2026-10-07','2026-W41')):
-            keys=('weekly_volume','reply_rate','reply_to_call')
-            libraries=('volume-sessions','reply-opener','call-times') if start=='2026-10-07' else ('volume-share','reply-proof','call-question')
+            keys=('weekly_volume','first_reply','reply_to_call')
+            libraries=('volume-sessions','first-answer','call-times') if start=='2026-10-07' else ('volume-share','invite-answer','call-question')
             goals=[{'start':start,'kpi':keys[index],'goal_library_id':libraries[index],'stage':analytics.LABELS[keys[index]],'change':review['change'],'primary':index==0,'cue':'When the stage starts','action':'Use the agreed next step','fallback':'Use one smaller step','review_on':(dt.date.fromisoformat(start)+dt.timedelta(days=7)).isoformat()} for index,review in enumerate([row for row in reviews if row['start']==start])]
             analytics.add_goals({'week':week,'goals':goals})
             for goal,review in zip(goals,[row for row in reviews if row['start']==start]):
@@ -293,13 +293,10 @@ def supervised_corrections():
         jid='945000090'; quote='The audit needs one agreed owner.'
         seed({'id':jid,'source':'outbound','status':'call','call_held_at':analytics_stamp(today),
               'applied_at':analytics_stamp(today-dt.timedelta(days=1)), 'application_sent_verified':True,
-              'loom_url':'https://www.loom.com/share/example',
-              'application_review':{'state':'pass','quote':quote,'reason':'Saved assessment',
-                'free_read':'Saved application read.','points':[{'point':1,'state':'met','quote':quote,'reason':'Confirm the owner.'}]}})
+              })
         path=folder/'jobs'/jid;path.mkdir()
         transcript='Member: Maya\nComplete: yes\nLanguage: English\nMaya: Who owns the audit?\nClient: '+quote+'\n'
         (path/'call.md').write_text(transcript)
-        (path/'application.sent.md').write_text(quote)
         call={'reviewable':True,'points':[{'point':p,'state':'met','quote':quote} for p in range(1,10)]}
         minimum=dict(call,free_read='word '*120)
         record(jid,{'call_review':minimum})
@@ -341,18 +338,7 @@ def supervised_corrections():
         snapshot=analytics.compute(today)
         card=snapshot['call_cards'][0]
         assert card['as_of']==card['reviewed_at']==records()[jid]['call_reviewed_at']
-        application=snapshot['conversations']['sections']['applications'][0]
-        assert application['reviewable'] and application['read']
-        assert application['loom_status']=='not_sent' and application['loom_source_state']=='not_applicable'
-        assert application['sent_copy']==quote and application['loom_transcript'] is None
-        (path/'loom.md').write_text('Exact example Loom transcript.')
-        application=analytics.conversations_fields(snapshot,list(records().values()))['sections']['applications'][0]
-        assert application['reviewable'] and application['loom_transcript']=='Exact example Loom transcript.'
-        lead=records()[jid]; saved=lead.pop('application_review')
-        lead['log']=[{'at':analytics_stamp(today), 'text':'analytics application_review: '+json.dumps(saved)}]
-        assert analytics.conversations_fields(snapshot,[lead])['sections']['applications'][0]['reviewable']
-        lead['log'][0]['text']='analytics application_review: '+json.dumps(dict(saved,state='unverified'))
-        assert not analytics.conversations_fields(snapshot,[lead])['sections']['applications'][0]['reviewable']
+        assert set(snapshot['conversations']['sections']) == {'chats','calls'}
         stale=copy.deepcopy(snapshot)
         assert_rank_projection(snapshot)
         stale.update(proposal_insights={'rank':3})

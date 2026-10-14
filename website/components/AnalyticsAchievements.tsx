@@ -2,6 +2,7 @@
 
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
 import { analyticsMemberText as plain } from '@/lib/analytics-contract';
+import { weekDateLabel } from './FunnelScorecard';
 
 type Row = Record<string, any>;
 type Ledger = { current: number; target: number; remaining: number; unit: string; percent: number; nextTier: string };
@@ -72,9 +73,17 @@ export function BadgeProgressRing({ badge, size = 128, children }: { badge: Row;
   </span>;
 }
 
+/** What changed after a goal, in a few words: the recorded verdict, never a method note. */
+export function effectWords(goal: Row): string {
+  const known = ({ worked: 'Improved', improved: 'Improved', not: 'No improvement', undecided: 'Too early to tell' } as Row)[goal.effect];
+  if (known) return known;
+  const text = plain(goal.effect_text || '');
+  return text && text.trim().split(/\s+/).length <= 4 ? text : 'Effect unknown';
+}
+
 export function WorkingDays({ accountability }: { accountability: Row }) {
   const days = accountability?.working_days || accountability;
-  return <span>{numeric(days?.k) && numeric(days?.n) ? `Applied on ${days.k} of ${days.n} working days this week` : 'Working days not recorded'}</span>;
+  return numeric(days?.k) && numeric(days?.n) ? <span>Applied {days.k} of {days.n} days this week</span> : null;
 }
 
 function targetRange(target: any): { min: number; max: number } | null {
@@ -107,7 +116,7 @@ export function ScoreSpark({ values, allWeeks = false, target }: { values: any[]
   const low = allWeeks ? 0 : Math.max(0,Math.min(...finite)-5), high = allWeeks ? 100 : Math.min(100,Math.max(...finite)+5);
   const y = (value: number) => top + (high - Math.max(low, Math.min(high,value))) / Math.max(1,high-low) * (height - top - bottom);
   const lastIndex = points.findLastIndex(point => numeric(point.value)), band = targetRange(target);
-  if (lastIndex < 0) return <p className="an-empty">Score history not recorded. Run <code>/analytics</code> to record a week.</p>;
+  if (lastIndex < 0) return <p className="an-empty">No score history yet.</p>;
   return <div ref={wrap} className={allWeeks ? 'an-achievement-chart' : 'an-score-spark-wrap'}><svg className={allWeeks ? 'an-score-history an-achievement-score-chart' : 'an-score-spark'} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" {...(allWeeks ? {width, height} : {})} role="img" aria-label={`Funnel Score, ${allWeeks ? 'all recorded' : 'last eight'} weeks: ${points.map(point => numeric(point.value) ? `${point.label}: ${Math.round(point.value)}` : `${point.label}: unknown`).join(', ')}`}>
     {allWeeks && <>{[0,50,100].map(value => <g className="an-history-axis" key={value}><line x1={left} x2={width-right} y1={y(value)} y2={y(value)} /><text x={left-8} y={y(value)+3} textAnchor="end">{value}</text></g>)}{band && <g className="an-chart-target"><rect x={left} y={y(Math.max(band.min,band.max))} width={width-left-right} height={Math.max(2,Math.abs(y(band.min)-y(band.max)))} /><text x={width-right} y={y(Math.max(band.min,band.max))+12} textAnchor="end">Target {band.min}{band.max !== 100 && band.max !== band.min ? `–${band.max}` : '+'}</text></g>}</>}
     {points.map((point, index) => numeric(point.value) ? <g className="an-chart-point" key={`${point.label}-${index}`} tabIndex={0} aria-label={`${point.label}: Funnel Score ${Math.round(point.value)}`}>
@@ -139,8 +148,8 @@ function TreasureMap({badges}: {badges: Row[]}) {
     <svg className="an-treasure-route an-route-mobile" viewBox={`0 0 100 ${badges.length * rowHeight}`} preserveAspectRatio="none" aria-hidden="true"><polyline points={mobilePoints} fill="none" vectorEffect="non-scaling-stroke" /></svg>
     {badges.map((badge,index) => {const row=Math.floor(index/2),column=row%2 === 0 ? index%2 : 1-index%2, ledger=badgeLedger(badge);
       return <details id={`badge-${slug(badgeName(badge))}`} className={`an-island ${tierClass(badge)}${earned(badge)?'':' an-island-locked'}`} key={badgeName(badge)} style={{'--island-row':row+1,'--island-column':column+1,'--island-index':index+1,'--island-side':index%2 ? '65%' : '35%'} as CSSProperties}>
-        <summary><span className="an-island-art"><BadgeArt badge={badge} size={112}/></span><strong>{plain(badgeName(badge))}</strong><small>{earned(badge) ? plain(badge.tier || 'Earned') : 'Not earned yet'}</small></summary>
-        <div className="an-island-rule"><p>{plain(badge.exact_rule || badge.rule || badge.requirement || badge.criterion || 'Rule not recorded. Run /analytics to load the badge catalogue.')}</p>{badge.next_rule && <p>Next tier: {plain(badge.next_rule)}</p>}{earned(badge) && (badge.next_tier === null || badge.tier === 'Legend') ? <p>Highest tier reached</p> : ledger ? <p>{ledgerText(ledger)} · {ledger.current} of {ledger.target} {ledger.unit}</p> : badge.next_tier ? <p>Next tier progress not recorded.</p> : null}</div>
+        <summary title="Open for its rule"><span className="an-island-art"><BadgeArt badge={badge} size={112}/></span><strong>{plain(badgeName(badge))}</strong><small>{earned(badge) ? plain(badge.tier || 'Earned') : 'Locked'}</small></summary>
+        <div className="an-island-rule"><p>{plain(badge.exact_rule || badge.rule || badge.requirement || badge.criterion || 'Rule not recorded.')}</p>{badge.next_rule && <p>Next tier: {plain(badge.next_rule)}</p>}{earned(badge) && (badge.next_tier === null || badge.tier === 'Legend') ? <p>Highest tier reached</p> : ledger ? <p>{ledgerText(ledger)} · {ledger.current} of {ledger.target} {ledger.unit}</p> : null}</div>
       </details>;
     })}
   </div>;
@@ -159,10 +168,10 @@ export default function AnalyticsAchievements({score,rank,accountability,badges,
   const worked = history.filter(goal => goal.effect === 'worked' || goal.effect === 'improved').filter((goal,index,all) => all.findIndex(other => (other.goal_id || other.change || other.text) === (goal.goal_id || goal.change || goal.text) && other.week === goal.week) === index);
   return <>
     <h1>Achievements</h1>
-    <section className="an-achievement-hero"><ScoreRing score={score}/><div className="an-achievement-summary"><span className="an-kicker">Your voyage</span><h2>{plain(rank.name || rank.rank || 'Rank not recorded')}</h2><p className="an-steady-weeks">{numeric(current) ? `${current} ${current === 1 ? 'week' : 'weeks'} steady` : 'Steady weeks not recorded'}</p>{numeric(best) && <p>Best: {best} {best === 1 ? 'week' : 'weeks'}</p>}<p><WorkingDays accountability={accountability}/></p>{rank.next_name && <small>Next rank: {plain(rank.next_name)}</small>}</div></section>
-    <section className="an-next-up an-block"><h2>Next up</h2><div className="an-next-badges">{next.map(({badge,ledger}) => <article className="an-next-badge" key={badgeName(badge)}><BadgeProgressRing badge={badge} size={148}/><div><h3>{plain(badgeName(badge))}</h3><p>{ledgerText(ledger)}</p><small>{ledger.current} of {ledger.target} {ledger.unit}</small></div></article>)}</div>{!next.length && <p className="an-empty">Next badge progress not recorded.</p>}</section>
-    <section className="an-block"><h2>Treasure map</h2><p className="an-meta">All 14 badge islands. Open an island for its rule.</p><TreasureMap badges={catalogue}/></section>
-    <section className="an-block"><h2>Funnel Score over all weeks</h2><ScoreSpark values={weeks} allWeeks target={target}/>{!targetRange(target) && <p className="an-meta">Score target not recorded.</p>}</section>
-    <section className="an-block an-worked-goals"><h2>Goals that worked</h2>{worked.map((goal,index) => {const ids=list(goal.evidence || goal.evidence_lead_ids || goal.lead_ids);const effect=goal.effect_text || goal.effect_note || 'Improvement observed';return <article className="an-worked-goal" key={`${goal.goal_id || index}-${goal.week}`}><span className="an-goal-tick" aria-label="Recorded improvement">✓</span><div><small className="an-meta">{plain(goal.week || 'Week not recorded')}</small><h3>{plain(goal.change || goal.text || goal.title || 'Agreed goal')}</h3><p>{numeric(goal.done_k) && numeric(goal.done_n) ? `did it ${goal.done_k} of ${goal.done_n}` : 'Execution not recorded'}</p><p>{plain(effect)}</p><button className="an-text-button" onClick={() => choose({title:goal.change || goal.text || 'Goal review',period:goal.period,evidence:ids,note:plain(effect)})}>Evidence →</button></div></article>;})}{!worked.length && <p className="an-empty">No goal has a recorded improvement yet.</p>}</section>
+    <section className="an-achievement-hero"><ScoreRing score={score}/><div className="an-achievement-summary"><h2>{plain(rank.name || rank.rank || 'No rank yet')}</h2>{numeric(current) && <p className="an-steady-weeks">{current} {current === 1 ? 'week' : 'weeks'} steady{numeric(best) ? ` · best ${best}` : ''}</p>}<WorkingDays accountability={accountability}/>{rank.next_name && <small>Next: {plain(rank.next_name)}</small>}</div></section>
+    <section className="an-next-up an-block"><h2>Next up</h2><div className="an-next-badges">{next.map(({badge,ledger}) => <article className="an-next-badge" key={badgeName(badge)}><BadgeProgressRing badge={badge} size={148}/><div><h3>{plain(badgeName(badge))}</h3><p title={`${ledger.current} of ${ledger.target} ${ledger.unit}`}>{ledgerText(ledger)}</p></div></article>)}</div>{!next.length && <p className="an-empty">No badge in progress.</p>}</section>
+    <section className="an-block"><h2>Treasure map</h2><TreasureMap badges={catalogue}/></section>
+    <section className="an-block"><h2>Funnel Score over all weeks</h2><ScoreSpark values={weeks} allWeeks target={target}/></section>
+    <section className="an-block an-worked-goals"><h2>Goals that worked</h2>{worked.map((goal,index) => {const ids=list(goal.evidence || goal.evidence_lead_ids || goal.lead_ids);const effect=goal.effect_text || goal.effect_note || 'Improvement observed';return <article className="an-worked-goal" key={`${goal.goal_id || index}-${goal.week}`}><span className="an-goal-tick" aria-label="Recorded improvement">✓</span><div><h3>{plain(goal.change || goal.text || goal.title || 'Agreed goal')}</h3><p title={plain(effect)}>{goal.week ? `${weekDateLabel(goal.week)} · ` : ''}{numeric(goal.done_k) && numeric(goal.done_n) ? `did it ${goal.done_k} of ${goal.done_n} · ` : ''}{effectWords(goal)}</p><button className="an-text-button" onClick={() => choose({title:goal.change || goal.text || 'Goal review',period:goal.period,evidence:ids,note:plain(effect)})}>Evidence →</button></div></article>;})}{!worked.length && <p className="an-empty">None yet.</p>}</section>
   </>;
 }

@@ -52,6 +52,7 @@ Claude Code session. `RESEARCH.md` is background reading; no command uses it.
 | 6 | `/sales-call-proposal` | Turns your sales call into the proposal you send, and says whether it is ready to start a project on |
 | 7 | `/onboarding` | Turns a started contract into the handover brief and the onboarding. Run it again after delivery to record what came out of it |
 | Weekly | `/analytics` | Checks last week's goals, measures your funnel and agrees three commitments for this week |
+| On demand | `/loom-review` | Reviews the Loom you sent with one application and gives you the one change that helps most |
 
 /about-me also works before connecting or creating a public Upwork profile. Run it
 first: every later command writes from it, and `/find-jobs` on an empty `me.md`
@@ -62,7 +63,7 @@ will not apply to leaves the list with `/find-jobs skip <job id> <reason>`, whic
 searches nothing, costs no Connects and keeps the reason the next search learns
 from.
 
-See a filled example of the Analytics page: `python3 tools/analytics_example.py`.
+See a filled example of the Analytics page: `python3 tools/demo_analytics.py`.
 
 ## Requirements
 

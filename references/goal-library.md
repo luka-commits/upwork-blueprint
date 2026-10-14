@@ -17,30 +17,25 @@ All contact before a contract stays on Upwork. The member submits applications a
 accepts offers themselves; each message needs their yes to that exact text. Share video
 only through the Upwork proposal or message thread, with no external contact or booking
 instructions. Show only public or client-authorised material. Use text when video adds
-no decision value or cannot be made safely. Duration bars are production settings,
-not proven conversion thresholds. Past-results claims use only confirmed evidence in
+no decision value or cannot be made safely. Past-results claims use only confirmed evidence in
 `context/me.md` under Results, Reviews or Credentials.
 
-Execution evidence follows the opportunity: submitted copy for application moves,
-messages for reply/follow-up moves, meeting agreement for booking moves, full
-speaker-labelled `jobs/<id>/call.md` and saved `call-review.md` for call points, sent
-proposal for proposal moves and verified offer/contract terms for offer moves. Video
-content needs reviewable video or its transcript; a timestamp alone proves no content.
-For missing evidence, name the blocked measure and ask for the exact sent text, message,
-video or speaker-labelled transcript here; use `/brief <id>`, `/call-review <id>` or
+Execution evidence follows the opportunity: timestamps and counts for application,
+speed and proposal-timing moves, messages for reply/follow-up moves, meeting agreement
+for booking moves, full speaker-labelled `jobs/<id>/call.md` and saved `call-review.md`
+for call points and verified offer/contract terms for offer moves. Application and
+proposal wording is never reviewed, so no goal depends on it.
+For missing evidence, name the blocked measure and ask for the exact message or
+speaker-labelled transcript here; use `/brief <id>`, `/call-review <id>` or
 `/sales-call-proposal <id>` to save it through their existing writers. Do not infer success.
 
 ## Applied → reply · `reply_rate`
 
-- When writing the first line → name the client's stated problem and desired outcome; if unstated, describe the deliverable without inventing business impact. Fallback: rewrite only the first sentence. KPI: `reply_rate`.
-- When choosing proof → use one relevant, verifiable result, with a number and timeframe only when evidenced and shareable. Fallback: a relevant work sample explaining the problem and your contribution. KPI: `reply_rate`.
-- When the post is detailed → add one job-specific observation and its implication; label an uncertain diagnosis as a hypothesis, without implementation-ready unpaid work. Fallback: one question resolving an important scope uncertainty. KPI: `reply_rate`.
-- When closing the letter → ask one easy question that advances the decision and is not already answered in the post. Fallback: replace the closing line. Answer every required screening question directly and align the bid with scope. KPI: `reply_rate`.
-- When recording the Loom → demonstrate one relevant point using available material and ask for one next step on Upwork, under the video rule above. Keep the chosen production limits: the client's problem within 15 seconds and under 90 seconds total; these are settings, not proven conversion thresholds. Fallback: the same observation in text. KPI: `reply_rate`.
+No goal of its own: what the application says is not reviewed. Speed to lead and fit carry this stage.
 
 ## Speed to lead · `speed_10min` (habit)
 
-- When `/find-jobs` flags a fresh fitting post → apply promptly after qualification and required content checks. Measure the deadline from posting, not discovery, using the member's bar (default 10 minutes). Fallback: a shorter complete proposal within that same bar. Record late submissions honestly. Habit: `speed_10min`.
+- When `/find-jobs` flags a fresh fitting post → apply promptly after qualification. Measure the deadline from posting, not discovery, using the member's bar (default 10 minutes). Fallback: a shorter complete proposal within that same bar. Record late submissions honestly. Habit: `speed_10min`.
 - Before submitting → check the chosen service, capability, rate and availability and record fit evidence. Fallback: review an unclear case before submitting. KPI: `job_fit`. This supports the application stage, not a separate goal stage.
 
 ## Weekly volume · `weekly_volume` (habit)
@@ -84,8 +79,6 @@ Each `not needed` point carries a reason. Missing evidence means unreviewable ex
 
 ## Proposal → won · `proposal_to_won`
 
-- When pricing → offer alternatives only for a real scope/budget trade-off; otherwise propose one complete best-fit scope, with deliverables, exclusions, timing and price. Fallback: one complete offer. KPI: `proposal_to_won`.
-- When presenting the price → explain it with the agreed scope, client-confirmed outcome and evidenced benefit. Fallback: explain the deliverable and trade-off. Do not guarantee payback from an uncertain estimate. KPI: `proposal_to_won`.
 - When the proposal is sent → ask for or confirm the decision process, date and next Upwork action; offer a walkthrough only to resolve complexity. Fallback: the next-step question in text. A requested date is not an agreed date. KPI: `proposal_to_won`.
 - When the client says "too expensive" → distinguish budget, value, scope, timing and risk before offering smaller scope. Fallback: one clarifying question. Do not reduce price reflexively; any concession must remain commercially viable. KPI: `proposal_to_won`.
 
@@ -107,11 +100,6 @@ The public card also verifies the stable `goal_id` against that agreement.
 
 | Goal library ID | KPI | Fixed public label |
 |---|---|---|
-| `reply-opener` | `reply_rate` | Name the posted problem |
-| `reply-proof` | `reply_rate` | Use one relevant proof |
-| `reply-observation` | `reply_rate` | Add one useful job observation |
-| `reply-close` | `reply_rate` | Ask one useful closing question |
-| `reply-video` | `reply_rate` | Show one relevant point |
 | `speed-qualified` | `speed_10min` | Apply promptly after checking fit |
 | `fit-check` | `job_fit` | Check fit before applying |
 | `volume-sessions` | `weekly_volume` | Keep agreed application sessions |
@@ -132,8 +120,6 @@ The public card also verifies the stable `goal_id` against that agreement.
 | `call-step` | `call_review` | Agree the next step and owner |
 | `proposal-prompt` | `proposal_on_time` | Send the complete proposal promptly |
 | `proposal-fit` | `held_to_proposal` | Record the evidenced fit decision |
-| `proposal-scope` | `proposal_to_won` | Offer one complete fitting scope |
-| `proposal-value` | `proposal_to_won` | Explain price with the agreed scope |
 | `proposal-decision` | `proposal_to_won` | Confirm the next decision step |
 | `proposal-objection` | `proposal_to_won` | Clarify the price concern |
 | `invite-answer` | `first_reply` | Answer the immediate invite request |

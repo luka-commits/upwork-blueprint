@@ -703,6 +703,11 @@ def scorecard_action_ids(key, row, jobs, today, now):
     return sorted(str(job['id']) for job in jobs if str(job['id']) in allowed and not any(event(job, outcome) for outcome in outcomes))
 
 
+def attendance_start(job):
+    session = (job.get('call_sessions') or {}).get(job.get('call_session_id')) or {}
+    return None if session.get('cancelled') else timestamp(session.get('scheduled_at') or job.get('call_scheduled_at'))
+
+
 def scorecard_fields(snapshot, jobs, history, today):
     """One last-28-days scorecard; the weekly habit KPIs remain the score's inputs."""
     now = snapshot['generated_at']; current, _ = calculate(jobs, today, now=now, activity_bounds=span(today, 28))
@@ -727,8 +732,10 @@ def scorecard_fields(snapshot, jobs, history, today):
                     row[field] = frozen.get(field)
             if frozen['state'] == 'missing': row.update(state='missing', value=None, reason=frozen.get('reason'))
             if row.get('unknown_n', 0): row.update(state='missing', value=None, reason='Some source observations are unknown. Supply the missing timestamps or call end evidence.')
-            pending = [job for job in jobs if key in entry_names and not job.get('imported') and route(job) == ('invite' if key == 'invite_to_call' else 'inbound' if key == 'offer_to_contract' else 'outbound') and inside(event(job, entry_names[key]), span(today, 28)) and event(job, entry_names[key]) + dt.timedelta(days=HORIZONS[key]) > timestamp(now)]
-            until = max((event(job, entry_names[key]) + dt.timedelta(days=HORIZONS[key]) for job in pending), default=None)
+            def pending_start(job):
+                return attendance_start(job) if key == 'booked_to_held' else event(job, entry_names.get(key, ''))
+            pending = [job for job in jobs if key in entry_names and not job.get('imported') and route(job) == ('invite' if key == 'invite_to_call' else 'inbound' if key == 'offer_to_contract' else 'outbound') and inside(pending_start(job), span(today, 28)) and pending_start(job) + dt.timedelta(days=HORIZONS[key]) > timestamp(now)]
+            until = max((pending_start(job) + dt.timedelta(days=HORIZONS[key]) for job in pending), default=None)
             previous_value = prior.get('value') if prior.get('state') != 'missing' and not snapshot['kpis']['reply_rate'].get('baseline_phase', True) else None
             comparison = 'Previous four-week comparison unavailable' if previous_value is None else 'unchanged' if row.get('value') == previous_value else 'was ' + (f'{whole_percent(previous_value)}%' if row['unit'] == '%' else f'{display_number(previous_value, 1):.1f} min' if row['unit'] == 'min' else f'{display_number(previous_value):,.0f}')
             split = []
@@ -853,7 +860,7 @@ def calculate(jobs, today, since=None, now=None, cohort_days=28, activity_bounds
             rows = []
             for job in jobs:
                 session = (job.get('call_sessions') or {}).get(job.get('call_session_id')) or {}
-                scheduled = timestamp(session.get('scheduled_at') or job.get('call_scheduled_at'))
+                scheduled = attendance_start(job)
                 if not job.get('imported') and route(job) == 'outbound' and scheduled and scheduled + dt.timedelta(days=2) <= cutoff and not session.get('cancelled') and (since is None or day(scheduled) >= since) and inside(scheduled, tuple(value - dt.timedelta(days=2) for value in bounds)):
                     held_at = timestamp(session.get('held_at')) if session else event(job, 'call_held')
                     rows.append(dict(job, attendance_entry_at=scheduled.isoformat(), attendance_held_at=held_at.isoformat() if held_at else None))
@@ -1074,7 +1081,7 @@ def pipeline_counts(jobs, today):
                 for job in rows:
                     session = (job.get('call_sessions') or {}).get(job.get('call_session_id')) or {}
                     attended = timestamp(session.get('held_at')) if session else event(job, 'call_held')
-                    scheduled = timestamp(session.get('scheduled_at') or job.get('call_scheduled_at'))
+                    scheduled = attendance_start(job)
                     if attended: held += 1
                     elif not session.get('cancelled') and (scheduled or event(job, 'call_booked')): booked += 1
                 row.update(booked=booked, held=held, unknown_call=len(rows) - booked - held)
@@ -1543,12 +1550,18 @@ REPORT_NUMBER_WORDS = {'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'fi
                        'seventy': 70, 'eighty': 80, 'ninety': 90, 'hundred': 100,
                        'thousand': 1000, 'million': 1000000, 'billion': 1000000000}
 REPORT_WORD_NUMBER = r'\b(?:' + '|'.join(sorted(REPORT_NUMBER_WORDS, key=len, reverse=True)) + r')\b'
-REPORT_NUMBER = r'(?:\d(?:[\d,]*\d)?(?:\.\d+)?|' + REPORT_WORD_NUMBER + r'(?:(?:[ -]+(?:and[ -]+)?)' + REPORT_WORD_NUMBER + r')*)'
+REPORT_APPROX_NUMBER = r'\b(?:half[ -]+(?:a[ -]+)?dozen|a[ -]+couple(?:[ -]+of)?|a[ -]+pair(?:[ -]+of)?|(?:a[ -]+)?dozen|(?:a[ -]+hundred|hundreds)|(?:several|many|a[ -]+few|[a-z]+)[ -]+hundreds(?:[ -]+of)?)\b'
+REPORT_NUMBER = r'(?:' + REPORT_APPROX_NUMBER + r'|\d(?:[\d,]*\d)?(?:\.\d+)?|' + REPORT_WORD_NUMBER + r'(?:(?:[ -]+(?:and[ -]+)?)' + REPORT_WORD_NUMBER + r')*)'
 
 
 def report_number_value(token):
-    token = token.casefold().replace(',', '')
+    token = token.casefold().replace(',', '').replace('-', ' ')
     if re.fullmatch(r'\d+(?:\.\d+)?', token): return float(token)
+    if token in ('dozen', 'a dozen'): return 12
+    if token in ('half a dozen', 'half dozen'): return 6
+    if token in ('a couple', 'a pair', 'a couple of', 'a pair of'): return 2
+    if token == 'a hundred': return 100
+    if 'hundreds' in token: return None
     total, group = 0, 0
     for word in re.split(r'[\s-]+', token):
         if word == 'and': continue
@@ -1704,7 +1717,7 @@ def check_report(text, snapshot):
                     success = False; record['reason'] = 'Rates count finished cases; pending cases are excluded.'
                 if re.search(r'(?:Funnel Score|Reply rate|Call rate|Show-up rate|Win rate)', match.group(), re.I) and match.groupdict().get('b') is not None:
                     score, previous = as_number(match['a']), as_number(match['b'])
-                    if ('down from' in match.group().casefold() and score >= previous or 'up from' in match.group().casefold() and score <= previous):
+                    if ('down from' in match.group().casefold() and number(score) and number(previous) and score >= previous or 'up from' in match.group().casefold() and number(score) and number(previous) and score <= previous):
                         success = False; record['reason'] = 'The stated direction contradicts the two scores.'
                 (checked if success else errors).append(record)
                 covered.update(range(start, end))
@@ -1829,7 +1842,7 @@ def community_card(jobs, today, kpis, reviews, week, streak, now=None):
             cutoff = run_timestamp(today, now)
             for job in jobs:
                 session = (job.get('call_sessions') or {}).get(job.get('call_session_id')) or {}
-                scheduled = timestamp(session.get('scheduled_at') or job.get('call_scheduled_at'))
+                scheduled = attendance_start(job)
                 if (not job.get('imported') and route(job) == 'outbound' and scheduled and inside(scheduled, window)
                         and scheduled + dt.timedelta(days=2) <= cutoff and not session.get('cancelled')):
                     held = timestamp(session.get('held_at')) if session else event(job, 'call_held')
@@ -1854,7 +1867,7 @@ def community_card(jobs, today, kpis, reviews, week, streak, now=None):
               'goals': [{'goal_id': row['goal_id'], 'goal_library_id': approved[row['goal_id']],
                         'text': PUBLIC_GOAL_LIBRARY[approved[row['goal_id']]][1], 'done': row['done_n'] > 0 and row['done_k'] == row['done_n'],
                         'k': row['done_k'], 'n': row['done_n'], 'state': row.get('execution_state', 'unverified')} for row in reviews],
-              'next_focus': None, 'question': None, 'new_badge': None, 'top_badges': [], 'member_name': public_member_name()}
+              'next_focus': None, 'question_id': None, 'new_badge': None, 'top_badges': [], 'member_name': public_member_name()}
     improvements = []
     for name, entry, outcomes, horizon, rungs in (
             ('reply_rate', 'applied', ('replied',), 7, (11, 15, 20)),
@@ -2182,13 +2195,18 @@ def call_quote_time(quote, transcript):
     return None
 
 
+def reviewed_call_at(job):
+    saved = (job.get('call_reviews') or {}).get(job.get('call_review_session')) or {}
+    return timestamp(saved.get('call_at')) or event(job, 'call_held')
+
+
 def call_cards(snapshot, jobs=None):
     review = snapshot.get('reviews', {}).get('call', {})
     by_id = {str(job['id']): job for job in (pipeline.load() if jobs is None else jobs)}
     cards = []
     rubrics = list(review.get('rubric', [])); reviewed = {str(item['lead_id']) for item in rubrics}
     for jid, job in by_id.items():
-        if jid not in reviewed and event(job, 'call_held') and inside(event(job, 'call_held'), (day(snapshot['generated_at']) - dt.timedelta(days=28), day(snapshot['generated_at']))):
+        if jid not in reviewed and reviewed_call_at(job) and inside(reviewed_call_at(job), (day(snapshot['generated_at']) - dt.timedelta(days=28), day(snapshot['generated_at']))):
             saved = job.get('call_review') if not _RECONSTRUCTING.get() else None
             rubrics.append(dict(saved, lead_id=jid) if isinstance(saved, dict) else {'lead_id': jid, 'reviewable': False, 'points': []})
     for item in rubrics:
@@ -2209,7 +2227,7 @@ def call_cards(snapshot, jobs=None):
         stats = call_stats.analyze(transcript)
         duration = stats.get('duration_s', job.get('call_duration_s'))
         card = {'lead_id': item['lead_id'], 'label': job.get('title') or 'Untitled job', 'title': job.get('title') or 'Untitled job',
-                'date': day(event(job, 'call_held')).isoformat() if event(job, 'call_held') else None,
+                'date': day(reviewed_call_at(job)).isoformat() if reviewed_call_at(job) else None,
                 'duration_minutes': duration / 60 if number(duration) else None,
                 'talk_share': stats.get('talk_share_pct', job.get('talk_share_pct')),
                 'questions': stats.get('question_counts', job.get('question_counts')),
@@ -2709,7 +2727,7 @@ def compute(today=None, jobs=None, now=None, history_override=None):
     saved_calls = []
     for job in jobs:
         review = job.get('call_review')
-        if not isinstance(review, dict) or not review.get('reviewable') or not inside(event(job, 'call_held'), span(today, 28)) or _RECONSTRUCTING.get(): continue
+        if not isinstance(review, dict) or not review.get('reviewable') or not inside(reviewed_call_at(job), span(today, 28)) or _RECONSTRUCTING.get(): continue
         text = read_source(pipeline.jobs_dir() / str(job['id']) / 'call.md') or ''
         stats = call_stats.analyze(text)
         if stats.get('transcript_complete') and stats.get('member_attributed'):
@@ -2937,7 +2955,45 @@ def validate_reference(reference):
     return reference
 
 
-PUBLIC_QUESTIONS = ("How do you practise this week's focus?", "What helped you improve this stage?", "How do you handle this commitment?")
+PUBLIC_QUESTION_TEMPLATES = {
+    'reply_rate-1': ('reply_rate', 'What made the jobs that replied different from the rest?'),
+    'reply_rate-2': ('reply_rate', 'Which proof helped clients reply?'),
+    'reply_to_call-1': ('reply_to_call', 'What helped turn replies into useful calls?'),
+    'reply_to_call-2': ('reply_to_call', 'Which question helped you agree a call?'),
+    'booked_to_held-1': ('booked_to_held', 'What helped clients attend the meeting?'),
+    'booked_to_held-2': ('booked_to_held', 'How did you confirm the meeting beforehand?'),
+    'proposal_to_won-1': ('proposal_to_won', 'What helped clients decide on the proposal?'),
+    'proposal_to_won-2': ('proposal_to_won', 'Which scope made the decision easier?'),
+    'held_to_proposal-1': ('held_to_proposal', 'What helped you prepare the proposal after the call?'),
+    'held_to_proposal-2': ('held_to_proposal', 'How did you confirm the scope together?'),
+    'proposal_on_time-1': ('proposal_on_time', 'What helped you send the proposal promptly?'),
+    'proposal_on_time-2': ('proposal_on_time', 'Which preparation saved time after the call?'),
+    'invite_to_call-1': ('invite_to_call', 'What helped you respond to useful invitations?'),
+    'invite_to_call-2': ('invite_to_call', 'Which proof helped you agree a call?'),
+    'offer_to_contract-1': ('offer_to_contract', 'What helped you confirm the offer terms?'),
+    'offer_to_contract-2': ('offer_to_contract', 'Which check helped you reach an agreement?'),
+    'weekly_volume-1': ('weekly_volume', 'What helped you keep your application sessions?'),
+    'weekly_volume-2': ('weekly_volume', 'Which routine helped you find fitting jobs?'),
+    'job_fit-1': ('job_fit', 'What helped you recognise fitting jobs?'),
+    'job_fit-2': ('job_fit', 'Which requirement helped you decide where to apply?'),
+    'speed_10min-1': ('speed_10min', 'What helped you check fit and apply promptly?'),
+    'speed_10min-2': ('speed_10min', 'Which preparation made applying easier?'),
+    'first_reply-1': ('first_reply', 'What helped you answer client messages promptly?'),
+    'first_reply-2': ('first_reply', 'Which routine helped you keep conversations moving?'),
+    'follow_ups_on_time-1': ('follow_ups_on_time', 'What helped you follow up as planned?'),
+    'follow_ups_on_time-2': ('follow_ups_on_time', 'Which follow up helped restart a conversation?'),
+    'call_review-1': ('call_review', 'Which question helped you understand the client?'),
+    'call_review-2': ('call_review', 'What helped you agree the next step?'),
+}
+PUBLIC_QUESTIONS = tuple(PUBLIC_QUESTION_TEMPLATES)
+
+def public_question_id(value):
+    return value if isinstance(value, str) and value in PUBLIC_QUESTION_TEMPLATES else None
+
+def public_question_text(card):
+    entry = PUBLIC_QUESTION_TEMPLATES.get(card.get("question_id"))
+    return entry[1] if entry and LABELS.get(entry[0]) == card.get("next_focus") else None
+
 
 # Stable goal-library IDs select fixed public words, never the agreed private prose.
 PUBLIC_GOAL_LIBRARY = {
@@ -3053,7 +3109,10 @@ def safe_public_text(text, jobs, maximum=14):
 
 def validate_community_card(card, jobs=None):
     jobs = pipeline.load() if jobs is None else jobs
-    keys = {'member_name', 'week', 'applications', 'streak_weeks', 'goals_done', 'goals', 'next_focus', 'question',
+    require(isinstance(card, dict), 'Public card needs an object.')
+    card.pop('question', None)  # Legacy prose is never a public input.
+    card.setdefault('question_id', None)
+    keys = {'member_name', 'week', 'applications', 'streak_weeks', 'goals_done', 'goals', 'next_focus', 'question_id',
             'new_badge', 'top_badges', 'reply_rate', 'reply_to_call', 'call_to_won',
             'first_reply_median_min', 'first_reply_target_min', 'biggest_improvement', 'won_value', 'booked_to_held', 'proposal_to_won', 'funnel_score', 'activity_period', 'rank', 'rank_progress', 'earned_badges', 'more_badges', 'next_badge', 'stage_counts'}
     require(isinstance(card, dict) and keys - {'member_name', 'activity_period', 'rank', 'rank_progress', 'earned_badges', 'more_badges', 'next_badge', 'stage_counts'} <= set(card) <= keys, 'Public card has unknown or missing fields.')
@@ -3129,25 +3188,23 @@ def validate_community_card(card, jobs=None):
             all(value is None or number(value) and 0 <= value <= 100 for value in score['parts'].values()) and
             isinstance(score['dropped'], list) and all(isinstance(row, dict) and set(row) == {'part', 'reason'} and row['part'] in LEVERS + ('reply_rate', 'reply_to_call', 'booked_to_held', 'proposal_to_won') and row['reason'] in ('unknown source', 'No eligible cases yet', 'Baseline not set') for row in score['dropped']), 'Public Funnel Score must contain bounded computed parts only.')
     # Fixed goal labels and computed improvement fields have no prose input.
-    if card['question'] is not None and not safe_public_text(card['question'], jobs):
-        card['question'] = None
+    card['question_id'] = public_question_id(card.get('question_id'))
 
     return card
 
 
 def validated_community(value, jobs):
-    """The writer's question is optional; an absent canonical question stays absent."""
-    require(isinstance(value, dict) and set(value) <= {'question'}, 'Community writer accepts only question.')
-    question = value.get('question')
-    return {'question': question if safe_public_text(question, jobs) else None}
+    """Only a finite template ID survives; legacy free text is dropped on read."""
+    require(isinstance(value, dict) and set(value) <= {'question_id', 'question'}, 'Community writer accepts only question_id.')
+    return {'question_id': public_question_id(value.get('question_id'))}
 
 
 def snapshot_public_card(snapshot, jobs=None):
-    """Project canonical prose into the closed card; legacy cards retain their safe question."""
+    """Project canonical template IDs; drop legacy free-text questions."""
     jobs = pipeline.load() if jobs is None else jobs
     card = copy.deepcopy(snapshot['community_card'])
     if 'community' in snapshot:
-        card['question'] = validated_community(snapshot['community'], jobs)['question']
+        card['question_id'] = validated_community(snapshot['community'], jobs)['question_id']
     return validate_community_card(card, jobs)
 
 
@@ -3220,18 +3277,20 @@ def claude_fields(result, value):
                     finding['strength'] in ('emerging', 'holding') and finding.get('status', 'finding') in ('finding', 'emerging', 'confirmed'),
                     'Finding evidence types or strength are invalid.')
         result['findings'] = copy.deepcopy(findings)
-    card = value.get('community_card', {})
+    card = copy.deepcopy(value.get('community_card', {}))
+    require(isinstance(card, dict), 'Community card needs an object.')
+    card.pop('question', None)
     require(isinstance(card, dict) and set(card) <= set(result['community_card']), 'Community card has unknown fields.')
     if set(result['community_card']) - {'activity_period'} <= set(card): validate_community_card(card)
-    else: require(set(card) <= {'next_focus', 'question', 'biggest_improvement'}, 'Partial public overlays may supply only focus/question and unchanged computed improvement.')
+    else: require(set(card) <= {'next_focus', 'question_id', 'biggest_improvement'}, 'Partial public overlays may supply only focus/question and unchanged computed improvement.')
     if card.get('next_focus') is not None:
         require(card['next_focus'] in LABELS.values(), 'Community focus needs a known stage label.')
         result['community_card']['next_focus'] = card['next_focus']
-    if card.get('question') is not None:
-        result['community_card']['question'] = card['question'] if safe_public_text(card['question'], pipeline.load()) else None
+    if 'question_id' in card:
+        result['community_card']['question_id'] = public_question_id(card['question_id'])
     if 'community' in value:
         result['community'] = validated_community(value['community'], pipeline.load())
-        result['community_card']['question'] = result['community']['question']
+        result['community_card']['question_id'] = result['community']['question_id']
     if card.get('biggest_improvement') is not None:
         supplied = card['biggest_improvement']
         original = result['community_card']['biggest_improvement']
@@ -3486,7 +3545,8 @@ def public_onepager_html(card):
     activity = card.get('activity_period')
     activity_label = f"7-day activity: {esc(activity['start'])} to {esc(activity['end'])}" if activity else '7-day activity; dates unknown'
     focus = esc(card['next_focus']) if card['next_focus'] else 'Choose the next focus in /analytics'
-    question = f'<p class="question">{esc(card["question"])}</p>' if card['question'] else ''
+    question_text = public_question_text(card)
+    question = f'<p class="question">{esc(question_text)}</p>' if question_text else ''
     money = f'<p class="meta">New contract value this week <b>{fmt(card["won_value"])}</b></p>' if card['won_value'] is not None and sections().get('Share money', '').strip().casefold() == 'yes' else ''
     footer = 'Upwork Blueprint · example' if os.environ.get('BLUEPRINT_EXAMPLE_DATA') == '1' else 'Upwork Blueprint'
     return f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Weekly community card · {esc(card['week'])}</title>

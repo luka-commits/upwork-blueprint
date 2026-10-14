@@ -455,10 +455,10 @@ Use a code-approved fixed label for `community_card.next_focus`. The public payl
 allowlisted aggregates, fixed labels, the member's own name, agreed library goal IDs
 and badge names. Goal text is generated from fixed vocabulary, never private goal wording.
 The improvement line uses only fixed templates, KPI names and computed values; no reason
-prose is accepted. A question has at most 14 words, no digits, currency or unit text, no
-domain/link pattern and no capitalised word except the first word, I and Upwork. It must
-match no known client, company, job title or quote fragment after case and punctuation
-normalisation; otherwise omit it. Record refuses other unapproved public fields and wording.
+prose is accepted. Questions use fixed templates of at most 14 words. Supply only `question_id` from the matching focus templates next to
+public goal IDs in `references/goal-library.md`; never write or interpolate question text.
+Unknown or missing IDs show no question; legacy free text is dropped. Keep all existing
+privacy checks as defence in depth. Record refuses other unapproved public fields and wording.
 Frozen §13.3 uses one common 28-day community window for rates and first reply;
 label weekly applications separately. Show route and k/n, level reached, step count
 and progress against the member's own baseline; no target pass/fail flags, default

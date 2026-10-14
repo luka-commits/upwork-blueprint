@@ -144,16 +144,14 @@ def job_view(job_id):
     # A saved evidence row enriches a real pipeline lead; it never creates a lead.
     j['call_cards'] = [row for row in snapshot.get('call_cards') or []
                        if isinstance(row, dict) and str(row.get('lead_id')) == str(job_id)]
-    if (folder / 'call-review.md').is_file() or isinstance(job.get('call_review'), dict):
+    if j['call_cards'] or (folder / 'call-review.md').is_file() or isinstance(job.get('call_review'), dict):
         # Immediate /call-review output is saved evidence, independent of the weekly check-in.
         rubric = dict(job.get('call_review') or {'reviewable': False, 'points': []}, lead_id=str(job_id))
         current = analytics.call_cards({'generated_at': datetime.datetime.now(pipeline.member_zone()).isoformat(),
                                        'reviews': {'call': {'rubric': [rubric]}}}, jobs=[job])
         if current:
             old = j['call_cards'][0] if j['call_cards'] else {}
-            j['call_cards'] = [dict(old, **current[0]) if isinstance(job.get('call_review'), dict) or not old
-                               else dict(old, coach_read=current[0].get('coach_read'),
-                                         coach_read_state=current[0].get('coach_read_state'))]
+            j['call_cards'] = [dict(old, **current[0])]
     prepared = next((row for row in snapshot.get('lead_cards') or []
                      if isinstance(row, dict) and str(row.get('lead_id', row.get('id'))) == str(job_id)), None)
     j['lead_context'] = {

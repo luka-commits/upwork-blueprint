@@ -725,20 +725,21 @@ def compact_community_contract():
             except ValueError: pass
             else: raise AssertionError('Public cap or distinct goal rule weakened')
         legacy=copy.deepcopy(example);legacy.pop('community')
+        legacy['community_card'].pop('question_id',None)
         legacy['community_card']['question']='What helped you improve this stage?'
-        assert analytics.snapshot_public_card(legacy,[])['question']==legacy['community_card']['question']
-        for canonical in ({},{'question':None}):
+        assert analytics.snapshot_public_card(legacy,[])['question_id'] is None
+        for canonical in ({},{'question_id':None}):
             absent=dict(legacy,community=canonical)
             absent_card=analytics.snapshot_public_card(absent,[])
-            assert absent_card['question'] is None
+            assert absent_card['question_id'] is None
             assert 'class="question"' not in analytics.public_onepager_html(absent_card)
-        canonical=dict(legacy,community={'question':'How do you offer two useful call times?'})
+        canonical=dict(legacy,community={'question_id':'reply_rate-1'})
         prepared=analytics.prepare_snapshot(dict(value,community=canonical['community']),today)
-        assert prepared['community']['question']==prepared['community_card']['question']==canonical['community']['question']
+        assert prepared['community']['question_id']==prepared['community_card']['question_id']==canonical['community']['question_id']
         sources=[{'title':'Private Tender Name','client':{'name':'Secret Client Name'},'description':'Confidential spoken client material'}]
         for question in ('What did Secret Client Name request?','Who owns Private Tender Name?',
                          'Could confidential spoken client material change?', ' '.join(['word']*15),'Email private@example.test'):
-            assert analytics.snapshot_public_card(dict(legacy,community={'question':question}),sources)['question'] is None
+            assert analytics.snapshot_public_card(dict(legacy,community={'question':question}),sources)['question_id'] is None
         assert card['rank'] in dict(analytics.RANK_LEVELS) and 'Rank: '+card['rank'] in text
         badge_names=('Swift Sail','Quick Draw','True North')
         for count in (0,1,3):

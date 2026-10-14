@@ -38,6 +38,7 @@ error that names the cause.
 import argparse
 import contextlib
 import datetime
+import hashlib
 import json
 import math
 import os
@@ -982,10 +983,59 @@ def cmd_record(args):
         for point in value['call_review']['points'] + value['call_review'].get('moments', []):
             if not any(point['quote'] in utterance for utterance in utterances):
                 abort('Every call review quotation must occur in the saved transcript.')
-    # A completed call is judged once. Validate later inputs above, then reuse
-    # the exact first stored judgment and timestamp instead of silently replacing it.
-    if 'call_review' in value and isinstance(job.get('call_review'), dict) and job['call_review'].get('reviewable') is True:
-        value['call_review'] = job['call_review']
+    # Validate meeting context before mutating the job or its review history.
+    session_id = value.get('call_session_id', job.get('call_session_id'))
+    sessions = value.get('call_sessions', job.get('call_sessions')) or {}
+    if session_id and ('call_session_id' in value or 'call_review' in value):
+        session = sessions.get(session_id)
+        def session_clock(stamp):
+            try:
+                parsed = datetime.datetime.fromisoformat(str(stamp).replace('Z', '+00:00'))
+                return parsed.tzinfo is not None and parsed.utcoffset() is not None
+            except ValueError:
+                return False
+        if not isinstance(session, dict) or not any(session_clock(session.get(key)) for key in ('booked_at', 'scheduled_at', 'held_at')):
+            abort('call_session_id needs a known meeting with verified session timing.')
+    # Freeze legacy ownership BEFORE a context-only switch can replace the old ID.
+    review_metadata_changed = False
+    if 'call_review' in value or 'call_session_id' in value:
+        previous_review_metadata = json.dumps({key: job.get(key) for key in
+            ('call_review', 'call_reviewed_at', 'call_review_session', 'call_reviews')}, sort_keys=True)
+        path = jobs_dir() / args.job_id / 'call.md'
+        transcript = path.read_bytes() if path.exists() else b''
+        identity = 'meeting:' + str(session_id) if session_id else 'transcript:' + hashlib.sha256(transcript).hexdigest()
+        history = job.setdefault('call_reviews', {})
+        prior = job.get('call_review')
+        prior_identity = job.get('call_review_session')
+        if isinstance(prior, dict) and prior.get('reviewable') is True:
+            if not prior_identity:
+                old_session = job.get('call_session_id')
+                different_meeting = bool(session_id and session_id != old_session)
+                prior_quotes = [point.get('quote') for point in prior.get('points', []) if point.get('quote')]
+                different_transcript = bool(prior_quotes and any(quote not in transcript.decode('utf-8', errors='replace') for quote in prior_quotes))
+                prior_identity = ('meeting:' + str(old_session) if old_session else
+                                  'legacy:first' if different_meeting or different_transcript else identity)
+            history.setdefault(prior_identity, {'review': prior, 'reviewed_at': job.get('call_reviewed_at'), 'call_at': job.get('call_held_at')})
+        if 'call_review' in value:
+            if identity in history:
+                value['call_review'] = history[identity]['review']
+            elif value['call_review'].get('reviewable') is True:
+                import call_stats
+                transcript_stats = call_stats.analyze(transcript.decode('utf-8'))
+                current_session = sessions.get(session_id) or {}
+                call_at = current_session.get('held_at') or transcript_stats.get('call_at') or job.get('call_held_at')
+                history[identity] = {'review': value['call_review'], 'reviewed_at': now_iso(), 'call_at': call_at}
+        if identity in history:
+            job['call_review_session'] = identity
+            job['call_review'] = history[identity]['review']
+            job['call_reviewed_at'] = history[identity]['reviewed_at']
+        else:
+            for key in ('call_review_session', 'call_review', 'call_reviewed_at'):
+                job.pop(key, None)
+            if 'call_review' in value:
+                job['call_review_session'] = identity
+        review_metadata_changed = previous_review_metadata != json.dumps({key: job.get(key) for key in
+            ('call_review', 'call_reviewed_at', 'call_review_session', 'call_reviews')}, sort_keys=True)
     if ('invited_at' in value and job.get('invited_at_source') == 'room'
             and value.get('invited_at_source') != 'room'):
         value.pop('invited_at', None)
@@ -995,7 +1045,7 @@ def cmd_record(args):
         prior = parse_verified_timestamp(job.get('invited_at'))
         if prior:
             value['invited_at'] = min(value['invited_at'], prior)
-    changed = False
+    changed = review_metadata_changed
     if 'tags' in value:
         job['tags_registered_at'] = now_iso()
     for key, item in value.items():
@@ -1005,7 +1055,7 @@ def cmd_record(args):
         elif (key not in ('submission_checked_at', 'result_recorded_at', 'proposal_insights') or not job.get(key)) and job.get(key) != item:
             job[key] = item
             if key in ('call_review', 'conversation_review'):
-                job[key + 'ed_at'] = now_iso()
+                job[key + 'ed_at'] = (job['call_reviews'][job['call_review_session']]['reviewed_at'] if key == 'call_review' and job['call_review_session'] in job.get('call_reviews', {}) else now_iso())
             if key == 'call_no_show' and job.get('call_session_id'):
                 session = job.setdefault('call_sessions', {}).setdefault(job['call_session_id'], {})
                 session['no_show'] = item
@@ -1016,6 +1066,8 @@ def cmd_record(args):
     if 'source' in value and isinstance(job.get('application_facts'), dict) and job['application_facts'].get('source') != value['source']:
         job['application_facts']['source'] = value['source']
         changed = True
+    if 'call_review' in value and job['call_review_session'] in job.get('call_reviews', {}):
+        job['call_reviewed_at'] = job['call_reviews'][job['call_review_session']]['reviewed_at']
     if not changed:
         print(f'{args.job_id}: metadata already recorded.')
         return

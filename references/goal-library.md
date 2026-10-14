@@ -139,3 +139,36 @@ The public card also verifies the stable `goal_id` against that agreement.
 | `invite-answer` | `first_reply` | Answer the immediate invite request |
 | `invite-proof` | `invite_to_call` | Share proof before booking |
 | `offer-check` | `offer_to_contract` | Check the offer against the agreement |
+
+Public questions use only the following `question_id` for the matching focus; no interpolation.
+
+| Question ID | Focus KPI | Fixed question |
+|---|---|---|
+| `reply_rate-1` | `reply_rate` | What made the jobs that replied different from the rest? |
+| `reply_rate-2` | `reply_rate` | Which proof helped clients reply? |
+| `reply_to_call-1` | `reply_to_call` | What helped turn replies into useful calls? |
+| `reply_to_call-2` | `reply_to_call` | Which question helped you agree a call? |
+| `booked_to_held-1` | `booked_to_held` | What helped clients attend the meeting? |
+| `booked_to_held-2` | `booked_to_held` | How did you confirm the meeting beforehand? |
+| `proposal_to_won-1` | `proposal_to_won` | What helped clients decide on the proposal? |
+| `proposal_to_won-2` | `proposal_to_won` | Which scope made the decision easier? |
+| `held_to_proposal-1` | `held_to_proposal` | What helped you prepare the proposal after the call? |
+| `held_to_proposal-2` | `held_to_proposal` | How did you confirm the scope together? |
+| `proposal_on_time-1` | `proposal_on_time` | What helped you send the proposal promptly? |
+| `proposal_on_time-2` | `proposal_on_time` | Which preparation saved time after the call? |
+| `invite_to_call-1` | `invite_to_call` | What helped you respond to useful invitations? |
+| `invite_to_call-2` | `invite_to_call` | Which proof helped you agree a call? |
+| `offer_to_contract-1` | `offer_to_contract` | What helped you confirm the offer terms? |
+| `offer_to_contract-2` | `offer_to_contract` | Which check helped you reach an agreement? |
+| `weekly_volume-1` | `weekly_volume` | What helped you keep your application sessions? |
+| `weekly_volume-2` | `weekly_volume` | Which routine helped you find fitting jobs? |
+| `job_fit-1` | `job_fit` | What helped you recognise fitting jobs? |
+| `job_fit-2` | `job_fit` | Which requirement helped you decide where to apply? |
+| `speed_10min-1` | `speed_10min` | What helped you check fit and apply promptly? |
+| `speed_10min-2` | `speed_10min` | Which preparation made applying easier? |
+| `first_reply-1` | `first_reply` | What helped you answer client messages promptly? |
+| `first_reply-2` | `first_reply` | Which routine helped you keep conversations moving? |
+| `follow_ups_on_time-1` | `follow_ups_on_time` | What helped you follow up as planned? |
+| `follow_ups_on_time-2` | `follow_ups_on_time` | Which follow up helped restart a conversation? |
+| `call_review-1` | `call_review` | Which question helped you understand the client? |
+| `call_review-2` | `call_review` | What helped you agree the next step? |

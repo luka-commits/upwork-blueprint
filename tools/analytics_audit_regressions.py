@@ -6,9 +6,12 @@ import json
 import hashlib
 import pathlib
 import sys
+import re
+import struct
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from analytics_fixture import fixture, seed, record, records, run, analytics_sync_marker, EXAMPLE_CALL_READ
+from analytics_fixture import fixture, seed, record, records, run, analytics_sync_marker, EXAMPLE_CALL_READ, analytics_payload
 import analytics
 
 
@@ -47,19 +50,17 @@ def privacy_contract():
         for question in unsafe:
             candidate = copy.deepcopy(card)
             candidate['question'] = question
-            assert analytics.validate_community_card(candidate, sources)['question'] is None, question
-            assert analytics.validated_community({'question': question}, sources)['question'] is None, question
+            assert analytics.validate_community_card(candidate, sources)['question_id'] is None, question
+            assert analytics.validated_community({'question': question}, sources)['question_id'] is None, question
             snap = {'community_card': copy.deepcopy(card), 'community': {'question': question}}
-            assert analytics.snapshot_public_card(snap, sources)['question'] is None, question
+            assert analytics.snapshot_public_card(snap, sources)['question_id'] is None, question
         own = folder / 'jobs/991999999'; own.mkdir()
         (own / 'call.md').write_text('Member: Maya\nComplete: yes\nMaya: My blue, ribbon promise is private.\nClient: Agreed.\n')
         assert not analytics.safe_public_text('What was the blue ribbon promise?', [])
         assert not analytics.safe_public_text('What was the blue, ribbon promise?', [])
-        for question in ("What helped you improve this stage?", 'How can I answer on Upwork?',
-                         ' '.join(['word'] * 14)):
-            assert analytics.safe_public_text(question, sources), question
-            safe = copy.deepcopy(card); safe['question'] = question
-            assert analytics.validate_community_card(safe, sources)['question'] == question
+        for question in ('reply_rate-1', 'reply_rate-2'):
+            safe = copy.deepcopy(card); safe['question_id'] = question
+            assert analytics.validate_community_card(safe, sources)['question_id'] == question
         # A library prefix alone and a copied history entry authorize nothing.
         legacy_goal = {'text': 'When choosing proof → use one', 'done': False, 'k': 0,
                        'n': 1, 'state': 'undone'}
@@ -203,7 +204,257 @@ def once_review_contract():
     print('PASS audit once-only call: second complete valid review reuses first exact rubric/date; immediate cockpit and weekly card identical; unreviewable input cannot erase it.')
 
 
+# All synthetic attack strings identified in r2-privacy, including fragments and
+# the fixed brand as an attempted dynamic injection (the static footer stays).
+R2_PRIVACY_PROBES = (
+    'Acme Corporation', 'What did acmecorporation request?', 'Secret, Client',
+    'Migration', 'secretclient', 'migrationspecialistneeded', 'hiddenbudget',
+    'ivoryworkflow', '$200/hour', 'Can I charge two hundred each session?',
+    'Is two hundred a fair fee?', 'example.com', 'example[.]com', 'example dot com',
+    'example。com', 'example．com', 'a\u200bcme', 'ivory workflow',
+    'What did ivory workflow mean?', 'employer', 'client_slug',
+    'What about "keep the launch secret"?', 'Upwork', 'Upwork Blueprint',
+    'unknown lowercase company', 'unknown confidential phrase',
+)
+
+
+def closed_question_entries():
+    today = dt.date(2026, 10, 14); now = '2026-10-14T15:00:00+02:00'
+    with fixture('closed-question-entries') as folder:
+        analytics_sync_marker(folder)
+        base = analytics_payload(analytics.compute(today, jobs=[], now=now))
+        base = analytics.prepare_snapshot(base, today, now=now)
+        sources = [{'title': 'Migration Specialist Needed', 'company': 'Acme Corporation',
+                    'client_name': 'Secret, Client', 'employer': 'private employer',
+                    'client_slug': 'private slug', 'quote': 'hidden budget',
+                    'messages': [{'body': 'ivory workflow'}]}]
+        # Exercise the real import/export selection and HTML writer. Browser raster
+        # capture is stubbed here; the full fixture separately measures a real PNG.
+        def capture(args, **kwargs):
+            target = next(arg.split('=', 1)[1] for arg in args if arg.startswith('--screenshot='))
+            pathlib.Path(target).write_bytes(b'\x89PNG\r\n\x1a\n' + b'\0' * 8 + struct.pack('>II', 1080, 1350))
+            return __import__('subprocess').CompletedProcess(args, 0, '', '')
+        for probe in R2_PRIVACY_PROBES:
+            # Unknown question IDs and legacy text each fail closed through all paths.
+            for field in ('question', 'question_id'):
+                card = copy.deepcopy(base['community_card']); card['question_id'] = None; card[field] = probe
+                checked = analytics.validate_community_card(copy.deepcopy(card), sources)
+                assert checked['question_id'] is None and 'question' not in checked, (field, probe)
+                direct = analytics.public_onepager_html(card)
+                assert '<p class="question">' not in direct
+                assert '<footer><span>Upwork Blueprint' in direct
+                canonical = analytics.validated_community({field: probe}, sources)
+                assert canonical == {'question_id': None}
+                for overlay in ({'community_card': {'next_focus': analytics.LABELS['reply_rate'], field: probe}},
+                                {'community': {field: probe}}):
+                    result = copy.deepcopy(base); result['community_card']['question_id'] = None
+                    analytics.claude_fields(result, overlay)
+                    assert result['community_card']['question_id'] is None
+                    assert '<p class="question">' not in analytics.public_onepager_html(analytics.snapshot_public_card(result, sources))
+                imported = copy.deepcopy(base); imported['community_card'] = copy.deepcopy(card)
+                imported['community'] = {field: probe}
+                assert analytics.snapshot_public_card(imported, sources)['question_id'] is None
+                legacy = copy.deepcopy(imported); legacy.pop('community')
+                assert analytics.snapshot_public_card(legacy, sources)['question_id'] is None
+                prepared = analytics.prepare_snapshot(imported, today, now=now)
+                analytics.record_snapshot(imported, replace=True)
+                ledger = analytics.read_lines('analytics-history.jsonl')[-1]
+                assert ledger['community_card']['question_id'] is None
+                assert 'question' not in ledger['community_card']
+                assert ledger.get('community', {}).get('question_id') is None
+                assert 'question' not in ledger.get('community', {})
+                for payload in (json.dumps(imported), json.dumps(legacy) + '\n' + json.dumps(imported) + '\n'):
+                    src = folder / 'import.json'; src.write_text(payload)
+                    with mock.patch.object(analytics.subprocess, 'run', side_effect=capture):
+                        exported = analytics.onepager(str(src), output=str(folder / 'card.html'))
+                    assert '<p class="question">' not in pathlib.Path(exported['html']).read_text()
+        counts = {}
+        for ident, (stage, text) in analytics.PUBLIC_QUESTION_TEMPLATES.items():
+            counts[stage] = counts.get(stage, 0) + 1
+            assert len(text.split()) <= 14
+            card = copy.deepcopy(base['community_card'])
+            card.update(question_id=ident, next_focus=analytics.LABELS[stage])
+            assert analytics.public_question_text(card) == text
+            assert '<p class="question">' in analytics.public_onepager_html(card)
+            card['next_focus'] = 'not a focus'
+            assert analytics.public_question_text(card) is None
+        assert all(2 <= count <= 3 for count in counts.values())
+    print('PASS owner question entries: all 27 r2 probes x legacy/ID; direct renderer, both overlays, record/ledger, JSON/JSONL import/export; fixed brand retained; finite templates only.')
+
+
+def name_and_pending_contract():
+    with fixture('name-pending') as folder:
+        for full, expected in (('Maya Chen', 'Maya C.'), ('Maya', 'Maya'), ('Maya Jane Chen', 'Maya C.')):
+            (folder / 'context/me.md').write_text('Name: ' + full + '\n')
+            assert analytics.public_member_name() == expected
+            card = analytics.compute(dt.date(2026, 10, 19), jobs=[], now='2026-10-19T12:00:00+02:00')['community_card']
+            assert card['member_name'] == expected and expected in analytics.public_onepager_html(card)
+        analytics_sync_marker(folder)
+        job = {'id': '991000021', 'source': 'outbound', 'status': 'call',
+               'call_booked_at': '2026-10-01T09:00:00+02:00',
+               'call_scheduled_at': '2026-10-18T10:00:00+02:00',
+               'call_session_id': 'meeting-pending',
+               'call_sessions': {'meeting-pending': {'scheduled_at': '2026-10-18T10:00:00+02:00'}}}
+        seed(job)
+        snapshot = analytics.compute(dt.date(2026, 10, 19), now='2026-10-19T12:00:00+02:00')
+        assert snapshot['kpis']['booked_to_held']['n'] == 0
+        row = next(row for row in snapshot['presentation']['scorecard'] if row['key'] == 'booked_to_held')
+        assert row['finished']['n'] == 0 and row['pending'] == {'n': 1, 'until': '2026-10-20'}, row
+        # Render the actual TSX consumer with the computed pending row.
+        node = r"""
+const fs=require('fs'), React=require('react'), {renderToStaticMarkup}=require('react-dom/server');
+const {transformSync}=require('next/dist/build/swc');
+function load(file, req=require){const module={exports:{}};const code=transformSync(fs.readFileSync(file,'utf8'),{filename:file,swcrc:false,configFile:false,jsc:{parser:{syntax:'typescript',tsx:true},target:'es2020',transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}}).code;new Function('require','module','exports',code)(req,module,module.exports);return module.exports;}
+const contract=load('lib/analytics-contract.ts');
+const Card=load('components/FunnelScorecard.tsx',name=>name==='@/lib/analytics-contract'?contract:require(name)).default;
+const snapshot=JSON.parse(process.argv[1]);
+const markup=renderToStaticMarkup(React.createElement(Card,{scorecard:snapshot.presentation.scorecard,kpis:snapshot.kpis,jobs:[],choose:()=>{},onConversations:()=>{}}));
+if(!markup.includes('+1 pending until 2026-10-20'))throw Error('Scheduled pending case not displayed');
+console.log('PASS rendered Show-up: +1 pending until 2026-10-20');
+"""
+        __import__('subprocess').run(['node','-e',node,json.dumps(snapshot)], cwd=analytics.ROOT / 'website', check=True)
+        ended = analytics.compute(dt.date(2026, 10, 21), now='2026-10-21T12:00:00+02:00')
+        row = next(row for row in ended['presentation']['scorecard'] if row['key'] == 'booked_to_held')
+        assert row['finished']['n'] == 1 and row['pending']['n'] == 0
+    print('PASS owner name/pending: two/one/multiple tokens; Oct1 booking/Oct18 meeting remains pending Oct19, matures Oct20; scorecard consumes pending.')
+
+
+def approximate_number_contract():
+    with fixture('approximate-numbers'):
+        snapshot = analytics.compute(dt.date(2026, 10, 14), jobs=[], now='2026-10-14T15:00:00+02:00')
+        for phrase, number in (('a dozen',12), ('dozen',12), ('a couple of',2), ('a pair of',2), ('a couple',2), ('a pair',2),
+                               ('half a dozen',6), ('half-dozen',6), ('a hundred',100), ('two hundred',200)):
+            assert analytics.report_number_value(phrase) == number
+            text = 'You won ' + phrase + ' contracts this week.'
+            negative = analytics.check_report(text, snapshot)
+            assert negative['status'] == 'FAIL' and len(negative['errors']) == 1, (phrase,negative)
+            with mock.patch.object(analytics, 'report_numeric_facts', return_value={'wins': number}):
+                positive = analytics.check_report(text, snapshot)
+            assert positive['status'] == 'PASS' and positive['checked_values'] == 1, (phrase,positive)
+        for phrase in ('hundreds', 'hundreds of', 'several hundreds of', 'two hundreds of', 'many hundreds'):
+            assert analytics.check_report('You won ' + phrase + ' contracts this week.', snapshot)['status'] == 'FAIL'
+    print('PASS owner number words: dozen/couple/pair/half-dozen/hundred mapped once; zero-win lies and unprovable quantified hundreds fail.')
+
+
+def distinct_call_contract():
+    for meeting in (True, False):
+        with fixture('distinct-call') as folder:
+            analytics_sync_marker(folder)
+            jid = '991000031'; seed({'id':jid, 'source':'outbound', 'status':'call', 'call_held_at':'2026-10-12T10:00:00+02:00'})
+            home = folder / 'jobs' / jid; home.mkdir()
+            original = None
+            saved_sessions = {}
+            for index in (1,2):
+                quote = 'We agree the next step for session ' + str(index) + '.'
+                (home / 'call.md').write_text('Call at: 2026-10-' + str(11 + index) + 'T10:00:00+02:00\nMember: Maya\nComplete: yes\nLanguage: English\nMaya: What happens next?\nClient: ' + quote + '\n')
+                review = {'reviewable':True, 'points':[{'point':n,'state':'met','quote':quote} for n in range(1,10)],
+                          'free_read':EXAMPLE_CALL_READ, 'next_message':'Please confirm the next step.', 'agreed_step':quote}
+                metadata = {'call_review':review}
+                if meeting:
+                    metadata.update(call_session_id='verified-meeting-' + str(index),
+                                    call_sessions={**saved_sessions, 'verified-meeting-' + str(index): {'held_at': '2026-10-' + str(11 + index) + 'T10:00:00+02:00'}})
+                record(jid, metadata)
+                saved = records()[jid]
+                saved_sessions = saved.get('call_sessions', {})
+                if index == 1: original = copy.deepcopy(saved)
+                assert saved['call_review'] == review
+                immediate = json.loads(run('cockpit.py','job',jid).stdout)['call_cards'][0]
+                assert immediate['points'][0]['quote'] == quote
+                assert immediate['date'] == '2026-10-' + str(11 + index)
+                weekly = analytics.compute(dt.date(2026,10,14), now='2026-10-14T15:00:00+02:00')['call_cards'][0]
+                assert weekly['points'][0]['quote'] == quote
+                assert weekly['date'] == immediate['date']
+                second = copy.deepcopy(review); second['points'][0]['state'] = 'partly'
+                record(jid, {'call_review':second})
+                assert records()[jid]['call_review'] == review
+            saved = records()[jid]
+            assert len(saved['call_reviews']) == 2
+            historical = saved['call_reviews'][original['call_review_session']]
+            assert historical['review'] == original['call_review'] and historical['reviewed_at'] == original['call_reviewed_at']
+    print('PASS owner distinct calls: meeting-ID and transcript identities; second call current in cockpit/weekly; each session immutable; historical first retained.')
+
+
+def legacy_session_contract():
+    with fixture('legacy-context-first') as folder:
+        analytics_sync_marker(folder)
+        jid = '991000041'; home = folder / 'jobs' / jid; home.mkdir()
+        (home / 'call-review.md').write_text('## Agreed step\n\nFirst call agreement.\n')
+        def review(quote):
+            return {'reviewable': True, 'points': [{'point': n, 'state': 'met', 'quote': quote} for n in range(1, 10)],
+                    'free_read': EXAMPLE_CALL_READ, 'next_message': 'Please confirm.', 'agreed_step': quote}
+        first = review('First call agreement.'); second = review('Second distinct call agreement.')
+        exact = '2026-10-12T14:22:33+00:00'
+        seed({'id': jid, 'status': 'call', 'source': 'outbound', 'call_review': first,
+              'call_reviewed_at': exact, 'call_held_at': '2026-10-12T10:00:00+02:00',
+              'call_sessions': {'first': {'held_at': '2026-10-12T10:00:00+02:00'},
+                                'second': {'held_at': '2026-10-13T10:00:00+02:00'},
+                                'third': {'held_at': '2026-10-14T10:00:00+02:00'}, 'unverified': {}}})
+        # No prior session pointer: the legacy review must never acquire second's identity.
+        record(jid, {'call_session_id': 'second'})
+        saved = records()[jid]
+        assert saved['call_reviews']['legacy:first']['review'] == first
+        assert saved['call_reviews']['legacy:first']['reviewed_at'] == exact
+        assert 'call_review' not in saved and 'call_review_session' not in saved
+        for index, payload in ((2, second), (1, first)):
+            session = 'second' if index == 2 else 'first'
+            (home / 'call.md').write_text('Call at: 2026-10-' + str(11+index) + 'T10:00:00+02:00\nMember: Maya\nComplete: yes\nLanguage: English\nMaya: What happens next?\nClient: ' + payload['agreed_step'] + '\n')
+            record(jid, {'call_review': payload} if index == 2 else {'call_session_id': session, 'call_review': payload})
+        first_saved = copy.deepcopy(records()[jid])
+        record(jid, {'call_session_id': 'second'})
+        saved = records()[jid]; second_time = saved['call_reviewed_at']
+        assert saved['call_review'] == second and saved['call_review_session'] == 'meeting:second'
+        assert second_time == saved['call_reviews']['meeting:second']['reviewed_at']
+        card = json.loads(run('cockpit.py', 'job', jid).stdout)['call_cards'][0]
+        assert card['points'][0]['quote'] == second['agreed_step'] and card['date'] == '2026-10-13'
+        record(jid, {'call_session_id': 'first'})
+        assert records()[jid]['call_review'] == first
+        assert records()[jid]['call_reviewed_at'] == first_saved['call_reviewed_at']
+        record(jid, {'call_session_id': 'third'})
+        assert 'call_review' not in records()[jid] and 'call_review_session' not in records()[jid]
+        card = json.loads(run('cockpit.py', 'job', jid).stdout)['call_cards'][0]
+        assert not card['reviewable'] and not card['points'] and card['coach_read'] is None
+        # A snapshot card must also clear when no markdown companion exists.
+        (home / 'call-review.md').unlink()
+        import cockpit
+        stale_card = dict(card, reviewable=True, points=first['points'], coach_read=EXAMPLE_CALL_READ)
+        with mock.patch.object(cockpit, 'analytics_state', return_value={'latest': {'call_cards': [stale_card]}, 'errors': [], 'status': 'fresh'}):
+            cleared = cockpit.job_view(jid)['call_cards'][0]
+        assert not cleared['reviewable'] and not cleared['points'] and cleared['coach_read'] is None
+        for invalid in ('does-not-exist', 'unverified'):
+            before = (folder / 'data/jobs.json').read_bytes()
+            for extra in ({}, {'call_review': first}):
+                result = run('pipeline.py', 'record', jid, '--file', '-', value={'call_session_id': invalid, **extra}, success=False)
+                assert result.returncode != 0
+                assert (folder / 'data/jobs.json').read_bytes() == before
+        assert records()[jid]['call_reviews']['legacy:first']['reviewed_at'] == exact
+    print('PASS independent findings: legacy context FIRST archives first exact timestamp; second owns current review; context-only switches restore matching timestamps or clear card; unknown/unverified IDs reject before persisted mutation.')
+
+
+def missing_question_source_contract():
+    with fixture('question-source-removal'):
+        base = analytics.compute(dt.date(2026,10,14), jobs=[], now='2026-10-14T15:00:00+02:00')['community_card']
+        for sources in ([{'messages': [{'body': 'ivory workflow'}], 'employer': 'Acme', 'client_slug': 'secret'}], []):
+            for invalid in ('unknown-id', None, [], {}, 17, True):
+                card = copy.deepcopy(base); card['question_id'] = invalid
+                assert analytics.validate_community_card(card, sources)['question_id'] is None
+                assert '<p class="question">' not in analytics.public_onepager_html(card)
+            missing = copy.deepcopy(base); missing.pop('question_id', None)
+            assert analytics.validate_community_card(missing, sources)['question_id'] is None
+            for field in ('question', 'question_id'):
+                card = copy.deepcopy(base); card[field] = 'What did ivory workflow mean?'
+                assert analytics.validate_community_card(card, sources)['question_id'] is None
+                assert analytics.snapshot_public_card({'community_card': card}, sources)['question_id'] is None
+                assert '<p class="question">' not in analytics.public_onepager_html(card)
+    print('PASS explicit question IDs: unknown/missing/null/malformed suppressed; retained and removed private sources both reject legacy/injected text.')
+
+
 def run_all():
+    approximate_number_contract()
+    legacy_session_contract()
+    missing_question_source_contract()
+    name_and_pending_contract()
+    distinct_call_contract()
+    closed_question_entries()
     privacy_contract()
     review_contract()
     once_review_contract()

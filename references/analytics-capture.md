@@ -796,8 +796,10 @@ Run `python3 code/workspace.py` and `python3 code/pipeline.py get <job id>`.
 Require `replied`, `call`, or `offer` when `jobs/<id>/proposal.md` does not exist yet.
 At offer with an existing proposal, `/brief` owns the thread. Read `references/upwork.md`
 and use fresh saved evidence first. Read `references/call-transcript.md` for the shared
-acquisition procedure; do not copy it here. Reuse `jobs/<id>/call-review.md` when it
-exists. Otherwise run `/call-review <id>` before drafting the proposal. Show the
+acquisition procedure; do not copy it here. Reuse the canonical `call_review` and
+`jobs/<id>/call-review.md` only for the matching verified meeting or transcript identity.
+A distinct session needs `/call-review <id>` before drafting the proposal; earlier
+judgments stay in `call_reviews` and are not silently substituted. Show the
 member the saved review, including its next step, before discussing the proposal.
 
 A missing or unreadable transcript blocks the review, never replaced by a summary

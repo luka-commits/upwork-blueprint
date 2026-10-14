@@ -1601,7 +1601,7 @@ def analytics_payload(snapshot, agree=True):
                            for index, key in enumerate(keys)]
     value['report'] = 'SYNTHETIC weekly coaching report; nothing new this week.'
     value['community_card']['next_focus'] = value['kpis'][primary]['label']
-    value['community_card']['question'] = "How do you practise this week's focus?"
+    value['community_card']['question_id'] = 'reply_rate-1'
     value['insights_top'] = [{'kind': 'habit', 'text': 'One clear next step keeps work moving',
                               'target': {'view': 'overview', 'element': primary}}]
     value['kpis']['reply_rate']['insight'] = 'One clear next step keeps work moving'
@@ -2220,7 +2220,7 @@ def assert_analytics_additions(value):
     card = value['community_card']
     assert {'week', 'applications', 'reply_rate', 'reply_to_call', 'call_to_won',
             'first_reply_median_min', 'goals_done', 'goals', 'biggest_improvement',
-            'streak_weeks', 'won_value', 'next_focus', 'question', 'new_badge', 'top_badges'} <= card.keys()
+            'streak_weeks', 'won_value', 'next_focus', 'question_id', 'new_badge', 'top_badges'} <= card.keys()
     for key in ('reply_rate', 'reply_to_call', 'call_to_won'):
         assert {'value', 'target', 'rung_reached', 'of', 'trend'} <= card[key].keys()
         assert card[key]['trend'] in ('up', 'undecided', 'down')
@@ -2314,9 +2314,9 @@ def analytics_fix_round():
             invalid['kpis']['reply_rate'][path] = change
             assert run('analytics.py', 'record', '--file', '-', value=invalid, success=False).returncode != 0
         invalid = json.loads(json.dumps(payload))
-        invalid['community_card']['question'] = ' '.join(['word'] * 15)
+        invalid['community_card']['question_id'] = ' '.join(['word'] * 15)
         # Frozen §13.4: drop unsafe optional free text without aborting valid compute.
-        assert analytics.prepare_snapshot(invalid, ANALYTICS_TODAY)['community_card']['question'] is None
+        assert analytics.prepare_snapshot(invalid, ANALYTICS_TODAY)['community_card']['question_id'] is None
         invalid = json.loads(json.dumps(payload))
         invalid['insights_top'][0]['text'] = ' '.join(['word'] * 13)
         assert run('analytics.py', 'record', '--file', '-', value=invalid, success=False).returncode != 0
@@ -2336,7 +2336,7 @@ def analytics_fix_round():
         run('analytics.py', 'record', '--file', '-', value=payload)
         stored = json.loads(run('analytics.py', 'last').stdout)
         assert stored['community_card']['next_focus'] == payload['community_card']['next_focus']
-        assert stored['community_card']['question'] == payload['community_card']['question']
+        assert stored['community_card']['question_id'] == payload['community_card']['question_id']
         assert stored['insights_top'] == payload['insights_top']
         assert stored['findings'] == payload['findings']
         assert stored['kpis']['reply_rate']['insight'] == payload['kpis']['reply_rate']['insight']
@@ -2349,7 +2349,7 @@ def analytics_fix_round():
     assert 'No fixed paragraph order' in report_command
     # Frozen public source guards supersede exact old wording; target behavior is numerically tested.
     assert all(text in command for text in ('No funnel graphic, forecast chart', 'community_card.next_focus',
-        'at most 14 words', 'no digits, currency or unit text', 'agreed library goal IDs', 'never private goal wording', 'match no known client, company, job title or quote fragment', 'common 28-day community window', 'Bars'))
+        'at most 14 words', 'question_id', 'agreed library goal IDs', 'never private goal wording', 'never write or interpolate question text', 'Unknown or missing IDs show no question', 'privacy checks as defence in depth', 'common 28-day community window', 'Bars'))
     assert '8-week' in command and '**Achievements**' in command, 'Frozen section 14 retains the score chart and its history home.'
     print('SYNTHETIC A2 fix round PASS: reply6%=target11%, reply12%=target11% until Wilson evidence supports promotion; first four weeks no rate verdict; four mapped lever focuses; configurable reasoned lever targets; every added snapshot field schema-valid; urgent todos capped7; default card despite Bars; undecided forecast null; Claude insight/question/provenance/findings validation and persistence')
 
@@ -2905,12 +2905,13 @@ def audit_analytics():
         passed('engineer E15: review-specific source and complete rubric gate')
         # Independent public schema: arbitrary fields/text and nested client source are refused.
         card=copy.deepcopy(base_snapshot['community_card'])
-        card['question']=analytics.PUBLIC_QUESTIONS[0]
+        card['question_id']=analytics.PUBLIC_QUESTIONS[0]
         analytics.validate_community_card(card,[])
         for mutation in ({'title':'Private title'},{'question':'What about Private Client?'},{'report':'Hidden source'}):
             bad=dict(card,**mutation)
-            if 'question' in mutation:  # Frozen §13.4: optional unsafe dynamic question is dropped.
-                assert analytics.validate_community_card(bad,[{'title':'Private Client'}])['question'] is None
+            if 'question' in mutation:  # Legacy prose cannot supply a template ID.
+                bad.pop('question_id')
+                assert analytics.validate_community_card(bad,[{'title':'Private Client'}])['question_id'] is None
             else:
                 try:analytics.validate_community_card(bad,[])
                 except ValueError:pass
@@ -3058,7 +3059,7 @@ def audit_analytics_extended():
         analytics.add_goals({'week':'2026-W42','goals':[goal]})
         value=analytics.compute(today,now=now)
         value['goals_next']=[goal];value['report']='Weekly measured review.'
-        value['community_card']['next_focus']=analytics.LABELS['weekly_volume'];value['community_card']['question']=analytics.PUBLIC_QUESTIONS[0]
+        value['community_card']['next_focus']=analytics.LABELS['weekly_volume'];value['community_card']['question_id']=analytics.PUBLIC_QUESTIONS[0]
         prepared=analytics.prepare_snapshot(value,today,now=now)
         payload=json.dumps(prepared)
         commands=[sys.executable,str(CODE/'analytics.py'),'record','--file','-']
@@ -3082,7 +3083,7 @@ def audit_analytics_extended():
         passed('engineer E21: old missing producer fields remain null new fields computed without reader migration')
         migrated['goals_next']=[goal]; migrated['report']='Corrected weekly measured review.'
         migrated['community_card']['next_focus']=analytics.LABELS['weekly_volume']
-        migrated['community_card']['question']=analytics.PUBLIC_QUESTIONS[0]
+        migrated['community_card']['question_id']=analytics.PUBLIC_QUESTIONS[0]
         corrected=analytics.prepare_snapshot(migrated,today,now=now)
         analytics.record_snapshot(corrected)
         replace_commands=commands + ['--replace']
@@ -3527,8 +3528,8 @@ def analytics_public_onepager_contract():
         snapshot=analytics.compute(today,jobs=[],now=now)
         card=copy.deepcopy(snapshot['community_card'])
         card['next_focus']=analytics.LABELS['weekly_volume']
-        card['question']='Which habits help you keep useful conversations moving?'
-        assert analytics.validate_community_card(card,[])['question'] == card['question']
+        card['question_id']='weekly_volume-1'
+        assert analytics.validate_community_card(card,[])['question_id'] == card['question_id']
         windows=[card[key]['entry_period'] for key in ('reply_rate','reply_to_call','call_to_won')]
         assert windows[0] == windows[1] == windows[2]
         assert (dt.date.fromisoformat(windows[0]['end'])-dt.date.fromisoformat(windows[0]['start'])).days == 27
@@ -3561,8 +3562,8 @@ def analytics_public_onepager_contract():
         for question in ('What did Private Rowan request?', 'Could Secret Tender Redtail be improved?',
                          'Who uses manual invoice reconciliation?', ' '.join(['word']*15),
                          'Contact me at private@example.test'):
-            candidate=copy.deepcopy(card);candidate['question']=question
-            assert analytics.validate_community_card(candidate,sources)['question'] is None,question
+            candidate=copy.deepcopy(card);candidate['question_id']=question
+            assert analytics.validate_community_card(candidate,sources)['question_id'] is None,question
         improvement=copy.deepcopy(card)
         improvement['biggest_improvement']={'kpi':'reply_rate','from':10,'to':20}
         assert analytics.validate_community_card(improvement,[])['biggest_improvement']=={'kpi':'reply_rate','from':10,'to':20}
@@ -3613,7 +3614,7 @@ def analytics_public_onepager_contract():
         assert 'Applications this week' in html and 'Same 28 days' in html
         assert 'data-period-contract' not in html
         assert not any(term.casefold() in html.casefold() for term in ('not supplied','eligible',"Writer's",'Execution and effect apart','stage starts'))
-        assert card['question'] in html and "Last agreed goals" in html and "No previous goals." in html and "Last week's 0 agreed goals" not in html
+        assert analytics.public_question_text(card) in html and "Last agreed goals" in html and "No previous goals." in html and "Last week's 0 agreed goals" not in html
         assert 'New contract value this week' not in html
         assert rendered['png'] is not None,rendered
         header=pathlib.Path(rendered['png']).read_bytes()[:24]

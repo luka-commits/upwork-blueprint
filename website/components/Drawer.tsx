@@ -10,6 +10,7 @@ import { parseApplication } from '@/lib/application-review.mjs';
 import { plainText } from '@/lib/plain-text.mjs';
 import { artifactUrl, artifactVersion, useArtifactText } from '@/lib/artifact-content.mjs';
 import CopyButton from './CopyButton';
+import { analyticsMemberText } from '@/lib/analytics-contract';
 import { CallCard } from './AnalyticsPage';
 import './drawer.css';
 
@@ -87,8 +88,8 @@ export default function Drawer() {
 function SavedContext({ value }: { value: any }) {
   if (value == null) return <>Unknown</>;
   if (Array.isArray(value)) return <ul>{value.map((item, index) => <li key={index}><SavedContext value={item} /></li>)}</ul>;
-  if (typeof value === 'object') return <dl>{Object.entries(value).map(([key, item]) => <div key={key}><dt>{key.replace(/_/g, ' ')}</dt><dd><SavedContext value={item} /></dd></div>)}</dl>;
-  return <>{typeof value === 'boolean' ? value ? 'Yes' : 'No' : String(value)}</>;
+  if (typeof value === 'object') return <dl>{Object.entries(value).map(([key, item]) => <div key={key}><dt>{analyticsMemberText(key)}</dt><dd><SavedContext value={item} /></dd></div>)}</dl>;
+  return <>{typeof value === 'boolean' ? value ? 'Yes' : 'No' : analyticsMemberText(value)}</>;
 }
 
 function ProposalContext({ job }: { job: any }) {

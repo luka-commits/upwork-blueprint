@@ -814,11 +814,28 @@ def bottlenecks():
         print('SYNTHETIC S11 PASS: all stages after Volume under n; scoped overrides; invalid bars ignored; 24h boundary; unsent call denominator')
 
 
+def this_week_height_budget(width, total_height, first_screen_bottom):
+    """Final browser worker supplies measured CSS pixels, with disclosures closed.
+
+    Height is a reading guideline; do not shorten source text to pass it.
+    The first-screen measurement is the bottom of the current-goals section.
+    """
+    guideline, failure = (1900, 2470) if width == 1440 else (3400, 4420) if width == 390 else (None, None)
+    if guideline is None:
+        raise ValueError('Measure the agreed 1440 or 390 viewport width.')
+    return {'page': 'FAIL' if total_height > failure else 'WARN' if total_height > guideline else 'PASS',
+            'first_screen': 'FAIL' if first_screen_bottom > 1170 else 'WARN' if first_screen_bottom > 900 else 'PASS',
+            'measured': {'width':width, 'height':total_height, 'first_screen_bottom':first_screen_bottom},
+            'limits': {'page_warning':guideline,'page_failure':failure,'first_screen_warning':900,'first_screen_failure':1170}}
+
+
 def rendered_ui():
     if not (ROOT / 'website/node_modules').is_dir():
         print('audit engineer: rendered UI preflight PASS — SKIP rendered UI: website/node_modules absent; no unrelated dependency fallback')
         return
-    with fixture('rendered-ui'):
+    with fixture('rendered-ui') as folder:
+        me = folder / 'context/me.md'
+        me.write_text('Name: Maya Rivers\n' + me.read_text())
         s = dashboard_fixture()
         import analytics
         analytics_sync_marker(pathlib.Path(os.environ['BLUEPRINT_DATA']).parent)
@@ -830,19 +847,29 @@ const {transformSync}=require('next/dist/build/swc');
 const {code}=transformSync(fs.readFileSync('components/AnalyticsPage.tsx','utf8'),{
 filename:'AnalyticsPage.tsx',swcrc:false,configFile:false,jsc:{parser:{syntax:'typescript',tsx:true},
 target:'es2020',transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}});
-let current, selected=null, hook=0, injected=false, tab=0;const mod={exports:{}};
+let current, selected=null, hook=0, injected=false, tab=0, expand=false;const mod={exports:{}};
+const contract={exports:{}};
+const contractCode=transformSync(fs.readFileSync('lib/analytics-contract.ts','utf8'),{filename:'analytics-contract.ts',swcrc:false,configFile:false,jsc:{parser:{syntax:'typescript'},target:'es2020'},module:{type:'commonjs'}}).code;
+new Function('require','module','exports',contractCode)(require,contract,contract.exports);
+function runtimeRequire(name){
+ if(name==='@/lib/analytics-contract')return contract.exports;
+ if(name==='react/jsx-runtime'){const jsx=require(name);const wrap=fn=>(type,props,...rest)=>fn(type,expand&&type==='details'?{...props,open:true}:props,...rest);return {...jsx,jsx:wrap(jsx.jsx),jsxs:wrap(jsx.jsxs)};}
+ if(name==='react')return {...React,useState:initial=>{const pair=React.useState(initial);return expand&&Array.isArray(initial)&&initial.length===0?[(current?.analytics?.latest?.presentation?.scorecard||[]).map(row=>row.key),pair[1]]:pair;}};
+ return require(name);
+}
 const compiledScorecard={exports:{}};
 const scorecardCode=transformSync(fs.readFileSync('components/FunnelScorecard.tsx','utf8'),{filename:'FunnelScorecard.tsx',swcrc:false,configFile:false,jsc:{parser:{syntax:'typescript',tsx:true},target:'es2020',transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}}).code;
-new Function('require','module','exports',scorecardCode)(require,compiledScorecard,compiledScorecard.exports);
+new Function('require','module','exports',scorecardCode)(runtimeRequire,compiledScorecard,compiledScorecard.exports);
 const compiledCopy={exports:{}};
 const copyCode=transformSync(fs.readFileSync('components/CopyButton.tsx','utf8'),{filename:'CopyButton.tsx',swcrc:false,configFile:false,jsc:{parser:{syntax:'typescript',tsx:true},target:'es2020',transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}}).code;
 new Function('require','module','exports',copyCode)(name=>name==='@/lib/context'?{useCockpit:()=>({toast:()=>{}})}:require(name),compiledCopy,compiledCopy.exports);
 new Function('require','module','exports',code)(name=>{
+if(name==='@/lib/analytics-contract')return contract.exports;
 if(name==='./FunnelScorecard')return compiledScorecard.exports;
 if(name==='./CopyButton')return compiledCopy.exports;
 if(name==='@/lib/context')return {useCockpit:()=>({state:current,openDrawer:()=>{}})};
 if(name==='react')return {...React,useState:initial=>{const pair=React.useState(initial);hook++;return initial===0?[tab,pair[1]]:!injected&&initial===null&&selected?(injected=true,[selected,pair[1]]):pair;}};
-return require(name);},mod,mod.exports);
+return runtimeRequire(name);},mod,mod.exports);
 function render(state){current=state;hook=0;injected=false;return renderToStaticMarkup(React.createElement(mod.exports.default));}
 const payload=JSON.parse(process.argv[1]);const populated=payload.legacy, snapshot=payload.snapshot;
 const modern={...populated,analytics:{latest:snapshot,history:[snapshot]}};
@@ -856,7 +883,7 @@ const callDetail=html.match(/<tr class="sc-detail" id="scorecard-reply_to_call"[
 assert(callDetail);assert.equal(callDetail[1],'<button class="an-text-button">Why these replies stalled → Conversations</button>');
 tab=1;const conversations=render(modern);assert(conversations.includes('Across your conversations'));
 assert(conversations.includes('Applications')&&conversations.includes('Chats')&&conversations.includes('Calls')&&conversations.includes('Proposals'));tab=0;
-assert(!/0 of 0/.test(html));assert(html.includes('No eligible cases yet'));assert(html.includes('unknown')||html.includes('Not enough evidence'));
+assert(!/0 of 0/.test(html));assert(html.includes('No opportunities yet'));assert(html.includes('unknown')||html.includes('Not enough evidence'));
 const missingMoney={...snapshot,north_star:{...snapshot.north_star,value:null,known_subtotal:0,unknown_value_wins:['synthetic-unknown'],hourly_billed:null}};
 const missingMoneyHtml=render({...modern,analytics:{latest:missingMoney,history:[]}});
 assert.match(missingMoneyHtml, /Won this week[^]*?Value unknown<\/button>/);
@@ -881,9 +908,73 @@ const uncertain=render({...modern,analytics:{latest:detail,history:[]}});
 assert(uncertain.includes('5 of 18'));
 assert(uncertain.includes('Not enough evidence'));assert(uncertain.includes('observed (call history)'));
 assert(populated.timings.call_to_proposal.values.some(row=>row.call_source==='observed'));
+// PART3 checks rendered member text, including opened details, without attributes or comments.
+function memberText(markup){return markup.replace(/<(style|script|title)[^>]*>[^]*?<\/\1>/gi,'').replace(/<!--[^]*?-->/g,'').replace(/<[^>]*>/g,' ').replace(/&#x([0-9a-f]+);/gi,(_,n)=>String.fromCodePoint(parseInt(n,16))).replace(/&#([0-9]+);/g,(_,n)=>String.fromCodePoint(+n)).replace(/&(?:quot|apos|amp|lt|gt);/g,v=>({'&quot;':'"','&apos;':"'",'&amp;':'&','&lt;':'<','&gt;':'>'}[v])).replace(/\s+/g,' ').trim();}
+const forbidden=['not supplied','undecided','eligible',"Writer's",'cohort','Execution and effect apart','stage starts',...Object.keys(contract.exports.ANALYTICS_FIELD_LABELS)];
+function forbiddenProof(markup,label){const text=memberText(markup);for(const term of forbidden)assert(!text.toLowerCase().includes(term.toLowerCase()),`${label}: ${term}: ${text}`);assert(!text.includes('—'),label);assert(!/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/i.test(text),`${label}: internal field name: ${text}`);return text;}
+expand=true;
+for(const [label,state] of [['This week',modern],['Missing money',{...modern,analytics:{latest:missingMoney,history:[]}}],['Missing snapshot',{...modern,analytics:{latest:null,history:[]}}],['Missing data',{...modern,analytics:{latest:{...snapshot,kpis:{},presentation:{},goals_next:[],conversations:{}},history:[]}}]]){
+ tab=0;forbiddenProof(render(state),label);tab=1;forbiddenProof(render(state),label+' Conversations');
+}
+tab=0;
+for(const sample of samples)forbiddenProof(render({...modern,analytics:{latest:sample,history:samples}}),'Saved example');
+const maya=payload.maya;
+const mayaState={...modern,analytics:{latest:maya,history:[],goals:null}};
+const mayaHtml=render(mayaState),mayaText=forbiddenProof(mayaHtml,'Maya');
+for(const expected of ['88', 'was 81', '$4,200', '3 new contracts', '$3,500', '11 live leads', '31 applications this week against a goal of 25', '26 sent within 10 minutes', 'Reply rate 18% → 21%', 'Swift Sail', 'Silver', 'Turn replies into calls','29 replies led to 9 booked calls','did it 7 of 9','did it 1 of 4','29 of 140','9 of 29','8 of 9','3 of 8','8 of 8'])assert(mayaText.includes(expected),expected);
+const goalCards=[...mayaHtml.matchAll(/<article class="an-goal">([^]*?)<\/article>/g)].map(match=>memberText(match[1]));
+assert.equal(goalCards.length,3);assert.equal(new Set(goalCards).size,3);
+for(const [index,goal] of maya.presentation.goal_cards.entries()){
+ assert(goalCards[index].includes(goal.change));assert(goalCards[index].includes('When '+goal.cue));
+ assert(goalCards[index].includes('“'+goal.coach_example+'”'));assert(goalCards[index].includes('Checked: '+goal.measurement));
+}
+assert(!mayaText.includes('Smaller action'));assert(!mayaText.includes('Coach example'));
+const duplicate={...maya,goals_next:[...maya.goals_next,maya.goals_next[0]]};
+assert.equal((render({...mayaState,analytics:{latest:duplicate}}).match(/class="an-goal"/g)||[]).length,3);
+for(const n of [0,1,2,3]){const subset={...maya,goals_next:maya.goals_next.slice(0,n)};assert.equal((render({...mayaState,analytics:{latest:subset}}).match(/class="an-goal"/g)||[]).length,n);}
+const zeroGoal={...maya,goals_review:[{change:'Offer two call times',done_k:0,done_n:0,effect:'undecided'}]};
+const zeroText=forbiddenProof(render({...mayaState,analytics:{latest:zeroGoal}}),'Zero opportunities');
+assert(zeroText.includes('No opportunities this week'));assert(!zeroText.includes('did it 0 of 0'));
+// Quotes are source evidence: demonstrate that presentation mapping never rewrites them.
+for(const row of maya.presentation.scorecard.filter(row=>['reply_rate','reply_to_call','booked_to_held','proposal_to_won'].includes(row.key)))assert.deepEqual([row.finished.k,row.finished.n],({reply_rate:[29,140],reply_to_call:[9,29],booked_to_held:[8,9],proposal_to_won:[3,8]})[row.key]);
+const verifiedQuote="The reply_rate cohort is undecided — eligible is the client's word.";
+selected={title:'Quoted review',review:{quote:verifiedQuote,example:verifiedQuote},kind:'chats',evidence:[]};
+assert(memberText(render(modern)).includes(verifiedQuote));selected=null;
+// Check each actual evidence drawer and call card with every disclosure opened.
+for(const selection of [{title:'Missing evidence',evidence:[]},{title:'Call',call:{}},
+ {title:'All badges',badges:[{name:'Swift Sail',tier:'Silver',rule:'reply_rate cohort undecided',progress_text:'not supplied'}],history:[{change:'Offer times',done_k:0,done_n:0,effect:'undecided'}]},
+ ...['applications','chats','proposals'].flatMap(kind=>[{title:kind,kind,review:{}},{title:kind,kind,review:{last_writer:'not supplied',points:[{key:'answered_question',state:'undecided',reason:'reply_rate cohort'}],missing_sources:[{source:'proposal_sent_at'}]}}]),
+ ...Object.entries(snapshot.conversations?.sections||{}).flatMap(([kind,entries])=>entries.map(entry=>({title:entry.label||kind,kind,...(kind==='calls'?{call:entry}:{review:entry}),evidence:[]})))]){
+ selected=selection;forbiddenProof(render(modern),'Evidence drawer '+selection.title);
+}
+selected=null;current=modern;
+for(const card of [{},...(snapshot.call_cards||[])])forbiddenProof(renderToStaticMarkup(React.createElement(mod.exports.CallCard,{card})),'Call card');
+// Render the owning lead drawer as well; local helper imports and effects make no requests.
+let drawerJob=null;
+const drawerLibs={};for(const name of ['stages','job-brief','job-facts','next-step','application-review','plain-text','artifact-content'])drawerLibs['@/lib/'+name+'.mjs']=await import('./lib/'+name+'.mjs');
+const drawerModule={exports:{}};
+const drawerCode=transformSync(fs.readFileSync('components/Drawer.tsx','utf8'),{filename:'Drawer.tsx',swcrc:false,configFile:false,jsc:{parser:{syntax:'typescript',tsx:true},target:'es2020',transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}}).code;
+new Function('require','module','exports',drawerCode)(name=>{
+ if(name==='./drawer.css')return {};
+ if(name==='./AnalyticsPage')return mod.exports;
+ if(name==='./CopyButton')return compiledCopy.exports;
+ if(name==='@/lib/context')return {useCockpit:()=>({state:modern,drawerId:'maya-lead',closeDrawer:()=>{},api:()=>{throw Error('Unexpected request')},toast:()=>{}})};
+ if(name==='react')return {...React,useState:initial=>{const pair=React.useState(initial);return initial===null?[drawerJob,pair[1]]:pair;}};
+ if(drawerLibs[name])return drawerLibs[name];return runtimeRequire(name);
+},drawerModule,drawerModule.exports);
+for(const job of [null,{id:'maya-lead',title:'Booking flow',status:'call',artifacts:[],call_cards:[{}],lead_context:{proposal_insights:{data:{reply_rate:'undecided',proposal_sent_at:'not supplied'}}}},{id:'maya-lead',title:'Booking flow',status:'new',artifacts:[]}]){
+ drawerJob=job;forbiddenProof(renderToStaticMarkup(React.createElement(drawerModule.exports.default)),'Lead drawer');
+}
+for(const [label,markup] of Object.entries(payload.public_cards))forbiddenProof(markup,'Community '+label);
+console.log('PART3 rendered member copy prepared: This week, Conversations, both drawers, calls and community; details open, missing sources and zero opportunities; verified quotes unchanged');
 console.log('SYNTHETIC rendered UI PASS: current saved focus first/k/n; missing vs empty snapshot; eight samples; legacy66% and49/50 pure helper; observed call source and Wilson uncertainty');
 })().catch(error=>{console.error(error);process.exitCode=1});"""
-        result = ORIGINAL_RUN(['node', '-e', js, json.dumps({'legacy':s,'snapshot':snapshot})], cwd=ROOT / 'website', capture_output=True, text=True)
+        from analytics_replay import maya_card_example
+        maya = maya_card_example(snapshot)
+        public_cards = {'missing':analytics.public_onepager_html(snapshot['community_card'])}
+        analytics.add_goals({'week':'2026-W43','goals':[dict(goal,start='2026-10-19') for goal in maya['goals_next']]})
+        public_cards['Maya'] = analytics.public_onepager_html(analytics.snapshot_public_card(maya,[]))
+        result = ORIGINAL_RUN(['node', '-e', js, json.dumps({'legacy':s,'snapshot':snapshot,'maya':maya,'public_cards':public_cards})], cwd=ROOT / 'website', capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
         import analytics
         rates,_=analytics.calculate(list(records().values()),analytics.day(snapshot['generated_at']),now=snapshot['generated_at'],activity_bounds=analytics.span(analytics.day(snapshot['generated_at']),28))
@@ -3215,7 +3306,9 @@ def analytics_public_onepager_contract():
         rendered=analytics.onepager(source,week='2026-W42',output=folder/'proof.html')
         html=pathlib.Path(rendered['html']).read_text()
         assert rendered['week']=='2026-W42' and all(value not in html for value in private_canaries)
-        assert 'Applications this week' in html and 'same 28-day window' in html
+        assert 'Applications this week' in html and 'Same 28 days' in html
+        assert 'data-period-contract' not in html
+        assert not any(term.casefold() in html.casefold() for term in ('not supplied','eligible',"Writer's",'Execution and effect apart','stage starts'))
         assert card['question'] in html and "Last agreed goals" in html and "No previous goals." in html and "Last week's 0 agreed goals" not in html
         assert 'New contract value this week' not in html
         assert rendered['png'] is not None,rendered

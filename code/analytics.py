@@ -8,6 +8,7 @@
     python3 code/analytics.py due [--today YYYY-MM-DD]
 """
 import argparse
+import base64
 import copy
 import contextvars
 import datetime as dt
@@ -687,13 +688,14 @@ def scorecard_fields(snapshot, jobs, history, today):
             points = [next((item.get('value') for item in items if item.get('key') == key), None) for items in series] + [row.get('value')]
             points = [None] * (8 - len(points)) + points
             rows.append({'key': key, 'group': group, 'name': SCORECARD_NAMES[key], 'stage_label': SCORECARD_STAGE.get(key),
-                'period_label': 'Last 28 days', 'counting': ({'weekly_volume': 'Qualified applications in the last 28 days, divided by four weekly commitments.', 'job_fit': 'All sent outbound applications in the last 28 days, with a saved lane and rate fit review.', 'speed_10min': 'Qualified applications in the last 28 days with frozen posting age; unknown ages remain unknown.', 'first_reply': 'Client messages received in the last 28 days; unanswered messages count at their working-hours age.', 'follow_ups_on_time': 'Distinct silent-lane obligations due in the last 28 days; a sent follow-up counts on its due business day.', 'proposal_on_time': 'All fitting held calls in the last 28 days; sent within 30 min of call end. Clean disqualifications and offer or contract bypasses are excluded.', 'value_per_100_connects': 'Known new contract value divided by net Connects spent in the last 28 days, multiplied by 100. Zero spend is not measurable.'}.get(key) or f'Finished outbound cases with a fixed {HORIZONS.get(key, 0)}-day outcome horizon; the full 28-day mature entry cohort includes unsuccessful cases.'), 'period': copy.deepcopy(snapshot['window']), 'value': row.get('value'),
+                'period_label': 'Last 28 days', 'counting': ({'weekly_volume': 'Qualified applications in the last 28 days, divided by four weekly commitments.', 'job_fit': 'All sent outbound applications in the last 28 days, with a saved lane and rate fit review.', 'speed_10min': 'Qualified applications in the last 28 days with frozen posting age; unknown ages remain unknown.', 'first_reply': 'Client messages received in the last 28 days; unanswered messages count at their working-hours age.', 'follow_ups_on_time': 'Distinct silent-lane obligations due in the last 28 days; a sent follow-up counts on its due business day.', 'proposal_on_time': 'All fitting held calls in the last 28 days; sent within 30 min of call end. Clean disqualifications and offer or contract bypasses are excluded.', 'value_per_100_connects': 'Known new contract value divided by net Connects spent in the last 28 days, multiplied by 100. Zero spend is not measurable.'}.get(key) or f'Each case has {HORIZONS.get(key, 0)} days for a result. Counts include cases with and without a result after that time, with starting dates across 28 days.'), 'period': copy.deepcopy(snapshot['window']), 'value': row.get('value'),
                 'finished': {'k': row.get('k'), 'n': row.get('n')}, 'pending': {'n': len(pending), 'until': until.date().isoformat() if until else None},
                 'uncertainty': {'low': row.get('low'), 'high': row.get('high')},
                 'change': {'previous_value': previous_value, 'comparison_label': 'Previous 28 days', 'text': comparison},
                 'series': {'label': 'Last eight weekly checks', 'unit': row['unit'], 'points': points},
                 'target': {'kind': 'ladder' if key in FUNNEL else 'habit', 'value': row.get('target'), 'level': frozen.get('rung_reached'), 'thresholds': frozen.get('rungs', [])},
                 'next_action': {'text': snapshot.get('verdict', {}).get('next_action') or ACTIONS.get(key, ''), 'lead_filter': {'kpi': key, 'lead_ids': scorecard_action_ids(key, row, jobs, today, now)}} if key == focus else None,
+                'job_fit': copy.deepcopy(snapshot.get('insights', {}).get('job_fit')) if key == 'reply_rate' else None,
                 'split': split, 'focus': {'reason': snapshot.get('verdict', {}).get('reason') or snapshot.get('verdict', {}).get('sentence')} if key == focus else None,
                 'content_link': {'view': 'conversations', 'text': 'Why these replies stalled → Conversations'} if key == 'reply_to_call' else None,
                 'market': market, 'state': row['state'], 'evidence': row.get('evidence', []), 'insight': frozen.get('insight') or row.get('reason')})
@@ -1160,6 +1162,112 @@ def lead_todos(jobs, today, goals):
     return sorted(rows, key=lambda row: (row['due'], order[row['kind']], row['lead_id'] or '', row['text']))[:7]
 
 
+
+# PART2: fixed, outcome-blind application-time categories only. No live job fields.
+JOB_FIT_LABELS = {
+    'budget_band': ('the budget is below $500', 'the budget is $500 to $2,000', 'the budget is above $2,000', 'payment is hourly'),
+    'proposals_band': ('fewer than 5 people applied', '5 to 15 people applied', '15 to 50 people applied', '50 or more people applied'),
+    'client_hire_rate_band': ('clients have never hired', 'clients hired on fewer than 30% of posts', 'clients hired on 30% to 70% of posts', 'clients hired on more than 70% of posts'),
+    'client_spent_band': ('clients have spent nothing', 'clients have spent less than $1,000', 'clients have spent $1,000 to $10,000', 'clients have spent over $10,000'),
+    'posted_age_band': ('jobs were posted under 10 minutes before you applied', 'jobs were posted 10 to 60 minutes before you applied', 'jobs were posted 1 to 6 hours before you applied', 'jobs were posted over 6 hours before you applied'),
+    'bid_band': ('your bid was below the listed budget', 'your bid was within the listed budget', 'your bid was above the listed budget'),
+}
+
+
+@functools.lru_cache(maxsize=8192)
+def job_fit_exact_p(k, n, p):
+    """Two-sided exact binomial probability, probability-ordering definition."""
+    if not n: return 1.0
+    if p == 0: return 1.0 if k == 0 else 0.0
+    if p == 1: return 1.0 if k == n else 0.0
+    def mass(i):
+        return math.lgamma(n + 1) - math.lgamma(i + 1) - math.lgamma(n - i + 1) + i * math.log(p) + (n - i) * math.log1p(-p)
+    observed = mass(k)
+    return min(1.0, math.fsum(math.exp(mass(i)) for i in range(n + 1) if mass(i) <= observed + 1e-12))
+
+
+def job_fit_fields(jobs, today):
+    """Last 84 application days, disjoint 42-day halves, seven-day reply horizon.
+
+    Section 13 supplies n20/window, exact two-sided/BH10% and 1.5/.67 effects.
+    Item37's n15 is the display floor for descriptive early signals, not confirmation.
+    Unknown bands are excluded from that dimension, including its own-rate reference.
+    Connects per reply is total frozen listed application cost / all replies, including
+    costs of unsuccessful applications; incomplete cost coverage is never extrapolated.
+    """
+    cutoff = dt.datetime.combine(today, dt.time(), local_zone())
+    bounds = span(today, 84)
+    middle = bounds[0] + dt.timedelta(days=42)
+    windows = {'discovery': (bounds[0], middle - dt.timedelta(days=1)), 'confirmation': (middle, bounds[1])}
+    candidates = [job for job in jobs if not job.get('imported') and
+                  (job.get('application_facts') or {}).get('source') == 'outbound' and inside(event(job, 'applied'), bounds)]
+    finished = [job for job in candidates if event(job, 'applied') + dt.timedelta(days=7) <= cutoff]
+    def measure(rows):
+        k = sum(has_after(job, 'replied', event(job, 'applied'), event(job, 'applied') + dt.timedelta(days=7)) for job in rows)
+        costs = [(job.get('application_facts') or {}).get('connects_cost') for job in rows]
+        known = [cost for cost in costs if number(cost) and cost >= 0]
+        low, high = wilson(k, len(rows))
+        return {'k': k, 'n': len(rows), 'reply_rate': rounded(100 * k / len(rows)) if rows else None,
+                'low': rounded(low), 'high': rounded(high), 'connects_known_n': len(known),
+                'connects_total': sum(known) if len(known) == len(rows) and rows else None,
+                'connects_per_reply': rounded(sum(known) / k) if k and len(known) == len(rows) else None,
+                'evidence': ids(rows)}
+    bands = []
+    for dimension, labels in JOB_FIT_LABELS.items():
+        values = pipeline.APPLICATION_BANDS[dimension][:-1]
+        known = [job for job in finished if job['application_facts'].get(dimension) in values]
+        for value, label in zip(values, labels):
+            selected = [job for job in known if job['application_facts'][dimension] == value]
+            row = dict(dimension=dimension, band=value, label=label, **measure(selected))
+            for name, window in windows.items():
+                reference = measure([job for job in known if inside(event(job, 'applied'), window)])
+                part = measure([job for job in selected if inside(event(job, 'applied'), window)])
+                p = reference['k'] / reference['n'] if reference['n'] else None
+                part.update(reference=reference, effect=(part['k'] / part['n'] / p) if part['n'] and p else None,
+                            p=job_fit_exact_p(part['k'], part['n'], p) if p is not None and part['n'] >= 20 else 1.0)
+                row[name] = part
+            bands.append(row)
+    # All 23 registered known bands remain in each BH family, even when absent.
+    for name in windows:
+        ordered = sorted(bands, key=lambda row: row[name]['p'])
+        last = max((i for i, row in enumerate(ordered, 1) if row[name]['p'] <= .1 * i / len(ordered)), default=0)
+        accepted = {(row['dimension'], row['band']) for row in ordered[:last]}
+        for row in bands: row[name]['accepted'] = (row['dimension'], row['band']) in accepted
+    recommendations = []
+    for row in bands:
+        effects = [row[name]['effect'] for name in windows]
+        up = all(value is not None and value >= 1.5 for value in effects)
+        down = all(value is not None and value <= .67 for value in effects)
+        confirmed = (up or down) and all(row[name]['n'] >= 20 and row[name]['accepted'] for name in windows)
+        reference = sum(row[name]['reference']['k'] for name in windows)
+        reference_n = sum(row[name]['reference']['n'] for name in windows)
+        ratio = row['k'] / row['n'] / (reference / reference_n) if row['n'] and reference else None
+        direction = 'apply' if ratio is not None and ratio >= 1.5 else 'skip' if ratio is not None and ratio <= .67 else None
+        if row['n'] < 15 or not direction: continue
+        state = 'confirmed' if confirmed else 'early_signal'
+        prefix = 'Prioritize jobs where' if direction == 'apply' else 'Consider skipping jobs where'
+        caution = 'This held in both six-week periods.' if confirmed else 'Early signal only; this has not held in both six-week periods.'
+        cost = f"{row['connects_per_reply']:g} Connects per reply" if row['connects_per_reply'] is not None else 'Connects per reply unknown'
+        text = f"{prefix} {row['label']}. {row['k']} replies from {row['n']} applications ({row['reply_rate']:g}%), {cost}. {caution}"
+        recommendations.append(dict(row, action=direction, state=state, text=text))
+    def priority(row): return row['state'] != 'confirmed', -row['n'], row['dimension'], row['band']
+    recommendations.sort(key=priority)
+    apply = [row for row in recommendations if row['action'] == 'apply'][:2]
+    skip = [row for row in recommendations if row['action'] == 'skip'][:1]
+    return {'period': period(bounds), 'windows': {name: period(window) for name, window in windows.items()},
+            'reply_horizon_days': 7, 'finished_n': len(finished), 'pending_n': len(candidates) - len(finished),
+            'bands': bands, 'apply': apply, 'skip': skip, 'patterns': sorted(apply + skip, key=priority)[:2],
+            'empty_text': 'No job patterns to recommend yet. Each needs at least 15 finished applications.',
+            'note': 'Application dates in the last 12 weeks. Recent applications wait seven days; only replies within seven days count. Frozen bands and listed Connects costs only.'}
+
+
+def facts_sheet(snapshot):
+    """Read-only numeric facts, with at most two member-facing job patterns."""
+    return {'week': snapshot['week'], 'kpis': copy.deepcopy(snapshot['kpis']),
+            'job_fit': {key: copy.deepcopy(snapshot['insights']['job_fit'][key]) for key in
+                        ('period', 'windows', 'reply_horizon_days', 'finished_n', 'pending_n', 'patterns', 'empty_text', 'note')}}
+
+
 def explore_fields(jobs, today, history):
     bounds = span(today, 28)
     cutoff = dt.datetime.combine(today, dt.time(), local_zone())
@@ -1237,7 +1345,13 @@ def public_member_name():
 def community_card(jobs, today, kpis, reviews, week, streak, now=None):
     # Older unresolved goals remain in the private review; sharing shows the latest agreed set only.
     latest_start = max((row.get('start', '') for row in reviews), default='')
-    reviews = [row for row in reviews if row.get('start', '') == latest_start]
+    latest = [row for row in reviews if row.get('start', '') == latest_start]
+    reviews = []; seen = set()
+    for row in latest:
+        text = ' '.join(row['change'].split()[:6])
+        if text.casefold() in seen: continue
+        seen.add(text.casefold()); reviews.append(row)
+        if len(reviews) == 3: break
     # Frozen §13: all public conversion entries share the oldest (28-day)
     # maturity window. Activity applications remain a separate seven-day count.
     bounds = tuple(value - dt.timedelta(days=28) for value in span(today, 28))
@@ -1258,7 +1372,7 @@ def community_card(jobs, today, kpis, reviews, week, streak, now=None):
                     not (within(job, 'call_booked') or within(job, 'call_held')) for job in rows)}
         return row
     result = {'week': week, 'applications': sum(qualified(job) for job in cohort(jobs, 'applied', 0, today, span(today, 7), 'outbound')),
-              'streak_weeks': streak, 'goals_done': f"{sum(row['done_n'] > 0 and row['done_k'] == row['done_n'] for row in reviews)}/{len(reviews)}",
+              'activity_period': period(span(today, 7)), 'streak_weeks': streak, 'goals_done': f"{sum(row['done_n'] > 0 and row['done_k'] == row['done_n'] for row in reviews)}/{len(reviews)}",
               'goals': [{'text': ' '.join(row['change'].split()[:6]), 'done': row['done_n'] > 0 and row['done_k'] == row['done_n'],
                         'k': row['done_k'], 'n': row['done_n'], 'state': row.get('execution_state', 'unverified')} for row in reviews],
               'next_focus': None, 'question': None, 'new_badge': None, 'top_badges': [], 'member_name': public_member_name()}
@@ -1765,7 +1879,15 @@ def voyage_fields(snapshot, history):
     goals = [dict(goal, week=row['week']) for row in sorted(history, key=lambda row: row['week']) for goal in row.get('goals_review', [])]
     base = {'calendar': calendar, 'calendar_period': {'start': calendar[0]['date'], 'end': calendar[-1]['date']} if calendar else None,
             'goals_history': goals, 'streak_weeks': streak['streak_weeks'], 'anchors_used': streak['anchors_used']}
-    return badge_ledger.voyage(badge_ledger.read_ledger(), dict(snapshot, presentation={'voyage': base}))
+    awards = badge_ledger.read_ledger()
+    retained = {(row['badge'], row['tier']) for row in awards}
+    # The same weekly awards will be persisted at generated_at. Project them now
+    # so saving once cannot change the identical snapshot's chronology or images.
+    awards += [{'badge': row['badge'], 'tier': row['tier'], 'lead_id': None,
+                'at': snapshot['generated_at'], 'reason': 'Weekly analytics criteria met.'}
+               for row in snapshot.get('badges', []) if row.get('new') and
+               (row['badge'], row['tier']) not in retained]
+    return badge_ledger.voyage(awards, dict(snapshot, presentation={'voyage': base}))
 
 
 def money_chart(snapshot, history):
@@ -1883,11 +2005,16 @@ def finish_views(result, jobs, history, today, now=None):
             top[badge['badge']] = badge
     result['community_card']['top_badges'] = sorted(top.values(), key=lambda row: (-TIERS.index(row['tier']), row['badge']))[:5]
     new = [row for row in result['badges'] if row['new']]
-    result['community_card']['new_badge'] = max(new, key=lambda row: (TIERS.index(row['tier']), row['badge']), default=None)
+    # Chronology precedes tier: a later Bronze award can follow an earlier Gold.
+    awards = {(row['badge'], row['tier']): timestamp(row.get('at')) for row in badge_ledger.read_ledger()}
+    award_time = run_timestamp(today, now)
+    result['community_card']['new_badge'] = max(new, key=lambda row: (awards.get((row['badge'], row['tier'])) or award_time,
+        row['earned_week'], TIERS.index(row['tier']), row['badge']), default=None)
     if any(row['source'] == 'upwork' and row['state'] == 'missing' for row in coverage_sources(result['coverage'])):
         for row in result.get('daily_applications', []): row['count'] = None
     result['presentation'] = presentation_fields(result)
     result['community_card']['funnel_score'] = copy.deepcopy(result['funnel_score'])
+    result.setdefault('insights', {})['job_fit'] = job_fit_fields(jobs, today)
     result['presentation']['scorecard'] = scorecard_fields(result, jobs, history, today)
     result['presentation']['money_chart'] = money_chart(result, history)
     result['presentation']['voyage'] = voyage_fields(result, history)
@@ -2294,9 +2421,13 @@ def validate_community_card(card, jobs=None):
     jobs = pipeline.load() if jobs is None else jobs
     keys = {'member_name', 'week', 'applications', 'streak_weeks', 'goals_done', 'goals', 'next_focus', 'question',
             'new_badge', 'top_badges', 'reply_rate', 'reply_to_call', 'call_to_won',
-            'first_reply_median_min', 'first_reply_target_min', 'biggest_improvement', 'won_value', 'booked_to_held', 'proposal_to_won', 'funnel_score'}
-    require(isinstance(card, dict) and keys - {'member_name'} <= set(card) <= keys, 'Public card has unknown or missing fields.')
+            'first_reply_median_min', 'first_reply_target_min', 'biggest_improvement', 'won_value', 'booked_to_held', 'proposal_to_won', 'funnel_score', 'activity_period'}
+    require(isinstance(card, dict) and keys - {'member_name', 'activity_period'} <= set(card) <= keys, 'Public card has unknown or missing fields.')
     require(card.get('member_name') is None or card['member_name'] == public_member_name(), 'Public member identity must derive from me.md.')
+    if 'activity_period' in card:
+        activity = card['activity_period']
+        require(isinstance(activity, dict) and set(activity) == {'start', 'end'} and all(day(value) for value in activity.values()) and
+                (day(activity['end']) - day(activity['start'])).days == 6, 'Public activity needs a seven-day date range.')
     def numeric(value): return value is None or number(value)
     require(re.fullmatch(r'\d{4}-W\d{2}', str(card['week'])), 'Invalid public week.')
     for key in ('applications', 'streak_weeks', 'first_reply_median_min', 'first_reply_target_min', 'won_value'):
@@ -2312,6 +2443,7 @@ def validate_community_card(card, jobs=None):
     if library.is_file():
         approved.update(' '.join(line.strip(' -|').split()[:6]) for line in library.read_text().splitlines() if line.strip())
     require(isinstance(card['goals'], list) and len(card['goals']) <= 3, 'Public goals must be the latest agreed set of at most three commitments.')
+    require(len({str(goal.get('text', '')).casefold() for goal in card['goals'] if isinstance(goal, dict)}) == len(card['goals']), 'Public goals must be distinct.')
     for goal in card['goals']:
         require(isinstance(goal, dict) and set(goal) == {'text', 'done', 'k', 'n', 'state'} and goal['text'] in approved and
                 isinstance(goal['done'], bool) and numeric(goal['k']) and numeric(goal['n']) and
@@ -2329,7 +2461,7 @@ def validate_community_card(card, jobs=None):
                 all(number(value) and value >= 0 for value in progression.values())), 'Public progression must contain fixed numeric counts only.')
         require(isinstance(rate['entry_period'], dict) and set(rate['entry_period']) == {'start', 'end'} and
                 all(re.fullmatch(r'\d{4}-\d{2}-\d{2}', str(value)) for value in rate['entry_period'].values()), 'Invalid public entry period.')
-    entry_periods = [card[key]['entry_period'] for key in ('reply_rate', 'reply_to_call', 'call_to_won')]
+    entry_periods = [card[key]['entry_period'] for key in ('reply_rate', 'reply_to_call', 'call_to_won', 'booked_to_held', 'proposal_to_won')]
     require(all(value == entry_periods[0] for value in entry_periods) and
             (dt.date.fromisoformat(entry_periods[0]['end']) - dt.date.fromisoformat(entry_periods[0]['start'])).days == 27,
             'Public conversion entries must share one complete 28-day window.')
@@ -2358,6 +2490,22 @@ def validate_community_card(card, jobs=None):
         improvement.pop('reason')
 
     return card
+
+
+def validated_community(value, jobs):
+    """The writer's question is optional; an absent canonical question stays absent."""
+    require(isinstance(value, dict) and set(value) <= {'question'}, 'Community writer accepts only question.')
+    question = value.get('question')
+    return {'question': question if safe_public_text(question, jobs) else None}
+
+
+def snapshot_public_card(snapshot, jobs=None):
+    """Project canonical prose into the closed card; legacy cards retain their safe question."""
+    jobs = pipeline.load() if jobs is None else jobs
+    card = copy.deepcopy(snapshot['community_card'])
+    if 'community' in snapshot:
+        card['question'] = validated_community(snapshot['community'], jobs)['question']
+    return validate_community_card(card, jobs)
 
 
 def validate_summary(summary, snapshot):
@@ -2431,13 +2579,16 @@ def claude_fields(result, value):
         result['findings'] = copy.deepcopy(findings)
     card = value.get('community_card', {})
     require(isinstance(card, dict) and set(card) <= set(result['community_card']), 'Community card has unknown fields.')
-    if set(card) == set(result['community_card']): validate_community_card(card)
+    if set(result['community_card']) - {'activity_period'} <= set(card): validate_community_card(card)
     else: require(set(card) <= {'next_focus', 'question', 'biggest_improvement'}, 'Partial public overlays may change only focus/question and improvement reason.')
     if card.get('next_focus') is not None:
         require(card['next_focus'] in LABELS.values(), 'Community focus needs a known stage label.')
         result['community_card']['next_focus'] = card['next_focus']
     if card.get('question') is not None:
         result['community_card']['question'] = card['question'] if safe_public_text(card['question'], pipeline.load()) else None
+    if 'community' in value:
+        result['community'] = validated_community(value['community'], pipeline.load())
+        result['community_card']['question'] = result['community']['question']
     if card.get('biggest_improvement') is not None:
         supplied = card['biggest_improvement']
         original = result['community_card']['biggest_improvement']
@@ -2561,7 +2712,7 @@ def record_snapshot(value, replace=False):
     require(generated is not None, 'generated_at needs a valid zoned ISO timestamp.')
     today = generated.astimezone(local_zone()).date()
     base = compute(today, now=generated)
-    require(set(value) == set(base), 'Snapshot has missing or unknown top-level keys.')
+    require(set(base) <= set(value) <= set(base) | {'community'}, 'Snapshot has missing or unknown top-level keys.')
     require(set(value['reviews']) == set(base['reviews']), 'Snapshot needs all four weekly reviews.')
     result = prepare_snapshot(value, today, now=generated)
     require(value['week'] == result['week'], 'Week does not match generated_at.')
@@ -2575,7 +2726,7 @@ def record_snapshot(value, replace=False):
     for review in result['reviews'].values():
         require(review['goal_ref'] is None or review['goal_ref'] in {goal['kpi'] for goal in goals}, 'Review goal_ref must refer to an agreed goal KPI.')
     require(result['community_card']['next_focus'] is not None, 'Claude must write the weekly community focus; unsafe questions are omitted under frozen §13.')
-    for key in ('window', 'periods', 'pipeline', 'streak_weeks', 'verdict_history', 'cohorts', 'daily_applications', 'reply_time_hist', 'speed_curve', 'segments', 'forecast', 'call_rubric_weeks', 'badges', 'todos', 'call_to_won', 'presentation', 'daily_voyage', 'quests', 'call_cards', 'conversations', 'funnel_score', 'conversation_review', 'gap', 'badge_qualifying'):
+    for key in ('window', 'periods', 'pipeline', 'streak_weeks', 'verdict_history', 'cohorts', 'daily_applications', 'reply_time_hist', 'speed_curve', 'segments', 'forecast', 'call_rubric_weeks', 'badges', 'todos', 'call_to_won', 'presentation', 'daily_voyage', 'quests', 'call_cards', 'conversations', 'funnel_score', 'conversation_review', 'gap', 'badge_qualifying', 'insights'):
         require(value[key] == result[key], f'{key} must come unchanged from compute.')
     require(value['coverage'] == result['coverage'], 'Coverage must come from reviewed compute.')
     require(value['north_star'] == result['north_star'], 'North star numbers must come from reviewed compute.')
@@ -2586,7 +2737,9 @@ def record_snapshot(value, replace=False):
     for key, row in result['kpis'].items():
         supplied = copy.deepcopy(value['kpis'][key])
         require(supplied == row or (key in derived and supplied == base['kpis'][key]), f'{key} numbers must come from reviewed compute.')
-    require(validate_community_card(copy.deepcopy(value['community_card'])) == result['community_card'], 'Community numbers, badges and goal marks must come from reviewed compute.')
+    supplied_card = snapshot_public_card(value)
+    supplied_card.setdefault('activity_period', result['community_card']['activity_period'])
+    require(supplied_card == result['community_card'], 'Community numbers, badges and goal marks must come from reviewed compute.')
     result['generated_at'] = value['generated_at']
     validate_community_card(result['community_card'])
     privacy(result)
@@ -2620,61 +2773,73 @@ def due(today=None):
 
 
 def public_onepager_html(card):
-    """Render only the independently validated public payload, never a snapshot."""
+    """Render the validated public allowlist in the frozen compact community design."""
     card = validate_community_card(copy.deepcopy(card))
     esc = lambda text: html.escape(str(text), quote=True)
     fmt = lambda value, suffix='': 'unknown' if value is None else f'{value:,.1f}'.rstrip('0').rstrip('.') + suffix
     tokens = (ROOT / 'website/app/tokens.css').read_text(encoding='utf-8')
-    assets = ROOT / 'website/public/badges'
-    background = assets / 'card-background.webp'
-    backdrop = f'url("{background.as_uri()}")' if background.is_file() else 'none'
-    motifs = {'Harbour Master': 'harbour', 'First Mate': 'ship', 'Treasure Hunter': 'treasure',
-        'Swift Sail': 'hourglass', "Ship’s Bell": 'bell', "Ship\'s Bell": 'bell', 'Lookout': 'spyglass',
-        'Steady Anchor': 'anchor', 'Quick Draw': 'cannon', 'Message in a Bottle': 'bottle',
-        'True North': 'compass', 'Navigator': 'wheel', 'Lighthouse Keeper': 'lighthouse',
-        'First Doubloon': 'doubloon', 'Back on Course': 'storm'}
-    colors = {'Bronze': '#A0673A', 'Silver': '#9AA3A8', 'Gold': '#C49A2C', 'Platinum': '#7FA6A9', 'Legend': '#8E1F1F'}
-    def badge_html(badge):
-        if not badge: return ''
-        slug = re.sub(r'[^a-z0-9]+', '-', badge['badge'].casefold().replace("'", '')).strip('-')
-        image = assets / f"{slug}-{badge['tier'].casefold()}.webp"
-        if not image.is_file(): image = assets / f"badge-{motifs[badge['badge']]}.webp"
-        picture = f'<img src="{esc(image.as_uri())}" alt="">' if image.is_file() else '<span class="seal">✦</span>'
-        short = badge_ledger.catalogue_metadata().get(badge['badge'], {}).get('short')
-        progress = badge.get('progress_to_next')
-        if progress and progress.startswith('Lower bound'): progress = 'Next tier needs more finished cases'
-        return f'<div class="badge"><div class="ring" style="border-color:{colors[badge["tier"]]}">{picture}</div><b>{esc(badge["badge"])}</b><small>{esc(badge["tier"])}</small>' + (f'<small>{esc(short)}</small>' if short else '') + (f'<small>{esc(progress)}</small>' if progress else '') + '</div>'
-    bounds = card['reply_rate']['entry_period']
-    rates = []
-    labels = {'reply_rate': 'Reply rate', 'reply_to_call': 'Call rate', 'booked_to_held': 'Show-up rate', 'proposal_to_won': 'Win rate', 'call_to_won': 'Call to won'}
-    for key in ('reply_rate', 'reply_to_call', 'booked_to_held', 'proposal_to_won'):
-        row = card[key]
-        trend = {'up': '↑ Improving', 'down': '↓ Declining', 'undecided': 'No clear change'}[row['trend']]
-        completed = 'unknown' if row['state'] == 'missing' else 'No eligible cases yet' if not row['n'] else f"{int(row['k'])} of {int(row['n'])}"
-        rates.append(f'<div class="rate"><span>{labels[key]}</span><strong>{fmt(row["value"], "%")}</strong><small>{completed} · {row["horizon_days"]}-day follow-up</small><small>Target {row["target"]}% · {row["rung_reached"]}/3 steps · {trend}</small></div>')
-    goals = ''.join(f'<li><span>{"✓" if goal["done"] else "○"}</span>{esc(goal["text"])}<small>{str(int(goal["k"])) + " of " + str(int(goal["n"])) if goal["n"] else "No eligible cases yet"}</small></li>' for goal in card['goals'])
+    labels = {'reply_rate': 'Reply rate', 'reply_to_call': 'Call rate', 'booked_to_held': 'Show-up rate',
+              'proposal_to_won': 'Win rate', 'call_to_won': 'Call to won'}
+    # Each stage counts entries in the same window, not one linked application journey.
+    stages = [('Applications', card['reply_rate']['n'], 'reply_rate'),
+              ('Replies', card['reply_to_call']['n'], 'reply_to_call'),
+              ('Calls booked', card['booked_to_held']['n'], 'booked_to_held'),
+              ('Calls held', card['call_to_won']['n'], None),
+              ('Proposals', card['proposal_to_won']['n'], 'proposal_to_won'),
+              ('Won', card['proposal_to_won']['k'], None)]
+    maximum = max([count for _, count, _ in stages if number(count)] + [1])
+    funnel = []; previous_width = 100
+    for index, (label, count, key) in enumerate(stages):
+        width = min(previous_width, max(12, 100 * math.sqrt(count / maximum))) if number(count) and count else 0
+        previous_width = width if width else previous_width
+        funnel.append(f'<div class="stage"><span>{label}</span><div class="bar-track"><i style="width:{width:.1f}%;opacity:{1-index*.12:.2f}"></i></div><b>{fmt(count)}</b></div>')
+        if key:
+            row = card[key]
+            leak = card['next_focus'] == LABELS[key]
+            trend = {'up': '↑ Improving', 'down': '↓ Declining', 'undecided': 'Not clear yet'}[row['trend']]
+            outcomes = {'reply_rate': 'replied', 'reply_to_call': 'booked a call or received an offer',
+                        'booked_to_held': 'attended', 'proposal_to_won': 'won'}
+            count_text = 'unknown' if row['state'] == 'missing' else 'No opportunities' if not row['n'] else f"{fmt(row['k'])} of {fmt(row['n'])} {outcomes[key]}"
+            value = 'No opportunities' if row['state'] != 'missing' and not row['n'] else fmt(row['value'], '%')
+            funnel.append(f'<div class="rate{ " leak" if leak else ""}"><span>{labels[key]} <b>{value}</b>{" · leak" if leak else ""}</span><small>{count_text} · {trend}</small></div>')
+    goals = []
+    for goal in card['goals']:
+        state = 'done' if goal['done'] else 'partly' if goal['state'] == 'partial' else 'not yet'
+        mark = '✓' if goal['done'] else '◐' if state == 'partly' else '○'
+        count = 'No opportunities' if not goal['n'] else f"{fmt(goal['k'])} of {fmt(goal['n'])}" if goal['k'] is not None else 'Not checked'
+        goals.append(f'<li class="{state}"><i>{mark}</i><span>{esc(goal["text"])}</span><small>{state} · {count}</small></li>')
+    goals_html = '<ul class="goals">'+''.join(goals)+'</ul>' if goals else '<p class="meta">No previous goals. Agree the first goals in /analytics.</p>'
     improvement = card['biggest_improvement']
-    change = 'No clear improvement yet. Keep practising the focus.'
+    change = 'Not clear yet'
     if improvement:
-        change = f'{labels[improvement["kpi"]]}: {fmt(improvement["from"], "%")} → {fmt(improvement["to"], "%")}'
-        if improvement.get('reason'): change += f' · {esc(improvement["reason"])}'
+        change = f'{labels[improvement["kpi"]]} {fmt(improvement["from"], "%")} → {fmt(improvement["to"], "%")}'
+        if improvement.get('reason'): change += f'<small>{esc(improvement["reason"])}</small>'
+    badge = card['new_badge']; badge_html = ''
+    if badge and badge['new'] and badge['earned_week'] == card['week']:
+        slug = re.sub(r'[^a-z0-9]+', '-', badge['badge'].casefold().replace("'", '')).strip('-')
+        asset = ROOT / 'website/public/badges' / f"{slug}-{badge['tier'].casefold()}.webp"
+        picture = f'<img src="data:image/webp;base64,{base64.b64encode(asset.read_bytes()).decode()}" alt="" width="48" height="48">' if asset.is_file() else ''
+        badge_html = f'<div class="badge">{picture}<div><span class="eyebrow">New badge</span><b>{esc(badge["badge"])}</b><small>{esc(badge["tier"])}</small></div></div>'
+    score = card['funnel_score']
+    score_text = 'Funnel Score ' + fmt(score['score']) + (', was ' + fmt(score['previous']) if score['previous'] is not None else '')
+    baseline = '<small>Habits only until your baseline is set</small>' if score['baseline_only'] else ''
+    week_date = dt.date.fromisocalendar(int(card['week'][:4]), int(card['week'][-2:]), 1)
+    week_end = week_date + dt.timedelta(days=6)
+    bounds = card['reply_rate']['entry_period']
+    activity = card.get('activity_period')
+    activity_label = f"7-day activity: {esc(activity['start'])} to {esc(activity['end'])}" if activity else '7-day activity; dates unknown'
     focus = esc(card['next_focus']) if card['next_focus'] else 'Choose the next focus in /analytics'
     question = f'<p class="question">{esc(card["question"])}</p>' if card['question'] else ''
-    money = f'<div class="money">New contract value this week <b>{fmt(card["won_value"])}</b></div>' if card['won_value'] is not None and sections().get('Share money', '').strip().casefold() == 'yes' else ''
-    new_badge = f'<div class="new"><b>New badge</b>{badge_html(card["new_badge"])}</div>' if card['new_badge'] else '<div class="new"><b>New badge</b><p>No new tier this week.</p></div>'
-    score = card['funnel_score']; score_text = 'Funnel Score ' + fmt(score['score']) + (', was ' + fmt(score['previous']) if score['previous'] is not None else '')
-    score_label = 'Habits only until your baseline is set' if score['baseline_only'] else 'Weekly Funnel Score'
-    example_label = '<p class="period">Synthetic example. No member or client facts.</p>' if os.environ.get('BLUEPRINT_EXAMPLE_DATA') == '1' else ''
-    return f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Weekly voyage · {esc(card['week'])}</title>
+    money = f'<p class="meta">New contract value this week <b>{fmt(card["won_value"])}</b></p>' if card['won_value'] is not None and sections().get('Share money', '').strip().casefold() == 'yes' else ''
+    footer = 'Upwork Blueprint · example' if os.environ.get('BLUEPRINT_EXAMPLE_DATA') == '1' else 'Upwork Blueprint'
+    return f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Weekly community card · {esc(card['week'])}</title>
 <style>{tokens}
-*{{box-sizing:border-box}}html,body{{width:1080px;height:1350px;margin:0;overflow:hidden}}body{{font-family:var(--sans);color:var(--ink);background:var(--canvas)}}.card{{height:1350px;padding:58px 68px;background:linear-gradient(color-mix(in srgb,var(--canvas) 94%,transparent),color-mix(in srgb,var(--canvas) 96%,transparent)),{backdrop};background-size:cover}}header{{display:flex;justify-content:space-between;align-items:center}}h1{{font-family:var(--display);font-size:49px;letter-spacing:-1px;margin:8px 0 30px}}.eyebrow,small{{font-size:16px;color:var(--label)}}.activity{{display:flex;gap:45px;padding:22px 0;border-top:1px solid var(--ring);border-bottom:1px solid var(--ring)}}.activity strong{{font-size:35px;display:block}}.activity span{{font-size:18px}}h2{{font-size:20px;margin:25px 0 12px}}.period{{margin:10px 0 14px;font-size:16px;color:var(--label)}}.rates{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}}.rate{{padding:19px 17px;background:color-mix(in srgb,var(--ivory) 80%,transparent);border:1px solid var(--hairline-soft);border-radius:14px}}.rate span{{font-size:18px}}.rate strong{{font-size:32px;display:block;margin:14px 0 10px}}.rate small{{display:block;line-height:1.7;font-size:14px}}.reply{{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:13px 18px;background:color-mix(in srgb,var(--ivory) 65%,transparent);border-radius:10px;font-size:18px}}.reply b{{font-size:24px}}.goals{{list-style:none;padding:0;margin:0}}.goals li{{padding:9px 0;font-size:20px;display:flex;align-items:center;gap:14px}}.goals small{{margin-left:auto}}.improvement{{padding:15px 20px;background:var(--terracotta-soft);border-left:4px solid var(--terracotta);line-height:1.5;font-size:19px}}.badges{{display:flex;gap:13px;justify-content:space-around;align-items:flex-start}}.badge{{width:145px;text-align:center;display:flex;flex-direction:column;align-items:center}}.badge b{{font-size:15px;margin-top:6px}}.badge small{{font-size:13px;margin-top:4px}}.ring{{border:3px solid;border-radius:50%;width:87px;height:87px;padding:3px;background:var(--ivory)}}.ring img{{width:100%;height:100%;object-fit:contain;border-radius:50%}}.seal{{font-size:56px}}.new{{display:flex;align-items:center;gap:22px;padding:15px 0}}.new>.badge{{width:auto;flex-direction:row;gap:12px}}.new .ring{{width:54px;height:54px}}.new p{{margin:0;color:var(--label)}}.focus{{border-top:1px solid var(--ring);padding-top:18px;margin-top:18px}}.focus h2{{margin:0 0 9px}}.focus strong{{font-size:25px}}.question{{font-size:20px;margin:12px 0 0}}.money{{font-size:18px;margin-top:10px}}.money b{{margin-left:16px}}@media(max-width:1079px){{html,body{{width:100%;height:auto;overflow:visible}}.card{{height:auto;min-height:100vh;padding:28px 22px}}h1{{font-size:36px}}header{{gap:16px;flex-wrap:wrap}}.activity{{flex-wrap:wrap;gap:22px}}.activity strong{{font-size:27px;overflow-wrap:anywhere}}.rates{{grid-template-columns:repeat(2,minmax(0,1fr))}}.rate{{min-width:0;padding:14px 11px}}.rate span{{font-size:16px}}.rate strong{{font-size:30px}}.reply{{flex-wrap:wrap;gap:9px}}.goals li{{flex-wrap:wrap;font-size:18px}}.goals small{{margin-left:0;width:100%;padding-left:30px}}.new{{flex-wrap:wrap}}.focus strong{{font-size:23px}}}}</style>
-<main class="card"><header><span class="eyebrow">UPWORK BLUEPRINT · WEEKLY VOYAGE</span><b>{esc(card['week'])}</b></header><h1>{esc(card.get('member_name') or 'Progress worth sharing.')}</h1>{example_label}
-<div class="activity"><div><strong>{int(card['applications']) if card['applications'] is not None else 'unknown'}</strong><span>Applications this week</span></div><div><strong>{esc(score_text)}</strong><span>{esc(score_label)}</span></div></div>
-<h2>How conversations moved forward</h2><p class="period">{esc(bounds['start'])} – {esc(bounds['end'])} · Finished cases in the same 28-day window</p><div class="rates">{''.join(rates)}</div>
-<div class="reply"><span>Typical first reply · same 28-day window</span><b>{fmt(card['first_reply_median_min'], ' min')}</b><small>Target ≤ 5 min</small></div>{money}
-<h2>Last agreed goals</h2>{'<ul class="goals">'+goals+'</ul>' if goals else '<p class="period">No previous goals. Agree the first goals in /analytics.</p>'}
-<h2>Biggest improvement</h2><div class="improvement">{change}</div>{new_badge}
-<div class="focus"><h2>Next focus</h2><strong>{focus}</strong>{question}</div></main></html>'''
+*{{box-sizing:border-box}}body{{margin:0;padding:32px 16px;background:var(--sand);color:var(--ink);font-family:var(--sans);font-variant-numeric:tabular-nums;display:flex;justify-content:center}}.card{{width:min(100%,600px);border-radius:24px;border-top:6px solid var(--terracotta);background:var(--ivory);padding:28px 38px 22px;box-shadow:0 8px 40px #14141312;overflow-wrap:anywhere}}.identity{{display:flex;justify-content:space-between;gap:16px;align-items:baseline}}h1{{font-family:var(--display);font-size:31px;font-weight:400;letter-spacing:-.5px;margin:0}}.week,.eyebrow,h2{{font-family:var(--mono);font-size:10px;color:var(--label);letter-spacing:.1em;text-transform:uppercase}}.week{{font-size:12px;white-space:nowrap}}.meta{{font-size:11px;line-height:1.45;color:var(--label);margin:5px 0}}.activity{{font-size:14px;color:var(--body);margin:5px 0}}.score{{font-size:16px;margin-top:10px}}.score small{{display:block;font-size:11px;color:var(--label)}}h2{{font-weight:400;margin:19px 0 8px}}.stage{{display:grid;grid-template-columns:94px minmax(0,1fr) 44px;gap:10px;align-items:center;min-height:27px}}.stage>span{{font-size:12px;color:var(--body)}}.stage>b{{font-family:var(--display);font-weight:400;font-size:21px}}.bar-track{{height:26px}}.bar-track i{{display:block;height:100%;background:var(--ink);border-radius:6px}}.rate{{border-left:2px solid var(--ring);margin:4px 0 7px 104px;padding-left:10px;font-size:11px;line-height:1.4;color:var(--body)}}.rate span{{display:block}}.rate small{{display:block;font-size:9px;color:var(--label)}}.rate.leak{{border-color:var(--terracotta)}}.rate.leak>span{{color:var(--terracotta-text)}}.goals{{list-style:none;margin:0;padding:0}}.goals li{{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0;font-size:13px}}.goals i{{font-style:normal}}.goals small{{font-size:10px;color:var(--label)}}.highlight{{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--terracotta-soft);border-radius:14px;padding:12px 16px;margin-top:16px}}.highlight-copy>.eyebrow{{display:block}}.highlight-copy>b{{display:block;font-family:var(--display);font-weight:400;font-size:22px;margin-top:4px}}.highlight small{{display:block;font-family:var(--sans);font-size:11px;color:var(--body);margin-top:4px}}.focus{{margin-top:12px;padding-top:12px;border-top:1px solid var(--ring)}}.focus h2{{margin:0 0 5px}}.focus>b{{font-family:var(--display);font-weight:400;font-size:21px}}.question{{font-size:14px;line-height:1.4;margin:5px 0 0}}.badge{{display:flex;align-items:center;gap:10px}}.badge img{{object-fit:contain}}.badge b,.badge small{{display:block;font-size:13px}}.badge small{{font-size:11px;color:var(--label)}}footer{{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--ring);margin-top:14px;padding-top:10px;font-family:var(--mono);font-size:10px;color:var(--label)}}@media(max-width:480px){{body{{padding:16px 12px}}.card{{padding:23px 20px 18px}}h1{{font-size:28px}}.stage{{grid-template-columns:78px minmax(0,1fr) 35px;gap:8px}}.stage>span{{font-size:11px}}.rate{{margin-left:86px}}.goals li{{grid-template-columns:18px minmax(0,1fr)}}.goals small{{grid-column:2}}.week{{font-size:10px}}}}
+</style><main class="card"><header><div class="identity"><h1>{esc(card.get('member_name') or 'Weekly progress')}</h1><span class="week">{esc(card['week'])}</span></div>
+<p class="activity">{fmt(card['applications'])} Applications this week</p><p class="meta">Week: {week_date.isoformat()} to {week_end.isoformat()} · {activity_label}</p><div class="score">{esc(score_text)}{baseline}</div></header>
+<h2>Funnel · 28 days</h2><p class="meta">{esc(bounds['start'])} to {esc(bounds['end'])} · Same 28 days</p><div class="funnel">{''.join(funnel)}</div><p class="meta">Each row counts when that step started. Later results are counted for a fixed number of days.</p>
+<h2>Last agreed goals</h2>{goals_html}<div class="highlight"><div class="highlight-copy"><span class="eyebrow">Biggest improvement</span><b>{change}</b></div>{badge_html}</div>{money}
+<div class="focus"><h2>Next focus</h2><b>{focus}</b>{question}</div><footer><span>{fmt(card['first_reply_median_min'], ' min')} first reply · Same 28 days</span><span>{footer}</span></footer></main></html>'''
 
 
 def onepager(file, week=None, output=None):
@@ -2688,7 +2853,7 @@ def onepager(file, week=None, output=None):
     require(candidates, 'No snapshot exists for the requested week.')
     snapshot = max(candidates, key=lambda row: (str(row.get('week', '')), str(row.get('generated_at', ''))))
     require('community_card' in snapshot, 'Snapshot has no community card; run analytics first.')
-    card = validate_community_card(copy.deepcopy(snapshot['community_card']))
+    card = snapshot_public_card(snapshot)
     # Share-money consent is rechecked at export, even for an older snapshot.
     if sections().get('Share money', '').strip().casefold() != 'yes': card['won_value'] = None
     path = pathlib.Path(output) if output else ROOT / 'outputs/analytics' / f"{card['week']}.html"
@@ -2722,6 +2887,7 @@ def main(argv=None):
     goals = sub.add_parser('goals').add_subparsers(dest='action', required=True)
     goals.add_parser('add').add_argument('--file', required=True)
     sub.add_parser('last')
+    facts = sub.add_parser('facts'); facts.add_argument('--today')
     card_parser = sub.add_parser('onepager'); card_parser.add_argument('--file', required=True); card_parser.add_argument('--week'); card_parser.add_argument('--output')
     due_parser = sub.add_parser('due'); due_parser.add_argument('--today')
     args = parser.parse_args(argv)
@@ -2731,6 +2897,8 @@ def main(argv=None):
             result = prepare_snapshot(overlay, args.today, args.now) if overlay is not None else compute_catchup(args.today, now=args.now) if args.catch_up else compute(args.today, now=args.now)
         elif args.command == 'onepager':
             result = onepager(args.file, args.week, args.output)
+        elif args.command == 'facts':
+            result = facts_sheet(compute(args.today))
         elif args.command == 'last':
             result = last()
         elif args.command == 'due':

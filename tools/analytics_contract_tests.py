@@ -540,6 +540,207 @@ def supervised_corrections():
     print('PASS supervised corrections:180/181 and100/101; summary/incomplete/unread source gates; Loom source refusal; exact projections; log assessment verification; read-only historical migration preserves statistical rank and funnel evidence; strict goals/matching example/measurement; timestamp chronology and tie unknown; canonical rubric definitions.')
 
 
+def compact_community_contract():
+    from html.parser import HTMLParser
+    import analytics
+    from analytics_fixture import analytics_payload, analytics_sync_marker
+    from analytics_replay import maya_card_example
+    class MemberText(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.excluded = 0
+            self.parts = []
+        def handle_starttag(self, tag, attrs):
+            if tag in ('head', 'style', 'script', 'template', 'title'): self.excluded += 1
+        def handle_endtag(self, tag):
+            if tag in ('head', 'style', 'script', 'template', 'title'): self.excluded -= 1
+        def handle_data(self, data):
+            if not self.excluded: self.parts.append(data)
+    def member_text(markup):
+        parser = MemberText()
+        parser.feed(markup)
+        return ' '.join(' '.join(parser.parts).split())
+    def plain_member_text(markup):
+        text = member_text(markup)
+        for forbidden in ('7-day follow-up', '3/3 steps', 'steps', 'No clear change', 'finished cases', 'window', 'Target ', '—', 'not supplied', 'undecided', 'eligible', "Writer's", 'cohort', 'Execution and effect apart', 'stage starts', 'reply_rate', 'reply_to_call', 'done_k', 'done_n', 'goal_id'):
+            assert forbidden.casefold() not in text.casefold(), (forbidden, text)
+        return text
+    today=dt.date(2026,10,14)
+    with fixture('part1-compact-community') as folder:
+        analytics_sync_marker(folder)
+        (folder/'context/me.md').write_text('Name: Maya Rivers\n')
+        snapshot=analytics.compute(today,jobs=[])
+        value=analytics_payload(snapshot)
+        example=maya_card_example(value)
+        analytics.add_goals({'week':'2026-W43','goals':[dict(goal,start='2026-10-19',review_on='2026-10-26') for goal in example['goals_next']]})
+        card=analytics.snapshot_public_card(example,[])
+        assert card['member_name']=='Maya R.' and card['applications']==31
+        assert [(card[key]['k'],card[key]['n']) for key in ('reply_rate','reply_to_call','booked_to_held','proposal_to_won')] == [(29,140),(9,29),(8,9),(3,8)]
+        html=analytics.public_onepager_html(card)
+        text=plain_member_text(html)
+        assert 'Funnel Score 88, was 81' in html.split('</header>')[0] and 'weeks in a row' not in html
+        assert all(label in text for label in ('Reply rate','Call rate','Show-up rate','Win rate','leak'))
+        assert all(label in text for label in ('Applications', 'Replies', 'Calls booked', 'Calls held', 'Proposals', 'Won'))
+        assert all(count in text for count in ('29 of 140', '9 of 29', '8 of 9', '3 of 8'))
+        assert card['reply_rate']['entry_period']=={'start':'2026-09-21','end':'2026-10-18'}
+        assert '2026-10-12 to 2026-10-18' in text and '2026-09-21 to 2026-10-18' in text and 'width:min(100%,600px)' in html
+        top_steps=copy.deepcopy(card);top_steps['reply_rate']['rung_reached']=3
+        assert plain_member_text(analytics.public_onepager_html(top_steps))==text
+        import base64
+        badge_bytes=(analytics.ROOT/'website/public/badges/swift-sail-silver.webp').read_bytes()
+        assert 'data:image/webp;base64,'+base64.b64encode(badge_bytes).decode() in html and html.count('Swift Sail')==1
+        assert len(card['goals'])==len({goal['text'] for goal in card['goals']})==3
+        assert 'partly' in html and 'not yet' in html and '—' not in html
+        reviews=[{'start':'2026-10-07','change':goal['text'],'done_k':goal['k'],'done_n':goal['n'],'execution_state':goal['state']} for goal in card['goals']]
+        reviews += [dict(reviews[0]),dict(reviews[1]),dict(reviews[2])]
+        projected=analytics.community_card([],today,snapshot['kpis'],reviews,snapshot['week'],0)
+        assert len(projected['goals'])==len({goal['text'] for goal in projected['goals']})==3
+        projected['funnel_score']=copy.deepcopy(snapshot['funnel_score'])
+        actual_text=plain_member_text(analytics.public_onepager_html(projected))
+        bounds=projected['reply_rate']['entry_period']
+        assert bounds==analytics.period(tuple(date-dt.timedelta(days=28) for date in analytics.span(today,28)))
+        assert f"{bounds['start']} to {bounds['end']}" in actual_text
+        assert 'Funnel · 28 days' in actual_text and 'last 28 days' not in actual_text.casefold()
+        for mutation in ('four','duplicate'):
+            bad=copy.deepcopy(card)
+            if mutation=='four': bad['goals'].append(copy.deepcopy(card['goals'][0]))
+            else: bad['goals'][2]=copy.deepcopy(card['goals'][0])
+            try: analytics.validate_community_card(bad,[])
+            except ValueError: pass
+            else: raise AssertionError('Public cap or distinct goal rule weakened')
+        legacy=copy.deepcopy(example);legacy.pop('community')
+        legacy['community_card']['question']='What helped you improve this stage?'
+        assert analytics.snapshot_public_card(legacy,[])['question']==legacy['community_card']['question']
+        for canonical in ({},{'question':None}):
+            absent=dict(legacy,community=canonical)
+            absent_card=analytics.snapshot_public_card(absent,[])
+            assert absent_card['question'] is None
+            assert 'class="question"' not in analytics.public_onepager_html(absent_card)
+        canonical=dict(legacy,community={'question':'How do you offer two useful call times?'})
+        prepared=analytics.prepare_snapshot(dict(value,community=canonical['community']),today)
+        assert prepared['community']['question']==prepared['community_card']['question']==canonical['community']['question']
+        sources=[{'title':'Private Tender Name','client':{'name':'Secret Client Name'},'description':'Confidential spoken client material'}]
+        for question in ('What did Secret Client Name request?','Who owns Private Tender Name?',
+                         'Could confidential spoken client material change?', ' '.join(['word']*15),'Email private@example.test'):
+            assert analytics.snapshot_public_card(dict(legacy,community={'question':question}),sources)['question'] is None
+        empty=copy.deepcopy(snapshot['community_card'])
+        html=analytics.public_onepager_html(empty)
+        text=plain_member_text(html)
+        assert 'No opportunities' in text and 'Not clear yet' in text and '0 of 0' not in text and '0/0' not in text and '0/3 steps' not in text
+    print('PASS PART1 community: compact frozen card, canonical optional question, legacy safety, privacy, distinct three-goal cap, score, Maya example and truthful periods.')
+
+
+
+def job_fit_contract():
+    import analytics
+    today = dt.date(2026, 10, 19)
+    start = today - dt.timedelta(days=84)
+    midpoint = start + dt.timedelta(days=42)
+    def planted(only_old=False, size=100):
+        rows = []
+        for half, date in enumerate((start + dt.timedelta(days=4), midpoint + dt.timedelta(days=4))):
+            for band in ('<500', '>2000'):
+                for i in range(size):
+                    applied = dt.datetime.combine(date, dt.time(10), analytics.local_zone())
+                    reply = i < round(size * (.9 if band == '<500' and (not only_old or half == 0) else .1))
+                    row = {'id': str(len(rows)), 'source': 'invite', 'applied_at': applied.isoformat(),
+                           'application_facts': {'source': 'outbound', 'budget_band': band, 'connects_cost': 12},
+                           'budget': 99999, 'proposals': 1}
+                    if reply: row['replied_at'] = (applied + dt.timedelta(days=1)).isoformat()
+                    rows.append(row)
+        return rows
+    # Four required cases, plus accounting, caps and clock boundaries.
+    both = analytics.job_fit_fields(planted(), today)
+    row = next(row for row in both['apply'] if row['band'] == '<500')
+    assert row['state'] == 'confirmed' and row['n'] == 200 and row['k'] == 180
+    assert row['connects_total'] == 2400 and row['connects_per_reply'] == analytics.rounded(2400 / 180)
+    assert (row['low'], row['high']) == tuple(map(analytics.rounded, analytics.wilson(180, 200)))
+    assert both['windows']['discovery']['end'] == (midpoint - dt.timedelta(days=1)).isoformat()
+    assert both['windows']['confirmation']['start'] == midpoint.isoformat()
+    assert both['period'] == analytics.period(analytics.span(today, 84))
+    one = analytics.job_fit_fields(planted(only_old=True), today)
+    assert not any(row['state'] == 'confirmed' for row in one['apply'] + one['skip'])
+    assert any(row['state'] == 'early_signal' and str(row['n']) in row['text'] for row in one['apply'])
+    small = analytics.job_fit_fields(planted(size=7), today)
+    assert not small['apply'] and not small['skip'] and not small['patterns']
+    assert next(row for row in small['bands'] if row['band'] == '<500')['n'] == 14
+    unknown = planted()
+    for job in unknown:
+        job['application_facts']['budget_band'] = 'unknown'
+        job.update(budget=100, budget_band='<500')
+    empty = analytics.job_fit_fields(unknown, today)
+    assert all(row['n'] == 0 and row['discovery']['reference']['n'] == 0 for row in empty['bands'])
+    assert not empty['patterns']
+    missing_source = planted()
+    for job in missing_source:
+        job['source'] = 'outbound'
+        job['application_facts'].pop('source')
+    assert analytics.job_fit_fields(missing_source, today)['finished_n'] == 0
+    no_replies = planted()
+    for job in no_replies: job.pop('replied_at', None)
+    silent = analytics.job_fit_fields(no_replies, today)
+    assert all(row['connects_per_reply'] is None for row in silent['bands'])
+    assert not silent['patterns']
+    frozen = planted()
+    before = analytics.job_fit_fields(frozen, today)
+    for job in frozen: job.update(budget=0, proposals_band='50+', connects_cost=999, client={'spent': 999999}, posted_date='2026-10-19')
+    assert analytics.job_fit_fields(frozen, today) == before
+    incomplete = planted(); incomplete[0]['application_facts']['connects_cost'] = 'unknown'
+    incomplete_row = next(row for row in analytics.job_fit_fields(incomplete, today)['apply'] if row['band'] == '<500')
+    assert incomplete_row['connects_per_reply'] is None and incomplete_row['connects_total'] is None
+    assert incomplete_row['connects_known_n'] == 199
+    zero = planted()
+    for job in zero: job['application_facts']['connects_cost'] = 0
+    assert analytics.job_fit_fields(zero, today)['apply'][0]['connects_per_reply'] == 0
+    cutoff = dt.datetime.combine(today, dt.time(), analytics.local_zone())
+    def case(jid, applied, reply_delta=1, source='outbound'):
+        return {'id': jid, 'applied_at': applied.isoformat(), 'replied_at': (applied + dt.timedelta(days=reply_delta)).isoformat(),
+                'application_facts': {'source': source, 'budget_band': '<500', 'connects_cost': 12}}
+    edges = [case('start', dt.datetime.combine(start, dt.time(), analytics.local_zone())),
+             case('before', dt.datetime.combine(start, dt.time(), analytics.local_zone()) - dt.timedelta(microseconds=1)),
+             case('split', dt.datetime.combine(midpoint, dt.time(), analytics.local_zone())),
+             case('exact', cutoff - dt.timedelta(days=7), 7),
+             case('late', cutoff - dt.timedelta(days=8), 7 + 1/86400),
+             case('pending', cutoff - dt.timedelta(days=7) + dt.timedelta(seconds=1)),
+             case('invite', cutoff - dt.timedelta(days=8), source='invite'),
+             case('future', cutoff)]
+    edges.append(dict(edges[0], id='imported', imported=True))
+    measured = analytics.job_fit_fields(edges, today)
+    band = next(row for row in measured['bands'] if row['band'] == '<500')
+    assert measured['finished_n'] == 4 and measured['pending_n'] == 1
+    assert band['n'] == 4 and band['k'] == 3
+    assert band['discovery']['evidence'] == ['start']
+    assert set(band['confirmation']['evidence']) == {'split', 'exact', 'late'}
+    # Exercise all six dimensions together to enforce independent recommendation caps.
+    all_bands = planted()
+    for job in all_bands:
+        high = job['application_facts']['budget_band'] == '<500'
+        for dimension, values in analytics.pipeline.APPLICATION_BANDS.items():
+            if dimension != 'budget_band': job['application_facts'][dimension] = values[0] if high else values[-2]
+    capped = analytics.job_fit_fields(all_bands, today)
+    assert len(capped['apply']) == 2 and len(capped['skip']) == 1 and len(capped['patterns']) == 2
+    assert len(analytics.facts_sheet({'week': '2026-W43', 'kpis': {}, 'insights': {'job_fit': capped}})['job_fit']['patterns']) == 2
+    assert all(not any(word in row['text'].casefold() for word in ('wilson', 'binomial', 'cohort', 'hypothesis', 'statistic', '\u2014')) for row in capped['apply'] + capped['skip'])
+    # Job-fit fields survive real compute/prepare/record and cannot be overwritten by prose.
+    with fixture('part2-job-fit-record'):
+        value = analytics.compute(today)
+        assert value['insights']['job_fit']['patterns'] == []
+        reply = next(row for row in value['presentation']['scorecard'] if row['key'] == 'reply_rate')
+        assert reply['job_fit'] == value['insights']['job_fit']
+        from analytics_fixture import analytics_payload
+        prepared = analytics.prepare_snapshot(analytics_payload(value), today)
+        assert prepared['insights']['job_fit'] == value['insights']['job_fit']
+        assert analytics.facts_sheet(prepared)['job_fit']['patterns'] == []
+        tampered = copy.deepcopy(prepared)
+        tampered['insights']['job_fit']['finished_n'] = 999
+        try: analytics.record_snapshot(tampered)
+        except ValueError as error: assert 'insights must come unchanged' in str(error), str(error)
+        else: raise AssertionError('Computed job fit was replaceable')
+    assert abs(analytics.job_fit_exact_p(20, 20, .5) - 2 / 2**20) < 1e-12
+    assert analytics.job_fit_exact_p(0, 20, 0) == 1 and analytics.job_fit_exact_p(20, 20, 1) == 1
+    print('PASS PART2 job fit: both halves confirmed, single half early, small/unknown silent, frozen-only bands/costs, seven-day/date boundaries, caps and plain member copy.')
+
+
 def main():
     thread_references()
     score_contract()
@@ -552,6 +753,8 @@ def main():
     repeated_conversation_pattern()
     frozen_projection_contract()
     supervised_corrections()
+    compact_community_contract()
+    job_fit_contract()
 
 
 if __name__ == '__main__':

@@ -112,3 +112,39 @@ export type AnalyticsConversations = {
   calls?: AnalyticsCallCard[];
   proposals?: Record<string, any>[];
 };
+
+/** Translate schema vocabulary only at presentation boundaries; quotes stay verbatim. */
+export const ANALYTICS_FIELD_LABELS: Record<string, string> = {
+  reply_rate: 'Reply rate', reply_to_call: 'Call rate', booked_to_held: 'Show-up rate',
+  held_to_proposal: 'Held call to proposal', proposal_to_won: 'Win rate',
+  invite_to_call: 'Invite to call', offer_to_contract: 'Offer to contract',
+  weekly_volume: 'Weekly applications', speed_10min: 'Applied within 10 minutes',
+  first_reply: 'First reply', follow_ups_on_time: 'Follow-ups on their due day',
+  proposal_on_time: 'Proposal within 30 minutes', job_fit: 'Jobs that fit your lane and rate',
+  won_value: 'New contract value', value_per_100_connects: 'Contract value per 100 Connects',
+  application_review: 'Application review', conversation_review: 'Conversation review',
+  call_review: 'Call review', proposal_review: 'Proposal review', call_to_won: 'Call to won',
+  goal_effect: 'Goal results', goal_done: 'Goals carried out', lost_reasons: 'Reasons deals ended',
+  done_k: 'Times carried out', done_n: 'Opportunities', goal_id: 'Goal',
+  evidence_lead_ids: 'Source leads', lead_id: 'Lead', review_on: 'Review date',
+  decision_date: 'Decision date', next_message: 'Next message', next_step: 'Next step',
+  coach_read: "Coach's read", coach_example: 'Example', source_prompt: 'Source needed',
+  call_held_at: 'Call held time', call_end_at: 'Call end time', proposal_sent_at: 'Proposal sent time',
+  applied_at: 'Application time', replied_at: 'Reply time', call_booked_at: 'Call booking time',
+  won_at: 'Contract time', entry_period: 'Counting period', horizon_days: 'Days allowed for a result',
+  baseline_phase: 'Building your baseline', pending_n: 'Still waiting', unknown_n: 'Unknown count',
+  last_writer: 'Last writer', answered_question: "Answered the client's question",
+  qualifying_question: 'Qualifying question', call_proposal: 'Call proposal when useful',
+  call_times: 'Call times', not_needed: 'Not needed', unreviewable: 'Cannot check yet',
+};
+export function analyticsMemberText(value: unknown): string {
+  const text = value == null ? 'unknown' : typeof value === 'object'
+    ? String((value as any).text || (value as any).label || (value as any).reason || 'unknown') : String(value);
+  const translate = (part: string) => part.replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g, key => ANALYTICS_FIELD_LABELS[key] || key)
+    .replace(/Writer['’]s comparison not supplied/gi, 'Comparison unavailable')
+    .replace(/not supplied/gi, 'unavailable').replace(/undecided/gi, 'Not clear yet')
+    .replace(/eligible/gi, 'fitting').replace(/cohorts/gi, 'groups').replace(/cohort/gi, 'group')
+    .replace(/Execution and effect apart/gi, 'What you did and what changed')
+    .replace(/unreviewable/gi, 'Cannot check yet').replace(/stage starts/gi, 'next fitting opportunity comes up').replace(/—/g, ',');
+  return text.split(/(“[^”]*”|"[^"]*")/g).map((part, index) => index % 2 ? part : translate(part)).join('');
+}

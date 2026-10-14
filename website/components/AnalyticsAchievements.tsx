@@ -1,6 +1,6 @@
 'use client';
 
-import { type CSSProperties, type ReactNode } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
 import { analyticsMemberText as plain } from '@/lib/analytics-contract';
 
 type Row = Record<string, any>;
@@ -37,12 +37,27 @@ export function badgeLedger(badge: Row): Ledger | null {
   return null;
 }
 
+// Tier images that exist in public/badges; every other badge has only its base motif. Keep in step with the folder.
+const ALL_TIERS = ['bronze', 'silver', 'gold', 'platinum', 'legend'];
+const TIER_ART: Record<string, string[]> = {
+  'harbour-master': ALL_TIERS, 'first-mate': ALL_TIERS, 'treasure-hunter': ALL_TIERS, 'swift-sail': ALL_TIERS,
+  'ships-bell': ALL_TIERS, 'lookout': ALL_TIERS, 'steady-anchor': ALL_TIERS, 'quick-draw': ['bronze', 'silver', 'gold'],
+};
+const motifImage = (badge: Row) => badge.fallback_image || `/badges/badge-${badge.motif || CATALOGUE.find(([label]) => label === badgeName(badge))?.[1] || 'compass'}.webp`;
+
+/** The one place an image path is built: the earned tier, else the nearest lower tier that exists, else the base motif. */
+export function badgeImage(badge: Row): string {
+  const art = slug(canonicalName(badge) === 'Steady Hand' ? 'Steady Anchor' : canonicalName(badge));
+  if (!earned(badge)) return motifImage(badge);
+  for (let i = Math.max(0, ALL_TIERS.indexOf(slug(badge.tier || 'bronze'))); i >= 0; i--) {
+    if (TIER_ART[art]?.includes(ALL_TIERS[i])) return `/badges/${art}-${ALL_TIERS[i]}.webp`;
+  }
+  return motifImage(badge);
+}
+
 export function BadgeArt({ badge, size = 96 }: { badge: Row; size?: number }) {
-  const name = badgeName(badge);
-  const fallback = badge.fallback_image || `/badges/badge-${badge.motif || CATALOGUE.find(([label]) => label === name)?.[1] || 'compass'}.webp`;
-  const image = /^\/badges\/(true-north|first-doubloon)-/.test(badge.image || '') ? fallback : String(badge.image || '').replace(/^\/badges\/steady-hand-/, '/badges/steady-anchor-');
-  const artName = name === 'Steady Hand' ? 'Steady Anchor' : name;
-  return <img className="an-badge-art" src={image || (earned(badge) ? `/badges/${slug(artName)}-${slug(badge.tier || 'bronze')}.webp` : fallback)} alt="" width={size} height={size} style={{width:size,height:size}} onError={event => {
+  const fallback = motifImage(badge);
+  return <img className="an-badge-art" src={badgeImage(badge)} alt="" width={size} height={size} style={{width:size,height:size}} onError={event => {
     const node = event.currentTarget;
     if (!node.dataset.fallback) { node.dataset.fallback = 'true'; node.src = fallback; }
     else { node.style.visibility = 'hidden'; }
@@ -72,7 +87,20 @@ function targetRange(target: any): { min: number; max: number } | null {
 /** The history uses 0–100; the small spark fits its measured range with padding. */
 export function ScoreSpark({ values, allWeeks = false, target }: { values: any[]; allWeeks?: boolean; target?: any }) {
   const points = (allWeeks ? values : values.slice(-8)).map((point, index) => ({value:typeof point === 'object' && point !== null ? point.score ?? point.value : point, label: typeof point === 'object' && point !== null ? point.week || point.date || `Week ${index + 1}` : `Week ${index + 1}`}));
-  const width = allWeeks ? Math.max(640, points.length * 46) : 180, height = allWeeks ? 220 : 56;
+  // The all-weeks chart is drawn in real pixels (measured container width), so text and dots never stretch.
+  const wrap = useRef<HTMLDivElement>(null);
+  const [measured, setMeasured] = useState(0);
+  useEffect(() => {
+    const el = wrap.current;
+    if (!allWeeks || !el) return;
+    const read = () => setMeasured(Math.round(el.getBoundingClientRect().width));
+    read();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(read);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [allWeeks]);
+  const width = allWeeks ? Math.max(320, measured || 640) : 180, height = allWeeks ? 220 : 56;
   const left = allWeeks ? 36 : 8, right = allWeeks ? 20 : 8, top = allWeeks ? 22 : 7, bottom = allWeeks ? 34 : 7;
   const x = (index: number) => left + (points.length === 1 ? .5 : index / Math.max(1, points.length - 1)) * (width - left - right);
   const finite = points.map(point=>point.value).filter(numeric);
@@ -80,7 +108,7 @@ export function ScoreSpark({ values, allWeeks = false, target }: { values: any[]
   const y = (value: number) => top + (high - Math.max(low, Math.min(high,value))) / Math.max(1,high-low) * (height - top - bottom);
   const lastIndex = points.findLastIndex(point => numeric(point.value)), band = targetRange(target);
   if (lastIndex < 0) return <p className="an-empty">Score history not recorded. Run <code>/analytics</code> to record a week.</p>;
-  return <div className={allWeeks ? 'an-achievement-chart' : 'an-score-spark-wrap'}><svg className={allWeeks ? 'an-score-history an-achievement-score-chart' : 'an-score-spark'} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio={allWeeks ? 'none' : 'xMidYMid meet'} role="img" aria-label={`Funnel Score, ${allWeeks ? 'all recorded' : 'last eight'} weeks: ${points.map(point => numeric(point.value) ? `${point.label}: ${Math.round(point.value)}` : `${point.label}: unknown`).join(', ')}`}>
+  return <div ref={wrap} className={allWeeks ? 'an-achievement-chart' : 'an-score-spark-wrap'}><svg className={allWeeks ? 'an-score-history an-achievement-score-chart' : 'an-score-spark'} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" {...(allWeeks ? {width, height} : {})} role="img" aria-label={`Funnel Score, ${allWeeks ? 'all recorded' : 'last eight'} weeks: ${points.map(point => numeric(point.value) ? `${point.label}: ${Math.round(point.value)}` : `${point.label}: unknown`).join(', ')}`}>
     {allWeeks && <>{[0,50,100].map(value => <g className="an-history-axis" key={value}><line x1={left} x2={width-right} y1={y(value)} y2={y(value)} /><text x={left-8} y={y(value)+3} textAnchor="end">{value}</text></g>)}{band && <g className="an-chart-target"><rect x={left} y={y(Math.max(band.min,band.max))} width={width-left-right} height={Math.max(2,Math.abs(y(band.min)-y(band.max)))} /><text x={width-right} y={y(Math.max(band.min,band.max))+12} textAnchor="end">Target {band.min}{band.max !== 100 && band.max !== band.min ? `–${band.max}` : '+'}</text></g>}</>}
     {points.map((point, index) => numeric(point.value) ? <g className="an-chart-point" key={`${point.label}-${index}`} tabIndex={0} aria-label={`${point.label}: Funnel Score ${Math.round(point.value)}`}>
       {index > 0 && numeric(points[index-1].value) && <line className="an-chart-line" x1={x(index-1)} y1={y(points[index-1].value)} x2={x(index)} y2={y(point.value)} />}

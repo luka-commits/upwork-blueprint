@@ -1276,7 +1276,51 @@ def missing_question_source_contract():
                 assert analytics.snapshot_public_card({'community_card': card}, sources)['question_id'] is None
                 assert '<p class="question">' not in analytics.public_onepager_html(card)
 
-CHECKS = (missing_question_source_contract, owner_goal_join_contract, owner_badge_progress_contract, owner_review_fields_contract, privacy_contract, once_review_contract, closed_question_entries, approximate_number_contract, distinct_call_contract, legacy_session_contract, report_identifier_contract, custom_coverage_contract, product_review_computations, weekly_accountability_contract, owner_habit_period_contract,)
+REFERENCES = pathlib.Path(__file__).resolve().parent.parent / 'references'
+
+def report_structure_contract():
+    """The approved summary has the fixed label order and one closing offer; check-report accepts it."""
+    text = (REFERENCES / 'chat-report-example.md').read_text(encoding='utf-8')
+    labels = ['**Your funnel**', "**What's working**", '**Where it leaks**', '**Pipeline & money**', "**Last week's goals**", '**This week**', "**Couldn't check**"]
+    positions = [text.index(label) for label in labels]
+    assert positions == sorted(positions), 'Weekly summary labels are out of order.'
+    closing = text.strip().splitlines()[-1]
+    assert closing.count('?') == 1 and 'earned' in closing, 'The closing is one badge line and ONE offer.'
+    def row(key, value, k, n, previous, **extra):
+        return dict(key=key, value=value, state='ok', finished=dict(k=k, n=n), pending=dict(n=0), change=dict(previous_value=previous), **extra)
+    snapshot = {'week': '2026-W42', 'north_star': {'wins': 3, 'value': 4200, 'currency': 'USD'}, 'funnel_score': {'score': 88, 'previous': 81},
+        'kpis': {'weekly_volume': {'k': 31, 'target': 25, 'state': 'ok'}, 'speed_10min': {'k': 26, 'state': 'ok'}}, 'forecast': {'next_30_days': 3500}, 'goals_review': [{}, {}], 'goals_next': [{}, {}],
+        'presentation': {'scorecard': [row('reply_rate', 20.714, 29, 140, 18), row('reply_to_call', 31.03, 9, 29, 28), row('booked_to_held', 88.9, 8, 9, 90),
+            dict(row('proposal_to_won', 50, 3, 6, 40), pending=dict(n=2)),
+            dict(row('proposal_on_time', 100, 8, 8, None), split=[dict(k=8, n=8, value=100, previous_value=88)])]},
+        'report_facts': {'weekly': dict(invites=4, invites_answered=4, invites_within_hour=4, invite_reply_minutes=30, invite_calls=1, price_before_budget=3, price_read_calls=4, cautious_clients=2),
+            'four_weeks': dict(quiet_chats=9, connects_spend=384, application_contract_value=4400), 'live': dict(total=11, proposals=2),
+            'goal': dict(offered_times=7, replies=9, booked=4, budget_first=1, calls=4), 'pattern': dict(reply_rate=31, comparison_reply_rate=15, jobs=64)}}
+    checked = analytics.check_report(text, snapshot)
+    assert checked['status'] == 'PASS', checked['errors']
+    for old, new in (('| 28%', '| new'), ('| 29 of 140 | 21%', '| 29 of 140 | 25%'), ('went from 81', 'went from 80')):
+        assert analytics.check_report(text.replace(old, new), snapshot)['status'] == 'FAIL', old
+    review = (REFERENCES / 'call-review-example.md').read_text(encoding='utf-8')
+    labels = ['**Call score: ', '**The moment that mattered**', '**Next time, try this**', '**Send this now**', '**Agreed next step**', '**The nine points**', "**Couldn't check**"]
+    positions = [review.index(label) for label in labels]
+    assert positions == sorted(positions), 'Call review labels are out of order.'
+
+def call_score_contract():
+    """Call Score is computed in code: met and half of partly over applicable points; not needed is excluded."""
+    def points(*states): return [{'point': index + 1, 'state': state} for index, state in enumerate(states)]
+    assert analytics.call_score(points(*['met'] * 7, 'partly', 'not_needed'))['score'] == 94
+    assert analytics.call_score(points('met', 'partly', 'missing', 'not needed')) == {'score': 50, 'met': 1, 'partly': 1, 'applicable': 3}
+    assert analytics.call_score(points('not_needed', 'not needed'))['score'] is None
+    assert analytics.call_score([])['score'] is None
+    seven = analytics.call_score(points(*['met'] * 7, 'partly', 'not_needed'))
+    card = {'call_score': seven}
+    text = 'Call score: 94 · 7 of 8 points met, 1 partly'
+    assert analytics.check_report(text, {'call_cards': [card]})['status'] == 'PASS'
+    for wrong in ('Call score: 95', 'Call score: 94 · 6 of 8 points met, 1 partly'):
+        assert analytics.check_report(wrong, {'call_cards': [card]})['status'] == 'FAIL', wrong
+    assert 'call_score' in analytics.facts_sheet({'call_cards': [card]})['call_cards'][0]
+
+CHECKS = (report_structure_contract, call_score_contract, missing_question_source_contract, owner_goal_join_contract, owner_badge_progress_contract, owner_review_fields_contract, privacy_contract, once_review_contract, closed_question_entries, approximate_number_contract, distinct_call_contract, legacy_session_contract, report_identifier_contract, custom_coverage_contract, product_review_computations, weekly_accountability_contract, owner_habit_period_contract,)
 
 if __name__ == "__main__":
     run_checks(CHECKS)

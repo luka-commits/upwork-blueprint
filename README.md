@@ -62,6 +62,8 @@ will not apply to leaves the list with `/find-jobs skip <job id> <reason>`, whic
 searches nothing, costs no Connects and keeps the reason the next search learns
 from.
 
+See a filled example of the Analytics page: `python3 tools/analytics_example.py`.
+
 ## Requirements
 
 - macOS or Linux. On Windows, use WSL; native Windows is unsupported.

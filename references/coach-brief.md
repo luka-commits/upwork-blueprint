@@ -1,7 +1,8 @@
 # Coach brief
 
-How Claude judges a member's sales work. Read this before any call review, conversation review,
-application or proposal feedback, and before writing the weekly `/analytics` report.
+How Claude judges a member's sales work. Read this before any call review or conversation review,
+and before writing the weekly `/analytics` report. Content is judged only for chats and calls; applications and
+proposals count as numbers in the funnel and get no content review.
 
 Two layers, never mixed:
 
@@ -62,21 +63,27 @@ Use the ones the evidence supports. Skip the rest; a lens with nothing to say is
 ## Call review
 
 Input: the full transcript (`jobs/<id>/call.md`), the job post, the sent application and the thread before the
-call. Output in `jobs/<id>/call-review.md` and on the call card:
+call. Saved in `jobs/<id>/call-review.md` and on the call card. In chat the member gets this fixed order, with
+the bold labels as written (`references/call-review-example.md` is the approved text):
 
-1. **Coach's read**, 120 to 180 words in short paragraphs, readable on a phone right after the call. Lead with the
-   central dynamic, support the turning moment with one quote, give one change with its exact better line.
-2. **Next message**, paste-ready for Upwork, at most 100 words (count them and cut before writing it down; a client
-   reads it on a phone), only when a useful action remains. It carries out
-   the change you recommend and honours commitments already made; name missing inputs before calling it ready, and
-   never promise dates without known capacity.
+1. **Opening**, 2 to 3 sentences: how the call went and the one change.
+2. **Call score: N** with "k of n points met, m partly". N comes from `facts` (`call_cards[].call_score`), never
+   from you: round(100 × (met + 0.5 × partly) / applicable), not-needed points excluded; unknown when nothing
+   applies.
+3. **The moment that mattered**: the quote with its minute, then your read with the strongest counterevidence.
+4. **Next time, try this**: the better line, paste-ready.
+5. **Send this now**: the next Upwork message, at most 100 words, only when an action remains. It carries out the
+   change, honours commitments already made and promises no dates without known capacity.
+6. **Agreed next step**: quoted with its minute, or "none agreed".
+7. **The nine points** from `analytics.md` (Coaching rubrics), one line each, 3 to 6 words: ✓ met, ◐ partly,
+   ✗ missing, · not needed with the reason.
+8. **Couldn't check**, only for a real gap, with the exact command to run.
+9. **Closing**: ONE offer to keep talking.
 
-The member sees the read, the next message and the agreed step first; the nine points sit in a separate scan
-below. State the review's as-of date.
-3. **The nine points** from `analytics.md` (Coaching rubrics), one line each: state (`met | partly | missing |
-   not needed`) and one quote; `not needed` carries a reason. They are the comparable scan for trends and badges
-   and never repeat the read.
-4. **Next step agreed on the call**, quoted, or "none agreed".
+Tone as in the weekly summary: sympathetic, personal, conversational, helpful; the member's first name, "you". State
+the review's as-of date in the saved file. When a saved review is reused and looks incomplete or inconsistent, say
+one line ("Your saved review has gaps. Want me to redo it?"), never a list of its problems. Member text holds no
+file names or connector instructions, only the exact command to run.
 
 Before diagnosing a price or scope objection, compare the application's listed deliverables with its price wording
 and name any scope expectation it reasonably created; check which price and scope expectations it set,
@@ -104,34 +111,32 @@ in its first stage. A missing source is "not reviewed" with how to supply it, ne
 threads, name a pattern only when it repeats ("in 6
 of 9 quiet threads you never proposed a time") and give the one better line.
 
-## Application and proposal feedback
-
-Quote the sent passage, say what a client skimming on a phone would feel, and write the replacement line from the
-job post and the member's real proof. One fix per piece, the one that matters most. Never rewrite a whole letter
-for a minor defect, and never invent proof, results or numbers the member has not shared.
-
 ## The weekly report
 
-Write it as a conversation, not a form. `references/chat-report-example.md` shows the tone; follow its spirit,
-not its order. What every report carries, each once:
+A conversation, not a form, in a FIXED order with the bold labels as written. `references/chat-report-example.md`
+is the approved text; copy its shape. About 400 words as a guideline, not a hard cap. Tone: sympathetic,
+personal, conversational, helpful; the member's first name, "you". Each beat once; cut any sentence that repeats
+another or changes no decision.
 
-- the week's result in money and the one priority, in the first two sentences
-- each part of the funnel (top, middle, bottom), inbound and money spent, at least a sentence each, with the period
-  named ("this week", "over the last four weeks")
-- the call read across the week's calls, and the conversation pattern when there is one
-- at most two patterns worth using, with their numbers
-- live leads and the forecast with its basis, as a guide, never a promise
-- **What I couldn't check**, whenever a source is missing: what, what it blocks, how to supply it
-- last week's goals: execution and effect kept apart ("you did it in 7 of 9" vs "too early to tell if it worked")
-- this week's plan: open deals first, then one to three habits as "when this happens, do this"
-- a new badge when there is one, in one line
-- three things the member can ask next
+1. **Opening**, 2 sentences: the week's result in money and the Funnel Score, then the one priority.
+2. **Your funnel**: a table with four columns, one thing each. "Over the last 4 weeks" (the row label as a plain
+   phrase: Applications that got a reply / Replies that booked a call / Booked calls that happened / Calls that
+   led to a proposal / Proposals you won), Count ("29 of 140"), Rate ("21%"), Before (the previous four weeks'
+   rate, or "new" when there is no earlier value, never invented). No arrows. Then one line: this week's
+   applications against the goal.
+3. **What's working**: with numbers; optionally one pattern worth using, with its numbers.
+4. **Where it leaks**: the bottleneck and why, from the chats and calls.
+5. **Pipeline & money**: invites, Connects against signed value, live leads with the forecast as a guide, never a
+   promise.
+6. **Last week's goals**: per goal, did it (k of n) and the effect, kept apart ("you did it with 7 of 9" vs "too
+   early to tell if it worked").
+7. **This week**: open deals first, then 1 to 3 habits as "when this happens, do this".
+8. **Couldn't check**, only when a source is missing: one line each, with the exact command to run.
+9. **Closing**: a new badge in one line, then ONE offer to keep talking.
 
-Order them by what matters most this week. A strong week can open with the win; a week with a leak can open with
-the leak. Cut any sentence that repeats another or changes no decision. Plain words: no "cohort", "rung",
-"decidable", "lever", "conversion" in member text.
-
-Missed weeks: open with how long since the last check-in and tell the whole period as one story.
+Missed weeks: open with how long since the last check-in and tell the whole period as one story. Plain words: no
+"cohort", "rung", "decidable", "lever", "conversion" in member text. Name the period of every number ("this
+week", "over the last 4 weeks").
 
 ## Never
 

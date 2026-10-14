@@ -79,6 +79,7 @@ export type AnalyticsCallCard = {
   question_count?: number;
   questions?: { member?: number | null; client?: number | null };
   reviewable?: boolean;
+  call_score?: { score: number | null; met: number; partly: number; applicable: number };
   reason?: string;
   points?: { point: number; label?: string; state: string; quote?: string; reason?: string; definition?: string }[];
   moments?: { label?: string; quote: string; better_wording?: string; better?: string; better_line?: string }[];

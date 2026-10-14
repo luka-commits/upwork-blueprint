@@ -428,7 +428,7 @@ def award_lines(rows):
 
 
 def catalogue_metadata():
-    path = pathlib.Path(__file__).resolve().parents[1] / 'outputs/badges-catalogue.md'
+    path = pathlib.Path(__file__).resolve().parents[1] / 'references/badge-catalogue.md'
     try: text = path.read_text(encoding='utf-8')
     except (OSError, UnicodeError): return {}
     result = {}

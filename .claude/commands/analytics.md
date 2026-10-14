@@ -86,14 +86,14 @@ Ask one targeted question only when evidence cannot distinguish an obstacle; req
 
 ## 4. Write and check the weekly coaching
 
-Claude writes conversational coaching using the coach brief and [report example](../../references/chat-report-example.md) for tone. Obtain facts from the final prepared snapshot and check the report against that same snapshot:
+Claude writes the weekly summary in the fixed order and tone of the coach brief's weekly report section; [report example](../../references/chat-report-example.md) is the approved text. Obtain facts from the final prepared snapshot and check the report against that same snapshot:
 
 ```bash
 python3 code/analytics.py facts --snapshot <snapshot-file>
 python3 code/analytics.py check-report <report-file> --snapshot <snapshot-file>
 ```
 
-Require check-report PASS before displaying; fix every rejected value, period or unsupported claim. Lead with money, priority and code-produced Funnel Score. Carry every brief item once, including missing items as gaps. Distinguish fixed won value, hourly terms and billed earnings. Name periods, units and k of n; show code's plain sample notes. Include **What I couldn't check** with each missing source, blocked check and exact supply step. Quote job-linked evidence; label interpretations and counterevidence. Use code's award wording once per new award.
+Require check-report PASS before displaying; fix every rejected value, period or unsupported claim. Follow the brief's order; the money and Funnel Score come from code. Carry every item once, with missing sources under **Couldn't check**. Distinguish fixed won value, hourly terms and billed earnings. Name periods, units and k of n; show code's plain sample notes. List each missing source in **Couldn't check** with its exact command. Quote job-linked evidence; label interpretations and counterevidence. Use code's award wording once per new award.
 
 Each early week improves an application, checks use of the prior fix, resolves low activity, or decides what to keep/change. Baseline collection never implies established improvement.
 

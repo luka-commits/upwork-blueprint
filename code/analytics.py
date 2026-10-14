@@ -797,7 +797,7 @@ def scorecard_fields(snapshot, jobs, history, today):
             comparison = f"New: {row.get('n', 0)} finished cases" if key in FUNNEL and previous_n == 0 and row.get('n') else ('Prior four-week average unavailable' if habit else 'Previous 28-day comparison unavailable') if previous_value is None else 'unchanged' if row.get('value') == previous_value else 'was ' + (f'{whole_percent(previous_value)}%' if row['unit'] == '%' else f'{display_number(previous_value, 1):.1f} min' if row['unit'] == 'min' else f'{display_number(previous_value):,.0f}')
             split = []
             if key == 'proposal_on_time':
-                split = [dict(label='Held calls to proposal (last 28 days)', k=current['held_to_proposal']['k'], n=current['held_to_proposal']['n'], evidence=current['held_to_proposal']['evidence'])]
+                split = [dict(label='Held calls to proposal (last 28 days)', k=current['held_to_proposal']['k'], n=current['held_to_proposal']['n'], evidence=current['held_to_proposal']['evidence'], value=current['held_to_proposal'].get('value'), previous_value=previous['held_to_proposal'].get('value') if previous['held_to_proposal'].get('n') else None)]
             market = None
             if key == 'reply_rate': market = {'value': '5% agency reply rate, rounded; different population', 'source': 'GigRadar Q2 2026, 30 July 2026: https://gigradar.io/upwork/reports/2026/q2/all-industries'}
             if key == 'proposal_to_won': market = {'value': '34% sales proposal close rate; not Upwork', 'source': 'Proposify State of Proposals 2026: https://www.proposify.com/state-of-proposals-2026'}
@@ -1567,6 +1567,7 @@ def report_numeric_facts(snapshot):
         row = rows.get(key, {})
         if row.get('state') == 'missing': return None
         return row.get('finished', {}).get(field) if field in ('k', 'n') else row.get(field)
+    held_split = next(iter(rows.get('proposal_on_time', {}).get('split') or []), {})
     activity = snapshot.get('periods', {}).get('activity') or {}
     bounds = (day(activity.get('start')), day(activity.get('end')))
     weekly_calls = [row for row in snapshot.get('call_cards', []) if all(bounds) and inside(row.get('date'), bounds)]
@@ -1582,6 +1583,9 @@ def report_numeric_facts(snapshot):
                 'previous_reply_rate': rows.get('reply_rate', {}).get('change', {}).get('previous_value'),
                 'booked_calls': card('reply_to_call', 'k'), 'held_calls': card('booked_to_held', 'k'),
                 'proposals': (card('proposal_to_won', 'n') + rows.get('proposal_to_won', {}).get('pending', {}).get('n', 0)) if number(card('proposal_to_won', 'n')) else None, 'proposal_wins': card('proposal_to_won', 'k'),
+                'decided_proposals': card('proposal_to_won', 'n'),
+                'proposal_calls': held_split.get('k'), 'proposal_call_cases': held_split.get('n'),
+                'proposal_call_rate': held_split.get('value'), 'previous_proposal_call_rate': held_split.get('previous_value'),
                 'fast_proposals': snapshot.get('report_facts', {}).get('four_weeks', {}).get('fast_proposals', card('proposal_on_time', 'k') if rows.get('proposal_on_time', {}).get('period_label') == 'Last 28 days' else None), 'fast_proposal_minutes': 30},
         'forecast': {'days': 30, 'value': snapshot.get('forecast', {}).get('next_30_days')},
         'score': snapshot.get('funnel_score', {}).get('score'),
@@ -1737,11 +1741,27 @@ def check_report(text, snapshot):
     # somewhere else in the snapshot. More specific multi-value clauses go first.
     rules = [
         (r'Funnel Score(?: is)? {a}(?:\s*,?\s*(?:was|up from|down from) {b})?', {'a':'score','b':'previous_score'}),
-        (r'(?:signed|won) {a} new contracts? worth\s*\$?{b}', {'a':'wins','b':'won_value'}),
+        (r'(?:signed|won) {a}(?: new)? contracts? worth\s*\$?{b}', {'a':'wins','b':'won_value'}),
         (r'{a} from proposals? and {b} from a direct offer', {'a':'weekly.proposal_wins','b':'weekly.direct_offer_wins'}),
-        (r'(?:sent|submitted) {a} applications? this week against (?:your|a) goal of {b}', {'a':'weekly.applications','b':'weekly.goal'}),
+        (r'(?:sent|submitted) {a} applications?(?: this week)? against (?:your|a) goal of {b}', {'a':'weekly.applications','b':'weekly.goal'}),
+        (r'{a} of this week.s {b} applications went out within {c} minutes? of posting', {'a':'weekly.fast','b':'weekly.applications','c':'weekly.fast_minutes'}),
         (r'{a} of them within {b} minutes?', {'a':'weekly.fast','b':'weekly.fast_minutes'}),
         (r'{a} of your {b} applications? got a reply[^.\n]*?that.s {c}%[^.\n]*?(?:from|was) {d}%', {'a':'four_weeks.replies','b':'four_weeks.applications','c':'four_weeks.reply_rate','d':'four_weeks.previous_reply_rate'}),
+        (r'Funnel Score went from {b} to {a}', {'a':'score','b':'previous_score'}),
+        # The summary's funnel table: count, rate and the previous four weeks' rate; "new" means no earlier value.
+        (r'Applications that got a reply\s*\|\s*{a} of {b}\s*\|\s*{c}%\s*\|\s*(?:{d}%|new)', {'a':'four_weeks.replies','b':'four_weeks.applications','c':'four_weeks.reply_rate','d':'four_weeks.previous_reply_rate'}),
+        (r'Replies that booked a call\s*\|\s*{a} of {b}\s*\|\s*{c}%\s*\|\s*(?:{d}%|new)', {'a':'four_weeks.booked_calls','b':'four_weeks.replies','c':lambda: card_rate('reply_to_call'),'d':lambda: previous_rate('reply_to_call')}),
+        (r'Booked calls that happened\s*\|\s*{a} of {b}\s*\|\s*{c}%\s*\|\s*(?:{d}%|new)', {'a':'four_weeks.held_calls','b':'four_weeks.booked_calls','c':lambda: card_rate('booked_to_held'),'d':lambda: previous_rate('booked_to_held')}),
+        (r'Calls that led to a proposal\s*\|\s*{a} of {b}\s*\|\s*{c}%\s*\|\s*(?:{d}%|new)', {'a':'four_weeks.proposal_calls','b':'four_weeks.proposal_call_cases','c':'four_weeks.proposal_call_rate','d':'four_weeks.previous_proposal_call_rate'}),
+        (r'Proposals you won\s*\|\s*{a} of {b}\s*\|\s*{c}%\s*\|\s*(?:{d}%|new)', {'a':'four_weeks.proposal_wins','b':'four_weeks.decided_proposals','c':lambda: card_rate('proposal_to_won'),'d':lambda: previous_rate('proposal_to_won')}),
+        (r'{a} of the {b} replies that didn.t book[^.\n]*?went quiet', {'a':'four_weeks.quiet_chats','b':lambda: value('four_weeks.replies') - value('four_weeks.booked_calls') if all(number(value(key)) for key in ('four_weeks.replies','four_weeks.booked_calls')) else None}),
+        (r'named a price before you knew their budget in {a} of {b}', {'a':'weekly.price_before_budget','b':'weekly.price_read_calls'}),
+        (r'{a} invites? this week, all answered within the hour', {'a':'weekly.invites'}),
+        (r'{a} live leads could add about\s*\${b}', {'a':'live.total','b':'forecast.value'}),
+        (r'Two call times:\s*you did it with {a} of {b} replies and {c} booked', {'a':'goal.offered_times','b':'goal.replies','c':'goal.booked'}),
+        (r'Budget before price:\s*{a} of {b} calls', {'a':'goal.budget_first','b':'goal.calls'}),
+        (r'ask your {a} (?:waiting|open) proposals', {'a':'live.proposals'}),
+        (r'over (?:the )?(?:last )?{a} weeks', {'a':lambda: 4}),
         (r'(?:started|began) in week {a}', {'a':'pattern.start_week'}),
         (r'First replies took {a} minutes? on median', {'a':'weekly.first_reply_minutes'}),
         (r'{a} of {b} follow-ups', {'a':'weekly.followups_done','b':'weekly.followups_due'}),
@@ -1758,7 +1778,7 @@ def check_report(text, snapshot):
         (r'the {a} who said no and the {b} lost proposals[^.\n]*?{c} leads ended[^.\n]*?{d} of them cited price[^.\n]*?under\s*\${e}', {'a':'four_weeks.declined_chats','b':'four_weeks.lost_proposals','c':'four_weeks.ended_leads','d':'four_weeks.price_losses','e':'four_weeks.fixed_price_ceiling'}),
         (r'{a} invites? and you answered all within the hour', {'a':'weekly.invites'}),
         (r'{a} (?:is|are) now (?:a )?calls?', {'a':'weekly.invite_calls'}),
-        (r'(?:spent|paid)\s*\${a} on Connects[^.\n]*?(?:signed|won)\s*\${b}', {'a':'four_weeks.connects_spend','b':'four_weeks.application_contract_value'}),
+        (r'(?:(?:spent|paid)\s*)?\${a} on Connects[^.\n]*?(?:signed|won|brought in)\s*\${b}', {'a':'four_weeks.connects_spend','b':'four_weeks.application_contract_value'}),
         (r'{a}%\s*vs\s*{b}% across {c} jobs', {'a':'pattern.reply_rate','b':'pattern.comparison_reply_rate','c':'pattern.jobs'}),
         (r'{a} live leads:\s*{b} still talking, {c} calls booked and {d} proposals waiting', {'a':'live.total','b':'live.chats','c':'live.calls','d':'live.proposals'}),
         (r'(?:roughly|about|forecast(?: is| of)?|expect(?:ed)?(?: value)?(?: is| of)?)\s*\${a}[^.\n]*?(?:next|over) {b} days', {'a':'forecast.value','b':'forecast.days'}),
@@ -1863,6 +1883,14 @@ def check_report(text, snapshot):
                         success = False; record['reason'] = 'The stated direction contradicts the two scores.'
                 (checked if success else errors).append(record)
                 covered.update(range(start, end))
+    # A stated "Call score: N" and its "k of n points met, m partly" must equal a call card's computed score.
+    scores = [row['call_score'] for row in snapshot.get('call_cards', []) if isinstance(row.get('call_score'), dict)]
+    for match in re.finditer(r'Call score:?\s*(?P<score>\d+)(?:[^.\n]*?(?P<met>\d+) of (?P<n>\d+) points met(?:, (?P<partly>\d+) partly)?)?', text, re.I):
+        stated = (int(match['score']),) + ((int(match['met']), int(match['n']), int(match['partly'] or 0)) if match['met'] else ())
+        fits = any(row['score'] == stated[0] and (len(stated) == 1 or (row['met'], row['applicable'], row['partly']) == stated[1:]) for row in scores)
+        (checked if fits else errors).append({'text': match.group(), 'stated': stated, 'fact': 'call_cards.call_score', 'offset': match.start(),
+                                              **({} if fits else {'reason': 'No call card has this computed Call score.'})})
+        covered.update(range(match.start(), match.end()))
     # A suggested message's times and numbers are copy, rather than measurements.
     for match in re.finditer(r'["“]([^"”\n]+)["”]', text):
         before = text[max(0, match.start()-100):match.start()].casefold()
@@ -1870,7 +1898,7 @@ def check_report(text, snapshot):
             covered.update(range(*match.span()))
     for match in re.finditer(r'^\s*\d+[.)]\s+', text, re.M): covered.update(range(*match.span()))
     # The plan's two concrete times express the fixed coaching action, not a KPI.
-    for match in re.finditer(r'offer two concrete times', text, re.I): covered.update(range(*match.span()))
+    for match in re.finditer(r'offer two (?:concrete )?times', text, re.I): covered.update(range(*match.span()))
     for match in re.finditer(r'\$?' + REPORT_NUMBER + r'%?', text, re.I):
         if all(index in covered for index in range(match.start(), match.end()) if text[index].isalnum()): continue
         # Words used as a pronoun/determiner are not numerical claims.
@@ -1879,8 +1907,16 @@ def check_report(text, snapshot):
         head = text[max(0,match.start()-35):match.start()].casefold()
         if token in ('one','two','three','both') and (tail.startswith((' thing', ' priority', ' carries over', ' specific question', ' pattern'))): continue
         errors.append({'text': match.group(), 'offset': match.start(), 'fact': None, 'reason': 'No matching metric and period in the facts sheet.'})
+    # "new" in a funnel-table Before cell is only true when no earlier rate exists.
+    earlier = {'Applications that got a reply': 'four_weeks.previous_reply_rate', 'Replies that booked a call': lambda: previous_rate('reply_to_call'),
+               'Booked calls that happened': lambda: previous_rate('booked_to_held'), 'Calls that led to a proposal': 'four_weeks.previous_proposal_call_rate',
+               'Proposals you won': lambda: previous_rate('proposal_to_won')}
+    for label, path in earlier.items():
+        for match in re.finditer(re.escape(label) + r'[^|\n]*\|[^|\n]*\|[^|\n]*\|\s*new\b', text, re.I):
+            if number(path() if callable(path) else value(path)):
+                errors.append({'text': match.group(), 'offset': match.start(), 'fact': path if isinstance(path, str) else 'previous rate', 'reason': 'An earlier value exists, so Before is not new.'})
     # Quantifiers also have measured meanings when linked to reported counts.
-    if re.search(r'answered all within the hour', text, re.I):
+    if re.search(r'(?:answered all|all answered) within the hour', text, re.I):
         answered, invites = value('weekly.invites_answered'), value('weekly.invites')
         if not number(answered) or answered != invites:
             errors.append({'text':'answered all', 'fact':'weekly.invites_answered', 'expected': invites, 'stated': answered})
@@ -2037,12 +2073,19 @@ def community_card(jobs, today, kpis, reviews, week, streak, now=None):
     result['stage_counts'] = {name: len(rows) for name, rows in entries.items()}
     result['stage_counts']['won'] = result['proposal_to_won']['k']
     result['stage_counts']['pending_proposals'] = sum(event(job, 'proposal_sent') + dt.timedelta(days=21) > now_stamp for job in entries['proposals'])
+    # The card shows this week only: the same seven-day window as the chat report.
+    week_window = span(today, 7)
+    result['week_counts'] = {name: len(cohort(jobs, event_key, 0, today, week_window, 'outbound')) for name, event_key in
+                             (('replies', 'replied'), ('calls_booked', 'call_booked'), ('calls_held', 'call_held'),
+                              ('proposals', 'proposal_sent'), ('won', 'won'))}
+    result['week_counts']['applications'] = result['applications']
     if any(row['source'] == 'upwork' and row['state'] == 'missing' for row in source_coverage(jobs, today, now)[0]):
         for key in ('reply_rate', 'reply_to_call', 'booked_to_held', 'proposal_to_won', 'call_to_won'):
             result[key].update(value=None, k=None, n=None, state='missing')
         result['applications'] = None
         result['first_reply_median_min'] = None
         result['stage_counts'] = {name: None for name in result['stage_counts']}
+        result['week_counts'] = {name: None for name in result['week_counts']}
     return result
 
 
@@ -2397,6 +2440,18 @@ def merge_review(canonical, weekly):
     return saved
 
 
+def call_score(points):
+    """Call Score 0 to 100, computed here and never by Claude: met and half of partly over applicable points.
+
+    Not-needed points are excluded; with no applicable point the score is unknown (None).
+    """
+    states = [str(point.get('state')).replace(' ', '_') for point in points or []]
+    met, partly = states.count('met'), states.count('partly')
+    applicable = met + partly + states.count('missing')
+    if not applicable: return {'score': None, 'met': met, 'partly': partly, 'applicable': 0}
+    return {'score': math.floor(100 * (met + 0.5 * partly) / applicable + .5), 'met': met, 'partly': partly, 'applicable': applicable}
+
+
 def call_cards(snapshot, jobs=None):
     review = snapshot.get('reviews', {}).get('call', {})
     by_id = {str(job['id']): job for job in (pipeline.load() if jobs is None else jobs)}
@@ -2457,6 +2512,7 @@ def call_cards(snapshot, jobs=None):
             card.update(points=points, moments=[dict(moment, better=moment['better_wording'], quote_at=call_quote_time(moment.get('quote'), transcript)) for moment in item.get('moments', [])[:3]],
                         fix=item.get('fix', review.get('fix', '')), example=item.get('example', review.get('example', '')),
                         next_step=item.get('next_step'))
+        card['call_score'] = call_score(card.get('points'))
         cards.append(card)
     return cards
 
@@ -3315,6 +3371,27 @@ def validate_reference(reference):
     return reference
 
 
+# Fixed plain-action headline per focus key, and the weekly count pair shown beneath it.
+FOCUS_HEADLINES = {
+    'won_value': 'Win more paid work', 'value_per_100_connects': 'Get more value from each Connect',
+    'reply_rate': 'Get more replies to applications', 'reply_to_call': 'Turn replies into calls',
+    'booked_to_held': 'Get booked calls to happen', 'held_to_proposal': 'Send a proposal after each call',
+    'proposal_to_won': 'Win more proposals', 'invite_to_call': 'Turn invitations into calls',
+    'offer_to_contract': 'Turn offers into contracts', 'weekly_volume': 'Send more applications each week',
+    'speed_10min': 'Apply sooner to fresh jobs', 'first_reply': 'Answer client messages faster',
+    'follow_ups_on_time': 'Follow up on the day it is due', 'proposal_on_time': 'Send proposals right after the call',
+    'job_fit': 'Apply to jobs that fit you', 'application_review': 'Improve how you write applications',
+    'conversation_review': 'Keep conversations moving', 'call_review': 'Run stronger sales calls',
+    'proposal_review': 'Sharpen your proposals', 'segments': 'Focus on the job types that work',
+    'behaviour': 'Build a steady weekly routine', 'lost_reasons': 'Learn from lost proposals',
+    'goal_effect': 'Check whether last week\u2019s goals worked', 'goal_done': 'Carry out your agreed goals'}
+assert set(FOCUS_HEADLINES) == set(LABELS), 'Every focus key needs a plain headline.'
+FOCUS_COUNTS = {'reply_rate': ('replies', 'applications', 'applications got a reply'),
+                'reply_to_call': ('calls_booked', 'replies', 'replies led to a booked call'),
+                'booked_to_held': ('calls_held', 'calls_booked', 'booked calls took place'),
+                'proposal_to_won': ('won', 'proposals', 'proposals were won')}
+
+
 PUBLIC_QUESTION_TEMPLATES = {
     'reply_rate-1': ('reply_rate', 'What made the jobs that replied different from the rest?'),
     'reply_rate-2': ('reply_rate', 'Which proof helped clients reply?'),
@@ -3474,8 +3551,8 @@ def validate_community_card(card, jobs=None):
     card.setdefault('question_id', None)
     keys = {'member_name', 'week', 'applications', 'streak_weeks', 'goals_done', 'goals', 'next_focus', 'question_id',
             'new_badge', 'top_badges', 'reply_rate', 'reply_to_call', 'call_to_won',
-            'first_reply_median_min', 'first_reply_target_min', 'biggest_improvement', 'won_value', 'booked_to_held', 'proposal_to_won', 'funnel_score', 'activity_period', 'rank', 'rank_progress', 'earned_badges', 'more_badges', 'next_badge', 'stage_counts', 'working_days'}
-    require(isinstance(card, dict) and keys - {'member_name', 'activity_period', 'rank', 'rank_progress', 'earned_badges', 'more_badges', 'next_badge', 'stage_counts', 'working_days'} <= set(card) <= keys, 'Public card has unknown or missing fields.')
+            'first_reply_median_min', 'first_reply_target_min', 'biggest_improvement', 'won_value', 'booked_to_held', 'proposal_to_won', 'funnel_score', 'activity_period', 'rank', 'rank_progress', 'earned_badges', 'more_badges', 'next_badge', 'stage_counts', 'week_counts', 'working_days'}
+    require(isinstance(card, dict) and keys - {'member_name', 'activity_period', 'rank', 'rank_progress', 'earned_badges', 'more_badges', 'next_badge', 'stage_counts', 'week_counts', 'working_days'} <= set(card) <= keys, 'Public card has unknown or missing fields.')
     if 'working_days' in card:
         working = card['working_days']
         require(isinstance(working, dict) and set(working) == {'k', 'n'} and all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in working.values()) and 0 <= working['k'] <= working['n'] <= 7, 'Public working_days needs numeric k/n only.')
@@ -3490,6 +3567,10 @@ def validate_community_card(card, jobs=None):
         volumes = card['stage_counts']
         require(isinstance(volumes, dict) and set(volumes) == {'applications', 'replies', 'calls_booked', 'calls_held', 'proposals', 'won', 'pending_proposals'} and
                 all(value is None or number(value) and value >= 0 and int(value) == value for value in volumes.values()), 'Public stage counts need fixed nonnegative whole counts or unknown.')
+    if 'week_counts' in card:
+        counts = card['week_counts']
+        require(isinstance(counts, dict) and set(counts) == {'applications', 'replies', 'calls_booked', 'calls_held', 'proposals', 'won'} and
+                all(value is None or number(value) and value >= 0 and int(value) == value for value in counts.values()), 'Public week counts need fixed nonnegative whole counts or unknown.')
     require(re.fullmatch(r'\d{4}-W\d{2}', str(card['week'])), 'Invalid public week.')
     for key in ('applications', 'streak_weeks', 'first_reply_median_min', 'first_reply_target_min', 'won_value'):
         require(numeric(card[key]), 'Public numeric field must be a finite number or null.')
@@ -3891,32 +3972,20 @@ def public_onepager_html(card):
     tokens = (ROOT / 'website/app/tokens.css').read_text(encoding='utf-8')
     labels = {'reply_rate': 'Reply rate', 'reply_to_call': 'Call rate', 'booked_to_held': 'Show-up rate',
               'proposal_to_won': 'Win rate', 'call_to_won': 'Call to won'}
-    # Each stage counts entries in the same window, not one linked application journey.
-    volumes = card.get('stage_counts') or {}
-    stages = [('Applications', volumes.get('applications', card['reply_rate']['n']), 'reply_rate'),
-              ('Replies', volumes.get('replies', card['reply_to_call']['n']), 'reply_to_call'),
-              ('Calls booked', volumes.get('calls_booked', card['booked_to_held']['n']), 'booked_to_held'),
-              ('Calls held', volumes.get('calls_held', card['booked_to_held']['k']), None),
-              ('Proposals', volumes.get('proposals'), 'proposal_to_won'),
-              ('Won', volumes.get('won', card['proposal_to_won']['k']), None)]
-    maximum = max([count for _, count, _ in stages if number(count)] + [1])
+    # This week only, same seven-day window as the chat report. Counts, never rates.
+    volumes = card.get('week_counts') or {}
+    stages = [('Applications', volumes.get('applications')), ('Replies', volumes.get('replies')),
+              ('Calls booked', volumes.get('calls_booked')), ('Calls held', volumes.get('calls_held')),
+              ('Proposals', volumes.get('proposals')), ('Won', volumes.get('won'))]
+    maximum = max([count for _, count in stages if number(count)] + [1])
     funnel = []; previous_width = 100
-    for index, (label, count, key) in enumerate(stages):
+    for index, (label, count) in enumerate(stages):
         width = min(previous_width, max(12, 100 * math.sqrt(count / maximum))) if number(count) and count else 0
         previous_width = width if width else previous_width
         funnel.append(f'<div class="stage"><span>{label}</span><div class="bar-track"><i style="width:{width:.1f}%;opacity:{1-index*.12:.2f}"></i></div><b>{fmt(count)}</b></div>')
-        if key:
-            row = card[key]
-            leak = card['next_focus'] == LABELS[key]
-            trend = {'up': '↑ Improving', 'down': '↓ Declining', 'undecided': 'Not clear yet'}[row['trend']]
-            outcomes = {'reply_rate': 'replied', 'reply_to_call': 'booked a call or received an offer',
-                        'booked_to_held': 'attended', 'proposal_to_won': 'won'}
-            count_text = 'unknown' if row['state'] == 'missing' else 'No opportunities' if not row['n'] else f"{fmt(row['k'])} of {fmt(row['n'])} {outcomes[key]}"
-            value = 'No opportunities' if row['state'] != 'missing' and not row['n'] else fmt(row['value'], '%')
-            if key == 'proposal_to_won':
-                pending = volumes.get('pending_proposals')
-                if number(pending) and pending: count_text += f" · {fmt(pending)} still open"
-            funnel.append(f'<div class="rate{ " leak" if leak else ""}"><span>{labels[key]} <b>{value}</b>{" · leak" if leak else ""}</span><small>{count_text} · {trend}</small></div>')
+    # Snapshots saved before weekly counts existed, or with unknown counts, show no funnel.
+    funnel_html = (f'<h2>Funnel · this week</h2><div class="funnel">{"".join(funnel)}</div><p class="meta">Each row counts what happened this week.</p>'
+                   if any(number(count) for _, count in stages) else '')
     goals = []
     for goal in card['goals']:
         state = 'done' if goal['done'] else 'partly' if goal['state'] == 'partial' else 'not yet'
@@ -3925,12 +3994,15 @@ def public_onepager_html(card):
         goals.append(f'<li class="{state}"><i>{mark}</i><span>{esc(goal["text"])}</span><small>{state} · {count}</small></li>')
     goals_html = '<ul class="goals">'+''.join(goals)+'</ul>' if goals else '<p class="meta">No previous goals. Agree the first goals in /analytics.</p>'
     improvement = card['biggest_improvement']
-    change = 'Not clear yet'
+    improvement_html = ''
     if improvement:
         change = f'{labels[improvement["kpi"]]} {fmt(improvement["from"], "%")} → {fmt(improvement["to"], "%")}'
+        improvement_html = f'<div class="highlight-copy"><span class="eyebrow">Biggest improvement</span><b>{change}</b></div>'
     weekly_badges = card.get('earned_badges', [])
     if not weekly_badges and card.get('new_badge') and card['new_badge']['earned_week'] == card['week']: weekly_badges = [card['new_badge']]
     badge_html = ''
+    catalogue = badge_ledger.catalogue_metadata()
+    short_line = lambda name: f'<small class="short">{esc(catalogue[name]["short"])}</small>' if name in catalogue and catalogue[name].get('short') else ''
     for badge in weekly_badges[:3]:
         slug = re.sub(r'[^a-z0-9]+', '-', badge['badge'].casefold().replace("'", '')).strip('-')
         asset = ROOT / 'website/public/badges' / f"{slug}-{badge['tier'].casefold()}.webp"
@@ -3939,11 +4011,11 @@ def public_onepager_html(card):
             asset = ROOT / 'website/public/badges' / f'badge-{motifs[BADGE_NAMES.index(badge["badge"])]}.webp'
         require(asset.is_file(), 'Displayed public badge needs its tier image or motif fallback.')
         picture = f'<img src="data:image/webp;base64,{base64.b64encode(asset.read_bytes()).decode()}" alt="" width="48" height="48">'
-        badge_html += f'<div class="badge">{picture}<div><span class="eyebrow">New badge</span><b>{esc(badge["badge"])}</b><small>{esc(badge["tier"])}</small></div></div>'
+        badge_html += f'<div class="badge">{picture}<div><span class="eyebrow">New badge</span><b>{esc(badge["badge"])}</b><small>{esc(badge["tier"])}</small>{short_line(badge["badge"])}</div></div>'
     if card.get('more_badges', 0): badge_html += f'<small>+{card["more_badges"]} more</small>'
     if not weekly_badges and card.get('next_badge'):
         reach = card['next_badge']
-        badge_html = f'<div class="badge"><small>{reach["weeks_remaining"]} weeks to {esc(reach["name"])} {esc(reach["tier"])}</small></div>'
+        badge_html = f'<div class="badge"><small>{reach["weeks_remaining"]} weeks to {esc(reach["name"])} {esc(reach["tier"])}</small>{short_line(reach["name"])}</div>'
     rank_html = f'<small>Rank: {esc(card["rank"])}</small>' if card.get('rank') else ''
     working = card.get('working_days')
     accountability_html = (f'<p class="meta">Working days {working["k"]} of {working["n"]} · Application streak {card["streak_weeks"]} weeks</p>' if working else f'<p class="meta">Application streak {card["streak_weeks"]} weeks</p>')
@@ -3952,22 +4024,31 @@ def public_onepager_html(card):
     baseline = '<small>Habits only until your baseline is set</small>' if score['baseline_only'] else ''
     week_date = dt.date.fromisocalendar(int(card['week'][:4]), int(card['week'][-2:]), 1)
     week_end = week_date + dt.timedelta(days=6)
-    bounds = card['reply_rate']['entry_period']
     activity = card.get('activity_period')
-    activity_label = f"7-day activity: {esc(activity['start'])} to {esc(activity['end'])}" if activity else '7-day activity; dates unknown'
-    focus = esc(card['next_focus']) if card['next_focus'] else 'Choose the next focus in /analytics'
+    # The counts cover the activity window; show that range, else the ISO week.
+    period_line = f"Week: {esc(activity['start'])} to {esc(activity['end'])}" if activity else f"Week: {week_date.isoformat()} to {week_end.isoformat()}"
+    key = next((name for name, text in LABELS.items() if text == card['next_focus']), None)
+    focus = esc(FOCUS_HEADLINES.get(key, card['next_focus'])) if card['next_focus'] else 'Choose the next focus in /analytics'
+    pair = FOCUS_COUNTS.get(key)
+    counts = card.get('week_counts') or {}
+    if pair:
+        k, n = counts.get(pair[0]), counts.get(pair[1])
+        if number(k) and number(n) and n and k <= n:
+            focus_counts = f'<p class="meta">{fmt(k)} of {fmt(n)} {pair[2]}</p>'
+        else: focus_counts = ''
+    else: focus_counts = ''
     question_text = public_question_text(card)
     question = f'<p class="question">{esc(question_text)}</p>' if question_text else ''
     money = f'<p class="meta">New contract value this week <b>{fmt(card["won_value"])}</b></p>' if card['won_value'] is not None and sections().get('Share money', '').strip().casefold() == 'yes' else ''
     footer = 'Upwork Blueprint · example' if os.environ.get('BLUEPRINT_EXAMPLE_DATA') == '1' else 'Upwork Blueprint'
     return f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Weekly community card · {esc(card['week'])}</title>
 <style>{tokens}
-*{{box-sizing:border-box}}body{{margin:0;padding:32px 16px;background:var(--sand);color:var(--ink);font-family:var(--sans);font-variant-numeric:tabular-nums;display:flex;justify-content:center}}.card{{width:min(100%,600px);border-radius:24px;border-top:6px solid var(--terracotta);background:var(--ivory);padding:28px 38px 22px;box-shadow:0 8px 40px #14141312;overflow-wrap:anywhere}}.identity{{display:flex;justify-content:space-between;gap:16px;align-items:baseline}}h1{{font-family:var(--display);font-size:31px;font-weight:400;letter-spacing:-.5px;margin:0}}.week,.eyebrow,h2{{font-family:var(--mono);font-size:10px;color:var(--label);letter-spacing:.1em;text-transform:uppercase}}.week{{font-size:12px;white-space:nowrap}}.meta{{font-size:11px;line-height:1.45;color:var(--label);margin:5px 0}}.activity{{font-size:14px;color:var(--body);margin:5px 0}}.score{{font-size:16px;margin-top:10px}}.score small{{display:block;font-size:11px;color:var(--label)}}h2{{font-weight:400;margin:19px 0 8px}}.stage{{display:grid;grid-template-columns:94px minmax(0,1fr) 44px;gap:10px;align-items:center;min-height:27px}}.stage>span{{font-size:12px;color:var(--body)}}.stage>b{{font-family:var(--display);font-weight:400;font-size:21px}}.bar-track{{height:26px}}.bar-track i{{display:block;height:100%;background:var(--ink);border-radius:6px}}.rate{{border-left:2px solid var(--ring);margin:4px 0 7px 104px;padding-left:10px;font-size:11px;line-height:1.4;color:var(--body)}}.rate span{{display:block}}.rate small{{display:block;font-size:9px;color:var(--label)}}.rate.leak{{border-color:var(--terracotta)}}.rate.leak>span{{color:var(--terracotta-text)}}.goals{{list-style:none;margin:0;padding:0}}.goals li{{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0;font-size:13px}}.goals i{{font-style:normal}}.goals small{{font-size:10px;color:var(--label)}}.highlight{{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--terracotta-soft);border-radius:14px;padding:12px 16px;margin-top:16px}}.highlight-copy>.eyebrow{{display:block}}.highlight-copy>b{{display:block;font-family:var(--display);font-weight:400;font-size:22px;margin-top:4px}}.highlight small{{display:block;font-family:var(--sans);font-size:11px;color:var(--body);margin-top:4px}}.focus{{margin-top:12px;padding-top:12px;border-top:1px solid var(--ring)}}.focus h2{{margin:0 0 5px}}.focus>b{{font-family:var(--display);font-weight:400;font-size:21px}}.question{{font-size:14px;line-height:1.4;margin:5px 0 0}}.badge{{display:flex;align-items:center;gap:10px}}.badge img{{object-fit:contain}}.badge b,.badge small{{display:block;font-size:13px}}.badge small{{font-size:11px;color:var(--label)}}footer{{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--ring);margin-top:14px;padding-top:10px;font-family:var(--mono);font-size:10px;color:var(--label)}}@media(max-width:480px){{body{{padding:16px 12px}}.card{{padding:23px 20px 18px}}h1{{font-size:28px}}.stage{{grid-template-columns:78px minmax(0,1fr) 35px;gap:8px}}.stage>span{{font-size:11px}}.rate{{margin-left:86px}}.goals li{{grid-template-columns:18px minmax(0,1fr)}}.goals small{{grid-column:2}}.week{{font-size:10px}}}}
+*{{box-sizing:border-box}}body{{margin:0;padding:32px 16px;background:var(--sand);color:var(--ink);font-family:var(--sans);font-variant-numeric:tabular-nums;display:flex;justify-content:center}}.card{{width:min(100%,600px);border-radius:24px;border-top:6px solid var(--terracotta);background:var(--ivory);padding:28px 38px 22px;box-shadow:0 8px 40px #14141312;overflow-wrap:anywhere}}.identity{{display:flex;justify-content:space-between;gap:16px;align-items:baseline}}h1{{font-family:var(--display);font-size:31px;font-weight:400;letter-spacing:-.5px;margin:0}}.week,.eyebrow,h2{{font-family:var(--mono);font-size:10px;color:var(--label);letter-spacing:.1em;text-transform:uppercase}}.week{{font-size:12px;white-space:nowrap}}.meta{{font-size:11px;line-height:1.45;color:var(--label);margin:5px 0}}.activity{{font-size:14px;color:var(--body);margin:5px 0}}.score{{font-size:16px;margin-top:10px}}.score small{{display:block;font-size:11px;color:var(--label)}}h2{{font-weight:400;margin:19px 0 8px}}.stage{{display:grid;grid-template-columns:94px minmax(0,1fr) 44px;gap:10px;align-items:center;min-height:27px}}.stage>span{{font-size:12px;color:var(--body)}}.stage>b{{font-family:var(--display);font-weight:400;font-size:21px}}.bar-track{{height:26px}}.bar-track i{{display:block;height:100%;background:var(--ink);border-radius:6px}}.rate{{border-left:2px solid var(--ring);margin:4px 0 7px 104px;padding-left:10px;font-size:11px;line-height:1.4;color:var(--body)}}.rate span{{display:block}}.rate small{{display:block;font-size:9px;color:var(--label)}}.rate.leak{{border-color:var(--terracotta)}}.rate.leak>span{{color:var(--terracotta-text)}}.goals{{list-style:none;margin:0;padding:0}}.goals li{{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0;font-size:13px}}.goals i{{font-style:normal}}.goals small{{font-size:10px;color:var(--label)}}.highlight{{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--terracotta-soft);border-radius:14px;padding:12px 16px;margin-top:16px}}.highlight-copy>.eyebrow{{display:block}}.highlight-copy>b{{display:block;font-family:var(--display);font-weight:400;font-size:22px;margin-top:4px}}.highlight small{{display:block;font-family:var(--sans);font-size:11px;color:var(--body);margin-top:4px}}.focus{{margin-top:12px;padding-top:12px;border-top:1px solid var(--ring)}}.focus h2{{margin:0 0 5px}}.focus>b{{font-family:var(--display);font-weight:400;font-size:21px}}.question{{font-size:14px;line-height:1.4;margin:5px 0 0}}.badge{{display:flex;align-items:center;gap:10px}}.badge img{{object-fit:contain}}.badge b,.badge small{{display:block;font-size:13px}}.badge .short{{font-size:11px;line-height:1.35;color:var(--body);margin-top:2px}}.badge small{{font-size:11px;color:var(--label)}}footer{{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--ring);margin-top:14px;padding-top:10px;font-family:var(--mono);font-size:10px;color:var(--label)}}@media(max-width:480px){{body{{padding:16px 12px}}.card{{padding:23px 20px 18px}}h1{{font-size:28px}}.stage{{grid-template-columns:78px minmax(0,1fr) 35px;gap:8px}}.stage>span{{font-size:11px}}.rate{{margin-left:86px}}.goals li{{grid-template-columns:18px minmax(0,1fr)}}.goals small{{grid-column:2}}.week{{font-size:10px}}}}
 </style><main class="card"><header><div class="identity"><h1>{esc(card.get('member_name') or 'Weekly progress')}</h1><span class="week">{esc(card['week'])}</span></div>
-<p class="activity">{fmt(card['applications'])} Applications this week</p><p class="meta">Week: {week_date.isoformat()} to {week_end.isoformat()} · {activity_label}</p><div class="score">{esc(score_text)}{baseline}{rank_html}</div></header>
-<h2>Funnel · 28 days</h2><p class="meta">{esc(bounds['start'])} to {esc(bounds['end'])} · Same 28 days</p><div class="funnel">{''.join(funnel)}</div><p class="meta">Each row counts when that step started. Later results are counted for a fixed number of days.</p>
-<h2>Last agreed goals</h2>{goals_html}<div class="highlight"><div class="highlight-copy"><span class="eyebrow">Biggest improvement</span><b>{change}</b></div>{badge_html}</div>{accountability_html}{money}
-<div class="focus"><h2>Next focus</h2><b>{focus}</b>{question}</div><footer><span>{footer}</span></footer></main></html>'''
+<p class="activity">{fmt(card['applications'])} Applications this week</p><p class="meta">{period_line}</p><div class="score">{esc(score_text)}{baseline}{rank_html}</div></header>
+{funnel_html}
+<h2>Last agreed goals</h2>{goals_html}<div class="highlight">{improvement_html}{badge_html}</div>{accountability_html}{money}
+<div class="focus"><h2>Next focus</h2><b>{focus}</b>{focus_counts}{question}</div><footer><span>{footer}</span></footer></main></html>'''
 
 
 def onepager(file, week=None, output=None):

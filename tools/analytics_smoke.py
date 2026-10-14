@@ -116,7 +116,8 @@ def browser_smoke():
                             tab(index); label=f'tab{index}/{width}'
                             if index==1:
                                 sections=page.locator('.an-review-section')
-                                check(sections.count()==4,label+': four conversation sections missing')
+                                check(sections.count()==2,label+': chat and call sections missing')
+                                check(page.locator('.an-review-section a[href*="upwork.com/jobs"], .an-review-section [data-lead-id]').count()==0,label+': lead links in conversations')
                                 for section in sections.all():
                                     check(section.locator('.an-criteria').count()==1,label+': criteria missing')
                                     check(section.locator('.an-criterion-bar').count()>0,label+': criteria chart missing')

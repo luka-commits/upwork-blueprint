@@ -95,10 +95,17 @@ def write_site(folder, pages, current_id):
     api = folder / 'api'
     api.mkdir(exist_ok=True)
     shutil.copy2(ROOT / 'api' / 'go.js', api / 'go.js')
+    from pipeline import load
+    aliases = {job['id']: job.get('aliases', []) for job in load()}
     registry = {}
     for path in jobs_dir().glob('*/tracking-links.json'):
         if re.fullmatch(r'[0-9]{6,25}', path.parent.name):
-            registry[path.parent.name] = json.loads(path.read_text(encoding='utf-8'))
+            registered = json.loads(path.read_text(encoding='utf-8'))
+            registry[path.parent.name] = registered
+            # Reconciliation changes the local ID, never an already issued route.
+            for alias in aliases.get(path.parent.name, []):
+                if isinstance(alias, str) and re.fullmatch(r'[0-9]{6,25}', alias):
+                    registry[alias] = registered
     (api / '_tracking-links.json').write_text(json.dumps(registry), encoding='utf-8')
     (folder / 'vercel.json').write_text(json.dumps({
         'cleanUrls': True,
@@ -210,18 +217,8 @@ def publish(job_id):
                 abort(f'the previously published pitch {published_id} failed its gate: ' + '; '.join(old_problems))
             pages[published_id] = published
 
-    for record in records:
-        proposal_id = str(record.get('id') or '')
-        proposal = jobs_dir() / proposal_id / 'proposal.html'
-        registry = jobs_dir() / proposal_id / 'tracking-links.json'
-        if proposal.is_file() and registry.is_file():
-            links = json.loads(registry.read_text(encoding='utf-8'))
-            if any(urllib.parse.urlparse(link.get('target', '')).path == f'/{proposal_id}/proposal'
-                   for link in links.values()):
-                problems = pitch_check.check_page(proposal)
-                if problems:
-                    abort(f'the proposal {proposal_id} failed its gate: ' + '; '.join(problems))
-                pages[f'{proposal_id}/proposal'] = proposal
+    # A tracking target is not publication permission. Post-call proposals remain
+    # local; pitch publication never includes them, even for a matching route.
 
     vercel = shutil.which('vercel')
     if not vercel:

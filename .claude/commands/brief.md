@@ -49,7 +49,7 @@ The status filter is unreliable: classify each returned status.
    For selected contracts missing saved terms, `list_contracts action=get`: fixed
    `terms.fixedPriceTerms[].fixedAmount`, or returned hourly terms; keep type, amount,
    currency and start date. Read weekly `get_freelancer_financials action=summary`
-   since last sync (current week on first sync), and `action=connects_balance`
+   for the current and previous four weeks on every refresh (to reconcile corrections), and `action=connects_balance`
    transactions paged only back to last sync (one page on first sync). Use fresh
    local state first; state the call budget and stop when covered. Missing reads are gaps.
 4. Refresh every selected thread by stored `room_id`, even when its proposal was not listed.
@@ -60,30 +60,38 @@ The status filter is unreliable: classify each returned status.
 5. For every selected room in the call stage or carrying a meeting card, read
    `manage_meetings action=list` and `action=list_recaps`, reusing fresh local evidence first.
    State the planned call budget, follow `references/upwork.md` pacing, and stop once covered.
-   These are read actions only. Preserve booked start time as `booked_at`; from recaps keep
+   These are read actions only. Preserve meeting start as `scheduled_at`; `booked_at`
+   is the verified booking agreement time, omitted when unknown. From recaps keep
    `session_id`, `held_at` and `duration_s`. A missing recap alone does not establish a no-show.
 
 ## Step 2 · Apply it
 
 Write one JSON object as the docstring of `code/sync.py` describes (proposals with
 `job_id`, `proposal_id`, `room_id`, `title`, `url`, `status` and `applied_at` when returned; `no_rooms` with only job
-ids checked this run; offers with `offer_id`, `state`; contracts with `contract_id`, `status`; both with `client_name`; threads
+ids checked this run; offers with `offer_id`, `state`, verified `offered_at`; contracts with `contract_id`,
+`status`, verified `started_at` (omit unknown event times); both with `client_name`; threads
 with `job_id`, `room_id`, `awaiting_reply_from`, `messages_complete` and the messages as
 `from` client or me, `name`, `at`, `text`, oldest first), then:
 
-Add `invitations`, contract `terms: {type, fixed_amount|hourly_rate, currency, start_date}`,
+Add `invitations`, contract `terms: {type, fixed_amount|hourly_rate, weekly_hours, currency, start_date}`
+(`weekly_hours` only when agreed; a rate alone has unknown contract value),
 `earnings: [{week_start, contract_id, billed, currency}]` and
 `connects: [{at, amount, reason, job_id}]` as returned. Connects map
 `createdDateTime`, `amount.rawValue`, verbatim `reason` and `jobPost`'s ID only;
 financial records keep numbers and identifiers, no job/client text.
-Add `meetings: [{job_id, room_id, booked_at, session_id, held_at, duration_s}]`
+Add `meetings: [{job_id, room_id, booked_at, scheduled_at, session_id, held_at, duration_s}]`
 from the selected rooms. Sync observes booked and held times with source `upwork-meeting`.
 
 `python3 code/sync.py apply --file -`
 
+A nonzero result leaves the refresh failed: report its mutation errors and retain
+the previous successful timestamp; never claim fresh coverage from a partial write.
+
 It moves jobs only forward, adds proposals submitted on Upwork, saves each thread, lists applications with no room after 14 full days as stale (ask the member about Lost, never set it yourself), turns a waiting client into a follow-up due today and records the sync time. Then `python3 code/pipeline.py prune`.
 First-sync creations are imported history, excluded from funnel and application counts;
-an imported Hired proposal does not ask for a handover. Unmatched offers and contracts are imported too.
+an imported Hired proposal does not ask for a handover. Unmatched historical offers and contracts are imported only on first sync; verified
+post-onboarding invitations, offers and contracts are live leads, with origin unknown
+unless affirmative source evidence identifies it.
 
 ## Step 3 · Where every lead stands
 
@@ -118,10 +126,12 @@ Name the moment, because it decides the next command:
   does not. When the thread names a date, add `--call-at <YYYY-MM-DD>`: until that
   day the lead is left alone, and after a held call its task is the one-pager,
   `/sales-call-proposal <id> <transcript path or notes>`.
-  Record an agreed time with `pipeline.py observe <id> call_booked <zoned ISO time>
-  --source upwork-thread --verified`; an Upwork recap, eligible recorder evidence or
+  Record agreement time as `call_booked`; record the scheduled meeting start separately
+  as `call_scheduled_at`. A reschedule replaces the pending session, preserving the
+  original booking event. Use zoned verified timestamps; an Upwork recap, eligible recorder evidence or
   member confirmation writes `call_held`. Check `pipeline.py summary` for `no_show_candidate` after 24 h;
-  only on member confirmation record `{"call_no_show":true}` through `pipeline.py record`.
+  only on member confirmation record `{"call_no_show":true}` through `pipeline.py record`;
+  a later held session clears the current no-show flag.
 - **Nothing was scheduled and the client owes an answer:** sync plans the `silent` lane on business days 3 and 7 after the unanswered message, then stops. Use `--follow-up` only for a date the conversation gives, such as "call me after the 12th".
 - **A call is requested:** the drafts confirm a time on Upwork.
 - **An offer arrived:** the drafts answer open questions only; the member reviews the offer terms on Upwork. **Read `jobs/<id>/proposal.md` when it exists**; a draft must not contradict the scope, price and milestones already sent.

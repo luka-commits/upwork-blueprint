@@ -63,11 +63,14 @@ def clean_hit(row):
 
 def sync_hits(rows, job_id=None):
     jobs = {job['id']: job for job in pipeline.load()}
+    aliases = {alias: job['id'] for job in jobs.values() for alias in job.get('aliases', [])}
+    job_id = aliases.get(job_id, job_id)
     grouped = {}
     for row in rows:
         row = clean_hit(row)
-        if row['job'] in jobs and (job_id is None or row['job'] == job_id):
-            grouped.setdefault(row['job'], []).append(row)
+        canonical_id = aliases.get(row['job'], row['job'])
+        if canonical_id in jobs and (job_id is None or canonical_id == job_id):
+            grouped.setdefault(canonical_id, []).append(row)
     synced = 0
     for jid, hits in grouped.items():
         folder = pipeline.jobs_dir() / jid

@@ -9,7 +9,7 @@ Counts what can be counted, on the cover letter alone (screening answers after a
     at most 140 words            a compact pitch, not a method essay
     none of the generic phrases   the tells that mark a letter as a template
     no em-dashes                  the fastest tell of machine writing
-    the saved Loom or YouTube URL the application links to the finished video
+    optional Loom or YouTube URL verified only when the job requires a video
 
 A video link counts only on an exact host, loom.com or youtube.com with or without
 www., and a non-empty path. "loom.com.example.test" is somebody else's domain.
@@ -125,16 +125,16 @@ def pc_contacts(text):
     return problems
 
 
-def check(text, job_title='', proof_text='', ready=False):
+def check(text, job_title='', proof_text='', ready=False, modality='text', video_required=False):
     letter, screening = split_letter(text)
     letter = letter_body(letter)
     low = letter.lower()
     fails, notes = [], []
     words = len(re.findall(r"\b[\w'$%+-]+\b", letter))
-    if words > MAX_WORDS:
+    if modality == 'text' and words > MAX_WORDS:
         fails.append(f'cover letter is {words} words, the cap is {MAX_WORDS}: cut {words - MAX_WORDS}')
     if not words:
-        fails.append('the cover letter is empty')
+        fails.append('the submitted Uma answers are empty' if modality == 'uma' else 'the cover letter is empty')
     authored = '\n'.join(line for line in text.splitlines() if not re.match(r'^\s*#', line))
     hits = [b for b in BANNED if b in authored.lower()]
     if hits:
@@ -145,8 +145,10 @@ def check(text, job_title='', proof_text='', ready=False):
     # refuses them just as the pitch-page gate does.
     for problem in pc_contacts(text):
         fails.append(problem)
-    if not has_video(letter) and LOOM_PLACEHOLDER not in letter:
-        fails.append('no Loom or YouTube link: include the walkthrough URL or the [LOOM LINK] placeholder')
+    if modality not in ('text', 'uma'):
+        fails.append('unknown application modality')
+    if video_required and not has_video(letter) and LOOM_PLACEHOLDER not in letter:
+        fails.append('required video missing: include the walkthrough URL or the [LOOM LINK] placeholder')
     # The placeholder is correct while the letter is being written and wrong the moment
     # it is pasted: a client who reads "[LOOM LINK]" learns that nobody read it back.
     # Only the submit check refuses it, so writing stays possible before the Loom exists.
@@ -155,10 +157,10 @@ def check(text, job_title='', proof_text='', ready=False):
                      'walkthrough URL before you submit')
     card = ' '.join(re.findall(r"\b[\w'$%+-]+\b", letter)[:CARD_WORDS]).lower()
     spent = [p for p in FILLER_OPENERS if re.search(p, card)]
-    if spent:
+    if spent and modality == 'text':
         fails.append(f'the first {CARD_WORDS} words are all the client sees on the applicant card, '
                      f'and they open with filler: {", ".join(repr(p) for p in spent)}')
-    if job_title:
+    if job_title and modality == 'text':
         own = [w for w in re.findall(r"[\w']+", job_title.lower()) if len(w) > 3]
         if own and not any(w in card for w in own):
             notes.append(f'none of this job\'s own words appear in the first {CARD_WORDS} words, '
@@ -182,6 +184,8 @@ def main(argv=None):
     ap.add_argument('draft')
     ap.add_argument('--job-title', default='')
     ap.add_argument('--proof', default=str(ROOT / 'context' / 'me.md'))
+    ap.add_argument('--modality', choices=('text', 'uma'), default='text')
+    ap.add_argument('--video-required', action='store_true')
     ap.add_argument('--ready', action='store_true',
                     help='check the letter as it will be pasted: the Loom placeholder is then a failure')
     args = ap.parse_args(argv)
@@ -190,7 +194,7 @@ def main(argv=None):
     fails, notes, eye, words, has_screening = check(
         text, args.job_title,
         context_check.proof_only(proof.read_text(encoding='utf-8')) if proof.is_file() else '',
-        ready=args.ready)
+        ready=args.ready, modality=args.modality, video_required=args.video_required)
     for n in notes:
         print(f'note  {n}')
     for f in fails:

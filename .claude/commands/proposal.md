@@ -1,18 +1,28 @@
 ---
-description: Builds a one-page pitch site for one job and the application to submit with your Loom: cover letter and bid.
+description: Prepares the job’s required application: text/proof or Uma interview; optional pitch page and Loom.
 argument-hint: "<job id> [more job ids] | <job id> submitted"
 ---
 
 # /proposal
 
-**`/proposal <id> submitted`:** run `python3 code/pipeline.py sent <id>` (if it reports the
-letter missing, say so and go on), then `python3 code/pipeline.py set <id> applied`
+**`/proposal <id> submitted`:** obtain the actual submitted copy, screening answers
+and bid, or explicit confirmation that each matches the approved draft. Only then run
+`python3 code/pipeline.py sent <id> --confirmed-match` (or `--file <submitted-copy>`),
+then `python3 code/pipeline.py set <id> applied`
 and report `Upwork calls: 0`, then stop before any other step. It records the member's submission.
 
 **Several ids run one after another.** Each page gets its own sketch, its own approval and its own publish: the repetition is the command's, never the member's yes.
 
 Follow `references/copy.md` for the page and application. The
 member described in `context/me.md` is the sender.
+
+Choose `application_modality: text|uma` from the job's actual submission route and
+record it through `pipeline.py record <id> --file -` with
+`{"application_modality":"text"}` or `{"application_modality":"uma"}`. Uma replaces the cover letter: prepare its requested
+answers/video and check those requirements; never invent a cover-letter obligation.
+For text, a concise application with relevant proof is sufficient. Loom and a bespoke
+page are optional, justified by job requirements, deal value and preparation cost.
+If neither is needed, go directly to the Application step. If requested, build:
 
 One page that makes a client stop scrolling: a headline about their job, three
 proofs, their system drawn as a diagram they can drag and edit, the short
@@ -21,7 +31,7 @@ through this page comes after it. The application includes a cover letter, bid a
 
 Read first: [references/upwork.md](../../references/upwork.md) (hard constraint 8, no contact route on a page before a contract), `context/me.md`.
 
-Before Step 1, if `jobs/<id>/pitch.html` exists, run
+For the chosen optional page route only, before Step 1, if `jobs/<id>/pitch.html` exists, run
 `python3 code/pitch_check.py page jobs/<id>/pitch.html`. When it passes, keep
 that page and skip building it again. Check the pipeline record for a
 `pitch_url`: with one, go straight to the Application step. Without one the page
@@ -31,6 +41,8 @@ a client has to be able to open.
 ## Step 1 · The job and its full posting
 
 `python3 code/pipeline.py get $ARGUMENTS`. The posting is in `details.description`. No posting there (older than a day, or never opened): `find_jobs` action `get` for this one job, then `python3 code/jobs.py detail <id> <file>` as `/find-jobs` Step 6 does. Never build from the summary: the diagram is drawn from the requirements, and the summary does not carry them.
+
+Steps 2–7 apply only when the member chose a pitch page. Otherwise skip to Step 8.
 
 ## Step 2 · Which page is this
 
@@ -200,6 +212,12 @@ Publishing is part of this command. A missing Vercel CLI or authentication is a 
 
 ## Step 8 · Application
 
+For Uma, prepare requested interview answers/video in `application.md`; skip the
+cover-letter structure below. Run the gate with `--modality uma`, then verify each
+requested answer and the member’s actual submitted video. For text, follow the
+cover-letter structure and run with `--modality text`. Add `--video-required` only
+when the job explicitly requires an external video; omit page/video links when unused.
+
 Use the full posting from Step 1 and `references/copy.md` for
 every line the client will read. The member reviews and submits the proposal
 on Upwork themselves. Prepare the cover letter, screening answers when the
@@ -228,7 +246,7 @@ Write a compact pitch, normally 65 to 120 words and never more than 140 words,
 in the member's voice, with no em-dashes. Use four short blocks:
 
 1. One sentence on why the member fits this exact job and outcome.
-2. One sentence inviting the client to watch the walkthrough, with the literal [LOOM LINK] placeholder.
+2. Only when a walkthrough was chosen, invite the client to watch it with the literal [LOOM LINK] placeholder; otherwise one relevant proof sentence.
 3. One or two short, relevant examples from the evidence sections of `context/me.md`. Never stretch unrelated proof to fill space.
 4. One specific next question or ask on Upwork.
 
@@ -266,7 +284,7 @@ Record the member-approved bid amount through
 
 ### The gate
 
-`python3 code/application_check.py jobs/<id>/application.md --job-title "<exact job title>"`. Exit 1 means fix it. Then read it once as the client would: does it answer their post, or could it sit under any other job?
+`python3 code/application_check.py jobs/<id>/application.md --modality <text|uma> --job-title "<exact job title>"` (plus `--video-required` only when required). Exit 1 means fix it. Then read it once as the client would: does it answer their post, or could it sit under any other job?
 
 ### Manual handoff
 
@@ -276,7 +294,7 @@ fields, reviews Upwork's final cost and submits the proposal on Upwork
 themselves.
 
 **Before they paste, run `python3 code/application_check.py jobs/<id>/application.md
---ready`.** Same gate, one more refusal: the `[LOOM LINK]` placeholder, correct while the
+--ready --modality <text|uma>`.** Same gate, one more refusal: the `[LOOM LINK]` placeholder, correct while the
 letter is written and wrong the moment it is pasted.
 
 Never mark Applied until the member submits on Upwork, then runs `/proposal <id> submitted`.
@@ -284,9 +302,9 @@ That stage rests on their word; `/brief` checks once if no proposal ever shows u
 
 ## Step 9 · Report
 
-Run `python3 code/pipeline.py prune` first, because Step 1 fetched the full job. Then the completion report as CLAUDE.md defines it, with the public page and
-application linked. Say what the application costs in Connects and what the balance leaves.
-Next: record the Loom and return its URL here; add it to the page and replace [LOOM LINK] in the letter.
+Run `python3 code/pipeline.py prune` first, because Step 1 fetched the full job. Then the completion report as CLAUDE.md defines it, with the application linked and the public page only when one was built. Say what the application costs in Connects and what the balance leaves.
+Only when a Loom was agreed: record it and return its URL here; add it to the page and replace [LOOM LINK] in the letter.
+The remaining video/page steps apply only when those artifacts were chosen.
 On the recorded URL, run `python3 code/loom.py <id> <url>`. Missing tools or a model:
 say its install line and continue. When `jobs/<id>/loom.md` exists, read it for the
 reasoned hook check: problem named within 15 s and one ask at the end. Record

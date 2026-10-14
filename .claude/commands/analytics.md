@@ -1,5 +1,5 @@
 ---
-description: Your weekly Upwork coaching loop: checks last week's goals, measures the funnel, finds this week's focus and agrees three commitments with you.
+description: Your weekly Upwork coaching loop: checks last week's goals, measures the funnel, finds this week's focus and agrees one to three commitments with you.
 ---
 
 # /analytics
@@ -13,8 +13,8 @@ the snapshot contract; use its complete compute object as the shape. For connect
 
 ## ROADMAP
 
-WHAT HAPPENS: refresh the evidence, check last week's commitments, measure this week's focus and propose three goals. Allow about fifteen minutes, plus the conversation.
-I NEED FROM YOU: missing call evidence, any tool-install yes and agreement on the three goals before they are saved.
+WHAT HAPPENS: refresh the evidence, check last week's commitments, measure this week's focus and propose one to three goals. First-run preparation can take longer; routine checks have no measured duration claim.
+I NEED FROM YOU: missing call evidence, any tool-install yes and agreement on one to three goals before they are saved.
 WHAT MIGHT GO WRONG: missing sources leave affected checks unmeasurable; small cohorts may not be decidable yet. The coaching still runs.
 
 ## Step 1 · Setup and sync, inside this command
@@ -22,7 +22,7 @@ WHAT MIGHT GO WRONG: missing sources leave affected checks unmeasurable; small c
 Run `python3 code/workspace.py`. Read `data/sync.json` and check the connector with
 `list_accounts`. If unreachable, walk through README's connection steps; preserve the
 available evidence and name the source gap. If the last sync is absent or older than
-24 hours, carry out `/brief` Steps 1–2 (read and sync only, no drafts or sends).
+24 hours at the actual zoned run time (reject future sync stamps), carry out `/brief` Steps 1–2 (read and sync only, no drafts or sends).
 Use saved state when fresh; count every Upwork call.
 
 **First analytics run:** backfill what the connector can actually enumerate: proposals,
@@ -36,7 +36,8 @@ the current writer: preserve them and name that backfill limitation in coverage.
 Preserve observed entry dates when known; never infer them from current stages.
 Imported leads feed won value and baselines only, never rate cohorts or weekly applications.
 Pass earnings and Connects to `sync.py apply --file -` in its documented number-and-ID
-shapes. An absent ledger is missing, never an empty ledger invented to mean zero.
+shapes. An omitted/unreachable source is missing. A verified checked-empty result is an
+explicit empty list; sync records it as empty, with checked coverage.
 
 Check `yt-dlp`, `whisper-cli` and `code/loom.py`'s `find_model()`. If absent, show the
 applicable install line: `brew install yt-dlp whisper.cpp`; for the model use
@@ -48,7 +49,7 @@ For calls, use Upwork first: saved meeting sessions or `manage_meetings action=l
 then `action=get_full_transcript` for each room/session, every page by offset. These
 are read actions; count and pace them under `references/upwork.md`. Normalise the page
 set with `python3 code/call_stats.py <id> --transcript-json - --call-at <ISO time>
---duration-s <seconds> --member "<known member speaker>" --source upwork-meeting`
+--duration-s <seconds> --member "<known member speaker>" --source upwork-meeting --complete <yes|no> --language <verified-language>`
 (omit unknown headers). It writes
 `jobs/<id>/call.md` with one `Speaker: line` per segment and derives the call stats.
 Only when no Upwork transcript exists, and for Enterprise clients or calls after a
@@ -75,16 +76,19 @@ numeric source. It supplies activity (seven days), mature cohorts (28 days), out
 the own benchmark, source coverage, lead IDs and last week's goals.
 Rates pool successes and eligible cases; unknown entry dates never enter a cohort.
 Outcome rates (KPIs 3–9) collect weeks 1–4 without a rate verdict, then target the next
-rung; `## Bars` changes only the top rung. Levers 10–14 keep fixed strict targets from
-day one. The focus is the first outcome decidably below its rung, or its failing feeding
-lever: reply rate ← speed; reply → call ← first reply or follow-ups; held → proposal ←
+rung; `## Bars` changes only the top rung. Levers 10–14 start with reasoned defaults, adjustable through `## Bars` to
+feasible availability, promised deadlines and dependencies. A speed miss is a
+coaching candidate; require case evidence before claiming it caused lost revenue. The focus is the decidably failing stage with the largest lost revenue:
+(target − rate) × n × own downstream conversion to won × average won value. Ties
+and missing values fall back to funnel order. Its failing feeding levers come first: reply rate ← speed; reply → call ← first reply or follow-ups; held → proposal ←
 proposal speed. Earlier missing or undecided stages stay in `undecided_before`. When
 the funnel is not decidable yet, use the measured lever and returned `cases_needed`.
 No new segment findings or expectation tests: KPIs 20–21 say “nothing new” until package 4.
 
 Read each evidence lead with `python3 code/pipeline.py get <id>`, its sent application,
-thread, Loom transcript, call and sent proposal where relevant. Inspect all recent
-cases behind a pattern, not one convenient example. Missing or pruned evidence is a gap.
+thread, Loom transcript, call and sent proposal where relevant. On the first run, prepare the evidence inventory. On routine runs, review at most
+five cases for the chosen focus plus urgent exceptions; disclose the sampled IDs
+and unreviewed coverage. Inspect all cases only to verify a claimed repeated pattern. Missing or pruned evidence is a gap.
 
 ## Step 3 · Review and accountability
 
@@ -94,16 +98,22 @@ cases behind a pattern, not one convenient example. Missing or pruned evidence i
 Use compact JSON and the actual judgment, within the note's 1,000-character limit.
 This tagged note is the assessment transport; never write `data/jobs.json` directly.
 
-**Application review:** read `jobs/<id>/application.sent.md` and Loom if any. Every point
+**Application review:** read verified `jobs/<id>/application.sent.md`, submitted
+answers and bid; check `application_modality`. For `uma`, review submitted
+interview answers/video against requested questions, not a cover-letter rubric.
+Loom and a bespoke site are optional when justified by requirements, value and
+preparation cost. Read Loom only if used. Every point
 is `met | partly | missing` with a supporting quote: first sentence names the posted
 problem in the client's words; one matching proof; every screening question answered
 specifically; bid fits scope; under about 150 words; one easy closing question; Loom,
-if present, names the problem within fifteen seconds and ends with one ask. Pick the
-most often missing point across the week's applications and rewrite one first sentence
-as the example. Treat missing sent copy as missing evidence, not a failed application.
-Pass `reviews.application.rubric` in the same per-lead shape as the call rubric below:
-points 1–6 follow the six application checks above, and point 7 is the Loom check
-only when used. States are `met | partly | missing`. A reviewable lead needs its
+if present, names the problem within fifteen seconds and ends with one ask. Prioritise consequential eligibility blockers, then recurring defects. Repair the
+actual artifact that failed: screening answer, proof, bid/scope, opener or video close;
+never rewrite an opener for an unrelated defect. Treat missing sent copy as missing evidence, not a failed application.
+Pass `reviews.application.rubric` in the same per-lead shape as the call rubric below.
+For text, points 1–6 follow the six application checks above; point 7 is Loom only
+when used. For Uma, points 1–3 mean requested questions covered, submitted answers
+are relevant and evidenced, and the submitted video meets the requested format.
+Judge the actual interview artifacts; text/Loom checks do not apply. States are `met | partly | missing`. A reviewable lead needs its
 sent copy; otherwise `reviewable: false` and `points: []`. Code derives point coverage.
 
 **Conversation review:** read the saved threads oldest first. Check whether the member
@@ -112,7 +122,10 @@ step and completed due silent-lane follow-ups. Give one evidenced fix and one ex
 **Proposal review:** compare the sent proposal with the held call's agreement: outcome,
 scope, price, owner and next step. Give one evidenced fix and one example.
 
-**Call review:** without complete speaker labels, say “not reviewable”. Otherwise
+**Call review:** preserve verified member identity, language and source completeness.
+An excerpt or omitted language segment cannot support a whole-call verdict; unsupported
+points stay unknown and the call stays not reviewable until gaps are supplied.
+Without complete speaker labels, say “not reviewable”. Otherwise
 judge all nine points `met | partly | missing | not needed`, each with a quote from
 `jobs/<id>/call.md`. Information already established in the thread or post can satisfy
 a point; cite that source too and never penalise the member for not asking twice.
@@ -126,7 +139,10 @@ a point; cite that source too and never penalise the member for not asking twice
 8. Objections actively invited, and handled when raised.
 9. Next step with owner, time and the client's yes.
 
-A clean “not a fit” is a disqualification, never a bad call. Choose the weekly fix
+Record qualification through `pipeline.py record <id> --file -`: `call_outcome` is
+`proposal_required|disqualified|direct_win|unresolved`, with `proposal_required`
+true only for an agreed proposal obligation. A clean “not a fit” is a disqualification,
+never a bad call; it and proposal-free offers/contracts leave proposal denominators. Choose the weekly fix
 from the recent calls' pattern in priority 3, 5, 9, then the rest; give one sentence
 to say next time. Pass `reviews.call.rubric` as one object per call:
 `{"lead_id":"<id>","reviewable":true,"points":[{"point":1,"state":"met"}, ...]}`,
@@ -141,7 +157,9 @@ client's reason. Use `pipeline.py note <id> 'analytics lost_reason: {"kind":"sta
 done or undone. Pass each goal's `evidence_lead_ids` (all eligible leads) and
 `done_lead_ids` (its completed subset), so code derives `done_k` and `done_n`.
 Execution is `done_k of done_n`; outcome comes from code's KPI before
-and after the goal start (`worked | not | undecided`). Decide `keep | adjust | stop`.
+and after the goal start (`worked | not | undecided`: observed improvement, decline, or unresolved change), separately
+from target attainment. An observed change is association, never proof of causation.
+Review every unresolved goal due by today, including goals from missed weeks. Decide `keep | adjust | stop`.
 If a commitment went undone two weeks running, say so and offer its simpler fallback.
 
 Re-run `python3 code/analytics.py compute --file -` after all observations and
@@ -161,10 +179,11 @@ or state by hand. Omit live judgments for sources whose computed coverage is cor
 Write a short conversational markdown summary, at most about 25 lines, along four beats:
 1. What happened: last week's commitments, execution and effect separately; any new badge tier.
 2. Where you stand: “This week's focus”, one number against its target, own benchmark
-   and earlier undecided stages. Name the periods; keep money in won value.
+   and earlier undecided stages. Name the periods; new contract value won is the
+   north star, billed earnings are separate and unknown terms stay unknown.
 3. Why: one insight with a clickable link to its evidence; one coaching example when useful.
    New segment findings remain “Nothing new this week” until package 4.
-4. What now: the one action and urgent to-dos, then three goals for different stages.
+4. What now: the one action and urgent to-dos, then one to three goals for different stages.
 Follow with suggested questions the evidence can answer. No charts or wall of tables.
 
 Answer first, mention each stage once, retain only what serves the verdict. Counts
@@ -174,18 +193,17 @@ cases needed when a rate is undecided. Quote evidence in follow-ups and name its
 
 ## Step 5 · Agree and put the goals into practice
 
-Offer goals that worked for this member before the library; propose from the library
+Offer goals with supported observed improvement for this member before the library; propose from the library
 first otherwise, and add at most one original commitment. Each has `stage`, `kpi`,
-`change`, `start`, `cue`, `action`, `fallback`, `review_on` and `primary`. Three different
-stages, exactly one primary for the focus. When there is no confirmed bottleneck, use
-the closest-to-failing stage or the lever named by compute. Agree the three with the
+`change`, `start`, `cue`, `action`, `fallback`, `review_on` and `primary`. One to three different stages, exactly one primary for the focus. When there is no confirmed bottleneck, use
+the closest-to-failing stage or the lever named by compute. Agree one to three with the
 member, then help implement them (a reply template or call opener), without sending.
 
 After agreement, pass exactly those goals, with the current `week`, to
 `python3 code/analytics.py goals add --file -`. It refuses repeated stages. A dismissed
 question or no answer leaves the goals proposed; do not save agreement that did not happen.
 
-The payload is `{"week":"<ISO week>","goals":[<the three commitment objects>]}`;
+The payload is `{"week":"<ISO week>","goals":[<the one to three commitment objects>]}`;
 each object has the fields above, dates as `YYYY-MM-DD` and `primary` as a boolean.
 
 ## Step 6 · Record and read back
@@ -210,16 +228,20 @@ and only enter a KPI's evidence details as `external_reference` with value,
 population, definition, source and date. A `market_line` (at most 8 words, including
 the source name) may summarise only that verified reference, never become a target tick.
 
-Claude writes `community_card.next_focus` as a stage label and `community_card.question`
-as one question (at most 14 words) from this week's verdict and situation, every week.
+Use only code-approved fixed labels for `community_card.next_focus` and
+`community_card.question` (at most 14 words). The public payload accepts only
+allowlisted aggregates, fixed labels, the member's own name, library/member-authored
+goal texts and badge names; never client names, job titles, client text or snapshot
+embeds. Record refuses unapproved public fields and wording.
 Preserve the card's default targets: reply 20%, reply → call 50%, call → won 30%, first
 reply median 5 min, regardless of `## Bars`. Applications show this week; rates and
-first reply use the same 28-day comparison window for everyone. Preserve
-retain rung reached, step count, own previous-four-week trend, last week's three goals
+first reply show their computed 28-day entry periods with each KPI’s declared
+maturity horizon, route and k/n. Peer rates do not adjust for job mix or price. Preserve
+retain rung reached, step count, own previous-four-week trend, last week's applicable goals
 with done marks, newly earned badge and at most five highest badge tiers.
 
 Re-run `python3 code/analytics.py compute --file -` with the completed object after
-agreement, so code incorporates the three goals into to-dos and recomputes review-based
+agreement, so code incorporates the agreed goals into to-dos and recomputes review-based
 goal marks and badges. Use that returned object unchanged for all computed fields.
 Send it to `python3 code/analytics.py record --file -`. A duplicate
 ISO week is refused; use `--replace` only when the member asks to correct that week's

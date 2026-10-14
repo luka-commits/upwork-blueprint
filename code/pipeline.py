@@ -825,8 +825,8 @@ def cmd_observe(args):
         args.event = 'call_held'
     expected_sources = {'applied': ('upwork-proposal',), 'replied': ('upwork-thread',),
                         'proposal_sent': ('member',), 'opened': ('pitch-click',),
-                        'pitch_opened': ('pitch-click',), 'call_booked': ('member', 'upwork-thread'),
-                        'call_held': ('recorder', 'member')}
+                        'pitch_opened': ('pitch-click',), 'call_booked': ('member', 'upwork-thread', 'upwork-meeting'),
+                        'call_held': ('recorder', 'member', 'upwork-meeting')}
     sources = expected_sources[args.event]
     if args.event in ('proposal_sent', 'call_booked', 'call_held') and args.source is None:
         args.source, args.verified = 'member', True
@@ -1116,9 +1116,11 @@ def cmd_prune(args):
                 j['details'] = fresh_details
             j['cache_pruned_at'] = now_iso()
     # A saved client thread is Upwork's content as well, whatever job it belongs to.
-    # Chats alone follow chat_keep_hours(); see there for why nothing else does.
+    # Client threads and call transcripts follow chat_keep_hours().
     threads = [t for t in jobs_dir().glob('*/thread.json')
                if t.is_file() and datetime.datetime.fromtimestamp(t.stat().st_mtime, datetime.timezone.utc) < chat_cutoff]
+    calls = [p for p in jobs_dir().glob('*/call.md')
+             if p.is_file() and datetime.datetime.fromtimestamp(p.stat().st_mtime, datetime.timezone.utc) < chat_cutoff]
     # The saved profile and highlights are Upwork's answers about the member, so they
     # expire like any other response. Every reader treats them as optional.
     #
@@ -1134,18 +1136,20 @@ def cmd_prune(args):
                 if p.is_file() and datetime.datetime.fromtimestamp(p.stat().st_mtime, datetime.timezone.utc) < cutoff]
     if args.dry_run:
         print(f'DRY RUN: {hits} of {len(jobs)} jobs older than {args.hours}h, '
-              f'{fields} cached fields, {len(threads)} saved threads, {len(raw_cache)} raw cache files and '
+              f'{fields} cached fields, {len(threads)} saved threads, {len(calls)} call transcripts, {len(raw_cache)} raw cache files and '
               f'{len(previews)} pitch previews would be removed. Nothing changed.')
         return
     if hits:
         save(jobs)
     for t in threads:
         t.unlink()
+    for call in calls:
+        call.unlink()
     for item in raw_cache:
         item.unlink()
     for preview in previews:
         preview.unlink()
-    print(f'{hits} jobs pruned, {fields} cached fields removed, {len(threads)} saved threads, '
+    print(f'{hits} jobs pruned, {fields} cached fields removed, {len(threads)} saved threads, {len(calls)} call transcripts, '
           f'{len(raw_cache)} raw cache files and {len(previews)} pitch previews deleted.')
 
 
@@ -1291,7 +1295,7 @@ def build_parser():
     p.add_argument('job_id')
     p.add_argument('event', choices=('applied', 'replied', 'proposal_sent', 'opened', 'pitch_opened', 'call', 'call_booked', 'call_held'))
     p.add_argument('timestamp')
-    p.add_argument('--source', choices=('upwork-proposal', 'upwork-thread', 'member', 'pitch-click', 'recorder'))
+    p.add_argument('--source', choices=('upwork-proposal', 'upwork-thread', 'upwork-meeting', 'member', 'pitch-click', 'recorder'))
     p.add_argument('--verified', action='store_true')
     p.set_defaults(func=cmd_observe)
 

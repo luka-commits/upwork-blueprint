@@ -20,6 +20,7 @@ The snapshot, one JSON object (every list optional):
                     "terms": {"type": "fixed"|"hourly", "fixed_amount", "hourly_rate", "currency", "start_date"}}],
      "earnings": [{"week_start", "contract_id", "billed", "currency"}],
      "connects": [{"at", "amount", "reason", "job_id"}],
+     "meetings": [{"job_id", "room_id", "booked_at", "session_id", "held_at", "duration_s"}],
      "threads":   [{"job_id", "room_id", "awaiting_reply_from", "messages_complete", "messages":
                     [{"from": "client"|"me", "name", "at", "text"}]}]}
 Offers and contracts without a job_id are matched by stored contract id or unique
@@ -92,6 +93,15 @@ def verified_timestamp(value):
     if stamp > datetime.datetime.now(datetime.timezone.utc):
         return None
     return stamp.isoformat()
+
+
+def booked_timestamp(value):
+    """A scheduled meeting may be future, but its start must have a timezone."""
+    try:
+        stamp = datetime.datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    return stamp.astimezone(datetime.timezone.utc).isoformat() if stamp.tzinfo and stamp.utcoffset() is not None else None
 
 
 def applied_expired(job, today=None):
@@ -256,6 +266,9 @@ def evidence(snapshot, jobs):
         if any(m.get('from') == 'client' and m.get('kind') not in ('system', 'event')
                for m in thread_io.normalize(t.get('messages') or [])):
             note(t.get('job_id'), None, 'replied')
+    for meeting in snapshot.get('meetings') or []:
+        if booked_timestamp(meeting.get('booked_at')) or verified_timestamp(meeting.get('held_at')):
+            note(meeting.get('job_id'), None, 'call')
     return seen
 
 
@@ -428,6 +441,33 @@ def cmd_apply(args):
     for jid, stamp in applied_observations.items():
         run_pipeline('observe', jid, 'applied', stamp, '--source', 'upwork-proposal', '--verified')
 
+    # Meeting start times and recorded recaps are separate evidence.
+    # Missing recaps never establish a no-show; that remains the member's decision.
+    meetings = []
+    for meeting in snapshot.get('meetings') or []:
+        jid = str(meeting.get('job_id') or '')
+        if jid not in known:
+            continue
+        saved_meeting = {'job_id': jid}
+        for field in ('room_id', 'session_id'):
+            value = meeting.get(field)
+            if isinstance(value, (str, int)) and not isinstance(value, bool) and str(value):
+                saved_meeting[field] = str(value)
+        seconds = meeting.get('duration_s')
+        if isinstance(seconds, (int, float)) and not isinstance(seconds, bool) and math.isfinite(seconds) and seconds >= 0:
+            saved_meeting['duration_s'] = seconds
+        if meeting.get('room_id'):
+            record_metadata(next(j for j in pipeline.load() if j['id'] == jid),
+                            {'room_id': str(meeting['room_id'])})
+        for event, validator, field in (('call_booked', booked_timestamp, 'booked_at'),
+                                        ('call_held', verified_timestamp, 'held_at')):
+            stamp = validator(meeting.get(field))
+            if stamp:
+                saved_meeting[field] = stamp
+                run_pipeline('observe', jid, event, stamp, '--source', 'upwork-meeting', '--verified')
+        if 'booked_at' in saved_meeting or 'held_at' in saved_meeting:
+            meetings.append(saved_meeting)
+
     # A newest-message window is not proof of a first reply. Only a thread whose
     # pagination explicitly proves completeness may establish replied_at.
     reply_observations = {}
@@ -559,7 +599,7 @@ def cmd_apply(args):
     append_financials(snapshot)
     record = {'synced_at': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),
               'moved': moved, 'added': added, 'threads': len(threads), 'awaiting_you': waiting,
-              'stale_applications': stale}
+              'stale_applications': stale, 'meetings': meetings}
     data_dir().mkdir(parents=True, exist_ok=True)
     (data_dir() / 'sync.json').write_text(json.dumps(record, indent=2), encoding='utf-8')
     for m in moved:

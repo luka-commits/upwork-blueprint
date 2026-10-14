@@ -2,6 +2,7 @@
 """Read jobs/<id>/call.md: Duration: seconds, Member: name, then Speaker: line turns."""
 import argparse
 import json
+import math
 import pathlib
 import re
 import subprocess
@@ -12,11 +13,64 @@ import pipeline
 WORDS = re.compile(r"\b[\w]+(?:['’-]\w+)*\b")
 
 
+def normalize_transcript(pages, call_at=None, duration_s=None, member=None):
+    """Turn all get_full_transcript pages into labelled call.md, never raw JSON.
+
+    Pages may be transcript strings, segment lists, or objects carrying
+    ``segments``/``transcript``. Segments are ``Speaker: words`` strings or
+    ``{speaker, text}`` objects. Callers must fetch every offset before saving.
+    """
+    if not isinstance(pages, list) or not pages:
+        raise ValueError('Transcript needs a nonempty list of pages.')
+    headers, turns = [], []
+    if call_at is not None:
+        stamp = pipeline.parse_verified_timestamp(call_at)
+        if not stamp:
+            raise ValueError('Call at needs a nonfuture ISO timestamp with a timezone.')
+        headers.append(f'Call at: {stamp}')
+    if duration_s is not None:
+        if (not isinstance(duration_s, (int, float)) or isinstance(duration_s, bool)
+                or not math.isfinite(duration_s) or duration_s < 0):
+            raise ValueError('Duration needs nonnegative finite seconds.')
+        headers.append(f'Duration: {duration_s:g}')
+    if member is not None:
+        if not isinstance(member, str) or not member.strip() or ':' in member or '\n' in member or '\r' in member:
+            raise ValueError('Member needs one speaker name.')
+        headers.append(f'Member: {member.strip()}')
+    for page in pages:
+        if isinstance(page, dict):
+            page = page.get('segments', page.get('transcript'))
+        segments = page.splitlines() if isinstance(page, str) else page
+        if not isinstance(segments, list):
+            raise ValueError('Transcript page needs segments or a transcript.')
+        for segment in segments:
+            if isinstance(segment, str):
+                if not segment.strip():
+                    continue
+                match = re.fullmatch(r'([^:]{1,80}):\s*(.+)', segment.strip())
+                if not match:
+                    raise ValueError('Every transcript segment needs a speaker label.')
+                speaker, words = match.groups()
+            elif isinstance(segment, dict):
+                speaker, words = segment.get('speaker'), segment.get('text')
+            else:
+                raise ValueError('Transcript segment needs labelled text.')
+            if (not isinstance(speaker, str) or not speaker.strip() or ':' in speaker
+                    or len(speaker.strip()) > 80 or '\n' in speaker or '\r' in speaker
+                    or not isinstance(words, str) or not words.strip()):
+                raise ValueError('Transcript segment needs a speaker name and words.')
+            turns.append(f'{speaker.strip()}: {" ".join(words.split())}')
+    if not turns:
+        raise ValueError('Transcript contains no speaker turns.')
+    return '\n'.join(headers + [''] + turns) + '\n'
+
+
 def analyze(text, member=None):
     duration = None
     call_at = None
     turns = []
     unlabelled = False
+    member_header_seen = False
     for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith('#'):
@@ -29,8 +83,9 @@ def analyze(text, member=None):
             duration = float(match.group(1))
             continue
         match = re.fullmatch(r'Member:\s*(.+)', line, re.I)
-        if match:
+        if match and not member_header_seen and not turns:
             member = member or match.group(1).strip()
+            member_header_seen = True
             continue
         match = re.fullmatch(r'([^:]{1,80}):\s*(.+)', line)
         if match:
@@ -64,17 +119,29 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('job_id')
     parser.add_argument('--member')
+    parser.add_argument('--transcript-json', help='All get_full_transcript pages as a JSON list, path or - for stdin.')
+    parser.add_argument('--call-at')
+    parser.add_argument('--duration-s', type=float)
+    parser.add_argument('--source', choices=('upwork-meeting', 'recorder', 'member'), default='recorder')
     args = parser.parse_args(argv)
     pipeline.find(pipeline.load(), args.job_id)
     path = pipeline.jobs_dir() / args.job_id / 'call.md'
+    if args.transcript_json:
+        raw = sys.stdin.read() if args.transcript_json == '-' else pathlib.Path(args.transcript_json).read_text(encoding='utf-8')
+        try:
+            text = normalize_transcript(json.loads(raw), args.call_at, args.duration_s, args.member)
+        except (ValueError, TypeError) as error:
+            parser.error(str(error))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding='utf-8')
     if not path.is_file():
-        print(f'Call stats skipped: {path} is missing. Connect a recorder and pull its transcript.')
+        print(f'Call stats skipped: {path} is missing. Read the Upwork meeting transcript first, then eligible recorder evidence or notes.')
         return 0
     result = analyze(path.read_text(encoding='utf-8'), args.member)
     call_at = result.pop('call_at', None)
     if call_at:
         subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name('pipeline.py')),
-                        'observe', args.job_id, 'call_held', call_at, '--source', 'recorder', '--verified'],
+                        'observe', args.job_id, 'call_held', call_at, '--source', args.source, '--verified'],
                        text=True, check=True)
     subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name('pipeline.py')),
                     'record', args.job_id, '--file', '-'],

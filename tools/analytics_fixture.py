@@ -668,14 +668,17 @@ def review_proofs():
     sales = (commands / 'sales-call-proposal.md').read_text()
     proposal = (commands / 'proposal.md').read_text()
     assert 'recorder' not in onboarding.lower()
-    assert 'Ask which recorder' in sales and 'transcript file or pasted text' in sales
+    assert 'get_full_transcript' in sales and 'Enterprise' in sales and 'contract' in sales
     assert 'loom_hook' in proposal and 'Call at:' in sales
     assert 'code/call_stats.py' in sales and 'call_held' in sales
     for relative in ('.claude/commands', 'references'):
         result = ORIGINAL_RUN(['git', 'diff', '--numstat', '--', relative], cwd=ROOT, capture_output=True, text=True, check=True)
         # Keep the earlier repair's limits on its scope; package 2 explicitly
-        # authorizes the weekly reminder and these member-setting docs.
-        package2 = {'.claude/commands/find-jobs.md', 'references/jobs.md'}
+        # authorizes the weekly reminder and these member-setting docs. The analytics
+        # goal library is excluded from this older repair's reference-size budget.
+        package2 = {'.claude/commands/find-jobs.md', '.claude/commands/analytics.md',
+                    '.claude/commands/brief.md', '.claude/commands/sales-call-proposal.md',
+                    'references/jobs.md', 'references/goal-library.md'}
         legacy = [row for row in result.stdout.splitlines() if row.split('\t')[-1] not in package2]
         delta = sum(int(row.split()[0]) - int(row.split()[1]) for row in legacy)
         if relative == '.claude/commands':
@@ -696,7 +699,7 @@ def review_proofs():
     assert 'No applications yet. The funnel fills as /brief records them.' in analytics
     assert "counts.applied >= MIN_RATE" in analytics and 'overall win rate' in analytics
     assert "observed (call history)" in analytics
-    print('SYNTHETIC fixes 7/10 PASS: recorder transcript/fallback in sales command, hook writer, import cleanup, existing UI contracts; legacy command/reference budgets retained, authorized analytics reminder/settings/files verified')
+    print('SYNTHETIC fixes 7/10 PASS: recorder transcript/fallback in sales command, hook writer, import cleanup, existing UI contracts; legacy command/reference budgets retained (analytics goal-library excluded); authorized analytics reminder/settings/files verified')
 
 
 def bottlenecks():
@@ -943,7 +946,7 @@ def package1():
         run('call_stats.py', '987000002')
         assert 'call_held_at' not in records()['987000002']
         sales = (ROOT / '.claude/commands/sales-call-proposal.md').read_text()
-        assert 'Ask which recorder' in sales and 'Notes alone still work' in sales and 'Speaker: line' in sales
+        assert 'get_full_transcript' in sales and 'Notes alone still work' in sales and 'Speaker: line' in sales
         print('SYNTHETIC F7 PASS: normalised transcript writes recorder-held event/stats; notes alone do not; fallback command wired')
     with fixture('f8'):
         import pipeline
@@ -1167,11 +1170,17 @@ def analytics_payload(snapshot):
                             'review_on': (dt.date.fromisoformat(value['window']['end']) + dt.timedelta(days=8)).isoformat()}
                            for index, key in enumerate(keys)]
     value['report'] = 'SYNTHETIC weekly coaching report; nothing new this week.'
+    value['community_card']['next_focus'] = value['kpis'][primary]['label']
+    value['community_card']['question'] = 'How do you make the next step easier?'
+    value['insights_top'] = [{'kind': 'habit', 'text': 'One clear next step keeps work moving',
+                              'target': {'view': 'overview', 'element': primary}}]
+    value['kpis']['reply_rate']['insight'] = 'One clear next step keeps work moving'
     value['reviews'] = {kind: {'fix': 'Make one next step clear',
                                'example': 'I can offer Tuesday at ten.',
                                'evidence_lead_ids': [], 'goal_ref': keys[index % 3]}
                         for index, kind in enumerate(('application', 'conversation', 'call', 'proposal'))}
-    return value
+    import analytics
+    return analytics.prepare_snapshot(value, dt.date.fromisoformat(value['generated_at'][:10]))
 
 
 def analytics_decisions():
@@ -1192,6 +1201,8 @@ def analytics_decisions():
             kpis = json.loads(json.dumps(base['kpis']))
             for key in funnel:
                 kpis[key].update(k=40, n=40, value=100, low=91.2, high=100, state='pass')
+            for key in ('speed_10min', 'first_reply', 'follow_ups_on_time', 'proposal_on_time'):
+                kpis[key].update(state='pass')
             kpis[selected].update(k=0, n=40, value=0, low=0, high=8.8, state='fail')
             result = analytics.verdict(kpis)
             assert result['kpi'] == selected and result['state'] == 'confirmed', result
@@ -1304,7 +1315,11 @@ def analytics_member():
         baseline = analytics_rate_oracle(rows, ANALYTICS_TODAY, baseline=True)
         for key, (k, n, target) in expected.items():
             row = result['kpis'][key]
+            rungs = {'reply_rate': [11, 15, 20], 'reply_to_call': [30, 40, 50],
+                     'proposal_to_won': [20, 25, 30], 'invite_to_call': [50]}.get(key, [target])
+            target = next((rung for rung in rungs if 100 * k / n < rung), rungs[-1])
             assert (row['k'], row['n'], row['target'], row['state']) == (k, n, target, analytics_rate_state(k, n, target)), (key, row)
+            assert row['rungs'] == rungs and row['baseline_phase'] is False, (key, row)
             assert abs(row['value'] - 100 * k / n) < .01, (key, row)
             bk, bn, _ = baseline[key]
             assert abs(row['baseline'] - 100 * bk / bn) < .01, (key, row)
@@ -1316,10 +1331,10 @@ def analytics_member():
             'won_value': (44, 44, 'undecided', 4600),
             'value_per_100_connects': (176, 2560, 'pass', 546.875),
             'weekly_volume': (40, 25, 'pass', 40),
-            'speed_10min': (32, 40, 'undecided', 80),
+            'speed_10min': (32, 40, 'pass', 80),
             'first_reply': (32, 32, 'pass', 3),
             'follow_ups_on_time': (36, 40, 'fail', 90),
-            'proposal_on_time': (21, 22, 'undecided', 2100 / 22),
+            'proposal_on_time': (21, 22, 'pass', 2100 / 22),
             'job_fit': (36, 40, 'fail', 90),
             'application_review': (None, None, 'undecided', None),
             'conversation_review': (None, None, 'undecided', None),
@@ -1351,6 +1366,7 @@ def analytics_member():
         assert set(row['source'] for row in result['coverage']) == {'recorder', 'upwork', 'tracking', 'loom', 'earnings', 'connects'}
         assert result['verdict']['kpi'] == 'booked_to_held' and result['verdict']['state'] == 'confirmed'
         assert result['findings'] == []
+        assert result['community_card']['applications'] == 40, result['community_card']
         assert all(set(row) == {'stage', 'count', 'known_value', 'oldest_days', 'stalled'}
                    for strand in result['pipeline'].values() for row in strand)
         assert sum(row['count'] for row in result['pipeline']['outbound']) == 8 * 22
@@ -1432,6 +1448,7 @@ def analytics_storage(snapshot, folder, rows):
         goal['evidence_lead_ids'] = evidence[:index + 2]
         goal['done_lead_ids'] = evidence[:2] if index < 2 else []
         goal['decision'] = ('adjust', 'keep', 'stop')[index]
+    reviewed = analytics.prepare_snapshot(reviewed, ANALYTICS_TODAY)
     run('analytics.py', 'record', '--file', '-', '--replace', value=reviewed)
     stored = json.loads(run('analytics.py', 'last').stdout)
     assert [(goal['done_k'], goal['done_n']) for goal in stored['goals_review']] == [(2, 2), (2, 3), (0, 4)]
@@ -1469,6 +1486,8 @@ def analytics_history_and_coaching():
             value = analytics_payload(analytics.compute(today))
             for review in value['reviews'].values():
                 review['evidence_lead_ids'] = [row['id']]
+            value['reviews']['call'].pop('coverage', None)
+            value['reviews']['application'].pop('coverage', None)
             value['reviews']['call']['rubric'] = [{'lead_id': row['id'], 'reviewable': True,
                 'points': [{'point': point, 'state': 'not needed' if point == 6 else 'met'} for point in range(1, 10)]}]
             value['reviews']['application']['rubric'] = [{'lead_id': row['id'], 'reviewable': True,
@@ -1492,6 +1511,7 @@ def analytics_history_and_coaching():
         no_labels = folder / 'jobs' / rows[-1]['id'] / 'call.md'
         no_labels.write_text('Unlabelled synthetic notes with no recorded speakers.')
         unknown = analytics_payload(analytics.compute(ANALYTICS_TODAY))
+        unknown['reviews']['call'].pop('coverage', None)
         unknown['reviews']['call'].update(evidence_lead_ids=[rows[-1]['id']],
             rubric=[{'lead_id': rows[-1]['id'], 'reviewable': False, 'points': []}])
         reviewed = analytics.prepare_snapshot(unknown, ANALYTICS_TODAY)
@@ -1604,6 +1624,345 @@ def analytics_source_and_timezone():
     print('SYNTHETIC A2 sources/timezone PASS: optional Loom/tracking retain reviews; used Loom missing until transcript; member New York clock and zoned snapshot')
 
 
+def package1b():
+    import call_stats
+    with fixture('meetings') as folder:
+        jid = '969000001'
+        seed([{'id': jid, 'status': 'call', 'found_at': stamp()}])
+        snapshot = {'meetings': [{'job_id': jid, 'room_id': 'synthetic-meeting-room',
+                    'booked_at': stamp(300), 'session_id': 'synthetic-session',
+                    'held_at': stamp(360), 'duration_s': 300}]}
+        run('sync.py', 'apply', '--file', '-', value=snapshot)
+        run('sync.py', 'apply', '--file', '-', value=snapshot)
+        job = records()[jid]
+        for event, at in (('call_booked', stamp(300)), ('call_held', stamp(360))):
+            assert job[event + '_at'] == at, job
+            assert job[event + '_observation']['source'] == 'upwork-meeting', job
+            assert job[event + '_observation']['verified'] is True, job
+        assert job.get('call_no_show') is not True
+        pages = [{'segments': [{'speaker': 'Alex', 'text': 'What is the problem?'},
+                               {'speaker': 'Client', 'text': 'Too many manual steps.'}]},
+                 {'segments': [{'speaker': 'Alex', 'text': 'We can automate that.'},
+                               {'speaker': 'Client', 'text': 'Please send the scope.'}]}]
+        result = run('call_stats.py', jid, '--transcript-json', '-', '--call-at', stamp(360),
+                     '--duration-s', '300', '--member', 'Alex', '--source', 'upwork-meeting', value=pages)
+        call = folder / 'jobs' / jid / 'call.md'
+        text = call.read_text()
+        assert 'Call at: ' + stamp(360) in text and 'Duration: 300' in text, text
+        assert text.count('Alex: ') == 2 and text.count('Client: ') == 2, text
+        assert text.index('What is the problem?') < text.index('Please send the scope.'), text
+        job = records()[jid]
+        assert job['call_stats']['duration_s'] == 300, job
+        assert job['call_held_observation']['source'] == 'upwork-meeting', job
+        stats_before = json.loads(json.dumps(job['call_stats']))
+        old = time.time() - 49 * 3600
+        os.utime(call, (old, old))
+        run('pipeline.py', 'prune')
+        assert not call.exists() and records()[jid]['call_stats'] == stats_before
+    for name in ('brief.md', 'sales-call-proposal.md', 'analytics.md'):
+        command = (ROOT / '.claude' / 'commands' / name).read_text()
+        assert 'manage_meetings' in command, name
+        allowed = {'list', 'list_recaps', 'get_meeting_summary', 'get_full_transcript'}
+        import re
+        for line in command.splitlines():
+            if 'manage_meetings' in line:
+                actions = re.findall(r'action[=:]`?\s*([a-z_]+)', line)
+                assert all(action in allowed for action in actions), (name, line)
+        if name != 'brief.md':
+            assert 'get_full_transcript' in command and 'Enterprise' in command and 'contract' in command
+    print('SYNTHETIC B1-B4 PASS: meetings replay gives verified Upwork call events; all transcript pages normalize and call_stats reads; old call.md pruned, derived stats retained; commands use meeting read actions and conditional recorder fallback')
+
+
+def assert_analytics_additions(value):
+    """Validate the frozen additions, independently of analytics' record validator."""
+    required = {'periods', 'coverage', 'pipeline', 'north_star', 'todos', 'cohorts',
+                'daily_applications', 'reply_time_hist', 'speed_curve', 'segments', 'forecast',
+                'call_rubric_weeks', 'insights_top', 'community_card', 'badges'}
+    assert required <= value.keys(), required - value.keys()
+    assert set(value['periods']) == {'activity', 'cohort', 'outcome', 'synced_at'}
+    for name in ('activity', 'cohort', 'outcome'):
+        for key in ('start', 'end'):
+            dt.date.fromisoformat(value['periods'][name][key])
+    for row in value['coverage']:
+        assert {'source', 'state', 'affects', 'fix'} <= row.keys()
+        assert row['source'] in ('recorder', 'upwork', 'tracking', 'loom', 'earnings', 'connects')
+        assert row['state'] in ('ok', 'missing', 'stale') and isinstance(row['affects'], list)
+    assert {'wins', 'fixed_value', 'hourly_billed'} <= value['north_star'].keys()
+    assert set(value['pipeline']) == {'outbound', 'inbound'}
+    for rows in value['pipeline'].values():
+        assert all({'stage', 'count', 'known_value', 'oldest_days', 'stalled'} <= row.keys() for row in rows)
+    assert value['verdict']['label'] == "This week's focus"
+    assert value['verdict']['state'] in ('confirmed', 'levers', 'none')
+    assert isinstance(value['verdict']['undecided_before'], list)
+    for row in value['kpis'].values():
+        if row['layer'] == 'funnel':
+            assert 'cases_needed' in row
+            assert {'delta_pp', 'bypass', 'own_benchmark', 'rungs', 'rung_reached', 'baseline_phase'} <= row.keys()
+            assert 0 <= row['rung_reached'] <= len(row['rungs'])
+    assert len(value['todos']) <= 7
+    dues = []
+    for row in value['todos']:
+        assert {'text', 'lead_id', 'due', 'kind'} <= row.keys()
+        assert row['kind'] in ('follow_up', 'stalled', 'no_show_confirm', 'proposal_due', 'goal')
+        if row['due']:
+            dt.date.fromisoformat(row['due'][:10])
+            dues.append(row['due'])
+    assert dues == sorted(dues), value['todos']
+    assert len(value['cohorts']) <= 8 and len(value['daily_applications']) == 84
+    for row in value['cohorts']:
+        assert {'week', 'applied', 'replied', 'call', 'won', 'lead_ids'} <= row.keys()
+        assert isinstance(row['lead_ids'], dict)
+    for row in value['daily_applications']:
+        assert {'date', 'count', 'lead_ids'} <= row.keys()
+        dt.date.fromisoformat(row['date'])
+        assert row['count'] == len(row['lead_ids'])
+    assert {row['bucket'] for row in value['reply_time_hist']} == {'<5m', '5-15m', '15-60m', '1-4h', '>4h'}
+    assert {row['bucket'] for row in value['speed_curve']} == {'<10m', '10-60m', '1-6h', '>6h'}
+    for row in value['speed_curve']:
+        assert {'bucket', 'k', 'n', 'rate', 'market_line'} <= row.keys()
+        assert 0 <= row['k'] <= row['n']
+    for row in value['segments']:
+        assert {'dimension', 'value', 'k', 'n', 'observed', 'expected', 'lead_ids'} <= row.keys()
+        assert row['expected'] is None
+    assert {'next_30_days', 'by_stage'} <= value['forecast'].keys()
+    for row in value['forecast']['by_stage']:
+        assert {'stage', 'count', 'known_value', 'own_rate', 'expected'} <= row.keys()
+        if row['own_rate'] is None:
+            assert row['expected'] is None
+    for row in value['call_rubric_weeks']:
+        assert {'week', 'points', 'calls'} <= row.keys()
+        assert set(row['points']) == set(map(str, range(1, 10)))
+    assert len(value['insights_top']) <= 3
+    for row in value['insights_top']:
+        assert row['kind'] in ('leak', 'driver', 'trend', 'habit', 'pipeline', 'learning', 'market')
+        assert len(row['text'].split()) <= 12 and set(row['target']) == {'view', 'element'}
+    card = value['community_card']
+    assert {'week', 'applications', 'reply_rate', 'reply_to_call', 'call_to_won',
+            'first_reply_median_min', 'goals_done', 'goals', 'biggest_improvement',
+            'streak_weeks', 'won_value', 'next_focus', 'question', 'new_badge', 'top_badges'} <= card.keys()
+    for key in ('reply_rate', 'reply_to_call', 'call_to_won'):
+        assert {'value', 'target', 'rung_reached', 'of', 'trend'} <= card[key].keys()
+        assert card[key]['trend'] in ('up', 'flat', 'down')
+    assert card['reply_rate']['target'] == 20 and card['reply_to_call']['target'] == 50
+    assert card['call_to_won']['target'] == 30 and card['first_reply_target_min'] == 5
+    assert len(card['top_badges']) <= 5
+    for goal in card['goals']:
+        assert set(goal) == {'text', 'done'} and len(goal['text'].split()) <= 6
+        assert isinstance(goal['done'], bool)
+    for badge in value['badges']:
+        assert {'badge', 'tier', 'earned_week', 'new', 'progress_to_next'} <= badge.keys()
+        assert badge['tier'] in ('Bronze', 'Silver', 'Gold', 'Platinum', 'Legend')
+        assert isinstance(badge['new'], bool) and isinstance(badge['progress_to_next'], str)
+
+
+def analytics_fix_round():
+    import analytics
+    for successes, target in ((6, 11), (12, 15)):
+        with fixture(f'ladder-{successes}') as folder:
+            analytics_sync_marker(folder)
+            day = ANALYTICS_TODAY - dt.timedelta(days=14)
+            rows = [{'id': str(968000000 + index), 'source': 'outbound', 'status': 'applied',
+                     'applied_at': analytics_stamp(day), 'found_at': analytics_stamp(day),
+                     'application_facts': {'source': 'outbound', 'posted_age_band': '<10m'}}
+                    for index in range(100)]
+            for row in rows[:successes]:
+                row['replied_at'] = analytics_stamp(day, 10, 3)
+            # Start the member ten weeks ago, outside the current cohort.
+            rows.append({'id': '968999999', 'source': 'outbound', 'status': 'applied',
+                         'applied_at': analytics_stamp(ANALYTICS_TODAY - dt.timedelta(weeks=10))})
+            seed(rows)
+            value = analytics.compute(ANALYTICS_TODAY)
+            assert value['kpis']['reply_rate']['target'] == target, value['kpis']['reply_rate']
+            assert value['kpis']['reply_rate']['baseline_phase'] is False
+            assert_analytics_additions(value)
+    with fixture('baseline-four-weeks') as folder:
+        analytics_sync_marker(folder)
+        start = ANALYTICS_TODAY - dt.timedelta(weeks=3)
+        seed([{'id': '967000001', 'source': 'outbound', 'status': 'applied', 'applied_at': analytics_stamp(start)}])
+        for week in range(4):
+            value = analytics.compute(start + dt.timedelta(weeks=week))
+            for key in analytics.FUNNEL:
+                assert value['kpis'][key]['baseline_phase'] is True, (week, key, value['kpis'][key])
+                assert value['kpis'][key]['state'] not in ('pass', 'fail'), (week, key, value['kpis'][key])
+            assert value['verdict']['kpi'] not in analytics.FUNNEL, value['verdict']
+            assert value['kpis']['weekly_volume']['target'] == 25
+            assert value['kpis']['speed_10min']['target'] == 80
+            assert value['kpis']['first_reply']['target'] == 5
+            assert value['kpis']['follow_ups_on_time']['target'] == 100
+            assert value['kpis']['proposal_on_time']['target'] == 90
+    with fixture('feeding-levers'):
+        value = analytics.compute(ANALYTICS_TODAY)
+        for outcome, levers in {'reply_rate': ('speed_10min',),
+                                'reply_to_call': ('first_reply', 'follow_ups_on_time'),
+                                'held_to_proposal': ('proposal_on_time',)}.items():
+            for lever in levers:
+                kpis = json.loads(json.dumps(value['kpis']))
+                for key in analytics.FUNNEL:
+                    kpis[key].update(state='pass', baseline_phase=False)
+                for key in ('speed_10min', 'first_reply', 'follow_ups_on_time', 'proposal_on_time'):
+                    kpis[key].update(state='pass')
+                kpis[outcome].update(state='fail', k=0, n=100, value=0)
+                kpis[lever].update(state='fail')
+                verdict = analytics.verdict(kpis)
+                assert verdict['kpi'] == lever and verdict['state'] == 'levers', (outcome, lever, verdict)
+    with fixture('todos-bars-forecast') as folder:
+        analytics_sync_marker(folder)
+        (folder / 'context/me.md').write_text('## Bars\nreply_rate: 25\nreply_to_call: 60\nproposal_to_won: 40\nfirst_reply: 2\n')
+        seed([{'id': str(966000000 + index), 'source': 'outbound', 'status': 'replied',
+               'found_at': analytics_stamp(ANALYTICS_TODAY - dt.timedelta(days=20)),
+               'last_activity_at': analytics_stamp(ANALYTICS_TODAY - dt.timedelta(days=1)),
+               'next_follow_up': (ANALYTICS_TODAY - dt.timedelta(days=10 - index)).isoformat(),
+               'follow_up_plan': {'lane': 'silent'}, 'details': {'price_estimate': 500}}
+              for index in range(10)])
+        value = analytics.compute(ANALYTICS_TODAY)
+        assert_analytics_additions(value)
+        assert len(value['todos']) == 7 and all(row['kind'] == 'follow_up' for row in value['todos']), value['todos']
+        assert value['todos'][0]['due'] == (ANALYTICS_TODAY - dt.timedelta(days=10)).isoformat()
+        assert value['kpis']['reply_rate']['rungs'][-1] == 25
+        assert value['community_card']['won_value'] is None
+        assert all(row['own_rate'] is None and row['expected'] is None for row in value['forecast']['by_stage'])
+        assert value['forecast']['next_30_days'] is None
+        payload = analytics_payload(value)
+        payload['findings'] = [{'sentence': 'Due follow-ups need a clear next step',
+            'action': 'Complete the oldest due follow-up', 'kpi': 'follow_ups_on_time',
+            'observed': 0, 'expected': None, 'n': 10, 'strength': 'emerging', 'status': 'emerging'}]
+        payload = analytics.prepare_snapshot(payload, ANALYTICS_TODAY)
+        assert_analytics_additions(payload)
+        for path, change in (('insight', ' '.join(['word'] * 13)), ('market_line', 'Unverified market source')):
+            invalid = json.loads(json.dumps(payload))
+            invalid['kpis']['reply_rate'][path] = change
+            assert run('analytics.py', 'record', '--file', '-', value=invalid, success=False).returncode != 0
+        invalid = json.loads(json.dumps(payload))
+        invalid['community_card']['question'] = ' '.join(['word'] * 15)
+        assert run('analytics.py', 'record', '--file', '-', value=invalid, success=False).returncode != 0
+        invalid = json.loads(json.dumps(payload))
+        invalid['insights_top'][0]['text'] = ' '.join(['word'] * 13)
+        assert run('analytics.py', 'record', '--file', '-', value=invalid, success=False).returncode != 0
+        for field in ('cohorts', 'daily_applications', 'reply_time_hist', 'speed_curve', 'segments',
+                      'forecast', 'call_rubric_weeks', 'badges', 'todos'):
+            invalid = json.loads(json.dumps(payload))
+            invalid[field] = {'tampered': True}
+            assert run('analytics.py', 'record', '--file', '-', value=invalid, success=False).returncode != 0, field
+        invalid = json.loads(json.dumps(payload))
+        invalid['kpis']['reply_rate']['external_reference'] = {'value': 11, 'population': 'fabricated',
+            'definition': 'fabricated', 'source': 'https://unverified.example', 'date': '2026-10-14'}
+        invalid['kpis']['reply_rate']['market_line'] = 'Market11 percent unverified source'
+        assert run('analytics.py', 'record', '--file', '-', value=invalid, success=False).returncode != 0
+        invalid = json.loads(json.dumps(payload))
+        invalid['findings'] = [{'sentence': 'Unstructured private claim'}]
+        assert run('analytics.py', 'record', '--file', '-', value=invalid, success=False).returncode != 0
+        run('analytics.py', 'record', '--file', '-', value=payload)
+        stored = json.loads(run('analytics.py', 'last').stdout)
+        assert stored['community_card']['next_focus'] == payload['community_card']['next_focus']
+        assert stored['community_card']['question'] == payload['community_card']['question']
+        assert stored['insights_top'] == payload['insights_top']
+        assert stored['findings'] == payload['findings']
+        assert stored['kpis']['reply_rate']['insight'] == payload['kpis']['reply_rate']['insight']
+    command = (ROOT / '.claude/commands/analytics.md').read_text()
+    beats = ('1. What happened:', '2. Where you stand:', '3. Why:', '4. What now:')
+    assert all(beat in command for beat in beats)
+    assert [command.index(beat) for beat in beats] == sorted(command.index(beat) for beat in beats)
+    assert all(text in command for text in ('short conversational markdown', 'community_card.next_focus',
+        'community_card.question', 'at most 14 words', 'default targets', 'regardless of `## Bars`'))
+    print('SYNTHETIC A2 fix round PASS: reply6%=target11%, reply12%=target15%; first four weeks no rate verdict; four mapped lever focuses; fixed lever targets; every added snapshot field schema-valid; urgent todos capped7; default card despite Bars; undecided forecast null; Claude insight/question/provenance/findings validation and persistence')
+
+
+def analytics_badges():
+    import analytics
+    catalogue = ('Harbour Master', 'First Mate', 'Treasure Hunter', 'Swift Sail', "Ship's Bell", 'Lookout',
+                 'Steady Anchor', 'Quick Draw', 'Message in a Bottle', 'True North', 'Navigator',
+                 'Lighthouse Keeper', 'First Doubloon', 'Back on Course')
+    source = (CODE / 'analytics.py').read_text()
+    assert all(badge in source for badge in catalogue)
+    with fixture('badge-fast-moment') as folder:
+        analytics_sync_marker(folder)
+        date = ANALYTICS_TODAY - dt.timedelta(days=2)
+        seed([{'id': '965000001', 'source': 'outbound', 'status': 'applied',
+               'applied_at': analytics_stamp(date), 'speed_to_lead_s': 120,
+               'application_facts': {'source': 'outbound', 'posted_age_band': '<10m'}}])
+        value = analytics.compute(ANALYTICS_TODAY)
+        swift = [row for row in value['badges'] if row['badge'] == 'Swift Sail']
+        assert any(row['tier'] == 'Bronze' and row['new'] is True for row in swift), swift
+        assert value['community_card']['new_badge'] is not None
+        assert not any(row['badge'] in catalogue[:3] for row in value['badges'])
+        run('analytics.py', 'record', '--file', '-', value=analytics_payload(value))
+        held = analytics.compute(ANALYTICS_TODAY + dt.timedelta(weeks=1))
+        swift = [row for row in held['badges'] if row['badge'] == 'Swift Sail']
+        assert any(row['tier'] == 'Bronze' and row['new'] is False for row in swift), swift
+    with fixture('badge-fast-week') as folder:
+        analytics_sync_marker(folder)
+        date = ANALYTICS_TODAY - dt.timedelta(days=2)
+        seed([{'id': str(964000000 + index), 'source': 'outbound', 'status': 'applied',
+               'applied_at': analytics_stamp(date), 'speed_to_lead_s': 120,
+               'application_facts': {'source': 'outbound', 'posted_age_band': '<10m'}} for index in range(100)])
+        value = analytics.compute(ANALYTICS_TODAY)
+        swift = [row for row in value['badges'] if row['badge'] == 'Swift Sail']
+        assert any(row['tier'] == 'Silver' and row['new'] is True for row in swift), swift
+        assert_analytics_additions(value)
+        shelf = [row for row in value['community_card']['top_badges'] if row['badge'] == 'Swift Sail']
+        assert len(shelf) == 1 and shelf[0]['tier'] == 'Silver', shelf
+        assert not any(row['badge'] in catalogue[:3] for row in value['badges'])
+    with fixture('badge-outcome-decidability') as folder:
+        analytics_sync_marker(folder)
+        date = ANALYTICS_TODAY - dt.timedelta(days=14)
+        rows = [{'id': str(963000000 + index), 'source': 'outbound', 'status': 'replied',
+                 'applied_at': analytics_stamp(date), 'replied_at': analytics_stamp(date, 10, 1)} for index in range(10)]
+        rows += [{'id': '963999999', 'source': 'outbound', 'status': 'applied',
+                  'applied_at': analytics_stamp(ANALYTICS_TODAY - dt.timedelta(weeks=10))}]
+        seed(rows)
+        value = analytics.compute(ANALYTICS_TODAY)
+        low, _ = analytics_interval(10, 10)
+        tiers = {'Bronze': 11, 'Silver': 15, 'Gold': 20, 'Platinum': 25, 'Legend': 30}
+        harbour = [row for row in value['badges'] if row['badge'] == 'Harbour Master']
+        assert harbour and all(low >= tiers[row['tier']] for row in harbour), harbour
+        # A single successful reply is insufficient for the top tier despite 100% observed.
+        tiny = [{'id': '963000000', 'source': 'outbound', 'status': 'replied',
+                 'applied_at': analytics_stamp(date), 'replied_at': analytics_stamp(date, 10, 1)}, rows[-1]]
+        value = analytics.compute(ANALYTICS_TODAY, jobs=tiny)
+        assert not any(row['badge'] == 'Harbour Master' and row['tier'] == 'Legend' for row in value['badges']), value['badges']
+    print('SYNTHETIC badges PASS: all14 catalogue names; Swift Sail Bronze one120s application/Silver qualifying week; earned kept after broken run; next-tier progress and max5 shelf; outcome tier Wilson lower-bound gate')
+
+
+def analytics_privacy_and_badge_replace():
+    import analytics
+    import pipeline
+    with fixture('privacy-call') as folder:
+        analytics_sync_marker(folder)
+        seed([{'id': '962000001', 'source': 'outbound', 'status': 'call',
+               'client': 'SYNTHETICSTRINGCLIENT', 'found_at': analytics_stamp(ANALYTICS_TODAY)}])
+        jobdir = folder / 'jobs/962000001'
+        jobdir.mkdir()
+        (jobdir / 'call.md').write_text('Member: Alex\nAlex: I can offer Tuesday at ten.\n'
+            'SYNTHETICCALLCLIENT: SYNTHETIC private spoken client sentence.\n')
+        payload = analytics_payload(analytics.compute(ANALYTICS_TODAY))
+        for secret in ('SYNTHETICSTRINGCLIENT', 'SYNTHETICCALLCLIENT', 'SYNTHETIC private spoken client sentence.'):
+            invalid = json.loads(json.dumps(payload))
+            invalid['report'] = secret
+            assert run('analytics.py', 'record', '--file', '-', value=invalid, success=False).returncode != 0, secret
+        invalid = json.loads(json.dumps(payload))
+        invalid['reviews']['call']['example'] = 'SYNTHETIC private spoken client sentence.'
+        assert run('analytics.py', 'record', '--file', '-', value=invalid, success=False).returncode != 0
+        run('analytics.py', 'record', '--file', '-', value=payload)
+        assert json.loads(run('analytics.py', 'last').stdout)['reviews']['call']['example'] == 'I can offer Tuesday at ten.'
+    with fixture('badge-same-week-replace') as folder:
+        analytics_sync_marker(folder)
+        date = ANALYTICS_TODAY - dt.timedelta(days=2)
+        seed([{'id': '961000001', 'source': 'outbound', 'status': 'applied',
+               'applied_at': analytics_stamp(date), 'speed_to_lead_s': 120,
+               'application_facts': {'source': 'outbound', 'posted_age_band': '<10m'}}])
+        payload = analytics_payload(analytics.compute(ANALYTICS_TODAY))
+        run('analytics.py', 'record', '--file', '-', value=payload)
+        # Only pipeline writes synthetic jobs.json; simulate lost native evidence.
+        pipeline.save([])
+        replacement = analytics_payload(analytics.compute(ANALYTICS_TODAY))
+        assert any(row['badge'] == 'Swift Sail' and row['tier'] == 'Bronze'
+                   for row in replacement['badges']), replacement['badges']
+        run('analytics.py', 'record', '--replace', '--file', '-', value=replacement)
+        stored = json.loads(run('analytics.py', 'last').stdout)
+        assert any(row['badge'] == 'Swift Sail' and row['tier'] == 'Bronze' for row in stored['badges'])
+    print('SYNTHETIC privacy/earned PASS: string-client and transcript-speaker/turn leaks rejected; member example retained; same-week replace preserves earned Swift Sail after native evidence disappears')
+
+
 def main():
     with fixture('dashboard'):
         s = dashboard_fixture()
@@ -1626,6 +1985,10 @@ def main():
     analytics_history_and_coaching()
     analytics_levers_and_imports()
     analytics_source_and_timezone()
+    package1b()
+    analytics_fix_round()
+    analytics_badges()
+    analytics_privacy_and_badge_replace()
     current = hashlib.sha256(REAL_JOBS.read_bytes()).hexdigest() if REAL_JOBS.exists() else None
     assert current == REAL_HASH, 'Real data/jobs.json changed'
     assert REAL_DATA_HASHES == {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()

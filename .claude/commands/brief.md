@@ -57,6 +57,11 @@ The status filter is unreliable: classify each returned status.
    `awaiting_reply_from`; page `list_rooms` only until selected rooms are covered or pages end.
    Name missing room metadata instead of assuming who owes the reply. Set `messages_complete`
    true only when pagination explicitly proves no older page; fewer than 30 messages is no proof.
+5. For every selected room in the call stage or carrying a meeting card, read
+   `manage_meetings action=list` and `action=list_recaps`, reusing fresh local evidence first.
+   State the planned call budget, follow `references/upwork.md` pacing, and stop once covered.
+   These are read actions only. Preserve booked start time as `booked_at`; from recaps keep
+   `session_id`, `held_at` and `duration_s`. A missing recap alone does not establish a no-show.
 
 ## Step 2 · Apply it
 
@@ -71,6 +76,8 @@ Add `invitations`, contract `terms: {type, fixed_amount|hourly_rate, currency, s
 `connects: [{at, amount, reason, job_id}]` as returned. Connects map
 `createdDateTime`, `amount.rawValue`, verbatim `reason` and `jobPost`'s ID only;
 financial records keep numbers and identifiers, no job/client text.
+Add `meetings: [{job_id, room_id, booked_at, session_id, held_at, duration_s}]`
+from the selected rooms. Sync observes booked and held times with source `upwork-meeting`.
 
 `python3 code/sync.py apply --file -`
 
@@ -112,8 +119,8 @@ Name the moment, because it decides the next command:
   day the lead is left alone, and after a held call its task is the one-pager,
   `/sales-call-proposal <id> <transcript path or notes>`.
   Record an agreed time with `pipeline.py observe <id> call_booked <zoned ISO time>
-  --source upwork-thread --verified`; recorder evidence or member confirmation alone
-  writes `call_held`. Check `pipeline.py summary` for `no_show_candidate` after 24 h;
+  --source upwork-thread --verified`; an Upwork recap, eligible recorder evidence or
+  member confirmation writes `call_held`. Check `pipeline.py summary` for `no_show_candidate` after 24 h;
   only on member confirmation record `{"call_no_show":true}` through `pipeline.py record`.
 - **Nothing was scheduled and the client owes an answer:** sync plans the `silent` lane on business days 3 and 7 after the unanswered message, then stops. Use `--follow-up` only for a date the conversation gives, such as "call me after the 12th".
 - **A call is requested:** the drafts confirm a time on Upwork.

@@ -16,7 +16,7 @@ saved thread and the call transcript or notes.
 ## ROADMAP
 
 WHAT HAPPENS: read the call, confirm terms, write and check the proposal. About five minutes after decisions.
-I NEED FROM YOU: transcript or notes; confirm scope, price, inputs and timing before client-facing copy.
+I NEED FROM YOU: notes when no transcript exists; confirm scope, price, inputs and timing before client-facing copy.
 WHAT MIGHT GO WRONG: wishes may look like agreement; missing inputs or an unfunded milestone block the start.
 
 # Part 1 · The conversation
@@ -30,13 +30,23 @@ nothing client-facing is written yet.
 
 Run `python3 code/workspace.py` and `python3 code/pipeline.py get <job id>`.
 Require `replied`, `call`, or `offer` when `jobs/<id>/proposal.md` does not exist yet.
-At offer with an existing proposal, `/brief` owns the thread. Read the second argument
-as a file when it is a path; otherwise treat it as pasted
-notes. Ask which recorder the member used for this call. If its connector or API is
-available, pull the transcript; otherwise ask for a transcript file or pasted text.
-Normalise a transcript to `jobs/<id>/call.md`, one `Speaker: line` per turn; preserve
-`Call at: <zoned ISO time>`, `Duration: seconds` and `Member: name` only when known.
-Run `python3 code/call_stats.py <id>`. Notes alone still work, but do not write
+At offer with an existing proposal, `/brief` owns the thread. Read `references/upwork.md`
+and use fresh saved evidence first. For the room, use only `manage_meetings` read actions
+`list`, `list_recaps`, `get_meeting_summary` and `get_full_transcript`.
+State the planned call budget and respect pacing. Find the session from its recap,
+then fetch `get_full_transcript` first, following offsets until every page is read;
+a summary cannot replace a transcript. Save all pages as a JSON list and run
+`python3 code/call_stats.py <id> --transcript-json <pages.json> --call-at <zoned ISO time>
+--duration-s <seconds> --member "<known member speaker>" --source upwork-meeting`.
+Omit unknown headers; it writes `jobs/<id>/call.md`, one `Speaker: line` per segment,
+with `Call at:` and `Duration:` when known, then derives stats. Remove the temporary pages.
+Only when no Upwork transcript exists, ask about the member's own recorder for Enterprise
+clients or calls after a contract started; pull its transcript when its API is available,
+otherwise take a file or pasted transcript. For other calls use a pasted transcript or notes.
+Read the second argument as a file when it is a path, otherwise as pasted notes.
+Normalise external transcripts to the same call.md format, then run
+`python3 code/call_stats.py <id> --source recorder` (or `--source member` for confirmed notes).
+Notes alone still work, but do not write
 `call_held` unless the member confirms it took place; then use
 `pipeline.py observe <id> call_held <ISO time>`. Without any call record, ask and stop.
 
@@ -169,5 +179,6 @@ After the member confirms they pasted it on Upwork, record
 
 ## Step 7 · Report
 
-Use the completion report from `CLAUDE.md` and link the proposal. The next action
-is the member's review and manual send on Upwork. End with `Upwork calls: 0`.
+Run `python3 code/pipeline.py prune`, then the completion report from `CLAUDE.md` and link
+the proposal. The next action is the member's review and manual send on Upwork.
+End with the measured `Upwork calls: N`.

@@ -14,7 +14,7 @@ the snapshot contract; use its complete compute object as the shape. For connect
 ## ROADMAP
 
 WHAT HAPPENS: refresh the evidence, check last week's commitments, measure this week's focus and propose three goals. Allow about fifteen minutes, plus the conversation.
-I NEED FROM YOU: missing recorder details, any tool-install yes and agreement on the three goals before they are saved.
+I NEED FROM YOU: missing call evidence, any tool-install yes and agreement on the three goals before they are saved.
 WHAT MIGHT GO WRONG: missing sources leave affected checks unmeasurable; small cohorts may not be decidable yet. The coaching still runs.
 
 ## Step 1 · Setup and sync, inside this command
@@ -44,13 +44,20 @@ applicable install line: `brew install yt-dlp whisper.cpp`; for the model use
 tool's platform-specific installation instructions instead of running Homebrew.
 Use `python3 code/loom.py <id> <recorded Loom URL>` for a missing Loom transcript.
 
-Read `## Call recorder`. If absent, ask which recorder they use, offer the available
-choices, and save the confirmed answer there. Use its available MCP/API to retrieve
-recent calls; otherwise ask for the recording or transcript. Save speaker-labelled
-turns in `jobs/<id>/call.md`, preserving known `Call at:`, `Duration:` and `Member:`
-headers. Without speaker labels a call is **not reviewable**; Whisper alone supplies
-duration and text, never invented speakers. Run `python3 code/call_stats.py <id>` for
-each available recording. Only recorder evidence or member confirmation observes held calls.
+For calls, use Upwork first: saved meeting sessions or `manage_meetings action=list_recaps`,
+then `action=get_full_transcript` for each room/session, every page by offset. These
+are read actions; count and pace them under `references/upwork.md`. Normalise the page
+set with `python3 code/call_stats.py <id> --transcript-json - --call-at <ISO time>
+--duration-s <seconds> --member "<known member speaker>" --source upwork-meeting`
+(omit unknown headers). It writes
+`jobs/<id>/call.md` with one `Speaker: line` per segment and derives the call stats.
+Only when no Upwork transcript exists, and for Enterprise clients or calls after a
+contract started, read `## Call recorder`; ask which recorder only if still unknown.
+Retrieve its available MCP/API transcript or accept a pasted transcript; otherwise
+use notes. Preserve known `Call at:`, `Duration:` and `Member:` headers. Without
+speaker labels a call is **not reviewable**; never invent them. Run `call_stats.py`
+for each call with `--source upwork-meeting|recorder|member` matching its evidence.
+A recap proves held; missing recaps alone never prove no-show.
 
 Check one existing registered tracking link with `?check=1` and its redirect; require
 `X-Tracking-Status: check: not logged`, then `python3 code/clicks.py`. The test must
@@ -65,10 +72,14 @@ it never proves a source was reachable. Do not claim a check that was not made.
 
 Run `python3 code/analytics.py compute` and keep the returned JSON unchanged as the
 numeric source. It supplies activity (seven days), mature cohorts (28 days), outcomes,
-the previous matching baseline, source coverage, lead IDs and last week's goals.
+the own benchmark, source coverage, lead IDs and last week's goals.
 Rates pool successes and eligible cases; unknown entry dates never enter a cohort.
-Earlier missing or undecided stages stay visible in the verdict. When the funnel is
-not decidable yet, use the weakest measured lever and the returned `cases_needed`.
+Outcome rates (KPIs 3–9) collect weeks 1–4 without a rate verdict, then target the next
+rung; `## Bars` changes only the top rung. Levers 10–14 keep fixed strict targets from
+day one. The focus is the first outcome decidably below its rung, or its failing feeding
+lever: reply rate ← speed; reply → call ← first reply or follow-ups; held → proposal ←
+proposal speed. Earlier missing or undecided stages stay in `undecided_before`. When
+the funnel is not decidable yet, use the measured lever and returned `cases_needed`.
 No new segment findings or expectation tests: KPIs 20–21 say “nothing new” until package 4.
 
 Read each evidence lead with `python3 code/pipeline.py get <id>`, its sent application,
@@ -147,14 +158,14 @@ or state by hand. Omit live judgments for sources whose computed coverage is cor
 
 ## Step 4 · Report in chat
 
-At most about 25 lines, sentences rather than tables, in exactly this order:
-1. Last week's three commitments: carried out? worked? Execution and outcome separately.
-2. Where you stand: won value against the own four-week baseline, this week's focus,
-   earlier undecided or missing stages, and what holds. Name each element's period.
-3. One new finding only when available; for this package: “Nothing new this week”.
-4. Coach's note: one fix with one member-worded example.
-5. Three proposed commitments for different stages, including the focus stage.
-6. Three suggested follow-up questions that the evidence can answer.
+Write a short conversational markdown summary, at most about 25 lines, along four beats:
+1. What happened: last week's commitments, execution and effect separately; any new badge tier.
+2. Where you stand: “This week's focus”, one number against its target, own benchmark
+   and earlier undecided stages. Name the periods; keep money in won value.
+3. Why: one insight with a clickable link to its evidence; one coaching example when useful.
+   New segment findings remain “Nothing new this week” until package 4.
+4. What now: the one action and urgent to-dos, then three goals for different stages.
+Follow with suggested questions the evidence can answer. No charts or wall of tables.
 
 Answer first, mention each stage once, retain only what serves the verdict. Counts
 are “k of n”, never a bare percentage; money and time retain their units. Use “not
@@ -182,7 +193,11 @@ each object has the fields above, dates as `YYYY-MM-DD` and `primary` as a boole
 Start from the final compute object and fill its coaching fields: four `reviews`
 (`fix`, member-only `example`, `evidence_lead_ids`, `goal_ref` pointing to the supported
 goal's KPI; call `rubric` judgments), goal execution evidence and decisions, agreed
-`goals_next`, and `report`. Keep `findings: []`, with insights “nothing new”. Preserve
+`goals_next`, and `report`. Write each funnel KPI's `insight` (at most 12 words), up to
+three `insights_top` of kinds `leak|driver|trend|habit|pipeline|learning|market`, each
+with `text` (at most 12 words) and a clickable `target: {view, element}`. Keep new
+segment `findings: []` until package 4; any carried finding needs `kpi` or `stage`,
+`observed`, `expected`, `n`, `strength` and evidence. Preserve
 all numeric fields, including `periods`, `coverage`, pipeline counts/value/age/stalls,
 `north_star` wins/fixed/hourly, baselines, deltas, histories and bypass counts.
 
@@ -192,9 +207,21 @@ client names, post text or client quotations anywhere. The sole exception is
 report, goals, verdict and fixes too; an example spoken by a client never qualifies.
 External benchmarks, if used as orientation for thin history, stay in references
 and only enter a KPI's evidence details as `external_reference` with value,
-population, definition, source and date; never invent a benchmark or a page field.
+population, definition, source and date. A `market_line` (at most 8 words, including
+the source name) may summarise only that verified reference, never become a target tick.
 
-Send the completed object to `python3 code/analytics.py record --file -`. A duplicate
+Claude writes `community_card.next_focus` as a stage label and `community_card.question`
+as one question (at most 14 words) from this week's verdict and situation, every week.
+Preserve the card's default targets: reply 20%, reply → call 50%, call → won 30%, first
+reply median 5 min, regardless of `## Bars`. Applications show this week; rates and
+first reply use the same 28-day comparison window for everyone. Preserve
+retain rung reached, step count, own previous-four-week trend, last week's three goals
+with done marks, newly earned badge and at most five highest badge tiers.
+
+Re-run `python3 code/analytics.py compute --file -` with the completed object after
+agreement, so code incorporates the three goals into to-dos and recomputes review-based
+goal marks and badges. Use that returned object unchanged for all computed fields.
+Send it to `python3 code/analytics.py record --file -`. A duplicate
 ISO week is refused; use `--replace` only when the member asks to correct that week's
 record. Read back with `python3 code/analytics.py last`, verify the agreed goals and
 report, then prune through `pipeline.py`. End with CLAUDE.md's completion report and

@@ -42,6 +42,7 @@ pitches you the same way, so a proposal never sells a different role than your p
 
 ## How you work
 
+**Clients folder:** not answered yet
 **Hourly rate:** not answered yet
 **Smallest project worth taking:** not answered yet
 **Maximum proposals on a job:** not answered yet

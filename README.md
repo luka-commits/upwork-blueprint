@@ -50,7 +50,7 @@ Claude Code session. `RESEARCH.md` is background reading; no command uses it.
 | 5 | `/brief` | Your morning: what changed on Upwork, where every lead stands, and the messages that are due |
 | 6 | `/call-prep` | Before a sales call: what the call has to settle, the client's business, the person and their market, every fact linked, plus what is worth preparing |
 | 7 | `/sales-call-proposal` | Turns your sales call into the proposal you send, and says whether it is ready to start a project on |
-| 8 | `/onboarding` | Turns a started contract into the handover brief and the onboarding. Run it again after delivery to record what came out of it |
+| 8 | `/onboarding` | Turns a started contract into a checked handover brief and an external client folder with your chosen delivery blueprints. Run it again after delivery to record what came out of it |
 
 /about-me also works before connecting or creating a public Upwork profile. Run it
 first: every later command writes from it, and `/find-jobs` on an empty `me.md`
@@ -107,7 +107,25 @@ Everything below is yours and gitignored, so `git pull` never touches it.
 - `data/jobs.json` - your pipeline, written only by `code/pipeline.py`
 - `jobs/<id>/` - one folder per job: the pitch page, the application,
   the call transcript, the proposal and its PDF, the threads and the drafts
-- `clients/<slug>/` - a won job: the brief, the inputs, the work, what you delivered
+
+Client folders default to `<repo parent>/clients/<slug>/`, a sibling outside this
+repository. Set `**Clients folder:**` in `context/me.md` to use another root: `~`
+expands to your home folder, and a relative path resolves against the repository's
+parent. A path inside this repository is rejected so Upwork rules do not load in
+client delivery sessions.
+
+`/onboarding` creates the client's own git repository with root `CLAUDE.md`,
+`brief.md`, `inputs/upwork/`, `work/` and `delivered/`. It copies sales inputs;
+the original `jobs/<id>/` folder stays unchanged. Pick SEO, Google Ads or CRO
+in any combination: each is cloned into its own subfolder and set up, with client
+facts prefilled only after you approve the exact lines. No blueprint still gives
+you the client folder.
+
+A GitHub URL typed through Other is cloned, but its scripts are never run; follow
+its README's manual setup step. No installs, keys or account connections are part
+of this handover. The folder check must pass before onboarding is marked complete.
+The client list reads these external folders and old `clients/<slug>/` folders
+inside this repository, marked legacy.
 
 ## What this will never do
 

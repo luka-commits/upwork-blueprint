@@ -49,7 +49,7 @@ LIM = dict(FIT)
 OWN_WORDS = cc.OWN_WORDS
 INTERNAL = ('Applications per day', 'Smallest project', 'What you do NOT', 'Hourly rate',
             'Maximum proposals', 'Lowest share', 'Industries', 'Proof to build', 'Branches you picked',
-            'Profile title', 'Profile hook')
+            'Profile title', 'Profile hook', 'Clients folder')
 
 # A resume on the house tokens: a parchment page, one ivory sheet, a serif for the
 # name and headings, a small mono for section labels, terracotta for the rules.

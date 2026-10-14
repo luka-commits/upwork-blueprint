@@ -31,6 +31,28 @@ def stamp(seconds=0):
     return (BASE + dt.timedelta(seconds=seconds)).isoformat()
 
 
+def feature_command(name, include_base=True):
+    """Assert the foreign command's hook, then inspect its relocated feature steps."""
+    text = (ROOT / '.claude/commands' / name).read_text()
+    if name in ('analytics.md', 'call-review.md'):
+        return text + '\n' + (ROOT / 'references/call-transcript.md').read_text()
+    assert 'references/analytics-capture.md' in text, name
+    baseline = ORIGINAL_RUN(['git', 'diff', '--numstat', 'f7e43b0', '--', '.claude/commands/' + name],
+                            cwd=ROOT, capture_output=True, text=True, check=True).stdout.splitlines()
+    assert len(baseline) == 1 and int(baseline[0].split()[0]) <= 3 and baseline[0].split()[1] == '0', (name, baseline)
+    capture = (ROOT / 'references/analytics-capture.md').read_text()
+    title = name[:-3].replace('-', ' ').capitalize()
+    marker = '\n## ' + title + '\n'
+    assert marker in capture, name
+    section = capture.split(marker, 1)[1].split('\n## ', 1)[0]
+    shared = capture.split('\n## About me\n', 1)[0]
+    result = (text if include_base else '') + '\n' + shared + '\n' + section
+    if name in ('brief.md', 'sales-call-proposal.md'):
+        assert 'call-transcript.md' in result
+        result += '\n' + (ROOT / 'references/call-transcript.md').read_text()
+    return result
+
+
 @contextlib.contextmanager
 def fixture(label):
     with tempfile.TemporaryDirectory(prefix=f'blueprint-synthetic-{label}-') as temp:
@@ -675,8 +697,8 @@ def review_proofs():
         print('SYNTHETIC fix 6 PASS: only applied timestamp/first applied history; imported/unknown/found/later-stage rows excluded; local-day tracker == pipeline.applied_on')
     commands = ROOT / '.claude/commands'
     onboarding = (commands / 'onboarding.md').read_text()
-    sales = (commands / 'sales-call-proposal.md').read_text()
-    proposal = (commands / 'proposal.md').read_text()
+    sales = feature_command('sales-call-proposal.md')
+    proposal = feature_command('proposal.md')
     assert 'recorder' not in onboarding.lower()
     assert 'get_full_transcript' in sales and 'Enterprise' in sales and 'contract' in sales
     assert 'loom_hook' in proposal and 'Call at:' in sales
@@ -688,7 +710,10 @@ def review_proofs():
         # goal library is excluded from this older repair's reference-size budget.
         package2 = {'.claude/commands/find-jobs.md', '.claude/commands/analytics.md',
                     '.claude/commands/brief.md', '.claude/commands/sales-call-proposal.md',
-                    'references/jobs.md', 'references/goal-library.md'}
+                    'references/jobs.md', 'references/goal-library.md', 'references/analytics-capture.md',
+                    'references/call-transcript.md', 'references/coach-brief.md', '.claude/commands/call-review.md',
+                    '.claude/commands/about-me.md', '.claude/commands/profile.md', '.claude/commands/onboarding.md',
+                    '.claude/commands/dashboard.md'}
         legacy = [row for row in result.stdout.splitlines() if row.split('\t')[-1] not in package2]
         delta = sum(int(row.split()[0]) - int(row.split()[1]) for row in legacy)
         if relative == '.claude/commands':
@@ -698,7 +723,7 @@ def review_proofs():
             assert delta <= 45, (relative, delta)
         else:
             assert delta <= 0, (relative, delta)
-    find_jobs = (commands / 'find-jobs.md').read_text()
+    find_jobs = feature_command('find-jobs.md')
     assert find_jobs.count('Analytics due: run /analytics') == 1 and 'code/analytics.py due' in find_jobs
     settings = (ROOT / 'references/jobs.md').read_text()
     assert all(key in settings for key in ('## Bars', '## Analytics day', '## Weekly goal', '## Working hours'))
@@ -707,9 +732,11 @@ def review_proofs():
     assert application.index('import pipeline') < application.index('def ')
     analytics = (ROOT / 'website/components/AnalyticsPage.tsx').read_text()
     # Frozen UI now reads saved focus, k/n and uncertainty; legacy49/50 pure proofs remain.
-    assert 'No weekly snapshot yet.' in analytics
-    assert 'presentation.scorecard' in analytics and 'snapshot.verdict' in analytics
-    assert 'value.metric.low' in analytics and 'value.metric.high' in analytics
+    assert 'No saved weekly review yet.' in analytics
+    assert 'scorecard={list(p.scorecard)}' in analytics and 'snapshot.verdict' in analytics
+    # Items17/32 replace the generic metric drawer with the scorecard detail.
+    # Bounds stay checked against the writer in rendered_ui; the UI owner verifies display.
+    assert 'FunnelScorecard' in analytics and 'onConversations' in analytics
     print('SYNTHETIC fixes 7/10 PASS: recorder transcript/fallback in sales command, hook writer, import cleanup, existing UI contracts; legacy command/reference budgets retained (analytics goal-library excluded); authorized analytics reminder/settings/files verified')
 
 
@@ -803,33 +830,41 @@ const {transformSync}=require('next/dist/build/swc');
 const {code}=transformSync(fs.readFileSync('components/AnalyticsPage.tsx','utf8'),{
 filename:'AnalyticsPage.tsx',swcrc:false,configFile:false,jsc:{parser:{syntax:'typescript',tsx:true},
 target:'es2020',transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}});
-let current, selected=null, hook=0, injected=false;const mod={exports:{}};
+let current, selected=null, hook=0, injected=false, tab=0;const mod={exports:{}};
 const compiledScorecard={exports:{}};
 const scorecardCode=transformSync(fs.readFileSync('components/FunnelScorecard.tsx','utf8'),{filename:'FunnelScorecard.tsx',swcrc:false,configFile:false,jsc:{parser:{syntax:'typescript',tsx:true},target:'es2020',transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}}).code;
 new Function('require','module','exports',scorecardCode)(require,compiledScorecard,compiledScorecard.exports);
+const compiledCopy={exports:{}};
+const copyCode=transformSync(fs.readFileSync('components/CopyButton.tsx','utf8'),{filename:'CopyButton.tsx',swcrc:false,configFile:false,jsc:{parser:{syntax:'typescript',tsx:true},target:'es2020',transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}}).code;
+new Function('require','module','exports',copyCode)(name=>name==='@/lib/context'?{useCockpit:()=>({toast:()=>{}})}:require(name),compiledCopy,compiledCopy.exports);
 new Function('require','module','exports',code)(name=>{
 if(name==='./FunnelScorecard')return compiledScorecard.exports;
+if(name==='./CopyButton')return compiledCopy.exports;
 if(name==='@/lib/context')return {useCockpit:()=>({state:current,openDrawer:()=>{}})};
-if(name==='react')return {...React,useState:initial=>{const pair=React.useState(initial);hook++;return !injected&&initial===null&&selected?(injected=true,[selected,pair[1]]):pair;}};
+if(name==='react')return {...React,useState:initial=>{const pair=React.useState(initial);hook++;return initial===0?[tab,pair[1]]:!injected&&initial===null&&selected?(injected=true,[selected,pair[1]]):pair;}};
 return require(name);},mod,mod.exports);
 function render(state){current=state;hook=0;injected=false;return renderToStaticMarkup(React.createElement(mod.exports.default));}
 const payload=JSON.parse(process.argv[1]);const populated=payload.legacy, snapshot=payload.snapshot;
 const modern={...populated,analytics:{latest:snapshot,history:[snapshot]}};
-const html=render(modern);assert(html.includes('This week’s focus'));
-assert(html.indexOf('This week’s focus')<html.indexOf('Your funnel, stage by stage'));
-assert(html.includes(snapshot.kpis[snapshot.verdict.kpi].label));
+const html=render(modern);const focusLabel='This week&#x27;s focus';assert(html.includes(focusLabel));
+assert(html.indexOf(focusLabel)<html.indexOf('Your funnel, stage by stage'));
+assert(html.includes(snapshot.presentation.scorecard.find(row=>row.key===snapshot.verdict.kpi)?.name || snapshot.kpis[snapshot.verdict.kpi].label));
 assert(html.includes('Top · finding and applying')&&html.includes('Middle · replies and calls')&&html.includes('Bottom · proposals and wins'));
 assert(html.includes('Your funnel, stage by stage')&&!html.includes('Show all numbers')&&!html.includes('More insights'));
 assert(html.includes('Funnel Score'));
+const callDetail=html.match(/<tr class="sc-detail" id="scorecard-reply_to_call"[^>]*><td[^>]*>([^]*?)<\/td><\/tr>/);
+assert(callDetail);assert.equal(callDetail[1],'<button class="an-text-button">Why these replies stalled → Conversations</button>');
+tab=1;const conversations=render(modern);assert(conversations.includes('Across your conversations'));
+assert(conversations.includes('Applications')&&conversations.includes('Chats')&&conversations.includes('Calls')&&conversations.includes('Proposals'));tab=0;
 assert(!/0 of 0/.test(html));assert(html.includes('No eligible cases yet'));assert(html.includes('unknown')||html.includes('Not enough evidence'));
 const missingMoney={...snapshot,north_star:{...snapshot.north_star,value:null,known_subtotal:0,unknown_value_wins:['synthetic-unknown'],hourly_billed:null}};
 const missingMoneyHtml=render({...modern,analytics:{latest:missingMoney,history:[]}});
-assert.match(missingMoneyHtml, /an-money-button[^>]*>Value unknown<\/button>/);
-assert.match(missingMoneyHtml, /Billed this week[^]*?<strong>Value unknown<\/strong>/);
+assert.match(missingMoneyHtml, /Won this week[^]*?Value unknown<\/button>/);
+assert.match(missingMoneyHtml, /Billed this week: Value unknown[^]*?separate from won value/);
 const missing=render({...modern,analytics:{latest:null,history:[]}});
-assert(missing.includes('No weekly snapshot yet.'));
+assert(missing.includes('No saved weekly review yet.'));
 const empty=render({...modern,analytics:{latest:{...snapshot,kpis:{},presentation:{},goals_next:[]},history:[]}});
-assert(!empty.includes('No weekly snapshot yet.'));assert(empty.includes('No eligible cases yet.'));
+assert(!empty.includes('No saved weekly review yet.'));assert(empty.includes('Scorecard unknown.'));
 // Original49/50 and populated66% semantics stay proved against the pure legacy helper.
 assert.equal(funnel.funnelSteps(populated.funnel,funnel.PROPOSAL_STEPS).at(-1).overall,100);
 assert.equal(funnel.funnelSteps({applied:49,replied:20,call:15},funnel.APPLICATION_STEPS)[1].rate,null);
@@ -839,18 +874,21 @@ const samples=fs.readFileSync('../tools/sample-snapshots.jsonl','utf8').trim().s
 assert.equal(samples.length,8);
 for(const example of samples){const rendered=render({...modern,analytics:{latest:example,history:samples}});
 assert(rendered.includes(example.week));assert(rendered.includes('Synthetic example'));
-assert(rendered.includes(example.kpis[example.verdict.kpi].label));}
-// Drawer SSR exercises saved uncertainty and source semantics without manufacturing KPIs.
-const detail={...snapshot,kpis:{...snapshot.kpis,reply_rate:{...snapshot.kpis.reply_rate,k:5,n:18,low:11.4,high:50.9,state:'undecided'}}};
-selected={title:'Reply uncertainty',metric:detail.kpis.reply_rate,evidence:[],note:'observed (call history)'};
+assert(rendered.includes(example.presentation.scorecard.find(row=>row.key===example.verdict.kpi)?.name || example.kpis[example.verdict.kpi].label));}
+// Frozen scorecard detail replaces the generic metric drawer; retain k/n, unknown state and source.
+const detail={...snapshot,presentation:{...snapshot.presentation,scorecard:snapshot.presentation.scorecard.map(row=>row.key==='reply_rate'?{...row,finished:{k:5,n:18},state:'undecided',insight:'Not enough evidence; observed (call history)',uncertainty:{low:11.4,high:50.9}}:row)}};
 const uncertain=render({...modern,analytics:{latest:detail,history:[]}});
-assert(uncertain.includes('5 of 18'));assert(uncertain.includes('11.4–50.9%'));
-assert(uncertain.includes('Not enough evidence'));assert(uncertain.includes('observed (call history)'));selected=null;
+assert(uncertain.includes('5 of 18'));
+assert(uncertain.includes('Not enough evidence'));assert(uncertain.includes('observed (call history)'));
 assert(populated.timings.call_to_proposal.values.some(row=>row.call_source==='observed'));
 console.log('SYNTHETIC rendered UI PASS: current saved focus first/k/n; missing vs empty snapshot; eight samples; legacy66% and49/50 pure helper; observed call source and Wilson uncertainty');
 })().catch(error=>{console.error(error);process.exitCode=1});"""
         result = ORIGINAL_RUN(['node', '-e', js, json.dumps({'legacy':s,'snapshot':snapshot})], cwd=ROOT / 'website', capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
+        import analytics
+        rates,_=analytics.calculate(list(records().values()),analytics.day(snapshot['generated_at']),now=snapshot['generated_at'],activity_bounds=analytics.span(analytics.day(snapshot['generated_at']),28))
+        for row in snapshot['presentation']['scorecard']:
+            assert row['uncertainty']=={key:rates[row['key']].get(key) for key in ('low','high')}
         print(result.stdout.strip())
         print('audit engineer E20: rendered UI preflight PASS — executed using declared website dependencies')
 
@@ -908,10 +946,10 @@ def package1():
         assert records()['982000001']['application_sent_copy'] is True
         assert run('pipeline.py', 'sent', '982000002', success=False).returncode != 0
         assert 'application_sent_copy' not in records()['982000002']
-        assert 'code/pipeline.py sent <id>' in (ROOT / '.claude/commands/proposal.md').read_text()
+        assert 'code/pipeline.py sent <id>' in feature_command('proposal.md')
         print('SYNTHETIC F2 PASS: submitted byte copy is immutable; missing source fails without a marker; command wired')
     # The existing media fixture executes Loom with mocked binaries and model; no downloads.
-    proposal = (ROOT / '.claude/commands/proposal.md').read_text()
+    proposal = feature_command('proposal.md')
     assert 'code/loom.py <id> <url>' in proposal and 'within 15 s' in proposal and 'one ask at the end' in proposal
     with fixture('f3'):
         seed([{'id': '983000001'}])
@@ -995,8 +1033,8 @@ def package1():
         assert records()['987000001']['call_held_observation']['source'] == 'recorder'
         run('call_stats.py', '987000002')
         assert 'call_held_at' not in records()['987000002']
-        sales = (ROOT / '.claude/commands/sales-call-proposal.md').read_text()
-        assert 'get_full_transcript' in sales and 'Notes alone still work' in sales and 'Speaker: line' in sales
+        sales = feature_command('sales-call-proposal.md')
+        assert 'get_full_transcript' in sales and 'Notes may support a proposal' in sales and 'Speaker: words' in sales
         print('SYNTHETIC F7 PASS: normalised transcript writes recorder-held event/stats; notes alone do not; fallback command wired')
     with fixture('f8'):
         import pipeline
@@ -1041,7 +1079,7 @@ def package1():
         run('pipeline.py', 'observe', '989000001', 'proposal_sent', stamp(60))
         job = records()['989000001']
         assert job['proposal_sent_at'] == stamp() and job['history'] == before['history'] and job['status'] == 'call'
-        assert 'observe <id> proposal_sent <ISO time>' in (ROOT / '.claude/commands/sales-call-proposal.md').read_text()
+        assert 'observe <id> proposal_sent <ISO time>' in feature_command('sales-call-proposal.md')
         print('SYNTHETIC F9 PASS: confirmed proposal-sent observation is stable, preserves stage/history and command uses it')
     with fixture('f10') as folder:
         snapshot = {'contracts': [{'job_id': '980000001', 'contract_id': 'fixed-1', 'status': 'active',
@@ -1068,7 +1106,7 @@ def package1():
         assert rows == [{key: entry[key] for key in ('at', 'amount', 'reason', 'job_id')} for entry in snapshot['connects'][:2]]
         assert sum(row['amount'] for row in rows) == -6
         print('SYNTHETIC F11 PASS: signed spend/receipt, verbatim reason, four-key dedup, no raw job payload and invalid number skipped')
-    brief = (ROOT / '.claude/commands/brief.md').read_text()
+    brief = feature_command('brief.md')
     assert all(text in brief for text in ('Read invitations', 'list_contracts action=get', 'action=summary',
                                          'action=connects_balance', 'amount.rawValue', 'previous four weeks on every refresh'))
     print('SYNTHETIC F12 PASS: invitations, terms, earnings and Connects reads/snapshot wired with bounded read-only pacing')
@@ -1512,7 +1550,12 @@ def analytics_storage(snapshot, folder, rows):
     assert analytics.due(ANALYTICS_TODAY + dt.timedelta(days=7)) is True
     assert analytics.due(ANALYTICS_TODAY + dt.timedelta(days=8)) is True
     assert json.loads(run('analytics.py', 'due', '--today', '2026-10-22').stdout) is True
-    assert all(secret not in lines[0] for secret in ('SYNTHETIC PRIVATE CLIENT NAME', 'SYNTHETIC PRIVATE CLIENT WORDS', 'SYNTHETIC PRIVATE CLIENT TITLE'))
+    # Frozen31 explicitly introduces private quoted content/lead labels in Conversations.
+    # Preserve the original source-leak guard everywhere outside that named private container.
+    guarded=json.dumps({key:item for key,item in stored.items() if key!='conversations'})
+    assert all(secret not in guarded for secret in ('SYNTHETIC PRIVATE CLIENT NAME', 'SYNTHETIC PRIVATE CLIENT WORDS', 'SYNTHETIC PRIVATE CLIENT TITLE'))
+    assert 'SYNTHETIC PRIVATE CLIENT TITLE' in json.dumps(stored['conversations'])
+    assert 'SYNTHETIC PRIVATE CLIENT TITLE' not in json.dumps(stored['community_card'])
     assert stored['reviews']['application']['example'] == 'I can offer Tuesday at ten.'
     # Last week's goals separate execution from the independently measured outcome.
     previous = analytics_payload(analytics.compute(ANALYTICS_TODAY - dt.timedelta(days=7)))
@@ -1751,7 +1794,7 @@ def package1b():
         run('pipeline.py', 'prune')
         assert not call.exists() and records()[jid]['call_stats'] == stats_before
     for name in ('brief.md', 'sales-call-proposal.md', 'analytics.md'):
-        command = (ROOT / '.claude' / 'commands' / name).read_text()
+        command = feature_command(name)
         assert 'manage_meetings' in command, name
         allowed = {'list', 'list_recaps', 'get_meeting_summary', 'get_full_transcript'}
         import re
@@ -1955,13 +1998,14 @@ def analytics_fix_round():
         assert stored['findings'] == payload['findings']
         assert stored['kpis']['reply_rate']['insight'] == payload['kpis']['reply_rate']['insight']
     command = (ROOT / '.claude/commands/analytics.md').read_text()
-    # Frozen §13.15/16 conversational report replaces the old four beats.
-    beats = ('summary', 'top / middle / bottom', "last week's goals", 'this week', 'new badge', 'three questions')
-    report_command = command[command.index('Follow `outputs/chat-report-example.md`'):]
-    assert all(beat in command for beat in beats)
-    assert [report_command.index(beat) for beat in beats] == sorted(report_command.index(beat) for beat in beats)
+    # Frozen21's expert brief supersedes16's fixed paragraph order; every sourced beat remains required.
+    assert 'references/coach-brief.md' in command and 'references/chat-report-example.md' in command
+    report_command = command.split('## Step 4 · Weekly coaching and report',1)[1]
+    assert all(beat in report_command for beat in ('won value versus own history', 'selection, volume',
+        'booked and held calls', 'call coaching', 'execution, effect', 'proposed commitments', 'newly earned badges', 'three useful follow-up questions'))
+    assert 'No fixed paragraph order' in report_command
     # Frozen public source guards supersede exact old wording; target behavior is numerically tested.
-    assert all(text in command for text in ('No charts', 'community_card.next_focus',
+    assert all(text in command for text in ('No graph, forecast chart', 'community_card.next_focus',
         '≤14 words', 'automatic check', 'common 28-day community window', 'Bars'))
     print('SYNTHETIC A2 fix round PASS: reply6%=target11%, reply12%=target11% until Wilson evidence supports promotion; first four weeks no rate verdict; four mapped lever focuses; configurable reasoned lever targets; every added snapshot field schema-valid; urgent todos capped7; default card despite Bars; undecided forecast null; Claude insight/question/provenance/findings validation and persistence')
 
@@ -2091,21 +2135,21 @@ def audit_command_and_publication():
     assert 'screening answer, proof, bid/scope, opener or video close' in command
     assert 'rewrite one first sentence' not in command
     print('audit freelancer F20: application repair matches defect PASS — eligibility blocker and actual artifact repair, not unconditional opener')
-    assert 'language and source completeness' in command and 'unsupported' in command and 'whole-call verdict' in command
-    assert '--member' in command
+    assert 'language and transcript completeness' in command and 'unsupported' in command and 'whole-call verdict' in command
+    assert ('references/call-transcript.md' in command or '[call-transcript.md](call-transcript.md)' in command) and '--member' in (ROOT/'references/call-transcript.md').read_text()
     print('audit freelancer F19: attributable complete call evidence PASS — known member, language/completeness and unsupported-points gate')
     assert 'at most\nfive cases' in command and 'routine checks have no measured duration claim' in command
     assert 'fifteen minutes' not in command
     print('audit product P11: bounded routine PASS — first-run preparation distinguished; routine focus sample capped at five plus urgent exceptions; no unmeasured duration promise')
     assert 'one to three' in command and 'One to three different stages' in command
     print('audit freelancer F10 / product P5: one to three distinct-stage goals PASS — plan decision retained; no exact-three mandate')
-    sales = (ROOT / '.claude/commands/sales-call-proposal.md').read_text()
+    sales = feature_command('sales-call-proposal.md')
     assert 'agreed proposal next step' in sales and 'scope/pricing options' in sales
-    assert 'proposal needs something both sides said yes to' not in sales
+    assert 'proposal needs something both sides said yes to' not in feature_command('sales-call-proposal.md', include_base=False)
     print('audit freelancer F21: proposal next-step gate PASS — requested options accepted; assumptions distinguished from accepted delivery scope')
     assert 'reasoned defaults' in command and 'feasible availability' in command and 'require case evidence' in command
     print('audit freelancer F12: feasible reasoned speed commitments PASS — targets configurable; speed misses require case evidence before causal coaching')
-    brief = (ROOT / '.claude/commands/brief.md').read_text()
+    brief = feature_command('brief.md')
     assert 'previous four weeks on every refresh' in brief
     assert 'never claim fresh coverage from a partial write' in brief
     assert 'meeting start as `scheduled_at`' in brief and 'verified booking agreement time' in brief
@@ -2806,6 +2850,10 @@ def audit_uma_review():
         value=analytics.compute(today,now=now)
         value['reviews']['call'].update(fix='Verify the missing call segments',example='What is the next step?',evidence_lead_ids=[jid],
             rubric=[{'lead_id':jid,'reviewable':True,'points':[{'point':point,'state':'met'} for point in range(1,10)]}])
+        try:analytics.prepare_snapshot(value,today,now=now)
+        except ValueError:pass
+        else:raise AssertionError('Incomplete transcript accepted as reviewed.')
+        value['reviews']['call']['rubric'][0].update(reviewable=False,points=[])
         reviewed=analytics.prepare_snapshot(value,today,now=now)
         assert reviewed['kpis']['call_review']['state']=='missing'
         assert not any(badge['badge']=='True North' for badge in reviewed['badges'])
@@ -2829,7 +2877,12 @@ def audit_call_badge_evidence():
         value=analytics.compute(today,now=now)
         value['reviews']['call'].update(fix='Clarify the outcome once',example='What outcome matters?',evidence_lead_ids=[jid],
             rubric=[{'lead_id':jid,'reviewable':True,'points':[{'point':point,'state':'met'} for point in range(1,10)]}])
-        incomplete=analytics.prepare_snapshot(value,today,now=now)
+        try:analytics.prepare_snapshot(value,today,now=now)
+        except ValueError:pass
+        else:raise AssertionError('Incomplete transcript accepted as reviewed.')
+        unavailable=__import__('copy').deepcopy(value)
+        unavailable['reviews']['call']['rubric'][0].update(reviewable=False,points=[])
+        incomplete=analytics.prepare_snapshot(unavailable,today,now=now)
         assert incomplete['kpis']['call_review']['state']=='missing'
         assert not any(badge['badge']=='True North' for badge in incomplete['badges'])
         transcript.write_text('Complete: yes\n'+text)
@@ -2989,19 +3042,19 @@ def analytics_event_ledger_contract():
         assert cli.stdout == ''
         assert not (folder/'data/jobs.json').exists(), 'Badge writer must not write jobs.'
         assert not (folder/'data/analytics-history.jsonl').exists(), 'Badge writer must not write weekly snapshots.'
-    for tier,rank in (('Bronze','Deckhand'),('Silver','Boatswain'),('Gold','Officer'),('Platinum','Captain'),('Legend','Admiral')):
+    for tier in badges.TIERS:
         rows=[{'badge':name,'tier':tier} for name in ('Swift Sail','Quick Draw','True North')]
-        assert badges.rank(rows) == rank
-        assert badges.rank(rows[:2]) == 'Deckhand'
-        assert badges.rank(rows[:1]*3) == 'Deckhand', 'Rank counts distinct badges.'
-    assert badges.rank([]) == 'Deckhand'
+        view=badges.voyage(rows)
+        assert all(row['tier']==tier for row in view['stations'] if row['earned'])
+        assert not {'rank','rank_progress'} & view.keys()
+    assert not hasattr(badges, 'rank')
     history=[{'week':week} for week in ('2026-W37','2026-W38','2026-W40','2026-W41')]
     saved=badges.streak_history(history,week='2026-W41')
     assert saved == {'streak_weeks':4,'anchors_used':['2026-W39']}, saved
     assert badges.streak(history,week='2026-W41') == 4
     same_month=badges.streak_history([{'week':week} for week in ('2026-W41','2026-W44')],week='2026-W44')
     assert same_month['streak_weeks'] == 1 and same_month['anchors_used'] == ['2026-W42'], same_month
-    print('SYNTHETIC frozen badge ledger PASS: measured Bronze moments/equality; send-only and weak-fit refusal; replay/since; atomic concurrent weekly award; only badge writer; retained tiers; distinct rank thresholds; monthly first-miss anchor')
+    print('SYNTHETIC frozen badge ledger PASS: measured Bronze moments/equality; send-only and weak-fit refusal; replay/since; atomic concurrent weekly award; only badge writer; retained tiers; rank absent; monthly first-miss anchor')
 
 
 def analytics_final_reader_contract():
@@ -3070,7 +3123,7 @@ def analytics_final_reader_contract():
         assert sparse['number_keys']==['first_reply','value_per_100_connects'] and sparse['number_gap']
         full=snapshot['presentation']['voyage']
         assert len(full['stations'])==14 and len(full['calendar'])==84
-        assert all(row['locked'] for row in full['stations']) and full['rank']=='Deckhand'
+        assert all(row['locked'] for row in full['stations']) and not {'rank','rank_progress'} & full.keys()
         assert all({'date','week','run','anchor','count','evidence'}<=row.keys() for row in full['calendar'])
         chart=snapshot['presentation']['money_chart']
         assert len(chart['won'])==len(chart['forecast'])==1
@@ -3333,6 +3386,9 @@ def analytics_pipeline_probe_contract():
     print('SYNTHETIC final platform probes PASS: true/false persistent viewed context; immutable insights; exact/fallback/repair invitation; request not booking/replay; nonfatal unknown recap preserves held/no-show; all Connects debits; unique explicit goal action; confirmed/import/unknown badge gates; immediate pure14station ledger overlay')
 
 def main():
+    for path in sorted((ROOT/'.claude/commands').glob('*.md')):
+        if path.name not in ('analytics.md','call-review.md'): feature_command(path.name)
+    print('SYNTHETIC command hooks PASS: all eight foreign commands +3/-0 maximum against f7e43b0; corresponding feature references required.')
     with fixture('dashboard'):
         s = dashboard_fixture()
         quiet = sum(row['count'] == 0 for row in s['outreach'])

@@ -215,7 +215,7 @@ def assessment(job, key):
         if str(item.get('text', '')).startswith(prefix):
             try:
                 value = json.loads(item['text'][len(prefix):])
-                valid = value.get('state') in ('pass', 'fail', 'unclear') if key == 'job_fit' else value.get('kind') in ('stated', 'observed', 'unknown')
+                valid = value.get('state') in ('pass', 'fail', 'unclear') if key == 'job_fit' or key.endswith('_review') else value.get('kind') in ('stated', 'observed', 'unknown')
                 if valid and isinstance(value.get('reason'), str):
                     return value
             except (ValueError, TypeError, AttributeError):
@@ -527,22 +527,27 @@ def coverage_fields(sources, jobs, today):
             text = read_source(folder / 'call.md')
             stats = call_stats.analyze(text) if text else {}
             if not text or not stats.get('transcript_complete') or not stats.get('member_attributed'):
-                absent('call transcript:' + jid, ['call_review'], 'Paste a complete labelled transcript or run /sales-call-proposal ' + jid + '.')
+                absent('call transcript:' + jid, ['call_review'], 'Paste a transcript or run /call-review ' + jid + '.')
         if event(job, 'won') and contract_value(job) is None:
             absent('contract terms:' + jid, ['won_value', 'value_per_100_connects', 'forecast'], 'Reconnect Upwork and read the agreed contract amount or hourly hours for ' + jid + '.')
     return {'sources': copy.deepcopy(sources), 'missing': missing}
 
 
-CONVERSATION_POINTS = ('fast_answer', 'answered_question', 'qualifying_question', 'call_times', 'follow_ups')
+CONVERSATION_POINTS = ('answered_question', 'qualifying_question', 'call_times')
+CALL_POINT_LABELS = {1: 'Opening and agenda', 2: 'Current state', 3: 'Problem and cost',
+    4: 'Goal and scope', 5: 'Budget before price', 6: 'Decision maker and timeline',
+    7: 'Why you', 8: 'Objections', 9: 'Next step on Upwork'}
+CALL_POINT_DEFINITIONS = {7: "Proof meets the client's stated concern and distinguishes the member from other applicants.",
+    9: 'Who sends the proposal or client offer, fixed with milestones or hourly, and by when, with the client\'s yes. Posted budget or scope counts as covered.'}
 
 
-def conversation_reviews(jobs, today):
+def conversation_reviews(jobs, today, quiet_only=True):
     """Read the coach's saved judgement; deterministic code never invents a thread read."""
     threads = []
     for job in jobs:
-        if job.get('imported') or not event(job, 'replied') or day(event(job, 'replied')) >= today:
+        if job.get('imported') or not event(job, 'replied') or day(event(job, 'replied')) > today or quiet_only and day(event(job, 'replied')) == today:
             continue
-        if any(event(job, key) and day(event(job, key)) < today for key in ('call_booked', 'call_held', 'offer', 'won')):
+        if quiet_only and any(event(job, key) and day(event(job, key)) < today for key in ('call_booked', 'call_held', 'offer', 'won')):
             continue
         path = pipeline.jobs_dir() / str(job['id']) / 'thread.json'
         text = read_source(path)
@@ -566,12 +571,14 @@ def conversation_reviews(jobs, today):
         read = bool(complete and messages and saved.get('read') is True and all(points[name]['reason'] != 'Messages or a quoted coach review are unknown. Read the complete Upwork thread.' for name in CONVERSATION_POINTS))
         last = max(messages, key=lambda row: timestamp(row.get('at')) or dt.datetime.min.replace(tzinfo=dt.timezone.utc), default={}).get('from', 'unknown')
         last = 'me' if last in ('me', 'member') else 'client' if last == 'client' else 'unknown'
-        threads.append({'lead_id': str(job['id']), 'points': points, 'last_writer': last, 'read': read})
+        threads.append({'lead_id': str(job['id']), 'points': points, 'last_writer': last, 'read': read,
+                        'free_read': saved.get('free_read') if read else None,
+                        'next_message': saved.get('next_message') if read else None})
     checked = [row for row in threads if row['read']]
     counts = {name: sum(row['points'][name]['state'] == 'missing' for row in checked) for name in CONVERSATION_POINTS}
     most = max(counts, key=counts.get) if counts else None
-    descriptions = {'fast_answer': 'a useful first answer', 'answered_question': 'an answer to the client question',
-                    'qualifying_question': 'one qualifying question', 'call_times': 'an offer with two concrete call times', 'follow_ups': 'the due follow-up'}
+    descriptions = {'answered_question': 'an answer to the client question',
+                    'qualifying_question': 'one qualifying question', 'call_times': 'a useful call proposal'}
     pattern = f"In {counts[most]} of {len(checked)} quiet threads, {descriptions[most]} was missing." if most and counts[most] >= 2 else None
     return {'threads': threads, 'pattern': pattern}
 
@@ -671,9 +678,7 @@ def scorecard_fields(snapshot, jobs, history, today):
             previous_value = prior.get('value') if prior.get('state') != 'missing' and not snapshot['kpis']['reply_rate'].get('baseline_phase', True) else None
             comparison = 'Previous four-week comparison unavailable' if previous_value is None else 'unchanged' if row.get('value') == previous_value else 'was ' + (f'{previous_value:g}%' if row['unit'] == '%' else f'{previous_value:g} min' if row['unit'] == 'min' else f'{previous_value:g}')
             split = []
-            if key == 'reply_to_call':
-                split = copy.deepcopy(snapshot.get('conversation_review', {}).get('threads', []))
-            elif key == 'proposal_on_time':
+            if key == 'proposal_on_time':
                 split = [dict(label='Held calls to proposal', k=current['held_to_proposal']['k'], n=current['held_to_proposal']['n'], evidence=current['held_to_proposal']['evidence'])]
             market = None
             if key == 'reply_rate': market = {'value': '5.1% agency reply rate; different population', 'source': 'GigRadar Q2 2026, 30 July 2026: https://gigradar.io/upwork/reports/2026/q2/all-industries'}
@@ -684,11 +689,13 @@ def scorecard_fields(snapshot, jobs, history, today):
             rows.append({'key': key, 'group': group, 'name': SCORECARD_NAMES[key], 'stage_label': SCORECARD_STAGE.get(key),
                 'period_label': 'Last 28 days', 'counting': ({'weekly_volume': 'Qualified applications in the last 28 days, divided by four weekly commitments.', 'job_fit': 'All sent outbound applications in the last 28 days, with a saved lane and rate fit review.', 'speed_10min': 'Qualified applications in the last 28 days with frozen posting age; unknown ages remain unknown.', 'first_reply': 'Client messages received in the last 28 days; unanswered messages count at their working-hours age.', 'follow_ups_on_time': 'Distinct silent-lane obligations due in the last 28 days; a sent follow-up counts on its due business day.', 'proposal_on_time': 'All fitting held calls in the last 28 days; sent within 30 min of call end. Clean disqualifications and offer or contract bypasses are excluded.', 'value_per_100_connects': 'Known new contract value divided by net Connects spent in the last 28 days, multiplied by 100. Zero spend is not measurable.'}.get(key) or f'Finished outbound cases with a fixed {HORIZONS.get(key, 0)}-day outcome horizon; the full 28-day mature entry cohort includes unsuccessful cases.'), 'period': copy.deepcopy(snapshot['window']), 'value': row.get('value'),
                 'finished': {'k': row.get('k'), 'n': row.get('n')}, 'pending': {'n': len(pending), 'until': until.date().isoformat() if until else None},
+                'uncertainty': {'low': row.get('low'), 'high': row.get('high')},
                 'change': {'previous_value': previous_value, 'comparison_label': 'Previous 28 days', 'text': comparison},
                 'series': {'label': 'Last eight weekly checks', 'unit': row['unit'], 'points': points},
                 'target': {'kind': 'ladder' if key in FUNNEL else 'habit', 'value': row.get('target'), 'level': frozen.get('rung_reached'), 'thresholds': frozen.get('rungs', [])},
                 'next_action': {'text': snapshot.get('verdict', {}).get('next_action') or ACTIONS.get(key, ''), 'lead_filter': {'kpi': key, 'lead_ids': scorecard_action_ids(key, row, jobs, today, now)}} if key == focus else None,
                 'split': split, 'focus': {'reason': snapshot.get('verdict', {}).get('reason') or snapshot.get('verdict', {}).get('sentence')} if key == focus else None,
+                'content_link': {'view': 'conversations', 'text': 'Why these replies stalled → Conversations'} if key == 'reply_to_call' else None,
                 'market': market, 'state': row['state'], 'evidence': row.get('evidence', []), 'insight': frozen.get('insight') or row.get('reason')})
     return rows
 
@@ -1327,7 +1334,7 @@ def badge_results(snapshot, jobs, history, today):
     swift_good = sum((job.get('application_facts') or {}).get('posted_age_band') == '<10m' and application_content(job) for job in weekly)
     qualifying['Swift Sail'] = bool(weekly) and snapshot['kpis']['speed_10min']['state'] != 'missing' and swift_good / len(weekly) * 100 >= snapshot['kpis']['speed_10min']['target']
     replies = [job for job in jobs if inside(job.get('first_client_message_at') or job.get('replied_at') or job.get('invited_at'), span(today, 7))]
-    qualifying["Ship's Bell"] = qualifying["Ship's Bell"] and bool(replies) and all(badge_ledger.content_pass(job, 'conversation') or (assessment(job, 'conversation_review') or {}).get('points', {}).get('fast_answer', {}).get('state') == 'met' for job in replies)
+    qualifying["Ship's Bell"] = qualifying["Ship's Bell"] and bool(replies) and all(badge_ledger.content_pass(job, 'conversation') for job in replies)
     calls = [job for job in jobs if inside(event(job, 'call_held'), span(today, 7)) and proposal_eligible(job)]
     quick_good = sum(bool(badge_ledger.content_pass(job, 'proposal') and call_end(job) and event(job, 'proposal_sent') and 0 <= (event(job, 'proposal_sent') - call_end(job)).total_seconds() <= 1800) for job in calls)
     qualifying['Quick Draw'] = bool(calls) and snapshot['kpis']['proposal_on_time']['state'] != 'missing' and quick_good / len(calls) * 100 >= snapshot['kpis']['proposal_on_time']['target']
@@ -1502,6 +1509,64 @@ def quest_progress(snapshot, jobs, today=None):
     return result
 
 
+def saved_review_time(job, review, kind='call'):
+    # Only recorded timestamps, never the current projection time or file mtime.
+    for key in ('reviewed_at', 'as_of'):
+        if timestamp(review.get(key)): return review[key]
+    recorded = job.get(kind + '_reviewed_at')
+    if timestamp(recorded): return recorded
+    for entry in reversed(job.get('log') or []):
+        prefix = 'analytics ' + kind + '_review: '
+        if not str(entry.get('text', '')).startswith(prefix) or not timestamp(entry.get('at')): continue
+        try: saved = json.loads(entry['text'][len(prefix):])
+        except (TypeError, ValueError): continue
+        if isinstance(saved, dict) and all(review.get(key) == value for key, value in saved.items()): return entry['at']
+    return None
+
+
+def goal_cards(snapshot):
+    """Present canonical commitments with matching saved coach examples and execution units."""
+    units = {row['goal_id']: row['unit'] for row in snapshot.get('quests', [])}
+    result = []
+    for goal in snapshot.get('goals_next', []):
+        start = goal.get('start') or day(snapshot['generated_at']).isoformat()
+        identity = goal_id(dict(goal, start=start), snapshot['week'])
+        matches = [review for review in snapshot.get('reviews', {}).values()
+                   if review.get('goal_ref') in (identity, goal['kpi']) and review.get('evidence_lead_ids')
+                   and isinstance(review.get('example'), str) and review['example'].strip()]
+        example = matches[0]['example'] if len(matches) == 1 else None
+        unit = units.get(identity)
+        result.append({'goal_id': identity, 'kpi': goal['kpi'], 'cue': goal['cue'], 'action': goal['action'],
+            'coach_example': example, 'example_state': 'saved' if example else 'unknown',
+            'example_prompt': None if example else 'Supply a coach example selected for this goal.',
+            'execution_unit': unit, 'review_on': goal['review_on'],
+            'measurement': f"Review completed {unit} on {goal['review_on']}; execution and effect are checked separately." if unit else None})
+    return result
+
+
+def saved_snapshot_view(snapshot):
+    """Retire only gamification fields and duplicated conversation points in a copy."""
+    result = copy.deepcopy(snapshot)
+    presentation = result.get('presentation') or {}
+    containers = [result, presentation, result.get('voyage'), result.get('community_card'),
+                  presentation.get('voyage'), presentation.get('progress_strip')]
+    for container in containers:
+        if isinstance(container, dict):
+            container.pop('rank', None)
+            container.pop('rank_progress', None)
+    def content_points(item):
+        if isinstance(item, dict):
+            if isinstance(item.get('points'), dict):
+                for key in ('fast_answer', 'follow_ups'): item['points'].pop(key, None)
+            for value in item.values(): content_points(value)
+        elif isinstance(item, list):
+            for value in item: content_points(value)
+    for key in ('conversation_review', 'conversations'):
+        content_points(result.get(key))
+    content_points(result.get('reviews', {}).get('conversation'))
+    return result
+
+
 def call_cards(snapshot, jobs=None):
     review = snapshot.get('reviews', {}).get('call', {})
     by_id = {str(job['id']): job for job in (pipeline.load() if jobs is None else jobs)}
@@ -1515,33 +1580,176 @@ def call_cards(snapshot, jobs=None):
         job = by_id.get(str(item['lead_id']), {})
         read_path = pipeline.jobs_dir() / str(item['lead_id']) / 'call-review.md'
         read_text = read_source(read_path) or ''
-        read_match = re.search(r'^## Coach.s read\s*\n(.*?)(?=^## |\Z)', read_text, re.M | re.S)
-        coach_read = read_match[1].strip() if read_match and not _RECONSTRUCTING.get() else None
+        def section(*names):
+            for name in names:
+                match = re.search(r'^## ' + name + r'\s*\n(.*?)(?=^## |\Z)', read_text, re.M | re.S | re.I)
+                if match and match[1].strip() and not _RECONSTRUCTING.get(): return match[1].strip()
+            return None
+        coach_read = section('Coach.s read')
+        agreed_step = section('Next step agreed on the call', 'Agreed step', 'Next step on Upwork', 'Next step')
+        next_message = section('Next message')
+        if next_message is not None: short_text(next_message, 100, 'Call next message')
         path = pipeline.jobs_dir() / str(item['lead_id']) / 'call.md'
-        stats = call_stats.analyze(path.read_text()) if path.is_file() else {}
+        stats = call_stats.analyze(read_source(path) or '')
         duration = stats.get('duration_s', job.get('call_duration_s'))
         card = {'lead_id': item['lead_id'], 'label': 'Call review',
                 'date': day(event(job, 'call_held')).isoformat() if event(job, 'call_held') else None,
                 'duration_minutes': duration / 60 if number(duration) else None,
                 'talk_share': stats.get('talk_share_pct', job.get('talk_share_pct')),
                 'questions': stats.get('question_counts', job.get('question_counts')),
-                'reviewable': item.get('reviewable', False)}
+                'reviewable': bool(item.get('reviewable') and stats.get('transcript_complete') is True and stats.get('member_attributed') is True)}
         # Compatibility aliases read by the current private card component.
-        card.update(coach_read=coach_read, coach_read_state='present' if coach_read else 'unknown', coach_read_prompt='No review yet: run /call-review ' + str(item['lead_id']))
+        coach_read = (coach_read or item.get('free_read')) if card['reviewable'] else None
+        if coach_read is not None: short_text(coach_read, 180, 'Call free read', optional=True)
+        reviewed_at = saved_review_time(job, item)
+        card.update(as_of=reviewed_at, reviewed_at=reviewed_at,
+                    coach_read=coach_read, coach_read_state='present' if coach_read else 'unknown', coach_read_prompt='No review yet: run /call-review ' + str(item['lead_id']))
+        card.update(agreed_step=agreed_step or item.get('agreed_step') or item.get('next_step'),
+                    next_message=next_message or item.get('next_message'),
+                    source_prompt='Paste a transcript or run /call-review ' + str(item['lead_id']))
+        if card['next_message'] is not None: short_text(card['next_message'], 100, 'Call next message')
         card.update(duration_min=card['duration_minutes'], question_count=(card['questions'] or {}).get('member'))
-        if not item.get('reviewable'):
+        if not card['reviewable']:
             card.update(reason='Not reviewable: complete labelled call evidence is missing.', points=[], moments=[],
-                        fix='', example='', next_step=None)
+                        fix='', example='', next_step=None, agreed_step=None, next_message=None)
         else:
             points = [dict(point=index, state=next((p['state'] for p in item['points'] if p['point'] == index), 'missing'),
                            reason=next((p.get('reason') for p in item['points'] if p['point'] == index), None),
                            quote=next((p.get('quote') for p in item['points'] if p['point'] == index), None)) for index in range(1, 10)]
-            for point in points: point['quote_state'] = 'supported' if point['quote'] else 'unknown'
+            for point in points:
+                point.update(label=CALL_POINT_LABELS[point['point']], definition=CALL_POINT_DEFINITIONS.get(point['point']))
+                point['quote_state'] = 'supported' if point['quote'] else 'unknown'
             card.update(points=points, moments=[dict(moment, better=moment['better_wording']) for moment in item.get('moments', [])[:3]],
                         fix=item.get('fix', review.get('fix', '')), example=item.get('example', review.get('example', '')),
                         next_step=item.get('next_step'))
         cards.append(card)
     return cards
+
+
+def progress_strip(snapshot):
+    """Use comparable measured four-week scorecard movements, respecting each unit's direction."""
+    candidates = []
+    for row in snapshot.get('presentation', {}).get('scorecard', []):
+        previous = row.get('change', {}).get('previous_value')
+        # The scorecard owns the comparable four-week population, not weekly KPI deltas.
+        change = row.get('change', {})
+        previous = change.get('baseline', previous)
+        value = row.get('value')
+        if not (number(value) and number(previous)) or row.get('state') == 'missing': continue
+        if not row.get('n', row.get('finished', {}).get('n')): continue
+        direction = snapshot.get('kpis', {}).get(row['key'], {}).get('direction', 'up')
+        movement = (value - previous) * (-1 if direction == 'down' else 1)
+        if not movement: continue
+        strength = movement / max(abs(previous), 1)
+        candidates.append((strength, row['key'], {'key': row['key'], 'name': row['name'],
+            'text': f"{row['name']}: {value:g}, was {previous:g}",
+            'direction': 'gain' if movement > 0 else 'decline', 'value': value, 'previous': previous}))
+    gains = [row for row in candidates if row[0] > 0]
+    chosen = max(gains, default=None, key=lambda row: (row[0], row[1])) if gains else min(candidates, default=None, key=lambda row: (row[0], row[1]))
+    stations = snapshot.get('presentation', {}).get('voyage', {}).get('stations', [])
+    earned = [row for row in stations if row.get('earned')]
+    latest_week = max((row.get('earned_week') or '' for row in earned), default='')
+    contenders = [row for row in earned if (row.get('earned_week') or '') == latest_week]
+    dated = [row for row in contenders if timestamp(row.get('earned_at'))]
+    newest = None; basis = 'No earned badge recorded.'
+    if contenders and len(dated) == len(contenders):
+        latest_at = max(timestamp(row['earned_at']) for row in dated)
+        latest = [row for row in dated if timestamp(row['earned_at']) == latest_at]
+        newest = latest[0] if len(latest) == 1 else None
+        basis = 'Latest recorded award timestamp.' if newest else 'Award timestamps tied; actual chronology unknown.'
+    elif len(contenders) == 1 and latest_week:
+        newest = contenders[0]; basis = 'Latest earned week; exact award time unknown.'
+    elif contenders:
+        basis = 'Earned week tied or unknown; actual chronology unknown.'
+    return {'biggest_change': chosen[2] if chosen else None, 'newest_badge': copy.deepcopy(newest), 'newest_badge_basis': basis}
+
+
+def conversations_fields(snapshot, jobs):
+    """Project saved coaching and sent evidence; never turn source text into coach judgment."""
+    sections = {'applications': [], 'chats': [], 'calls': copy.deepcopy(snapshot.get('call_cards', [])), 'proposals': []}
+    statements = {}
+    def supported_points(saved, text):
+        points = saved.get('points', [])
+        points = [dict(point, point=key) for key, point in points.items()] if isinstance(points, dict) else points
+        return [copy.deepcopy(point) for point in points if isinstance(point, dict) and
+                isinstance(point.get('quote'), str) and point['quote'].strip() and point['quote'] in text]
+    def remember(stage, jid, text, points):
+        for point in points:
+            reason = str(point.get('reason') or '').strip()
+            if reason:
+                key = ' '.join(reason.casefold().split())
+                record = {'lead_id': jid, 'stage': stage, 'quote': point['quote']}
+                bucket = statements.setdefault(key, {'text': reason, 'quotes': []})
+                if record not in bucket['quotes']: bucket['quotes'].append(record)
+    chats = {row['lead_id']: row for row in conversation_reviews(jobs, day(snapshot['generated_at']), quiet_only=False)['threads']}
+    for job in jobs:
+        if job.get('imported'): continue
+        jid = str(job['id']); folder = pipeline.jobs_dir() / jid
+        for stage, kind, event_key, filename, prompt in (
+                ('applications', 'application', 'applied', 'application.sent.md', 'Save the exact sent application with code/pipeline.py sent ' + jid + '; supply the Loom transcript when used.'),
+                ('chats', 'conversation', 'replied', 'thread.json', 'Read and save every page of the Upwork thread, then record its three quoted content checks.'),
+                ('proposals', 'proposal', 'proposal_sent', 'proposal.md', 'Save the exact sent proposal in jobs/' + jid + '/proposal.md and confirm proposal_sent through the pipeline.')):
+            if not event(job, event_key): continue
+            source = read_source(folder / filename) or ''
+            saved = assessment(job, kind + '_review') or {}
+            weekly = snapshot.get('reviews', {}).get(kind, {})
+            rubric = next((row for row in weekly.get('rubric', []) if str(row.get('lead_id')) == jid), {})
+            saved = dict(saved, **rubric)
+            valid = bool(source) and not _RECONSTRUCTING.get()
+            extra = {}
+            if stage == 'applications':
+                valid = valid and job.get('application_sent_verified') is True
+                loom = read_source(folder / 'loom-transcript.txt') or read_source(folder / 'loom.md') or ''
+                loom_used = bool(job.get('loom_url') or job.get('loom_duration_s') is not None or re.search(r'https?://(?:www\.)?loom\.com/', source))
+                if loom_used and not loom:
+                    valid = False
+                    prompt = 'Supply the Loom transcript at jobs/' + jid + '/loom.md, or run code/loom.py ' + jid + ' <verified Loom URL>.'
+                extra.update(sent_copy=source if job.get('application_sent_verified') is True and source else None,
+                             loom_transcript=loom or None)
+                source += '\n' + loom
+            if stage == 'chats':
+                thread = chats.get(jid, {})
+                valid = valid and thread.get('read') is True
+                saved = dict(saved, **thread)
+                extra['last_writer'] = thread.get('last_writer', 'unknown')
+                try:
+                    raw = json.loads(source)
+                    rooms = list((raw.get('rooms') or {}).values()) or [raw]
+                    source = '\n'.join(str(turn.get('text') or '') for room in rooms for turn in room.get('messages', []) if turn.get('from') in ('me', 'client'))
+                except (ValueError, TypeError): valid = False; source = ''
+            points = supported_points(saved, source) if valid else []
+            quote = saved.get('quote')
+            quote = quote if valid and isinstance(quote, str) and quote.strip() and quote in source else next((p['quote'] for p in points), None)
+            # Existing weekly examples are evidence only if they actually quote this sent source.
+            if not quote and valid and jid in weekly.get('evidence_lead_ids', []):
+                example = weekly.get('example')
+                if isinstance(example, str) and example.strip() and example in source: quote = example
+            reviewable = bool(valid and quote and (saved.get('read') is True or saved.get('reviewable') is True or saved.get('state') == 'pass'))
+            if stage == 'proposals':
+                # Only quoted saved judgments/facts; never guess terms from prose.
+                for key in ('scope', 'price', 'decision_date'):
+                    fact = saved.get(key)
+                    extra[key] = fact if reviewable and isinstance(fact, str) and fact.strip() and fact in source else None
+                if any(extra[key] is None for key in ('scope', 'price', 'decision_date')):
+                    extra['source_prompt'] = 'Save quoted scope, price and decision date from the sent proposal; missing facts remain unknown.'
+            read = saved.get('free_read') if reviewable else None
+            next_message = saved.get('next_message') if reviewable else None
+            if next_message is not None: short_text(next_message, 100, 'Coaching next message', optional=True)
+            sections[stage].append({'lead_id': jid, 'label': job.get('title') or jid,
+                'date': day(event(job, event_key)).isoformat(), 'reviewable': reviewable,
+                'source_prompt': None if reviewable else prompt if not valid else 'Record a quoted ' + kind + ' content review for ' + jid + '.',
+                'points': points if reviewable else [], 'quote': quote if reviewable else None,
+                'read': read, 'next_message': next_message, 'as_of': saved_review_time(job, saved, kind),
+                'reviewed_at': saved_review_time(job, saved, kind), **extra})
+            if reviewable: remember(stage, jid, source, points)
+    for card in sections['calls']:
+        # Historical cards with unknown quotes do not supply patterns.
+        if card.get('reviewable'):
+            text = read_source(pipeline.jobs_dir() / str(card['lead_id']) / 'call.md') or ''
+            remember('calls', str(card['lead_id']), text, supported_points(card, text))
+    patterns = [row for row in statements.values() if len({q['stage'] for q in row['quotes']}) >= 2]
+    patterns.sort(key=lambda row: (-len(row['quotes']), row['text']))
+    return {'patterns': patterns[:3], 'sections': sections}
 
 
 def voyage_fields(snapshot, history):
@@ -1557,7 +1765,7 @@ def voyage_fields(snapshot, history):
     goals = [dict(goal, week=row['week']) for row in sorted(history, key=lambda row: row['week']) for goal in row.get('goals_review', [])]
     base = {'calendar': calendar, 'calendar_period': {'start': calendar[0]['date'], 'end': calendar[-1]['date']} if calendar else None,
             'goals_history': goals, 'streak_weeks': streak['streak_weeks'], 'anchors_used': streak['anchors_used']}
-    return badge_ledger.voyage([], dict(snapshot, presentation={'voyage': base}))
+    return badge_ledger.voyage(badge_ledger.read_ledger(), dict(snapshot, presentation={'voyage': base}))
 
 
 def money_chart(snapshot, history):
@@ -1660,7 +1868,7 @@ def finish_views(result, jobs, history, today, now=None):
     result['conversation_review'] = conversation_reviews(jobs, today)
     for thread in result['conversation_review']['threads']:
         if not thread['read']:
-            result['coverage']['missing'].append({'source': 'messages or review:' + thread['lead_id'], 'blocks': ['conversation_review'], 'how_to_supply': 'Read the complete Upwork thread and record its quoted five-point review.'})
+            result['coverage']['missing'].append({'source': 'messages or review:' + thread['lead_id'], 'blocks': ['conversation_review'], 'how_to_supply': 'Read the complete Upwork thread and record its three quoted content checks.'})
     result['funnel_score'] = funnel_score(result, history)
     result['community_card'] = community_card(jobs, today, result['kpis'], result['goals_review'], result['week'], result['streak_weeks'], now)
     coverage = result['reviews']['call'].get('coverage', [])
@@ -1686,12 +1894,14 @@ def finish_views(result, jobs, history, today, now=None):
     result['presentation']['funnel'] = funnel_fields(result, jobs)
     result['stage_context'] = proposal_context(jobs, today)
     result['presentation']['funnel']['outbound'][0]['view_context'] = result['stage_context']['applied_to_viewed']
-    result['rank'] = badge_ledger.rank(result['badges'])
     result['daily_voyage'] = daily_voyage(jobs, today)
     if any(row['source'] == 'upwork' and row['state'] == 'missing' for row in coverage_sources(result['coverage'])):
         result['daily_voyage'].update(applications=None, remaining=None, complete=None, state='unknown')
     result['quests'] = quest_progress(result, jobs, today)
     result['call_cards'] = call_cards(result, jobs)
+    result['conversations'] = conversations_fields(result, jobs)
+    result['presentation']['progress_strip'] = progress_strip(result)
+    result['presentation']['goal_cards'] = goal_cards(result)
     return result
 
 
@@ -1887,7 +2097,7 @@ def privacy(value, jobs=None):
                 source_text.add(speaker)
     def walk(item, path=()):
         # Private call cards/rubrics contain verified local quotes; never sent to community.
-        if path == ('call_cards',) or path == ('reviews', 'call', 'rubric') or path == ('conversation_review',) or len(path) == 4 and path[:2] == ('presentation', 'scorecard') and path[3] == 'split':
+        if path == ('conversations',) or path == ('call_cards',) or path == ('reviews', 'call', 'rubric') or path == ('conversation_review',) or len(path) == 4 and path[:2] == ('presentation', 'scorecard') and path[3] == 'split':
             return
         if len(path) == 3 and path[0] == 'reviews' and path[2] == 'example':
             require(isinstance(item, str), 'Review examples need the member’s own wording.')
@@ -1949,20 +2159,25 @@ def rubric_coverage(rubric, today, name):
     uma_counts = {}
     counts = {point: {'point': point, 'met': 0, 'partly': 0, 'missing': 0, 'not_needed': 0, 'n': 0} for point in range(1, 10 if name == 'call' else 8)}
     for item in rubric:
-        require(isinstance(item, dict) and {'lead_id', 'reviewable', 'points'} <= set(item) and set(item) <= {'lead_id', 'reviewable', 'points', 'moments', 'fix', 'example', 'next_step'}, 'Call rubric needs lead_id, reviewable and points.')
+        allowed = {'lead_id', 'reviewable', 'points', 'moments', 'fix', 'example', 'next_step', 'next_message', 'free_read'} | ({'agreed_step'} if name == 'call' else set())
+        require(isinstance(item, dict) and {'lead_id', 'reviewable', 'points'} <= set(item) and set(item) <= allowed, 'Call rubric needs lead_id, reviewable and points.')
         require(item['lead_id'] not in seen and isinstance(item['reviewable'], bool), 'Call rubric needs unique leads and boolean reviewable.')
         seen.add(item['lead_id'])
+        for field, limit in (('next_message', 100), ('free_read', 180 if name == 'call' else 150)):
+            if field in item: short_text(item[field], limit, field, optional=True)
         path = pipeline.jobs_dir() / str(item['lead_id']) / ('call.md' if name == 'call' else 'application.sent.md')
         text = path.read_text(encoding='utf-8') if path.is_file() else ''
         utterances = '\n'.join(match[2] for match in re.finditer(r'^([^:\n]+):\s*(.+)$', text, re.M) if match[1].strip().lower() not in ('call at', 'duration', 'member', 'speakers', 'date', 'recorder', 'complete', 'language'))
         speakers = {match[1].strip() for match in re.finditer(r'^([^:\n]+):\s*\S', text, re.M) if match[1].strip().lower() not in ('call at', 'duration', 'member', 'speakers', 'date', 'recorder', 'complete', 'language')}
         if name == 'call':
-            require(not item['reviewable'] or (len(speakers) >= 2 and 'talk_share_basis' in call_stats.analyze(text)), 'A reviewable call needs complete speaker labels and member identity.')
+            stats = call_stats.analyze(text)
+            require(not item['reviewable'] or (len(speakers) >= 2 and stats.get('transcript_complete') is True and stats.get('member_attributed') is True), 'A reviewable call needs complete speaker labels and member identity.')
+            require(item['reviewable'] or not any(str(item.get(field) or '').strip() for field in ('free_read', 'agreed_step', 'next_message')), 'An unreviewable call cannot have coaching text.')
         if name == 'call':
             require(isinstance(item.get('moments', []), list) and len(item.get('moments', [])) <= 3, 'At most three call moments.')
             for moment in item.get('moments', []):
                 require(isinstance(moment, dict) and set(moment) == {'quote', 'better_wording'} and all(isinstance(v, str) and v.strip() for v in moment.values()) and moment['quote'] in utterances, 'Call moments need a local quote and better wording.')
-            for key in ('fix', 'example', 'next_step'):
+            for key in ('fix', 'example', 'next_step', 'agreed_step'):
                 require(key not in item or item[key] is None and key == 'next_step' or isinstance(item[key], str), 'Call card text must be a string.')
         points = item['points']
         require(isinstance(points, list), 'Call points must be a list.')
@@ -2154,7 +2369,7 @@ def validate_summary(summary, snapshot):
             numbers.add(f'{item:g}'); numbers.add(f'{item:,.0f}')
         elif isinstance(item, dict):
             for key, value in item.items():
-                if key not in ('summary', 'report', 'call_cards', 'conversation_review', 'reviews'): collect(value)
+                if key not in ('summary', 'report', 'call_cards', 'conversation_review', 'conversations', 'reviews'): collect(value)
         elif isinstance(item, list):
             for value in item: collect(value)
     collect(snapshot)
@@ -2332,6 +2547,8 @@ def prepare_snapshot(value, today=None, now=None):
     prepared_voyage = result['presentation']['voyage']
     result['presentation'] = dict(presentation_fields(result), voyage=prepared_voyage, funnel=funnel_fields(result, pipeline.load()), money_chart=money_chart(result, history), scorecard=scorecard_fields(result, pipeline.load(), history, today))
     result['presentation']['funnel']['outbound'][0]['view_context'] = result['stage_context']['applied_to_viewed']
+    result['presentation']['progress_strip'] = progress_strip(result)
+    result['presentation']['goal_cards'] = goal_cards(result)
     validate_community_card(result['community_card'])
     privacy(result)
     return result
@@ -2358,7 +2575,7 @@ def record_snapshot(value, replace=False):
     for review in result['reviews'].values():
         require(review['goal_ref'] is None or review['goal_ref'] in {goal['kpi'] for goal in goals}, 'Review goal_ref must refer to an agreed goal KPI.')
     require(result['community_card']['next_focus'] is not None, 'Claude must write the weekly community focus; unsafe questions are omitted under frozen §13.')
-    for key in ('window', 'periods', 'pipeline', 'streak_weeks', 'verdict_history', 'cohorts', 'daily_applications', 'reply_time_hist', 'speed_curve', 'segments', 'forecast', 'call_rubric_weeks', 'badges', 'todos', 'call_to_won', 'presentation', 'rank', 'daily_voyage', 'quests', 'call_cards', 'funnel_score', 'conversation_review', 'gap', 'badge_qualifying'):
+    for key in ('window', 'periods', 'pipeline', 'streak_weeks', 'verdict_history', 'cohorts', 'daily_applications', 'reply_time_hist', 'speed_curve', 'segments', 'forecast', 'call_rubric_weeks', 'badges', 'todos', 'call_to_won', 'presentation', 'daily_voyage', 'quests', 'call_cards', 'conversations', 'funnel_score', 'conversation_review', 'gap', 'badge_qualifying'):
         require(value[key] == result[key], f'{key} must come unchanged from compute.')
     require(value['coverage'] == result['coverage'], 'Coverage must come from reviewed compute.')
     require(value['north_star'] == result['north_star'], 'North star numbers must come from reviewed compute.')
@@ -2388,7 +2605,7 @@ def record_snapshot(value, replace=False):
 
 def last():
     rows = read_lines('analytics-history.jsonl')
-    return max(rows, key=lambda row: timestamp(row['generated_at'])) if rows else None
+    return saved_snapshot_view(max(rows, key=lambda row: timestamp(row['generated_at']))) if rows else None
 
 
 def due(today=None):
@@ -2423,7 +2640,10 @@ def public_onepager_html(card):
         image = assets / f"{slug}-{badge['tier'].casefold()}.webp"
         if not image.is_file(): image = assets / f"badge-{motifs[badge['badge']]}.webp"
         picture = f'<img src="{esc(image.as_uri())}" alt="">' if image.is_file() else '<span class="seal">✦</span>'
-        return f'<div class="badge"><div class="ring" style="border-color:{colors[badge["tier"]]}">{picture}</div><b>{esc(badge["badge"])}</b><small>{esc(badge["tier"])}</small></div>'
+        short = badge_ledger.catalogue_metadata().get(badge['badge'], {}).get('short')
+        progress = badge.get('progress_to_next')
+        if progress and progress.startswith('Lower bound'): progress = 'Next tier needs more finished cases'
+        return f'<div class="badge"><div class="ring" style="border-color:{colors[badge["tier"]]}">{picture}</div><b>{esc(badge["badge"])}</b><small>{esc(badge["tier"])}</small>' + (f'<small>{esc(short)}</small>' if short else '') + (f'<small>{esc(progress)}</small>' if progress else '') + '</div>'
     bounds = card['reply_rate']['entry_period']
     rates = []
     labels = {'reply_rate': 'Reply rate', 'reply_to_call': 'Call rate', 'booked_to_held': 'Show-up rate', 'proposal_to_won': 'Win rate', 'call_to_won': 'Call to won'}
@@ -2450,8 +2670,8 @@ def public_onepager_html(card):
 *{{box-sizing:border-box}}html,body{{width:1080px;height:1350px;margin:0;overflow:hidden}}body{{font-family:var(--sans);color:var(--ink);background:var(--canvas)}}.card{{height:1350px;padding:58px 68px;background:linear-gradient(color-mix(in srgb,var(--canvas) 94%,transparent),color-mix(in srgb,var(--canvas) 96%,transparent)),{backdrop};background-size:cover}}header{{display:flex;justify-content:space-between;align-items:center}}h1{{font-family:var(--display);font-size:49px;letter-spacing:-1px;margin:8px 0 30px}}.eyebrow,small{{font-size:16px;color:var(--label)}}.activity{{display:flex;gap:45px;padding:22px 0;border-top:1px solid var(--ring);border-bottom:1px solid var(--ring)}}.activity strong{{font-size:35px;display:block}}.activity span{{font-size:18px}}h2{{font-size:20px;margin:25px 0 12px}}.period{{margin:10px 0 14px;font-size:16px;color:var(--label)}}.rates{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}}.rate{{padding:19px 17px;background:color-mix(in srgb,var(--ivory) 80%,transparent);border:1px solid var(--hairline-soft);border-radius:14px}}.rate span{{font-size:18px}}.rate strong{{font-size:32px;display:block;margin:14px 0 10px}}.rate small{{display:block;line-height:1.7;font-size:14px}}.reply{{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:13px 18px;background:color-mix(in srgb,var(--ivory) 65%,transparent);border-radius:10px;font-size:18px}}.reply b{{font-size:24px}}.goals{{list-style:none;padding:0;margin:0}}.goals li{{padding:9px 0;font-size:20px;display:flex;align-items:center;gap:14px}}.goals small{{margin-left:auto}}.improvement{{padding:15px 20px;background:var(--terracotta-soft);border-left:4px solid var(--terracotta);line-height:1.5;font-size:19px}}.badges{{display:flex;gap:13px;justify-content:space-around;align-items:flex-start}}.badge{{width:145px;text-align:center;display:flex;flex-direction:column;align-items:center}}.badge b{{font-size:15px;margin-top:6px}}.badge small{{font-size:13px;margin-top:4px}}.ring{{border:3px solid;border-radius:50%;width:87px;height:87px;padding:3px;background:var(--ivory)}}.ring img{{width:100%;height:100%;object-fit:contain;border-radius:50%}}.seal{{font-size:56px}}.new{{display:flex;align-items:center;gap:22px;padding:15px 0}}.new>.badge{{width:auto;flex-direction:row;gap:12px}}.new .ring{{width:54px;height:54px}}.new p{{margin:0;color:var(--label)}}.focus{{border-top:1px solid var(--ring);padding-top:18px;margin-top:18px}}.focus h2{{margin:0 0 9px}}.focus strong{{font-size:25px}}.question{{font-size:20px;margin:12px 0 0}}.money{{font-size:18px;margin-top:10px}}.money b{{margin-left:16px}}@media(max-width:1079px){{html,body{{width:100%;height:auto;overflow:visible}}.card{{height:auto;min-height:100vh;padding:28px 22px}}h1{{font-size:36px}}header{{gap:16px;flex-wrap:wrap}}.activity{{flex-wrap:wrap;gap:22px}}.activity strong{{font-size:27px;overflow-wrap:anywhere}}.rates{{grid-template-columns:repeat(2,minmax(0,1fr))}}.rate{{min-width:0;padding:14px 11px}}.rate span{{font-size:16px}}.rate strong{{font-size:30px}}.reply{{flex-wrap:wrap;gap:9px}}.goals li{{flex-wrap:wrap;font-size:18px}}.goals small{{margin-left:0;width:100%;padding-left:30px}}.new{{flex-wrap:wrap}}.focus strong{{font-size:23px}}}}</style>
 <main class="card"><header><span class="eyebrow">UPWORK BLUEPRINT · WEEKLY VOYAGE</span><b>{esc(card['week'])}</b></header><h1>{esc(card.get('member_name') or 'Progress worth sharing.')}</h1>{example_label}
 <div class="activity"><div><strong>{int(card['applications']) if card['applications'] is not None else 'unknown'}</strong><span>Applications this week</span></div><div><strong>{esc(score_text)}</strong><span>{esc(score_label)}</span></div></div>
-<h2>Conversion over the same 28-day window</h2><p class="period">{esc(bounds['start'])} – {esc(bounds['end'])} · Finished cases in the same 28-day window</p><div class="rates">{''.join(rates)}</div>
-<div class="reply"><span>First reply · same 28-day window</span><b>{fmt(card['first_reply_median_min'], ' min')} median</b><small>Target ≤ 5 min</small></div>{money}
+<h2>How conversations moved forward</h2><p class="period">{esc(bounds['start'])} – {esc(bounds['end'])} · Finished cases in the same 28-day window</p><div class="rates">{''.join(rates)}</div>
+<div class="reply"><span>Typical first reply · same 28-day window</span><b>{fmt(card['first_reply_median_min'], ' min')}</b><small>Target ≤ 5 min</small></div>{money}
 <h2>Last agreed goals</h2>{'<ul class="goals">'+goals+'</ul>' if goals else '<p class="period">No previous goals. Agree the first goals in /analytics.</p>'}
 <h2>Biggest improvement</h2><div class="improvement">{change}</div>{new_badge}
 <div class="focus"><h2>Next focus</h2><strong>{focus}</strong>{question}</div></main></html>'''

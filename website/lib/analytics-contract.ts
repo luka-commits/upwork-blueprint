@@ -2,21 +2,6 @@
  * formats them and draws chart geometry. Fields are optional for older weeks. */
 export type AnalyticsPeriod = string | { start?: string; end?: string };
 export type AnalyticsEvidence = string[];
-export type AnalyticsFunnelStage = {
-  key: string;
-  label: string;
-  count?: number;
-  k?: number;
-  n?: number;
-  value?: number | null;
-  loss?: number | null;
-  loss_label?: string;
-  period?: AnalyticsPeriod;
-  evidence?: AnalyticsEvidence;
-  focus?: boolean;
-  observation_only?: boolean;
-  observed_at?: string;
-};
 export type AnalyticsInsight = {
   kind?: string;
   text?: string;
@@ -50,24 +35,34 @@ export type AnalyticsPresentation = {
   number_groups?: Record<string, { label?: string; keys?: string[]; stood_out?: string | AnalyticsInsight[]; leak?: string | AnalyticsInsight | null }>;
   insights?: AnalyticsInsight[] | { top: AnalyticsInsight[]; all: AnalyticsInsight[] };
   insights_all?: AnalyticsInsight[];
-  funnel?: { outbound: AnalyticsFunnelStage[]; inbound: AnalyticsFunnelStage[] };
-  money_chart?: {
-    won: { week: string; value: number | null; evidence?: AnalyticsEvidence; period?: AnalyticsPeriod; currency?: string }[];
-    forecast: { week: string; value: number | null; evidence?: AnalyticsEvidence; period?: AnalyticsPeriod; currency?: string }[];
-    baseline?: number | { value: number | null; period?: AnalyticsPeriod } | null;
-    currency?: string;
-    period?: AnalyticsPeriod;
-    forecast_label?: string;
-  };
-  voyage?: Record<string, unknown>;
+  /** Writer-selected progress. No browser ranking or badge selection. */
+  progress?: AnalyticsProgress;
+  progress_strip?: AnalyticsProgress;
+  biggest_change?: AnalyticsProgress['biggest_change'];
+  biggest_gain?: AnalyticsProgress['biggest_change'];
+  newest_badge?: AnalyticsBadge;
+  score_history?: { week: string; value?: number | null; score?: number | null }[];
+  goal_cards?: Record<string, any>[];
+  focus?: { headline?: string; reason?: string };
+  badges?: AnalyticsBadge[];
+  goals_history?: Record<string, unknown>[];
+  conversations?: AnalyticsConversations;
+  conversation_patterns?: AnalyticsConversationPattern[];
   next_run_day?: string;
   next_run_on?: string;
 };
 export type AnalyticsCallCard = {
   lead_id: string;
   coach_read?: string | null;
+  as_of?: string;
+  reviewed_at?: string;
+  generated_at?: string;
+  next_message?: string | { text?: string; missing_inputs?: string[] } | null;
+  next_message_state?: string;
+  agreed_step?: AnalyticsCallCard['next_step'];
   coach_read_state?: string;
   coach_read_prompt?: string;
+  source_prompt?: string;
   label?: string;
   date?: string;
   duration_min?: number;
@@ -77,11 +72,12 @@ export type AnalyticsCallCard = {
   questions?: { member?: number | null; client?: number | null };
   reviewable?: boolean;
   reason?: string;
-  points?: { point: number; label?: string; state: string; quote?: string; reason?: string }[];
+  points?: { point: number; label?: string; state: string; quote?: string; reason?: string; definition?: string }[];
   moments?: { label?: string; quote: string; better_wording?: string; better?: string; better_line?: string }[];
   fix?: string;
   example?: string;
   next_step?: {
+    quote?: string;
     action?: string;
     text?: string;
     owner?: string;
@@ -89,4 +85,30 @@ export type AnalyticsCallCard = {
     agreed?: boolean;
     agreement?: string;
   } | string;
+};
+
+export type AnalyticsBadge = {
+  name?: string; badge?: string; tier?: string; short?: string;
+  image?: string; fallback_image?: string; motif?: string;
+  progress_text?: string; next_tier?: string;
+  progress_to_next?: string | { text?: string; qualifying_weeks?: number; required_weeks?: number };
+  rule?: string; requirement?: string; exact_rule?: string; next_rule?: string;
+};
+export type AnalyticsProgress = {
+  score_history?: { week: string; value?: number | null; score?: number | null }[];
+  biggest_change?: { kind?: string; direction?: string; key?: string; value?: number; previous?: number; name?: string; label?: string; text?: string; sentence?: string; change_text?: string; comparison_text?: string; delta_text?: string; evidence?: AnalyticsEvidence } | null;
+  newest_badge?: AnalyticsBadge | null;
+  badges?: AnalyticsBadge[];
+};
+export type AnalyticsConversationPattern = {
+  text?: string; sentence?: string; read?: string; quote?: string;
+  quotes?: (string | { quote?: string; text?: string; lead_id?: string })[];
+};
+export type AnalyticsConversations = {
+  sections?: { applications?: Record<string, any>[]; chats?: Record<string, any>[]; calls?: AnalyticsCallCard[]; proposals?: Record<string, any>[] };
+  patterns?: AnalyticsConversationPattern[];
+  applications?: Record<string, any>[];
+  chats?: Record<string, any>[];
+  calls?: AnalyticsCallCard[];
+  proposals?: Record<string, any>[];
 };

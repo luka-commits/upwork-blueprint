@@ -9,7 +9,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from analytics_fixture import fixture, run, seed, record, records, analytics_stamp
 
-POINTS = ('fast_answer', 'answered_question', 'qualifying_question', 'call_times', 'follow_ups')
+POINTS = ('answered_question', 'qualifying_question', 'call_times')
 
 
 def thread_references():
@@ -33,11 +33,11 @@ def thread_references():
         for change in ('unknown-field', 'missing-point', 'unread-positive', 'no-quote', 'not-needed-no-reason', 'invented-quote'):
             broken = copy.deepcopy(review)
             if change == 'unknown-field': broken['guess'] = True
-            elif change == 'missing-point': broken['points'].pop('fast_answer')
+            elif change == 'missing-point': broken['points'].pop('answered_question')
             elif change == 'unread-positive': broken['read'] = False
             elif change == 'no-quote': broken['points']['call_times']['quote'] = ''
             elif change == 'invented-quote': broken['points']['call_times']['quote'] = 'This sentence was never written.'
-            else: broken['points']['fast_answer'].update(state='not_needed', reason='')
+            else: broken['points']['answered_question'].update(state='not_needed', reason='')
             result = run('pipeline.py', 'record', jid, '--file', '-', value={'conversation_review': broken}, success=False)
             assert result.returncode != 0, change
         # A partial refresh must not imply that an unread window is a complete thread.
@@ -63,7 +63,7 @@ def thread_references():
             else: broken['room-a']['fetched_at'] = 'yesterday'
             result = run('pipeline.py', 'record', jid, '--file', '-', value={'thread_refs': broken}, success=False)
             assert result.returncode != 0, change
-    print('PASS E: stable room references, complete/partial preservation, five-point review schema, unread and unsupported finding refusal.')
+    print('PASS E: stable room references, complete/partial preservation, three-point content schema, unread and unsupported finding refusal.')
 
 
 def score_contract():
@@ -151,7 +151,8 @@ def scorecard_missing_and_cards():
         review = snapshot['conversation_review']['threads'][0]
         assert review['lead_id'] == '945000011' and review['read'] is False
         assert all(point['state'] == 'missing' for point in review['points'].values())
-        assert next(row for row in scorecard if row['key']=='reply_to_call')['split'] == snapshot['conversation_review']['threads']
+        call_rate = next(row for row in scorecard if row['key']=='reply_to_call')
+        assert call_rate['split'] == [] and call_rate['content_link']['view'] == 'conversations'
         card=snapshot['community_card']
         assert card['funnel_score'] == snapshot['funnel_score']
         assert {'reply_rate','reply_to_call','booked_to_held','proposal_to_won'} <= card.keys()
@@ -162,10 +163,11 @@ def scorecard_missing_and_cards():
         (path/'call-review.md').write_text("## Coach's read\n\nEXAMPLE evidence read.\n\n## Nine points\n\nSaved below.\n\n## Next step\n\nConfirm Friday.\n")
         private=dict(snapshot, reviews={'call': {'rubric':[{'lead_id':'945000010','reviewable':False,'points':[]}]}})
         call=analytics.call_cards(private,jobs)[0]
-        assert call['coach_read'] == 'EXAMPLE evidence read.'
+        assert call['coach_read'] is None and call['coach_read_state'] == 'unknown'
+        assert call['agreed_step'] is None and call['next_message'] is None
         (path/'call-review.md').unlink()
         assert analytics.call_cards(private,jobs)[0]['coach_read'] is None
-        assert 'No review yet: run' in (pathlib.Path(__file__).resolve().parents[1]/'website/components/AnalyticsPage.tsx').read_text()
+        assert call['coach_read_prompt'] == 'No review yet: run /call-review 945000010'
     print('PASS A/F/M: scorecard groups/names/period/8 points, integrated proposal stage, missing-source inventory, unread threads, canonical public score/rates, saved Coach read and fallback.')
 
 
@@ -196,14 +198,14 @@ def badge_calibration():
         assert not any(row['badge']=='Swift Sail' for row in analytics.badge_results(copy.deepcopy(base),low_quality,[],today))
         none=copy.deepcopy(base);none['kpis']['speed_10min'].update(n=0,value=None,state='no opportunities')
         assert not any(row['badge']=='Swift Sail' for row in analytics.badge_results(none,[],[],today))
-        assert badges.rank([{'badge':name,'tier':'Bronze'} for name in badges.BADGE_NAMES])=='Deckhand'
-        assert badges.rank([{'badge':name,'tier':'Silver'} for name in ('Swift Sail','Quick Draw','True North')])=='Boatswain'
+        assert not hasattr(badges, 'rank')
+        assert 'rank' not in base and 'rank' not in base['presentation']['voyage']
         points=[{'point':p,'state':'met','quote':'Proof'} for p in range(1,10)]
         points[8].update(state='not needed',reason='Informed disqualification; proposal not appropriate.')
         assert badges._call_fraction(points)==1
         points[8].pop('reason')
         assert badges._call_fraction(points) is None
-    print('PASS B/K: accumulated1/3/6/13/26, pauses retain progress, first-week max2, content gate, zero-opportunity neutrality, Silver-only rank and reasoned disqualification.')
+    print('PASS B/K: accumulated1/3/6/13/26, pauses retain progress, first-week max2, content gate, zero-opportunity neutrality, rank absent and reasoned disqualification.')
 
 
 def catchup_contract():
@@ -321,14 +323,221 @@ def repeated_conversation_pattern():
             run('sync.py','apply','--file','-',value={'threads':[{'job_id':jid,'room_id':'pattern-'+jid,'messages_complete':True,'messages':messages}]})
             points={key:{'state':'met','quote':messages[1]['text'],'reason':'Supported by the saved member answer.'} for key in POINTS}
             points['call_times']={'state':'missing','quote':'','reason':'No two concrete call times offered.'}
-            points['follow_ups']={'state':'not_needed','quote':'','reason':'No follow-up was due at this review.'}
             record(jid,{'conversation_review':{'points':points,'read':True,'last_writer':'me'}})
             jobs.append(records()[jid])
             result=analytics.conversation_reviews(jobs,dt.date(2026,10,14))
             if index==0:assert result['pattern'] is None, 'One quiet thread is not a repeated pattern.'
-            else:assert result['pattern']=='In 2 of 2 quiet threads, an offer with two concrete call times was missing.'
+            else:assert result['pattern']=='In 2 of 2 quiet threads, a useful call proposal was missing.'
             assert all(thread['read'] for thread in result['threads'])
     print('PASS E repeated pattern: one reviewed thread stays a single finding; two quoted reviewed threads produce the counted repeated pattern.')
+
+
+def frozen_projection_contract():
+    import analytics, badges, cockpit
+    today=dt.date(2026,10,14)
+    with fixture('frozen-content-projections') as folder:
+        jid='945000080'; quote='The audit needs one agreed owner.'; reason='Confirm the owner before offering a date.'
+        seed({'id':jid,'source':'outbound','status':'call','applied_at':analytics_stamp(today-dt.timedelta(days=2)),
+              'replied_at':analytics_stamp(today-dt.timedelta(days=2)),
+              'call_held_at':analytics_stamp(today-dt.timedelta(days=1)),
+              'proposal_sent_at':analytics_stamp(today-dt.timedelta(days=1),11),
+              'application_sent_verified':True,
+              'application_review':{'state':'pass','quote':quote,'reason':reason,'free_read':'Saved application read.',
+                  'points':[{'point':1,'state':'met','quote':quote,'reason':reason}]},
+              'proposal_review':{'state':'pass','quote':quote,'reason':reason,'free_read':'Saved proposal read.',
+                  'points':[{'point':1,'state':'met','quote':quote,'reason':reason}]}})
+        path=folder/'jobs'/jid;path.mkdir()
+        (path/'application.sent.md').write_text(quote)
+        (path/'loom.md').write_text('EXAMPLE Loom source: '+quote)
+        (path/'proposal.md').write_text(quote)
+        (path/'call.md').write_text('Member: Maya\nComplete: yes\nLanguage: English\nMaya: Who owns the audit?\nClient: '+quote+'\n')
+        (path/'call-review.md').write_text("## Coach's read\n\nSaved call read.\n\n## Next message\n\nCan you confirm the audit owner?\n\n## Next step agreed on the call\n\nClient confirms the owner by Friday.\n\n## Nine points\n\nSaved below.\n")
+        call={'reviewable':True,'points':[{'point':p,'state':'met','quote':quote,'reason':reason} for p in range(1,10)]}
+        record(jid,{'call_review':call})
+        run('sync.py','apply','--file','-',value={'threads':[{'job_id':jid,'room_id':'projection','messages_complete':True,
+            'messages':[{'from':'me','at':analytics_stamp(today-dt.timedelta(days=2)),'text':quote}]}]})
+        chat={'read':True,'last_writer':'me','free_read':'Saved chat read.','next_message':'Who owns the audit?',
+              'points':{key:{'state':'met','quote':quote,'reason':reason} for key in POINTS}}
+        chat['points']['call_times']={'state':'not_needed','quote':'','reason':'No useful call was needed.'}
+        record(jid,{'conversation_review':chat})
+        assert badges.content_pass(records()[jid],'conversation')
+        for removed in ('fast_answer','follow_ups'):
+            broken=copy.deepcopy(chat);broken['points'][removed]={'state':'met','quote':quote,'reason':reason}
+            assert run('pipeline.py','record',jid,'--file','-',value={'conversation_review':broken},success=False).returncode
+        for field,limit in (('free_read',150),('next_message',100)):
+            broken=copy.deepcopy(chat);broken[field]='word '*(limit+1)
+            assert run('pipeline.py','record',jid,'--file','-',value={'conversation_review':broken},success=False).returncode
+        for writer in ('pipeline','weekly'):
+            broken=dict(call,next_message='word '*101)
+            if writer=='pipeline':
+                assert run('pipeline.py','record',jid,'--file','-',value={'call_review':broken},success=False).returncode
+            else:
+                try:analytics.call_coverage([dict(broken,lead_id=jid)],today)
+                except ValueError:pass
+                else:raise AssertionError('Weekly call next message exceeded100 words.')
+        jobs=list(records().values());snapshot=analytics.compute(today,jobs=jobs)
+        sections=snapshot['conversations']['sections']
+        for stage in ('applications','chats','proposals'):
+            entry=sections[stage][0]
+            assert entry['reviewable'] and entry['quote']==quote and entry['read'].startswith('Saved '), (stage,entry)
+            required={'lead_id','label','date','reviewable','source_prompt','points','quote','read','next_message','as_of','reviewed_at'}
+            assert set(entry)==required | {'applications':{'sent_copy','loom_transcript'},'chats':{'last_writer'},'proposals':{'scope','price','decision_date'}}[stage]
+        assert sections['calls']==snapshot['call_cards']
+        card=sections['calls'][0]
+        assert card['agreed_step']=='Client confirms the owner by Friday.'
+        assert card['next_message']=='Can you confirm the audit owner?'
+        assert [p['label'] for p in card['points'] if p['point'] in (7,9)]==['Why you','Next step on Upwork']
+        patterns=snapshot['conversations']['patterns']
+        assert len(patterns)==1 and patterns[0]['text']==reason
+        assert {q['stage'] for q in patterns[0]['quotes']}=={'applications','chats','calls','proposals'}
+        assert all(q['quote']==quote for q in patterns[0]['quotes'])
+        assert 'rank' not in snapshot and 'rank' not in snapshot['community_card']
+        stale=dict(snapshot,rank='obsolete')
+        stale['presentation']=dict(snapshot['presentation'],rank='obsolete',voyage={'rank':'obsolete','rank_progress':{}})
+        visible=cockpit.snapshot_view(stale)
+        assert 'rank' not in visible and 'rank' not in visible['presentation'] and 'rank' not in visible['presentation']['voyage']
+        assert not hasattr(badges,'rank')
+        catalogue=badges.catalogue_metadata()
+        assert set(catalogue)==set(badges.BADGE_NAMES)
+        for row in catalogue.values():
+            assert row['short'].endswith('.') and 0<len(row['short'].split())<=8
+            assert not any(word in row['short'].casefold() for word in ('wilson','cohort','mature','denominator','statistics'))
+        assert all(station['short']==catalogue[station['badge']]['short'] for station in snapshot['presentation']['voyage']['stations'])
+        # Quotation mismatch, missing sent source, unverified submission and partial thread all refuse judgment.
+        jobs[0]['proposal_review']['points'][0]['quote']='Not in the proposal.'
+        jobs[0]['proposal_review']['quote']='Not in the proposal.'
+        (path/'application.sent.md').unlink()
+        thread=json.loads((path/'thread.json').read_text());thread['rooms']['projection']['messages_complete']=False
+        (path/'thread.json').write_text(json.dumps(thread))
+        refused=analytics.conversations_fields(snapshot,jobs)
+        # Force a fresh incomplete chat projection instead of the earlier saved projection.
+        snapshot['conversation_review']=analytics.conversation_reviews(jobs,today)
+        refused=analytics.conversations_fields(snapshot,jobs)
+        assert all(not refused['sections'][stage][0]['reviewable'] for stage in ('applications','chats','proposals'))
+        assert refused['patterns']==[]
+        assert all(refused['sections'][stage][0]['source_prompt'] for stage in ('applications','chats','proposals'))
+        (path/'call-review.md').write_text('## Next message\n\n'+'word '*101)
+        try:analytics.call_cards(snapshot,jobs)
+        except ValueError:pass
+        else:raise AssertionError('Call file next message exceeded100 words.')
+    def mover(key,value,previous,n=10,state='pass'):
+        return {'key':key,'name':key,'value':value,'state':state,'finished':{'n':n},'change':{'previous_value':previous}}
+    model={'kpis':{'first_reply':{'direction':'down'},'reply_rate':{'direction':'up'}},
+           'presentation':{'scorecard':[mover('first_reply',2,10),mover('reply_rate',9,10)]}}
+    strip=analytics.progress_strip(model)
+    assert strip['biggest_change']=={'key':'first_reply','name':'first_reply','text':'first_reply: 2, was 10','direction':'gain','value':2,'previous':10}
+    model['presentation']['scorecard']=[mover('first_reply',20,10),mover('reply_rate',9,10)]
+    assert analytics.progress_strip(model)['biggest_change']['key']=='first_reply'
+    assert analytics.progress_strip(model)['biggest_change']['direction']=='decline'
+    model['presentation']['scorecard']=[mover('reply_rate',100,None),mover('first_reply',1,10,0),mover('reply_rate',100,10,state='missing')]
+    assert analytics.progress_strip(model)=={'biggest_change':None,'newest_badge':None,'newest_badge_basis':'No earned badge recorded.'}
+    print('PASS frozen25–34: exact content keys and limits, retained gate, parsed call fields, quoted four-stage projection/patterns, source refusals, gain/decline/unknown, short catalogue and rank absence.')
+
+
+def supervised_corrections():
+    import analytics, badges, cockpit, hashlib
+    today=dt.date(2026,10,14)
+    with fixture('supervised-corrections') as folder:
+        jid='945000090'; quote='The audit needs one agreed owner.'
+        seed({'id':jid,'source':'outbound','status':'call','call_held_at':analytics_stamp(today),
+              'applied_at':analytics_stamp(today-dt.timedelta(days=1)), 'application_sent_verified':True,
+              'loom_url':'https://www.loom.com/share/example',
+              'application_review':{'state':'pass','quote':quote,'reason':'Saved assessment',
+                'free_read':'Saved application read.','points':[{'point':1,'state':'met','quote':quote,'reason':'Confirm the owner.'}]}})
+        path=folder/'jobs'/jid;path.mkdir()
+        transcript='Member: Maya\nComplete: yes\nLanguage: English\nMaya: Who owns the audit?\nClient: '+quote+'\n'
+        (path/'call.md').write_text(transcript)
+        (path/'application.sent.md').write_text(quote)
+        call={'reviewable':True,'points':[{'point':p,'state':'met','quote':quote} for p in range(1,10)]}
+        for field,limit in (('free_read',180),('next_message',100)):
+            allowed=dict(call,**{field:'word '*limit})
+            record(jid,{'call_review':allowed})
+            assert analytics.call_coverage([dict(allowed,lead_id=jid)],today)
+            broken=dict(call,**{field:'word '*(limit+1)})
+            assert run('pipeline.py','record',jid,'--file','-',value={'call_review':broken},success=False).returncode
+            try:analytics.call_coverage([dict(broken,lead_id=jid)],today)
+            except ValueError:pass
+            else:raise AssertionError((field,limit))
+        # No minimum is imposed on unknown-source records.
+        record(jid,{'call_review':{'reviewable':False,'points':[]}})
+        for field in ('free_read','agreed_step','next_message'):
+            invalid={'reviewable':False,'points':[],field:'Unsupported coaching.'}
+            assert run('pipeline.py','record',jid,'--file','-',value={'call_review':invalid},success=False).returncode
+            try:analytics.call_coverage([dict(invalid,lead_id=jid)],today)
+            except ValueError:pass
+            else:raise AssertionError('Unread coaching accepted: '+field)
+        for bad in ('Summary: The client liked the work.\n', transcript.replace('Complete: yes','Complete: no'),
+                    transcript.replace('Maya: Who owns the audit?\n','')):
+            (path/'call.md').write_text(bad)
+            assert run('pipeline.py','record',jid,'--file','-',value={'call_review':call},success=False).returncode
+            try:analytics.call_coverage([dict(call,lead_id=jid)],today)
+            except ValueError:pass
+            else:raise AssertionError('Source gate accepted incomplete or summary-only call.')
+            (path/'call-review.md').write_text("## Coach's read\n\nMust remain hidden.\n")
+            card=analytics.call_cards({'generated_at':analytics_stamp(today),'reviews':{'call':{'rubric':[dict(call,lead_id=jid)]}}},list(records().values()))[0]
+            assert not card['reviewable'] and card['coach_read'] is None and card['agreed_step'] is None
+        (path/'call.md').write_text(transcript)
+        record(jid,{'call_review':call})
+        snapshot=analytics.compute(today)
+        card=snapshot['call_cards'][0]
+        assert card['as_of']==card['reviewed_at']==records()[jid]['call_reviewed_at']
+        application=snapshot['conversations']['sections']['applications'][0]
+        assert not application['reviewable'] and application['read'] is None and 'Loom' in application['source_prompt']
+        assert application['sent_copy']==quote and application['loom_transcript'] is None
+        (path/'loom.md').write_text('Exact example Loom transcript.')
+        application=analytics.conversations_fields(snapshot,list(records().values()))['sections']['applications'][0]
+        assert application['reviewable'] and application['loom_transcript']=='Exact example Loom transcript.'
+        # Log assessments are supported only with a saved state and a local source quotation.
+        lead=records()[jid]; saved=lead.pop('application_review')
+        lead['log']=[{'at':analytics_stamp(today), 'text':'analytics application_review: '+json.dumps(saved)}]
+        assert analytics.conversations_fields(snapshot,[lead])['sections']['applications'][0]['reviewable']
+        lead['log'][0]['text']='analytics application_review: '+json.dumps(dict(saved,state='unverified'))
+        assert not analytics.conversations_fields(snapshot,[lead])['sections']['applications'][0]['reviewable']
+        stale=copy.deepcopy(snapshot)
+        stale.update(rank='Deckhand',rank_progress={'x':1},proposal_insights={'rank':3})
+        for container in (stale['presentation'],stale['presentation']['voyage'],stale['community_card']):
+            container.update(rank='Admiral',rank_progress={'x':2})
+        stale['conversation_review']['threads']=[{'points':{'answered_question':{'state':'met'},'fast_answer':{'state':'met'},'follow_ups':{'state':'met'}}}]
+        stale['conversations']['sections']['chats']=[copy.deepcopy(stale['conversation_review']['threads'][0])]
+        ledger=folder/'data/analytics-history.jsonl';ledger.write_text(json.dumps(stale)+'\n')
+        before=hashlib.sha256(ledger.read_bytes()).hexdigest()
+        views=[analytics.last(),cockpit.analytics_state(today)['latest'],cockpit.analytics_state(today)['history'][0]]
+        for visible in views:
+            assert visible['proposal_insights']['rank']==3
+            assert visible['kpis']==stale['kpis'] and visible['coverage']==stale['coverage']
+            for container in (visible,visible['presentation'],visible['presentation']['voyage'],visible['community_card']):
+                assert not {'rank','rank_progress'} & set(container)
+            for container in (visible['conversation_review']['threads'][0],visible['conversations']['sections']['chats'][0]):
+                assert set(container['points'])=={'answered_question'}
+        assert hashlib.sha256(ledger.read_bytes()).hexdigest()==before
+        try:analytics.validate_community_card(dict(snapshot['community_card'],rank='Admiral'))
+        except ValueError:pass
+        else:raise AssertionError('Public rank injection accepted.')
+        goal={'stage':analytics.LABELS['reply_to_call'],'kpi':'reply_to_call','change':'Agree a useful call',
+              'start':today.isoformat(),'review_on':(today+dt.timedelta(days=7)).isoformat(),
+              'primary':True,'cue':'a client asks about the audit','action':'ask who owns it','fallback':'ask one question'}
+        snapshot['goals_next']=[goal]
+        snapshot['quests']=analytics.quest_progress(snapshot,list(records().values()),today)
+        snapshot['reviews']['conversation'].update(goal_ref='reply_to_call',example='Who owns the audit?',evidence_lead_ids=[jid])
+        projection=analytics.goal_cards(snapshot)[0]
+        assert projection['goal_id']==analytics.goal_id(goal,snapshot['week']) and projection['kpi']==goal['kpi']
+        assert projection['coach_example']=='Who owns the audit?' and projection['execution_unit']=='replies'
+        assert projection['review_on'] in projection['measurement'] and 'completed replies' in projection['measurement']
+        snapshot['reviews']['conversation']['goal_ref']='reply_rate'
+        assert analytics.goal_cards(snapshot)[0]['coach_example'] is None
+        try:analytics.validate_goals({'week':snapshot['week'],'goals':[dict(goal,example='Arbitrary coaching')]})
+        except ValueError:pass
+        else:raise AssertionError('Canonical goal schema loosened.')
+        assert analytics.CONVERSATION_POINTS==POINTS and set(analytics.CALL_POINT_LABELS)==set(range(1,10))
+        assert analytics.CALL_POINT_LABELS[7]=='Why you' and analytics.CALL_POINT_LABELS[9]=='Next step on Upwork'
+    model={'presentation':{'voyage':{'stations':[
+        {'badge':'First Doubloon','tier':'Gold','earned':True,'earned_week':'2026-W42','earned_at':'2026-10-13T10:00:00+02:00'},
+        {'badge':'True North','tier':'Bronze','earned':True,'earned_week':'2026-W42','earned_at':'2026-10-14T10:00:00+02:00'}]}}}
+    assert analytics.progress_strip(model)['newest_badge']['tier']=='Bronze'
+    for row in model['presentation']['voyage']['stations']:row.pop('earned_at')
+    strip=analytics.progress_strip(model)
+    assert strip['newest_badge'] is None and 'unknown' in strip['newest_badge_basis']
+    print('PASS supervised corrections:180/181 and100/101; summary/incomplete/unread source gates; Loom source refusal; exact projections; log assessment verification; read-only historical migration preserves statistical rank and funnel evidence; strict goals/matching example/measurement; timestamp chronology and tie unknown; canonical rubric definitions.')
 
 
 def main():
@@ -341,6 +550,8 @@ def main():
     summary_contract()
     public_latest_goals_contract()
     repeated_conversation_pattern()
+    frozen_projection_contract()
+    supervised_corrections()
 
 
 if __name__ == '__main__':

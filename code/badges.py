@@ -82,6 +82,21 @@ def content_pass(job, kind='application'):
     if not isinstance(review, dict): return False
     if review.get('state') == 'pass': return bool(str(review.get('reason') or review.get('quote') or '').strip())
     points = review.get('points')
+    if kind == 'conversation':
+        if review.get('read') is not True or not isinstance(points, dict) or set(points) != {'answered_question', 'qualifying_question', 'call_times'}:
+            return False
+        try:
+            thread = json.loads((pipeline.jobs_dir() / str(job['id']) / 'thread.json').read_text(encoding='utf-8'))
+            rooms = list((thread.get('rooms') or {}).values()) or [thread]
+            texts = [str(turn.get('text') or '') for room in rooms for turn in room.get('messages', [])
+                     if isinstance(turn, dict) and turn.get('from') in ('me', 'client') and turn.get('kind', 'message') == 'message']
+            return bool(texts and all(room.get('messages_complete') is True for room in rooms) and
+                all(ref.get('messages_complete') is True for ref in (job.get('thread_refs') or {}).values()) and
+                all(row.get('state') == 'not_needed' and str(row.get('reason') or '').strip() or
+                    row.get('state') == 'met' and str(row.get('quote') or '').strip() and any(row['quote'] in text for text in texts)
+                    for row in points.values()))
+        except (OSError, UnicodeError, ValueError, TypeError):
+            return False
     return bool(review.get('reviewable') is True and isinstance(points, list) and points and
                 all(row.get('state') in ('met', 'not needed', 'not_needed') and
                     (row.get('state') == 'met' or str(row.get('reason') or '').strip()) for row in points))
@@ -291,20 +306,6 @@ def award_weekly(badges, week=None, now=None):
     return _append(rows)
 
 
-def rank(badges):
-    """Count distinct badge names at each tier or higher, never duplicate tier rows."""
-    highest = {}
-    for row in badges:
-        if row.get('badge') in BADGE_NAMES and row.get('tier') in TIERS:
-            name, value = row['badge'], TIERS.index(row['tier'])
-            highest[name] = max(highest.get(name, -1), value)
-    result = 'Deckhand'
-    for tier, title in enumerate(('Boatswain', 'Officer', 'Captain', 'Admiral'), start=1):
-        if sum(value >= tier for value in highest.values()) >= 3:
-            result = title
-    return result
-
-
 def _week_date(week):
     try:
         year, number = str(week).split('-W')
@@ -396,7 +397,7 @@ def award_lines(rows):
     return [f"{row['badge']} · {row['tier']}: {row['reason']}" for row in rows]
 
 
-def catalogue_criteria():
+def catalogue_metadata():
     path = pathlib.Path(__file__).resolve().parents[1] / 'outputs/badges-catalogue.md'
     try: text = path.read_text(encoding='utf-8')
     except (OSError, UnicodeError): return {}
@@ -404,12 +405,17 @@ def catalogue_criteria():
     for line in text.splitlines():
         if line.startswith('| '):
             fields = [field.strip() for field in line.strip().strip('|').split('|')]
-            if len(fields) >= 3 and fields[0] in BADGE_NAMES: result[fields[0]] = fields[2]
+            if len(fields) == 4 and fields[0] in BADGE_NAMES:
+                result[fields[0]] = {'short': fields[2], 'criterion': fields[3]}
     return result
 
 
+def catalogue_criteria():
+    return {name: row['criterion'] for name, row in catalogue_metadata().items()}
+
+
 def voyage(awards, snapshot=None):
-    """Pure ledger overlay: highest retained tier, rank, and fourteen stations. No KPI writes."""
+    """Pure ledger overlay: highest retained tier and fourteen stations. No KPI writes."""
     snapshot = snapshot or {}
     result = dict((snapshot.get('presentation') or {}).get('voyage') or snapshot.get('voyage') or {})
     top = {}
@@ -417,32 +423,25 @@ def voyage(awards, snapshot=None):
         if row.get('badge') not in BADGE_NAMES or row.get('tier') not in TIERS: continue
         if row['badge'] not in top or TIERS.index(row['tier']) >= TIERS.index(top[row['badge']]['tier']): top[row['badge']] = row
     motifs = ('harbour', 'ship', 'treasure', 'hourglass', 'bell', 'spyglass', 'anchor', 'cannon', 'bottle', 'compass', 'wheel', 'lighthouse', 'doubloon', 'storm')
-    requirements = catalogue_criteria()
+    requirements = catalogue_metadata()
     old = {row.get('badge'): row for row in result.get('stations', [])}
     stations = []
     for name, motif in zip(BADGE_NAMES, motifs):
-        requirement = requirements.get(name, 'unknown: badge catalogue unavailable')
-        award = top.get(name, {}); tier = award.get('tier'); at = _stamp(award.get('at')); iso = at.isocalendar() if at else None
+        metadata = requirements.get(name, {})
+        requirement = metadata.get('criterion', 'unknown: badge catalogue unavailable')
+        award = top.get(name, {}); tier = award.get('tier'); at = _stamp(award.get('at') or award.get('earned_at')); iso = at.isocalendar() if at else None
         week = award.get('earned_week') or (f'{iso.year}-W{iso.week:02d}' if iso else None)
         progress = award.get('progress_to_next') or old.get(name, {}).get('progress_to_next')
         slug = name.lower().replace("'", '').replace(' ', '-')
         image = f'/badges/{slug}-{tier.lower()}.webp' if tier else f'/badges/badge-{motif}.webp'
-        stations.append({'badge': name, 'motif': motif, 'tier': tier, 'earned': bool(tier), 'earned_week': week,
+        stations.append({'badge': name, 'short': metadata.get('short'), 'motif': motif, 'tier': tier, 'earned': bool(tier), 'earned_week': week, 'earned_at': at.isoformat() if at else None,
                          'image': image, 'fallback_image': f'/badges/badge-{motif}.webp',
-                         'locked': not bool(tier), 'island_revealed': bool(tier), 'requirement': requirement, 'criterion': requirement,
+                         'locked': not bool(tier), 'requirement': requirement, 'criterion': requirement,
                          'progress_to_next': progress, 'next_tier': TIERS[TIERS.index(tier)+1] if tier and tier != TIERS[-1] else TIERS[0] if not tier else None,
                          'evidence': [award['lead_id']] if award.get('lead_id') else []})
-    silver = sum(TIERS.index(row['tier']) >= 1 for row in top.values())
-    current_rank = rank(list(top.values()))
-    titles = ('Deckhand', 'Boatswain', 'Officer', 'Captain', 'Admiral')
-    current_index = titles.index(current_rank)
-    required_tier = TIERS[min(current_index + 1, 4)]
-    eligible = sum(TIERS.index(row['tier']) >= min(current_index + 1, 4) for row in top.values())
-    next_rank = titles[current_index + 1] if current_index < 4 else None
-    progress = {'qualified_badges': silver, 'eligible_badges': eligible, 'needed': 3,
-                'basis': 'Distinct Silver-or-higher badges', 'required_tier': required_tier, 'next_rank': next_rank,
-                'text': f'{min(eligible, 3)} of 3 {required_tier}-or-higher badges toward {next_rank}' if next_rank else 'Admiral requirements met'}
-    result.update(stations=stations, rank=current_rank, rank_progress=progress)
+    result.pop('rank', None)
+    result.pop('rank_progress', None)
+    result.update(stations=stations)
     return result
 
 

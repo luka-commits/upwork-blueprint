@@ -42,18 +42,3 @@ export function funnelSteps(counts = {}, steps = APPLICATION_STEPS) {
              overall: index && entry >= MIN_RATE ? Math.round(100 * value(key) / entry) : null };
   });
 }
-
-const round = n => Math.round(n * 10) / 10;
-
-/** Equal-height bands: width and area follow the count, including zero. */
-export function funnelShapes(steps, { width = 600, height = 84, gap = 2 } = {}) {
-  const max = Math.max(1, ...steps.map(step => step.count));
-  const widthOf = count => width * Math.max(0, count) / max;
-  return steps.map((step, index) => {
-    const top = widthOf(step.count);
-    const bottom = top;
-    const y = index * (height + gap);
-    const corners = [[(width - top) / 2, y], [(width + top) / 2, y], [(width + bottom) / 2, y + height], [(width - bottom) / 2, y + height]];
-    return { ...step, y, points: corners.map(([x, cy]) => `${round(x)},${round(cy)}`).join(' ') };
-  });
-}

@@ -461,12 +461,21 @@ def snapshot_aliases(value):
 
 def snapshot_view(snapshot):
     """Only aliases of prepared fields; missing old snapshots need a writer rerun."""
-    result = snapshot_aliases(snapshot)
+    result = snapshot_aliases(analytics.saved_snapshot_view(snapshot))
     presentation = dict(result['presentation']) if isinstance(result.get('presentation'), dict) else {}
-    for key in ('voyage', 'funnel', 'rank', 'next_run_day', 'next_run_on'):
+    result.pop('rank', None)
+    presentation.pop('rank', None)
+    for key in ('voyage', 'funnel', 'next_run_day', 'next_run_on'):
         if key not in presentation and key in result:
             presentation[key] = result[key]
     result['presentation'] = presentation
+    for container in (result.get('voyage'), presentation.get('voyage')):
+        if isinstance(container, dict):
+            container.pop('rank', None)
+            container.pop('rank_progress', None)
+    if isinstance(result.get('conversation_review'), dict):
+        for thread in result['conversation_review'].get('threads', []):
+            thread['points'] = {key: value for key, value in thread.get('points', {}).items() if key in analytics.CONVERSATION_POINTS}
     if os.environ.get('BLUEPRINT_EXAMPLE_DATA') == '1':
         result['synthetic'] = True
         result['data_label'] = 'Synthetic example · no member facts'
@@ -519,7 +528,6 @@ def analytics_state(today):
         (name for name in names if name.casefold() in schedule), 'Monday')
     return {'latest': latest, 'history': history, 'goals': goals, 'badges': awards,
             'voyage': ((latest or {}).get('presentation') or {}).get('voyage'),
-            'rank': (latest or {}).get('rank'),
             'goals_week': current['week'] if current else None,
             'goals_history': goals_history, 'due': due, 'next_run_day': next_run_day, 'errors': errors}
 

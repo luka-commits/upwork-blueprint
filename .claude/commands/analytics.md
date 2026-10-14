@@ -11,7 +11,10 @@ Read `context/me.md`, [references/copy.md](../../references/copy.md),
 [references/goal-library.md](../../references/goal-library.md) and
 [references/coach-brief.md](../../references/coach-brief.md). `analytics.py` validates
 the snapshot contract; use its complete compute object as the shape. For connector reads follow
-[references/upwork.md](../../references/upwork.md) and [/brief](brief.md) Steps 1–2.
+[references/upwork.md](../../references/upwork.md) and [/brief](brief.md) Steps 1–2,
+including [analytics capture: brief](../../references/analytics-capture.md#brief).
+Follow frozen decisions 13–34 in `outputs/analytics-spec-final.md`; later
+replacements override earlier decisions. The app contract below is final.
 
 ## ROADMAP
 
@@ -24,7 +27,8 @@ WHAT MIGHT GO WRONG: missing sources leave affected checks unmeasurable; too few
 Run `python3 code/workspace.py`. Read `data/sync.json` and check the connector with
 `list_accounts`. If unreachable, walk through README's connection steps; preserve the
 available evidence and name the source gap. If the last sync is absent or older than
-24 hours at the actual zoned run time (reject future sync stamps), carry out `/brief` Steps 1–2 (read and sync only, no drafts or sends).
+24 hours at the actual zoned run time (reject future sync stamps), carry out `/brief` Steps 1–2 and `references/analytics-capture.md` § Brief
+(read and sync only, no drafts or sends).
 Use saved state when fresh; count every Upwork call.
 
 **First analytics run:** backfill what the connector can actually enumerate: proposals,
@@ -126,7 +130,9 @@ substitute the weekly activity window. Preserve row `key`, `group`, `name`,
 Call rate, Show-up rate and Win rate, with the transition in `stage_label` beneath.
 Held-call to proposal completion sits inside "Proposal within 30 min of call end"
 over all fitting held calls. Preserve that population and its split, never a
-separate result row. Missing row values display "unknown", never zero or an estimate.
+separate result row. The Call rate row detail contains only the link
+"Why these replies stalled → Conversations", without a thread list. Keep links
+in both directions; review content lives once in Conversations. Missing row values display "unknown", never zero or an estimate.
 No new segment findings or expectation tests: KPIs 20–21 say “nothing new” until package 4.
 
 Read each evidence lead with `python3 code/pipeline.py get <id>`, its sent application,
@@ -168,11 +174,17 @@ sent copy; otherwise `reviewable: false` and `points: []`. Code derives point co
 `get_messages` action `list_messages`, following the connector's documented pagination
 through every page. A short page is not proof of completeness. Read oldest first;
 never invent a message, author, read receipt or timestamp. Record the exact contract:
-`conversation_review: {threads: [{lead_id, points: {fast_answer, answered_question,
-qualifying_question, call_times, follow_ups}, last_writer, read}], pattern}`.
-Each of the five points is `{state: met|partly|missing|not_needed, quote, reason}`.
-Check fast first answer, answer to the client's question, one qualifying question,
-two concrete call times and follow-ups on business days 3 and 7. Support each with
+`conversation_review: {threads: [{lead_id, points: {answered_question,
+qualifying_question, call_times}, last_writer, read, free_read}], pattern}`.
+**Item 32 overrides the frozen coach brief's five-point conversation scan.**
+Qualitative review has only `answered_question` (answer the client's actual
+question), `qualifying_question` (one useful qualifying question) and `call_times`
+(two concrete Upwork call times only when a call would help; otherwise `not_needed`
+with a reason). First-answer speed and follow-up timing belong only to deterministic
+funnel metrics; never score them as qualitative points or include them in this payload.
+Each of the three points is `{state: met|partly|missing|not_needed, quote, reason}`.
+Keep the brief's free read, evidence lenses and useful next-message guidance.
+Support each content judgment with
 an actual quote; for missing evidence, say what is missing without fabricating a
 quote. Every `not_needed` carries a reason. Derive `last_writer` from verified messages; use `unknown` when unavailable.
 `read` means this evidence review is complete, never a client read receipt.
@@ -181,13 +193,14 @@ with k of n; no repeated pattern means no invented generalisation. Use the coach
 brief for judgment and one useful fix/example, including a one-sentence read per
 thread without adding a field to the snapshot. Save each lead's judgment through
 `python3 code/pipeline.py record <id> --file -` as
-`{"conversation_review":{"points":{...},"last_writer":"me|client|unknown","read":true}}`.
+`{"conversation_review":{"points":{...},"last_writer":"me|client|unknown","read":true,"free_read":"<supported content read, at most 150 words>"}}`.
 Use actual values: `read` is a boolean for the completed evidence review, not a client
 read receipt. Unread or incomplete evidence uses `read: false` and missing points
 with reasons; unknown `last_writer` is `unknown`. Empty quote strings are permitted
 only when there is no supporting message; met/partly need verbatim quotes. Compute
 assembles `lead_id`, threads and pattern. If its pattern occurs only once, report
 no repeated pattern and name the code gap instead of changing computed fields.
+Unknown source values stay unknown; never turn absent evidence into a zero.
 Keep coverage gaps visible.
 
 **Proposal review:** use the coach brief to compare the sent proposal with the held
@@ -210,12 +223,14 @@ Keep these nine comparable point definitions here:
 1. Opening and agenda in the first two minutes.
 2. Current state (already known in the thread also counts).
 3. Problem and its cost in money, time or leads.
-4. Goal and scope.
-5. Budget before the price (a confirmed posted budget counts).
+4. Goal and scope (posted scope counts as covered; cite the post).
+5. Budget before the price (posted budget counts as covered; cite the post).
 6. Decision maker and timeline (`not needed` when the decider is on the call).
-7. One proof matching the stated problem.
+7. **Why you**: proof that meets the client's stated concern and distinguishes
+   the member from other applicants.
 8. Objections actively invited, and handled when raised.
-9. Next step with owner, time and the client's yes.
+9. **Next step on Upwork**: who sends the proposal or client offer, fixed with
+   milestones or hourly, by when, and the client's yes.
 
 Record qualification through `pipeline.py record <id> --file -`: `call_outcome` is
 `proposal_required|disqualified|direct_win|unresolved`, with `proposal_required`
@@ -232,6 +247,10 @@ or null when absent; `fix` and `example` are strings. For an unreviewable call s
 and weekly history through compute; never hand-write derived metrics or cards.
 Talk share and question count remain context, never the verdict.
 Private rubric/card quotes must be verbatim `jobs/<id>/call.md` excerpts and never enter the public card.
+Preserve saved `free_read`, `next_message` and `agreed_step` in the supported
+call rubric fields and reuse the saved read, useful next message (at most
+100 words) and agreed step for its card. They precede the separate nine-point
+scan; the fix/example alone cannot replace the coach's full read.
 
 **Lost leads:** distinguish `stated | observed | unknown`; do not turn a guess into the
 client's reason. Use `pipeline.py note <id> 'analytics lost_reason: {"kind":"stated","reason":"..."}'`.
@@ -282,7 +301,7 @@ brief item even when its source is missing, as a gap rather than a result.
 The opening line includes elapsed time after a gap and the code-produced Funnel Score,
 for example "Funnel Score 88, was 81" only when those numbers exist. Use
 `funnel_score: {score, previous, parts: {habits, results}, dropped: [{part, reason}], baseline_only}`.
-Code alone computes the weekly 0 to 100 score, never summed or ranked: habits 60
+Code alone computes the weekly 0 to 100 score, never summed: habits 60
 (applications versus commitment, within 10 minutes, first reply median, follow-ups
 on their day, proposal within 30 minutes), 12 each capped at target; results 40
 (Reply rate, Call rate, Show-up rate, Win rate), 10 each by achieved level / 3 on
@@ -299,8 +318,9 @@ receive a review." Never invent a defect to fill this shape.
 The first four weekly experiences, grounded in actual records:
 1. Make the next application better: explain baseline collection and no previous
    four-week comparison, review a sent passage and agree one usable practice goal.
-   The app leads with that review and action, actual activity, fit and Connects spent,
-   with baseline collection and no recorded calls where true. The community card
+   Within the frozen tabs, goal cards carry the review/action; the collapsed
+   scorecard carries actual activity, fit and Connects spent, with baseline
+   collection and no recorded calls where true. The community card
    shows actual activity, baseline collection and the goal, without improvement claims.
 2. Check whether the fix was used: compare new sent copies with that goal, give
    execution k of n separately from uncertain response effect, keep or adjust it,
@@ -310,14 +330,15 @@ The first four weekly experiences, grounded in actual records:
 3. Resolve low activity: distinguish few fitting jobs, skipped fitting jobs and
    difficulty finishing applications using search/sent evidence. If it cannot tell,
    ask one targeted question; offer a smaller fallback or specific correction.
-   The app puts the relevant job/application beside the action; a reply-to-call goal
+   The goal card links the relevant job/application review beside the action; a reply-to-call goal
    needs an actual interested reply. The card shows the controllable focus, never
    a fabricated biggest improvement.
 4. Decide what to keep and change: review commitments, actual application changes,
    supported outcomes and Connects spent; choose keep, adjust or stop with evidence.
    Four elapsed weeks do not establish conversion improvement. Use actual completed
-   reviews and never imply a badge was earned merely by attending. The app shows
-   available history and the next commitment, leaving uncertain outcomes unclear.
+   reviews and never imply a badge was earned merely by attending. The drawer
+   shows available history and goal cards the next commitment; uncertain outcomes
+   stay unclear.
    The card shows supported progress and next focus; unestablished improvement
    stays unestablished. Any public question must pass the existing allowlist.
 Every week gives a usable correction, checks an existing correction or resolves a
@@ -335,13 +356,56 @@ Bronze 1, Silver 3, Gold 6, Platinum 13, Legend 26; at most two badges in the fi
 week. Speed needs fit and content checks; no extra credit above weekly commitment.
 Pauses and weeks without opportunities neither advance nor erase progress; never
 award on 0 of 0. Conversion badges use the full mature population. True North credits
-informed disqualification and excludes reasoned `not needed` points. Rank Deckhand
-to Admiral counts Silver-or-higher badges, never weekly review attendance. A clean
+informed disqualification and excludes reasoned `not needed` points. A clean
 disqualification is a valid informed call outcome, not a failed sale. Preserve
-the decided rank, treasure map, islands, Lighthouse Keeper and Back on Course.
+the treasure map in the drawer, Lighthouse Keeper and Back on Course.
 Weekly compute checks tiers from reviewed evidence; record persists awards. Never
 repeat an instant award already printed or call an old earned tier new. Badge
 failure leaves a named gap and does not fail the data write.
+
+## App content contract · frozen items 29–34
+
+Exactly two tabs: **This week** and **Conversations**. Use only
+saved code-produced values; unknown sources display "unknown" and their exact
+supply instructions. No graph, forecast chart, to-dos or voyage view in Analytics.
+To-dos belong to `/brief` and the lead list/board.
+
+**This week**, in this order:
+1. A slim weekly strip: Funnel Score with its 8-week sparkline and previous value;
+   won this week with forecast as a half sentence ("likely next 30 days about
+   $3,500" only when sourced); biggest gain against own four weeks, or biggest
+   decline when nothing improved; newest badge plus progress to its next tier;
+   link **All badges**. Badge text is name, tier, one plain sentence of at most
+   eight words and progress; exact rule only on click. No "Island revealed".
+2. Focus as a headline with its reason in one line.
+3. One to three agreed goal cards, each with cue ("when this happens"), action
+   ("do this"), coach example and how it will be measured next week.
+4. Last goals checked, with execution and effect separate; keep/adjust/stop and
+   unresolved older goals stay visible. First run without goals gets one line
+   pointing to `/analytics`, without invented completion.
+5. One collapsed scorecard grouped top, middle and bottom, with the focus row
+   tinted. Preserve the scorecard's period, comparison and evidence contract.
+   Call rate detail is only **Why these replies stalled → Conversations**.
+
+**All badges** opens a side drawer containing the treasure map with all badges
+and the history of which goals worked. This is their single home.
+
+**Conversations** starts with one to three repeated patterns across stages,
+each supported by quotes; if no pattern is supported, say so. Below, exactly:
+Applications (actual sent copy, screening answers/bid and used Loom transcript,
+application rubric); Chats (the three content points, last writer and free read
+above); Calls (saved call reviews and their nine-point scan/coverage); Proposals
+(actual sent proposal's scope, price and decision date). Each section shows at
+most three entries plus **Show all**, and each entry opens its review card.
+Missing evidence shows what to supply, not a fabricated judgment. Link back to
+its funnel row without copying review content into the scorecard.
+
+At 1440×900 with details collapsed, strip, focus, goals and last goals fit within
+the first 900 px; each tab's total document.scrollHeight is at most 1,900 px.
+At 390 px each tab is at most four screens/3,400 px. Card paragraphs are at most
+two lines. Every block answers its tab's question. The build report must measure
+document.scrollHeight for each tab at each width; over budget is FAIL. A command
+alone cannot claim these UI measurements or real-account acceptance.
 
 ## Step 5 · Agree and put the goals into practice
 
@@ -399,7 +463,7 @@ Money appears only when `Share money: yes`. Retain last week's applicable goals
 with done marks, newly earned badge and at most five highest badge tiers.
 
 Re-run `python3 code/analytics.py compute --file -` with the completed object after
-agreement, so code incorporates the agreed goals into to-dos and recomputes review-based
+agreement, so code incorporates the agreed goals and recomputes review-based
 goal marks and badges. Use that returned object unchanged for all computed fields.
 Send it to `python3 code/analytics.py record --file -`. A duplicate
 ISO week is refused; use `--replace` only when the member asks to correct that week's

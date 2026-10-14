@@ -136,6 +136,7 @@ Missed weeks: open with how long since the last check-in and tell the whole peri
 
 ## Never
 
+- repeat passwords, keys or logins from a thread unless the member asks for them; the coaching never needs them
 - invent a quote, a speaker, a number, a budget or an outcome
 - grade a member as a person; judge the work and the next move
 - push price cuts; question fit, scope and value first

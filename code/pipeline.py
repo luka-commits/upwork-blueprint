@@ -763,11 +763,13 @@ def cmd_record(args):
                 ref['fetched_at'] = verified_timestamp(ref['fetched_at'])
         elif key == 'call_review':
             if (not isinstance(item, dict) or not {'reviewable', 'points'} <= set(item)
-                    or set(item) - {'reviewable', 'points', 'moments', 'fix', 'example', 'next_step'}
+                    or set(item) - {'reviewable', 'points', 'moments', 'fix', 'example', 'next_step', 'agreed_step', 'next_message', 'free_read'}
                     or not isinstance(item['reviewable'], bool) or not isinstance(item['points'], list)):
                 abort('call_review needs reviewable and points, with optional moments and coaching text.')
             if not item['reviewable'] and item['points']:
                 abort('An unreviewable call cannot have point findings.')
+            if not item['reviewable'] and any(item.get(field, '').strip() for field in ('free_read', 'agreed_step', 'next_message')):
+                abort('An unreviewable call cannot have coaching text.')
             if item['reviewable'] and (len(item['points']) != 9 or {point.get('point') for point in item['points'] if isinstance(point, dict)} != set(range(1, 10))):
                 abort('A reviewed call needs each of the nine points once.')
             for point in item['points']:
@@ -784,14 +786,22 @@ def cmd_record(args):
                 if (not isinstance(moment, dict) or set(moment) != {'quote', 'better_wording'}
                         or any(not isinstance(text, str) or not text.strip() for text in moment.values())):
                     abort('Each call moment needs a quotation and better wording.')
-            if any(not isinstance(item[field], str) for field in ('fix', 'example', 'next_step') if field in item):
+            if any(not isinstance(item[field], str) for field in ('fix', 'example', 'next_step', 'agreed_step', 'next_message', 'free_read') if field in item):
                 abort('Call coaching fields need text.')
+            if len(item.get('next_message', '').split()) > 100 or len(item.get('free_read', '').split()) > 180:
+                abort('Call next_message allows 100 words; free_read allows 180.')
         elif key == 'conversation_review':
-            point_keys = {'fast_answer', 'answered_question', 'qualifying_question', 'call_times', 'follow_ups'}
-            if (not isinstance(item, dict) or set(item) != {'points', 'last_writer', 'read'}
+            point_keys = {'answered_question', 'qualifying_question', 'call_times'}
+            if (not isinstance(item, dict) or not {'points', 'last_writer', 'read'} <= set(item)
+                    or set(item) - {'points', 'last_writer', 'read', 'free_read', 'next_message'}
                     or not isinstance(item['read'], bool) or item['last_writer'] not in ('me', 'client', 'unknown')
                     or not isinstance(item['points'], dict) or set(item['points']) != point_keys):
-                abort('conversation_review needs five points, last_writer and a boolean read flag.')
+                abort('conversation_review needs three content points, last_writer and a boolean read flag.')
+            for field, limit in (('free_read', 150), ('next_message', 100)):
+                if field in item and (not isinstance(item[field], str) or len(item[field].split()) > limit):
+                    abort(f'conversation_review.{field} needs text of at most {limit} words.')
+            if not item['read'] and any(item.get(field, '').strip() for field in ('free_read', 'next_message')):
+                abort('An unread conversation cannot have coaching text.')
             for point in item['points'].values():
                 if (not isinstance(point, dict) or set(point) != {'state', 'quote', 'reason'}
                         or point['state'] not in ('met', 'partly', 'missing', 'not_needed')
@@ -897,6 +907,8 @@ def cmd_record(args):
             abort('A conversation cannot be marked read from a partial message window.')
         texts = [str(turn.get('text') or '') for room in complete for turn in room.get('messages', [])
                  if isinstance(turn, dict) and turn.get('from') in ('me', 'client') and turn.get('kind', 'message') == 'message']
+        if not any(text.strip() for text in texts) or any(ref.get('messages_complete') is not True for ref in (value.get('thread_refs', job.get('thread_refs')) or {}).values()):
+            abort('A conversation needs complete nonempty saved message evidence.')
         for point in value['conversation_review']['points'].values():
             if point['quote'].strip() and not any(point['quote'] in text for text in texts):
                 abort('Every conversation quotation must occur in complete saved Upwork messages.')
@@ -931,6 +943,8 @@ def cmd_record(args):
             job.pop(key, None)
         elif (key not in ('submission_checked_at', 'result_recorded_at', 'proposal_insights') or not job.get(key)) and job.get(key) != item:
             job[key] = item
+            if key in ('call_review', 'conversation_review'):
+                job[key + 'ed_at'] = now_iso()
             if key == 'call_no_show' and job.get('call_session_id'):
                 session = job.setdefault('call_sessions', {}).setdefault(job['call_session_id'], {})
                 session['no_show'] = item

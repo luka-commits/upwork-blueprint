@@ -160,7 +160,7 @@ export function CockpitProvider({ token, children }: { token: string; children: 
             <span className={`stamp sync-stamp${sync.stale ? ' stale' : ''}`}>{sync.text}</span>
           </div>
         </div>
-        <DailyVoyage state={state} />
+        {pathname !== '/analytics' && <DailyVoyage state={state} />}
       </header>
       <main className="wrap list-wrap" ref={pageRef}>
         {connectionLost ? <div className="empty-state" role="alert"><strong>Connection lost</strong><p>{CONNECTION_LOST}</p><button onClick={() => void load()}>Try again</button></div>
